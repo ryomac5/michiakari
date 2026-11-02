@@ -4,6 +4,7 @@ import type {
   Estimate,
   Judgment,
   JudgmentEvent,
+  JudgmentEventOf,
   Observation,
   ProgressStage,
   RouteOption,
@@ -15,6 +16,8 @@ export const reasoningSteps = ["reading", "signals", "phase", "options", "breakE
 export type ReasoningStepId = (typeof reasoningSteps)[number];
 export type StepStatus = "pending" | "active" | "done" | "failed";
 export type JudgmentStatus = "idle" | "streaming" | "ready" | "error";
+// 判断に使った気象（weather_checked）。at は気象を確かめた時刻
+export type WeatherCheck = Omit<JudgmentEventOf<"weather_checked">, "type" | "seq">;
 
 export type JudgmentState = {
   status: JudgmentStatus;
@@ -26,6 +29,8 @@ export type JudgmentState = {
   options: RouteOption[] | null;
   breakEvenComputed: boolean;
   breakEven: BreakEven | null;
+  // この回の判断で気象を使ったときだけ入る
+  weather: WeatherCheck | null;
   judgment: Judgment | null;
   error: { message: string; retryable: boolean } | null;
   // 各段の最新の進捗メモ（progress イベント）
@@ -33,6 +38,8 @@ export type JudgmentState = {
   lastSeq: number;
   // 更新中・失敗時に表示し続ける前回の判断
   previousJudgment: Judgment | null;
+  // 前回の判断に使った気象
+  previousWeather: WeatherCheck | null;
   // 判断の基準時刻（judgment_ready の at）。残り時間はこの時刻から数える
   judgedAt: string | null;
   previousJudgedAt: string | null;
@@ -52,11 +59,13 @@ export function createJudgmentState(): JudgmentState {
     options: null,
     breakEvenComputed: false,
     breakEven: null,
+    weather: null,
     judgment: null,
     error: null,
     progress: {},
     lastSeq: -1,
     previousJudgment: null,
+    previousWeather: null,
     judgedAt: null,
     previousJudgedAt: null,
   };
@@ -93,6 +102,7 @@ export function startJudgmentRun(prev: JudgmentState): JudgmentState {
     status: "streaming",
     steps: { ...buildSteps("pending"), reading: "active" },
     previousJudgment: prev.judgment ?? prev.previousJudgment,
+    previousWeather: prev.judgment ? prev.weather : prev.previousWeather,
     previousJudgedAt: prev.judgment ? prev.judgedAt : prev.previousJudgedAt,
   };
 }
@@ -161,6 +171,10 @@ export function reduceJudgmentState(state: JudgmentState, event: JudgmentEvent):
         breakEven: event.breakEven,
         steps: advanceSteps(state.steps, 4, null),
       };
+    case "weather_checked": {
+      const { type: _type, seq: _seq, ...weather } = event;
+      return { ...base, weather };
+    }
     case "judgment_ready":
       return {
         ...base,
@@ -205,6 +219,9 @@ export type JudgmentDisplay = {
   breakEvenStale: boolean;
   recommendedOptionId: string | null;
   evidence: Judgment["evidence"];
+  // 気象を使った判断のときだけ入る。更新中・失敗時は前回の判断の気象で補う
+  weather: WeatherCheck | null;
+  weatherStale: boolean;
   // 確定した判断とその基準時刻。更新中・失敗時は前回の判断
   settled: { judgment: Judgment; at: string } | null;
 };
@@ -216,6 +233,7 @@ export function selectJudgmentDisplay(state: JudgmentState): JudgmentDisplay {
   const current = state.judgment;
 
   const optionsStale = state.options === null && fallback !== null;
+  const fallbackWeather = fallback ? state.previousWeather : null;
   const breakEvenStale = !state.breakEvenComputed && fallback !== null;
 
   return {
@@ -229,6 +247,8 @@ export function selectJudgmentDisplay(state: JudgmentState): JudgmentDisplay {
     recommendedOptionId:
       current?.recommendedOptionId ?? (current ? null : (fallback?.recommendedOptionId ?? null)),
     evidence: current?.evidence ?? fallback?.evidence ?? [],
+    weather: state.weather ?? fallbackWeather,
+    weatherStale: state.weather === null && fallbackWeather !== null,
     settled: selectSettledJudgment(state),
   };
 }

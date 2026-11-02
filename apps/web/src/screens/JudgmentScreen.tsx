@@ -14,6 +14,7 @@ import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
 import { TripSummary } from "@/features/judgment/components/TripSummary";
+import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { testIds } from "@/features/judgment/testids";
@@ -82,6 +83,9 @@ export function JudgmentScreen() {
           timeline={selectTimelineBasis(display.settled, catalog, null)}
         />
       </div>
+
+      {/* 気象を使った判断のときだけ。最初の画面の結論と分岐点を押し下げないよう、その下に置く */}
+      {display.weather && <WeatherPanel weather={display.weather} stale={display.weatherStale} />}
 
       <MapPanel
         origin={origin}

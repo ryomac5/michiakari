@@ -154,6 +154,26 @@
         }
       }
     },
+    "weather": {
+      "title": "雨量の推移 10分ごと",
+      "stale": "更新中",
+      "trend": {
+        "rising": "強まっている",
+        "falling": "弱まっている",
+        "steady": "横ばい",
+        "unknown": "向きは不明"
+      },
+      "issued": "{name} 発表中",
+      "noWarnings": "警報・注意報の発表なし",
+      "warningsUnknown": "警報・注意報の情報なし",
+      "mm": "{mm}mm",
+      "missing": "欠測",
+      "missingCount": "欠測 {count}件",
+      "scaleMax": "上端 {mm}mm",
+      "chartLabel": "10分雨量の推移。{values}",
+      "source": "気象データ: 気象庁",
+      "fictional": "架空のシナリオの値"
+    },
     "options": {
       "title": "選択肢",
       "arrival": "到着",
