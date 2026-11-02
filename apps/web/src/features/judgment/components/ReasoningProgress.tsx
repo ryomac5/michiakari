@@ -34,7 +34,7 @@ export function ReasoningProgress({
       data-testid={testIds.judgment.reasoning}
       aria-live="polite"
       aria-busy={state.status === "streaming"}
-      className="flex min-h-[33dvh] flex-col gap-4 rounded-3xl border-2 border-border bg-surface p-5"
+      className="flex min-h-64 flex-col gap-3 rounded-3xl border-2 border-border bg-surface p-4 sm:p-5"
     >
       <h2 className="flex items-center gap-2 text-lg font-extrabold">
         {state.status === "streaming" && (

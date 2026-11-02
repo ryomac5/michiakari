@@ -3,9 +3,11 @@
 import type { BreakEven } from "@repo/schema";
 import { AlarmClock, GitFork, LoaderCircle, TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { splitAroundClock } from "../break-even-text";
 import { testIds } from "../testids";
-import { computeCountdown, formatClockTime } from "../time";
+import { type Countdown, computeCountdown, formatClockTime } from "../time";
 import { useNow } from "../use-now";
 
 // 分岐点がこの秒数を切ったら「まもなく」と知らせる
@@ -24,7 +26,6 @@ export function BreakEvenPanel({
   now?: Date | null;
 }) {
   const t = useTranslations("judgment.breakEven");
-  const locale = useLocale();
   const deviceNow = useNow();
   const now = nowOverride === undefined ? deviceNow : nowOverride;
   const countdown = breakEven && now ? computeCountdown(breakEven.time, now) : null;
@@ -39,6 +40,7 @@ export function BreakEvenPanel({
         : soon
           ? "soon"
           : "open";
+  const urgent = state === "soon" || state === "passed";
 
   return (
     <section
@@ -47,21 +49,39 @@ export function BreakEvenPanel({
       data-stale={stale}
       aria-labelledby="break-even-title"
       className={cn(
-        "flex flex-col gap-3 rounded-3xl border-2 border-border bg-surface p-5",
-        (state === "soon" || state === "passed") && "border-switch-border",
+        "flex flex-col gap-2 rounded-3xl border-2 border-border bg-surface p-4 sm:p-5",
+        urgent && "border-switch-border",
         stale && "opacity-70",
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <h2 id="break-even-title" className="flex items-center gap-2 text-lg font-extrabold">
-          <GitFork className="size-5" aria-hidden />
+      {/* 見出しと残り時間を 1 行に並べ、狭ければ折り返す */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h2
+          id="break-even-title"
+          className="flex items-center gap-1.5 text-sm font-extrabold text-muted"
+        >
+          <GitFork className="size-4" aria-hidden />
           {t("title")}
+          {stale && (
+            <span className="flex items-center gap-1 text-sm font-bold">
+              <LoaderCircle className="size-4 animate-spin" aria-hidden />
+              {t("stale")}
+            </span>
+          )}
         </h2>
-        {stale && (
-          <span className="flex items-center gap-1 text-sm font-bold text-muted">
-            <LoaderCircle className="size-4 animate-spin" aria-hidden />
-            {t("stale")}
-          </span>
+        {breakEven && (
+          <p
+            data-testid={testIds.judgment.breakEvenCountdown}
+            data-kind={countdown?.kind ?? ""}
+            className={cn(
+              "flex items-center gap-2 text-[2rem] leading-tight font-extrabold tabular-nums",
+              urgent && "text-switch",
+            )}
+          >
+            {state === "soon" && <AlarmClock className="size-8 shrink-0" aria-hidden />}
+            {state === "passed" && <TriangleAlert className="size-8 shrink-0" aria-hidden />}
+            {countdown ? formatCountdown(countdown, t) : "…"}
+          </p>
         )}
       </div>
 
@@ -76,46 +96,71 @@ export function BreakEvenPanel({
 
       {breakEven && (
         <>
-          {/* 残り時間を最も大きく、分岐点の時刻は右に小さく添える */}
-          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-            <div className="flex flex-col gap-1">
-              <span className="text-sm font-bold text-muted">{t("remaining")}</span>
-              <p
-                data-testid={testIds.judgment.breakEvenCountdown}
-                aria-live="off"
-                className={cn(
-                  "text-6xl leading-none font-extrabold tabular-nums",
-                  (state === "soon" || state === "passed") && "text-switch",
-                )}
-              >
-                {countdown ? countdown.label : "--:--"}
-              </p>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-sm font-bold text-muted">{t("time")}</span>
-              <p
-                data-testid={testIds.judgment.breakEvenTime}
-                className="text-2xl leading-none font-extrabold tabular-nums"
-              >
-                <time dateTime={breakEven.time}>{formatClockTime(breakEven.time, locale)}</time>
-              </p>
-            </div>
-          </div>
-          <p className="text-lg leading-snug font-bold">{breakEven.explanation}</p>
+          <BreakEvenSentence breakEven={breakEven} />
           {state === "soon" && (
-            <p role="status" className="flex items-center gap-2 font-extrabold text-switch">
-              <AlarmClock className="size-5" aria-hidden />
+            <p role="status" className="font-extrabold text-switch">
               {t("soon")}
             </p>
           )}
+          {/* 過ぎた瞬間を読み上げる。見た目は上の大きな表示が担う */}
           {state === "passed" && (
-            <p role="status" className="flex items-center gap-2 font-extrabold text-switch">
-              <TriangleAlert className="size-5" aria-hidden />
+            <p role="status" className="sr-only">
               {t("passed")}
             </p>
           )}
         </>
       )}
     </section>
+  );
+}
+
+function formatCountdown(
+  countdown: Countdown,
+  t: ReturnType<typeof useTranslations<"judgment.breakEven">>,
+): string {
+  switch (countdown.kind) {
+    case "passed":
+      return t("passed");
+    case "imminent":
+      return t("imminent");
+    case "hours":
+      return t("countdownHours", { hours: countdown.hours, minutes: countdown.minutes });
+    case "minutes":
+      return t("countdownMinutes", { minutes: countdown.minutes });
+  }
+}
+
+// 「21:40 までに再開しなければ…」。説明文の中の時刻を強調し、見つからなければ定型文で補う
+function BreakEvenSentence({ breakEven }: { breakEven: BreakEven }) {
+  const t = useTranslations("judgment.breakEven");
+  const locale = useLocale();
+  const split = splitAroundClock(breakEven.explanation, breakEven.time, locale);
+  const clock = (text: ReactNode) => (
+    <time
+      data-testid={testIds.judgment.breakEvenTime}
+      dateTime={breakEven.time}
+      className="rounded-md bg-surface-raised px-1 font-extrabold tabular-nums"
+    >
+      {text}
+    </time>
+  );
+
+  if (split) {
+    return (
+      <p className="text-[0.9375rem] leading-snug font-bold sm:text-lg">
+        {split.before}
+        {clock(split.clock)}
+        {split.after}
+      </p>
+    );
+  }
+  const formatted = formatClockTime(breakEven.time, locale);
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-[0.9375rem] leading-snug font-bold sm:text-lg">
+        {t.rich("condition", { time: formatted, clock: (chunks) => clock(chunks) })}
+      </p>
+      <p className="text-muted">{breakEven.explanation}</p>
+    </div>
   );
 }

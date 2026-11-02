@@ -13,6 +13,7 @@ import {
   useState,
 } from "react";
 import { type KnowledgeCatalog, mergeCatalogs } from "@/features/knowledge/catalog";
+import type { NearestStationLabel, StationNames } from "@/features/stations/describe";
 import { personAccidentCatalog } from "./fixtures/person-accident";
 import { isMockRequested, streamMockJudgment } from "./mock";
 import { buildJudgeRequest } from "./request";
@@ -32,6 +33,12 @@ type JudgmentSession = {
   destination: Place | null;
   setOrigin: (place: Place | null) => void;
   setDestination: (place: Place | null) => void;
+  // 選んだ駅の英語表示名。駅名（日本語）で引く
+  stationNames: StationNames;
+  rememberStationName: (name: string, nameEn: string | null) => void;
+  // 現在地を出発地にしたときの最寄り駅
+  originNearest: NearestStationLabel | null;
+  setOriginNearest: (nearest: NearestStationLabel | null) => void;
   observations: Observation[];
   state: JudgmentState;
   catalog: KnowledgeCatalog;
@@ -52,6 +59,8 @@ export function JudgmentSessionProvider({
   const locale = useLocale();
   const [origin, setOrigin] = useState<Place | null>(null);
   const [destination, setDestination] = useState<Place | null>(null);
+  const [stationNames, setStationNames] = useState<StationNames>({});
+  const [originNearest, setOriginNearest] = useState<NearestStationLabel | null>(null);
   const [observations, setObservations] = useState<Observation[]>([]);
   const [state, setState] = useState<JudgmentState>(createJudgmentState);
   const [mockEnabled, setMockEnabled] = useState(false);
@@ -108,6 +117,10 @@ export function JudgmentSessionProvider({
     void runJudgment(lastInputRef.current, observations);
   }, [runJudgment, observations]);
 
+  const rememberStationName = useCallback((name: string, nameEn: string | null) => {
+    setStationNames((prev) => (prev[name] === nameEn ? prev : { ...prev, [name]: nameEn }));
+  }, []);
+
   const effectiveCatalog = useMemo(
     // モックのイベントはモック用の段階 id を使うので、モックの抜粋を優先する
     () => (mockEnabled ? mergeCatalogs(personAccidentCatalog, catalog) : catalog),
@@ -120,6 +133,10 @@ export function JudgmentSessionProvider({
       destination,
       setOrigin,
       setDestination,
+      stationNames,
+      rememberStationName,
+      originNearest,
+      setOriginNearest,
       observations,
       state,
       catalog: effectiveCatalog,
@@ -127,7 +144,19 @@ export function JudgmentSessionProvider({
       submitInput,
       retry,
     }),
-    [origin, destination, observations, state, effectiveCatalog, mockEnabled, submitInput, retry],
+    [
+      origin,
+      destination,
+      stationNames,
+      rememberStationName,
+      originNearest,
+      observations,
+      state,
+      effectiveCatalog,
+      mockEnabled,
+      submitInput,
+      retry,
+    ],
   );
 
   return <JudgmentSessionContext value={value}>{children}</JudgmentSessionContext>;

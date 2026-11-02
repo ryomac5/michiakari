@@ -66,7 +66,7 @@ export function ReplayHistory({
                   </span>
                 )}
               </div>
-              <p className="line-clamp-2 text-sm">{pickScenarioText(entry.text, locale)}</p>
+              <p className="text-sm leading-relaxed">{pickScenarioText(entry.text, locale)}</p>
             </li>
           );
         })}

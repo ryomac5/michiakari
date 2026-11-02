@@ -7,14 +7,17 @@ import { testIds } from "@/features/judgment/testids";
 import { ReplayPlayer } from "@/features/replay/components/ReplayPlayer";
 import { ScenarioList } from "@/features/replay/components/ScenarioList";
 import type { ReplayScenario } from "@/features/replay/scenario";
+import type { StationNames } from "@/features/stations/describe";
 
 // リプレイの入口。シナリオを選ぶと再生画面に切り替わる
 export function ReplayScreen({
   scenarios,
+  stationNames,
   initialScenarioId,
   initialSpeed,
 }: {
   scenarios: ReplayScenario[];
+  stationNames: StationNames;
   initialScenarioId: string | null;
   initialSpeed: number;
 }) {
@@ -29,6 +32,7 @@ export function ReplayScreen({
         key={selected.id}
         scenario={selected}
         catalog={catalog}
+        stationNames={stationNames}
         initialSpeed={initialSpeed}
         onBack={() => setSelectedId(null)}
       />
@@ -37,13 +41,14 @@ export function ReplayScreen({
 
   return (
     <main
+      id="main"
       data-testid={testIds.replay.screen}
       data-state="select"
-      className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8"
+      className="mx-auto flex max-w-2xl flex-col gap-6 px-4 pt-6 pb-10"
     >
       <div className="flex flex-col gap-3">
         <h1 className="text-3xl leading-tight font-extrabold">{t("heading")}</h1>
-        <p className="text-lg leading-relaxed text-muted">{t("lead")}</p>
+        <p className="leading-relaxed text-muted">{t("lead")}</p>
       </div>
       <ScenarioList scenarios={scenarios} catalog={catalog} onSelect={setSelectedId} />
       <p className="border-t border-border pt-4 text-sm text-muted">{t("fictional")}</p>

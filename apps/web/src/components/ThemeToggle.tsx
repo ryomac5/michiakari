@@ -32,7 +32,7 @@ export function ThemeToggle({ initialTheme }: { initialTheme: Theme }) {
         applyTheme(next);
         setTheme(next);
       }}
-      className="inline-flex size-11 items-center justify-center rounded-xl hover:bg-surface-raised"
+      className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-surface-raised"
     >
       {theme === "dark" ? (
         <Sun className="size-5" aria-hidden />

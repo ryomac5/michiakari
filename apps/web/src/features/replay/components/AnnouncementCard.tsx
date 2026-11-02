@@ -39,14 +39,16 @@ export function AnnouncementCard({
       data-observation-id={entry.id}
       data-kind={entry.kind}
       aria-live="polite"
-      className="flex animate-rise-in flex-col gap-1.5 rounded-2xl border-2 border-border bg-surface-raised p-4"
+      className="flex animate-rise-in flex-col gap-0.5 rounded-2xl border-2 border-border bg-surface-raised px-4 py-2"
     >
       <p className="flex items-center gap-2 text-sm font-bold text-muted">
         <Icon className="size-4" aria-hidden />
         <span>{t(entry.kind)}</span>
         <span className="ml-auto tabular-nums">{timeLabel}</span>
       </p>
-      <p className="leading-relaxed font-bold">{pickScenarioText(entry.text, locale)}</p>
+      <p className="line-clamp-2 text-[0.9375rem] leading-snug font-bold">
+        {pickScenarioText(entry.text, locale)}
+      </p>
     </section>
   );
 }

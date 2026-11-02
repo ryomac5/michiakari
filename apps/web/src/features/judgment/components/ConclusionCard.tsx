@@ -2,67 +2,96 @@
 
 import type { Judgment } from "@repo/schema";
 import { useLocale, useTranslations } from "next-intl";
+import { type ReactNode, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { actionStyles } from "../action-style";
+import { headlineSizesRem, splitHeadline } from "../headline";
 import { testIds } from "../testids";
 import { formatClockTime } from "../time";
+import { useFitHeadline } from "../use-fit-headline";
 
 // 結論を一つだけ大きく出す。最初の 1 秒で行動が分かること
-export function ConclusionCard({ judgment }: { judgment: Judgment }) {
+export function ConclusionCard({
+  judgment,
+  badge,
+}: {
+  judgment: Judgment;
+  // 行動の横に添える印（リプレイの「判断が変わりました」）
+  badge?: ReactNode;
+}) {
   const t = useTranslations("judgment");
   const locale = useLocale();
   const style = actionStyles[judgment.action];
   const Icon = style.icon;
   const recommended = judgment.options.find((o) => o.id === judgment.recommendedOptionId);
   const remaining = judgment.estimate.remaining;
+  const { lead, rest } = splitHeadline(judgment.headline);
+  const reason = judgment.reason ?? rest;
+  const headlineRef = useRef<HTMLHeadingElement>(null);
+  const sizeIndex = useFitHeadline(headlineRef, lead);
 
   return (
     <section
       data-testid={testIds.judgment.conclusion}
       data-action={judgment.action}
-      aria-label={t("conclusion.label")}
+      aria-labelledby="conclusion-headline"
       className={cn(
-        "flex min-h-[33dvh] animate-step-in flex-col justify-between gap-5 rounded-3xl border-l-8 border-2 p-5",
+        "relative flex animate-step-in flex-col gap-2.5 rounded-3xl border-2 border-l-8 px-4 py-3.5 sm:p-5",
         style.surface,
         style.border,
       )}
     >
-      <div className="flex items-center gap-3">
+      {/* 枠の上辺に重ねて置き、高さを使わない */}
+      {badge && <div className="absolute -top-4 right-3 max-w-[80%]">{badge}</div>}
+      <p className={cn("flex items-center gap-2 text-lg font-extrabold", style.text)}>
         <span
           className={cn(
-            "flex size-14 shrink-0 items-center justify-center rounded-2xl border-2 bg-background",
+            "flex size-9 shrink-0 items-center justify-center rounded-xl border-2 bg-background",
             style.border,
-            style.text,
           )}
         >
-          <Icon className="size-8" strokeWidth={2.5} aria-hidden />
+          <Icon className="size-5" strokeWidth={2.75} aria-hidden />
         </span>
-        <p className={cn("text-2xl font-extrabold tracking-wide", style.text)}>
-          {t(`action.${judgment.action}`)}
-        </p>
-      </div>
+        <span className="sr-only">{t("conclusion.label")}: </span>
+        {t(`action.${judgment.action}`)}
+      </p>
 
-      <h1
+      <h2
+        id="conclusion-headline"
+        ref={headlineRef}
         data-testid={testIds.judgment.conclusionHeadline}
-        className="text-[2rem] leading-tight font-extrabold sm:text-4xl"
+        data-size={sizeIndex}
+        style={{ fontSize: `${headlineSizesRem[sizeIndex]}rem` }}
+        className="leading-[1.2] font-extrabold tracking-tight break-words"
       >
-        {judgment.headline}
-      </h1>
+        {lead}
+      </h2>
 
-      <div className="flex flex-col gap-1 text-base">
+      {reason && <p className="leading-snug font-bold text-pretty">{reason}</p>}
+
+      {/* 補足は短い札にして並べる。見出しに出ている選択肢の名前は繰り返さない */}
+      <ul className="flex flex-wrap gap-1 text-[0.8125rem]">
         {recommended && judgment.action !== "wait" && (
-          <p className="font-bold">
-            {t("conclusion.recommended", {
-              label: recommended.label,
-              time: formatClockTime(recommended.arrivalTime, locale),
-            })}
-          </p>
+          <li className="rounded-md bg-background/60 px-1.5 py-0.5 font-bold">
+            {lead.includes(recommended.label)
+              ? t("conclusion.arrival", {
+                  time: formatClockTime(recommended.arrivalTime, locale),
+                })
+              : t("conclusion.recommended", {
+                  label: recommended.label,
+                  time: formatClockTime(recommended.arrivalTime, locale),
+                })}
+          </li>
         )}
-        <p className="text-muted">
-          {remaining && <span>{t("conclusion.remaining", remaining)} · </span>}
+        {remaining && (
+          <li className="rounded-md bg-background/60 px-1.5 py-0.5">
+            {t("conclusion.remaining", remaining)}
+          </li>
+        )}
+        <li className="rounded-md bg-background/60 px-1.5 py-0.5">
           {t("conclusion.confidence", { level: t(`confidence.${judgment.estimate.confidence}`) })}
-        </p>
-      </div>
+        </li>
+      </ul>
     </section>
   );
 }

@@ -13,11 +13,21 @@ describe("メッセージファイル", () => {
     expect(listKeys(en).sort()).toEqual(listKeys(ja).sort());
   });
 
+  it("アプリ名と副題は決めた表記どおり", () => {
+    expect([ja.app.name, ja.app.tagline]).toEqual(["マツカエル", "待つか、乗り換えるか。"]);
+    expect([en.app.name, en.app.tagline]).toEqual(["MatsuKaeru", "Wait, or switch?"]);
+  });
+
+  it("結論の近くに出す注意書きは vision.md 8 章の文言を含む", () => {
+    expect(ja.disclaimer.short).toContain("推定であり、公式発表を優先してください");
+  });
+
   it("出典表示は data-sources.md 4 章の文言どおり", () => {
     expect(ja.about.attribution).toEqual({
       title: "出典",
       map: "地図: 国土地理院 / © OpenStreetMap contributors",
-      rail: "鉄道データ: 国土数値情報（鉄道データ）（国土交通省）を加工して作成",
+      rail: "鉄道データ: 「国土数値情報（鉄道データ）」（国土交通省）を加工して作成",
+      ridership: "駅の乗降客数: 「国土数値情報（駅別乗降客数データ）」（国土交通省）を加工して作成",
       weather: "気象データ: 気象庁",
     });
   });

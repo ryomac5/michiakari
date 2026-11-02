@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect } from "react";
 import { BreakEvenPanel } from "@/features/judgment/components/BreakEvenPanel";
+import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
 import { ConclusionCard } from "@/features/judgment/components/ConclusionCard";
 import { Disclaimer } from "@/features/judgment/components/Disclaimer";
 import { EvidenceSection } from "@/features/judgment/components/EvidenceSection";
@@ -41,37 +42,44 @@ export function JudgmentScreen() {
 
   return (
     <main
+      id="main"
       data-testid={testIds.judgment.screen}
       data-status={state.status}
-      className="mx-auto flex max-w-2xl flex-col gap-5 px-4 py-5"
+      className="mx-auto flex max-w-2xl flex-col gap-5 px-4 pt-2 pb-10"
     >
       <h1 className="sr-only">{t("heading")}</h1>
-      <TripSummary
-        origin={origin}
-        destination={destination}
-        testId={testIds.judgment.tripSummary}
-      />
+      {/* 390x844 の最初の画面に結論と分岐点が収まるよう、ここまでは詰めて並べる */}
+      <div className="flex flex-col gap-3">
+        <TripSummary
+          origin={origin}
+          destination={destination}
+          testId={testIds.judgment.tripSummary}
+        />
 
-      <div className="flex flex-col gap-2">
-        {streaming && <ReasoningProgress state={state} catalog={catalog} />}
-        {state.status === "error" && state.error && (
-          <JudgmentError
-            message={state.error.message}
-            retryable={state.error.retryable}
-            onRetry={retry}
-          />
-        )}
-        {state.status === "ready" && display.judgment && (
-          <ConclusionCard judgment={display.judgment} />
-        )}
-        <Disclaimer extra={disclaimerExtra} />
+        <ConclusionAnnouncer
+          judgment={state.status === "ready" ? (display.judgment ?? null) : null}
+        />
+        <div className="flex flex-col gap-2">
+          {streaming && <ReasoningProgress state={state} catalog={catalog} />}
+          {state.status === "error" && state.error && (
+            <JudgmentError
+              message={state.error.message}
+              retryable={state.error.retryable}
+              onRetry={retry}
+            />
+          )}
+          {state.status === "ready" && display.judgment && (
+            <ConclusionCard judgment={display.judgment} />
+          )}
+          <Disclaimer />
+        </div>
+
+        <BreakEvenPanel
+          breakEven={display.breakEven}
+          known={display.breakEvenKnown}
+          stale={display.breakEvenStale}
+        />
       </div>
-
-      <BreakEvenPanel
-        breakEven={display.breakEven}
-        known={display.breakEvenKnown}
-        stale={display.breakEvenStale}
-      />
 
       <MapPanel
         origin={origin}
@@ -93,12 +101,13 @@ export function JudgmentScreen() {
         signals={state.signals}
         evidence={display.evidence}
         catalog={catalog}
+        disclaimer={disclaimerExtra}
       />
 
       <section
         data-testid={testIds.judgment.addInfo}
         aria-labelledby="add-info-title"
-        className="flex flex-col gap-3 rounded-3xl border-2 border-border bg-surface p-5"
+        className="flex flex-col gap-3 rounded-3xl border-2 border-border bg-surface p-4 sm:p-5"
       >
         <h2 id="add-info-title" className="flex items-center gap-2 text-lg font-extrabold">
           <MessageSquarePlus className="size-5" aria-hidden />
@@ -110,7 +119,8 @@ export function JudgmentScreen() {
           busy={streaming}
           onSubmit={(input) => {
             submitInput(input);
-            window.scrollTo({ top: 0, behavior: "smooth" });
+            const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
           }}
         />
       </section>
