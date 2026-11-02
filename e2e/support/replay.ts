@@ -3,8 +3,10 @@
 import { join } from "node:path";
 import { expect, type Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import type { Knowledge } from "../../packages/schema/src/knowledge.ts";
 import {
   findRepoRoot,
+  loadKnowledgeDir,
   loadScenarioDir,
   resolveContentDir,
 } from "../../packages/schema/src/loaders.ts";
@@ -21,6 +23,30 @@ export function loadReplayScenarios(): Scenario[] {
     throw new Error(`シナリオを読めません: ${result.errors.map((e) => e.message).join(" / ")}`);
   }
   return result.entries.map((entry) => entry.data);
+}
+
+// 同じ CONTENT_DIR の知見を読む。読めないファイルがあれば止める
+export function loadReplayKnowledge(): Knowledge[] {
+  const root = resolveContentDir({ CONTENT_DIR: contentDir }, findRepoRoot());
+  const result = loadKnowledgeDir(join(root, "knowledge"));
+  if (result.errors.length > 0) {
+    throw new Error(`知見を読めません: ${result.errors.map((e) => e.message).join(" / ")}`);
+  }
+  return result.entries.map((entry) => entry.data);
+}
+
+// 知見の external_factors.weather で、気象を判断に使う事象のシナリオとそれ以外に分ける
+export function splitScenariosByWeather(
+  scenarios: readonly Scenario[],
+  knowledge: readonly Knowledge[],
+): { weather: Scenario[]; other: Scenario[] } {
+  const weatherEvents = new Set(
+    knowledge.filter((k) => k.external_factors.weather).map((k) => k.id),
+  );
+  return {
+    weather: scenarios.filter((s) => weatherEvents.has(s.event_type)),
+    other: scenarios.filter((s) => !weatherEvents.has(s.event_type)),
+  };
 }
 
 export async function openReplay(page: Page, scenarioId: string, speed?: number): Promise<void> {
@@ -63,13 +89,14 @@ export async function openSheet(page: Page, snap: SheetSnap): Promise<void> {
 }
 
 // 表示の切り替えアニメーションが終わるのを待つ。回り続けるものは対象外
+// 待つ間に要素が消えて取り消されたアニメーションは、終わったものとして扱う
 export async function waitForFiniteAnimations(page: Page): Promise<void> {
   await page.evaluate(() =>
     Promise.all(
       document
         .getAnimations()
         .filter((a) => a.effect?.getTiming().iterations !== Number.POSITIVE_INFINITY)
-        .map((a) => a.finished),
+        .map((a) => a.finished.catch(() => undefined)),
     ),
   );
 }

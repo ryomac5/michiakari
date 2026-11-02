@@ -3,6 +3,7 @@
 import type { RouteOption } from "@repo/schema";
 import { LoaderCircle, Star } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import { useLineTranslator } from "@/features/map/use-line-label";
 import { cn } from "@/lib/utils";
 import { actionStyles, optionIcons, selectOptionTone } from "../action-style";
 import { testIds } from "../testids";
@@ -63,9 +64,14 @@ function OptionRow({ option, recommended }: { option: RouteOption; recommended: 
   const locale = useLocale();
   const Icon = optionIcons[option.kind];
   const tone = actionStyles[selectOptionTone(option.kind)];
+  const translateLine = useLineTranslator();
+  // 英語の画面に日本語の路線名を混ぜない。英語名が無ければ「乗車」と書く
   const legs = option.legs
     .filter((leg) => leg.mode !== "wait")
-    .map((leg) => `${leg.line ?? t(`legs.${leg.mode}`)} ${t("minutes", { minutes: leg.minutes })}`);
+    .map((leg) => {
+      const line = leg.line ? translateLine(leg.line) : null;
+      return `${line ?? t(`legs.${leg.mode}`)} ${t("minutes", { minutes: leg.minutes })}`;
+    });
 
   return (
     <li
@@ -73,7 +79,7 @@ function OptionRow({ option, recommended }: { option: RouteOption; recommended: 
       data-kind={option.kind}
       data-recommended={recommended}
       className={cn(
-        "flex items-center gap-3 rounded-2xl px-3 py-2.5",
+        "flex items-start gap-3 rounded-2xl px-3 py-2.5",
         recommended ? [tone.surface, "ring-1 ring-inset", tone.ring] : "bg-foreground/[0.03]",
       )}
     >
@@ -87,8 +93,8 @@ function OptionRow({ option, recommended }: { option: RouteOption; recommended: 
         <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <p className="truncate text-[15px] font-semibold">{option.label}</p>
-        <p className="truncate text-[12px] text-muted">
+        <p className="line-clamp-2 text-[15px] leading-snug font-semibold">{option.label}</p>
+        <p className="line-clamp-2 text-[12px] leading-snug text-muted">
           {recommended && (
             <span className={cn("font-semibold", tone.text)}>
               <Star className="mr-0.5 inline size-3 -translate-y-px fill-current" aria-hidden />
@@ -99,7 +105,7 @@ function OptionRow({ option, recommended }: { option: RouteOption; recommended: 
           {legs.join(" → ")}
         </p>
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-1 text-right">
+      <div className="flex shrink-0 flex-col items-end gap-1 pt-0.5 text-right">
         <p className="text-[17px] leading-none font-bold tabular-nums">
           <span className="sr-only">{t("arrival")} </span>
           {formatClockTime(option.arrivalTime, locale)}

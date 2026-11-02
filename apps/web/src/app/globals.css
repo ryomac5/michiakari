@@ -21,9 +21,9 @@
   --wait: #1d4ed8;
   --wait-surface: #e8f0fe;
   --wait-border: #2563eb;
-  --switch: #b4430b;
-  --switch-surface: #fff1e6;
-  --switch-border: #f26b1d;
+  --switch: #8a5000;
+  --switch-surface: #fff5dc;
+  --switch-border: #e8a20c;
   --hold: #6d28d9;
   --hold-surface: #f3eefe;
   --hold-border: #7c3aed;
@@ -54,9 +54,9 @@
   --wait: #93c5fd;
   --wait-surface: #172238;
   --wait-border: #3b82f6;
-  --switch: #fdba74;
-  --switch-surface: #2d1c10;
-  --switch-border: #f97316;
+  --switch: #fcd34d;
+  --switch-surface: #2b2410;
+  --switch-border: #fbbf24;
   --hold: #c4b5fd;
   --hold-surface: #231b3a;
   --hold-border: #8b5cf6;
@@ -101,6 +101,17 @@
   --animate-rise-in: rise-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-drop-in: drop-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-fade-in: fade-in 240ms ease-out both;
+  /* 雨量の棒グラフ: 新しく足された棒のせり上がり */
+  --animate-bar-grow: bar-grow 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
 }
 
 /* 背景をぼかした半透明の面。上部の帯、メニュー、再生バー、カードに使う */

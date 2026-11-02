@@ -10,7 +10,7 @@ import type { TimelineBasis } from "../break-even-timeline";
 import { testIds } from "../testids";
 import { type Countdown, computeCountdown, formatClockTime } from "../time";
 import { useNow } from "../use-now";
-import { BreakEvenTimeline } from "./BreakEvenTimeline";
+import { BreakEvenTimeline, ResumeCaption } from "./BreakEvenTimeline";
 
 // 分岐点がこの秒数を切ったら「まもなく」と知らせる
 const soonThresholdSeconds = 5 * 60;
@@ -101,9 +101,7 @@ export function BreakEvenSummary(props: BreakEvenProps) {
           </p>
         )}
       </div>
-      {breakEven && timeline && now && (
-        <BreakEvenTimeline basis={timeline} now={now} variant="mini" />
-      )}
+      {breakEven && timeline && now && <ResumeCaption basis={timeline} now={now} />}
       {state === "soon" && (
         <p role="status" className="text-[13px] font-semibold text-switch">
           {t("soon")}
@@ -131,7 +129,7 @@ export function BreakEvenDetail(props: BreakEvenProps) {
   if (!breakEven) return null;
   return (
     <div className="flex flex-col gap-3">
-      {timeline && now && <BreakEvenTimeline basis={timeline} now={now} variant="full" />}
+      {timeline && now && <BreakEvenTimeline basis={timeline} now={now} />}
       <BreakEvenSentence breakEven={breakEven} />
     </div>
   );

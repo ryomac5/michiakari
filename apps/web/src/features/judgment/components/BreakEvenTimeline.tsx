@@ -74,16 +74,8 @@ function selectTickLabels(timeline: Timeline): Set<number> {
   );
 }
 
-// mini は閉じたシートに出す文字のない細い帯。full は目盛りと説明付き
-export function BreakEvenTimeline({
-  basis,
-  now,
-  variant = "full",
-}: {
-  basis: TimelineBasis;
-  now: Date;
-  variant?: "mini" | "full";
-}) {
+// 半分開いたシートに出す時間軸の全体。色の意味は閉じた状態の ResumeCaption が言葉で添える
+export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: Date }) {
   const t = useTranslations("judgment.breakEven.timeline");
   const locale = useLocale();
   const timeline = buildBreakEvenTimeline({ ...basis, now });
@@ -112,60 +104,12 @@ export function BreakEvenTimeline({
     </span>
   );
 
-  if (variant === "mini") {
-    return (
-      <figure data-testid={testIds.judgment.breakEvenTimeline} {...dataset} className="m-0">
-        <div className="relative h-3" aria-hidden>
-          <div className="absolute inset-x-0 top-1 h-1 overflow-hidden rounded-full bg-foreground/10">
-            <div
-              className={cn("absolute inset-y-0 right-0 bg-switch-border/25", motion)}
-              style={at(positions.breakEven)}
-            />
-          </div>
-          {timeline.bandBefore && (
-            <div
-              className={cn("absolute top-1 h-1 min-w-1 rounded-full bg-wait-border", motion)}
-              style={span(timeline.bandBefore.from, timeline.bandBefore.to)}
-            />
-          )}
-          {timeline.bandAfter && (
-            <div
-              className={cn("absolute top-1 h-1 min-w-1 rounded-full bg-switch-border", motion)}
-              style={span(timeline.bandAfter.from, timeline.bandAfter.to)}
-            />
-          )}
-          {/* 分岐点は縦の棒、いまは丸 */}
-          <span
-            className={cn(
-              "absolute top-0 h-3 w-[2px] -translate-x-1/2 rounded-full bg-foreground",
-              motion,
-            )}
-            style={at(positions.breakEven)}
-          />
-          <span
-            className={cn(
-              "absolute top-0.5 size-2 -translate-x-1/2 rounded-full border-2 border-surface bg-foreground ring-1 ring-foreground/40",
-              nowMotion,
-            )}
-            style={at(positions.now)}
-          />
-          {positions.deadline !== null && (
-            <span
-              className={cn(
-                "absolute top-0 h-3 -translate-x-1/2 border-l-2 border-dotted border-danger",
-                motion,
-              )}
-              style={at(positions.deadline)}
-            />
-          )}
-        </div>
-        <figcaption>{summary}</figcaption>
-      </figure>
-    );
-  }
-
   return (
-    <figure {...dataset} className="m-0 flex flex-col gap-1">
+    <figure
+      data-testid={testIds.judgment.breakEvenTimeline}
+      {...dataset}
+      className="m-0 flex flex-col gap-1"
+    >
       <div className="relative h-[50px]" aria-hidden>
         {/* 軸。分岐点より後ろは切り替えが得になる時間帯として薄く塗る */}
         <div className="absolute inset-x-0 top-[18px] h-[12px] overflow-hidden rounded-full bg-foreground/[0.07]">
@@ -273,18 +217,37 @@ export function BreakEvenTimeline({
           ))}
       </div>
 
-      <figcaption className="flex items-center gap-1.5 text-[12px] leading-4 text-muted">
-        <RelationSwatch relation={relation} />
-        <span aria-hidden className="min-w-0 tabular-nums">
-          {t.rich(`caption.${relation}`, {
-            ...range,
-            em: (chunks) => (
-              <strong className={cn("font-semibold", relationText[relation])}>{chunks}</strong>
-            ),
-          })}
-        </span>
-      </figcaption>
+      <figcaption>{summary}</figcaption>
     </figure>
+  );
+}
+
+// 閉じたシートの 1 行。「おおよその再開 23:43〜23:58 は分岐点より後」。色の見本を添える
+export function ResumeCaption({ basis, now }: { basis: TimelineBasis; now: Date }) {
+  const t = useTranslations("judgment.breakEven.timeline");
+  const locale = useLocale();
+  const timeline = buildBreakEvenTimeline({ ...basis, now });
+  const clock = (ms: number) => formatClockTime(new Date(ms).toISOString(), locale);
+  const range = { from: clock(timeline.resumeP50Ms), to: clock(timeline.resumeP80Ms) };
+
+  return (
+    <p
+      data-testid={testIds.judgment.breakEvenResume}
+      data-relation={timeline.relation}
+      className="flex items-center gap-1.5 text-[13px] leading-5 text-muted"
+    >
+      <RelationSwatch relation={timeline.relation} />
+      <span className="min-w-0 truncate tabular-nums">
+        {t.rich(`caption.${timeline.relation}`, {
+          ...range,
+          em: (chunks) => (
+            <strong className={cn("font-semibold", relationText[timeline.relation])}>
+              {chunks}
+            </strong>
+          ),
+        })}
+      </span>
+    </p>
   );
 }
 

@@ -16,7 +16,8 @@
     "knowledge": "Knowledge base",
     "menu": {
       "label": "Menu",
-      "darkMode": "Dark mode"
+      "darkMode": "Dark mode",
+      "mock": "Fictional demo data"
     }
   },
   "disclaimer": {
@@ -165,6 +166,26 @@
         }
       }
     },
+    "weather": {
+      "title": "Rainfall, every 10 min",
+      "stale": "Updating",
+      "trend": {
+        "rising": "Rising",
+        "falling": "Easing",
+        "steady": "Steady",
+        "unknown": "Trend unknown"
+      },
+      "issued": "{name} in effect",
+      "noWarnings": "No warnings or advisories",
+      "warningsUnknown": "No warning information",
+      "mm": "{mm} mm",
+      "missing": "missing",
+      "missingCount": "{count} missing",
+      "scaleMax": "Top {mm} mm",
+      "chartLabel": "10-minute rainfall. {values}",
+      "source": "Weather data: Japan Meteorological Agency",
+      "fictional": "Fictional scenario values"
+    },
     "options": {
       "title": "Options",
       "arrival": "Arrive",
@@ -207,7 +228,8 @@
       "lead": "Seen a new notice or announcement? Add it to update the advice."
     },
     "sheet": "Judgment details",
-    "status": "{line} suspended"
+    "status": "{line} suspended",
+    "statusOnly": "Suspended"
   },
   "replay": {
     "heading": "Replay",

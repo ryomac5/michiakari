@@ -55,7 +55,8 @@ export type MapScene = {
     { stationId: string; name: string; color: string }
   >;
   // label は乗る路線の名前。線の上に 1 か所だけ出すので、最も長い乗車区間にだけ付ける
-  route: FeatureCollection<LineStringGeometry, { mode: RouteMode; label: string }>;
+  // offset は止まっている区間と並走するときに横へずらす向き（1 は右、-1 は左、0 はずらさない）
+  route: FeatureCollection<LineStringGeometry, { mode: RouteMode; label: string; offset: number }>;
   // 路線名を置く点。線の中ほどに 1 つだけ置く（タイルごとに重ならないよう点にする）
   routeLabel: FeatureCollection<PointGeometry, { label: string }>;
   // 推奨以外の選択肢の経路。淡く細く描く
@@ -136,6 +137,22 @@ export function matchLineName(line: LineInfo, name: string): boolean {
   if (!query.endsWith(lineName) || query === lineName) return false;
   const prefix = query.slice(0, query.length - lineName.length);
   return normalizeSearchText(line.operator).includes(prefix);
+}
+
+// 路線名を英語にする。英字だけならそのまま、正式名に英語名があればそれを使う
+// 「JR神戸線」のような通称は英語名の対応が無いので null を返し、日本語を混ぜない
+export function translateLineName(index: GeoIndex, name: string | null | undefined): string | null {
+  if (!name) return null;
+  if (/^[\x20-\x7e]+$/.test(name)) return name;
+  const query = normalizeSearchText(name);
+  const exact = index
+    .listLines()
+    .find(
+      (line) =>
+        normalizeSearchText(line.lineName) === query ||
+        normalizeSearchText(`${line.operator}${line.lineName}`) === query,
+    );
+  return exact?.nameEn ?? null;
 }
 
 export function findLinesByName(index: GeoIndex, name: string | null | undefined): LineInfo[] {
@@ -480,8 +497,16 @@ function listBlockedLineHints(input: MapSceneInput): (string | null | undefined)
   return [input.blockedLine, ...fromWait];
 }
 
-function pickNodeName(node: StationNode, english: boolean): string {
-  return english && node.nameEn ? node.nameEn : node.name;
+// 駅の表示名。英語では同じ名前の駅のどれかが持つ英語名を使い、無ければ fallback にする
+// 英語の画面に日本語の駅名を混ぜないため
+function pickNodeName(
+  nodes: readonly StationNode[],
+  node: StationNode,
+  english: boolean,
+  fallback = "",
+): string {
+  if (!english) return node.name;
+  return node.nameEn ?? nodes.find((n) => n.name === node.name && n.nameEn)?.nameEn ?? fallback;
 }
 
 // 折れ線の長さ（度のまま）。ラベルを置く区間を選ぶのに使う
@@ -495,9 +520,13 @@ function measurePathLength(coordinates: readonly Position[]): number {
   return total;
 }
 
-// 推奨経路の折れ線。最も長い乗車区間にだけ路線名を付ける
-export function buildRouteFeatures(legs: readonly ResolvedLeg[]): MapScene["route"] {
-  const rides = legs.filter((leg) => leg.mode === "ride" && leg.line);
+// 推奨経路の折れ線。最も長い乗車区間にだけ路線名を付ける。名前は nameLine で表示用にする
+export function buildRouteFeatures(
+  legs: readonly ResolvedLeg[],
+  nameLine: (line: string) => string | null = (line) => line,
+  offsets: readonly number[] = [],
+): MapScene["route"] {
+  const rides = legs.filter((leg) => leg.mode === "ride" && leg.line && nameLine(leg.line));
   const longest = rides.reduce<ResolvedLeg | null>(
     (best, leg) =>
       best === null || measurePathLength(leg.coordinates) > measurePathLength(best.coordinates)
@@ -506,13 +535,55 @@ export function buildRouteFeatures(legs: readonly ResolvedLeg[]): MapScene["rout
     null,
   );
   return buildFeatureCollection(
-    legs.map((leg) =>
+    legs.map((leg, i) =>
       buildLineFeature(leg.coordinates, {
         mode: leg.mode,
-        label: leg === longest ? (leg.line ?? "") : "",
+        label: leg === longest && leg.line ? (nameLine(leg.line) ?? "") : "",
+        offset: offsets[i] ?? 0,
       }),
     ),
   );
+}
+
+// 止まっている区間からこの距離以内の点が多い区間は、並走しているとみなす
+export const PARALLEL_METERS = 2500;
+const parallelShare = 0.3;
+
+function measureNearestMeters(point: Position, path: readonly Position[]): number {
+  return path.reduce((best, p) => Math.min(best, computeDistanceMeters(point, p)), Infinity);
+}
+
+// 止まっている区間と並走する区間を、区間と反対の側へずらす向き。並走しなければ 0
+// 1 は進む向きの右、-1 は左（MapLibre の line-offset の向き）
+export function computeParallelOffset(
+  coordinates: readonly Position[],
+  blocked: readonly Position[],
+): number {
+  if (blocked.length < 2 || coordinates.length < 2) return 0;
+  const near = coordinates.filter((p) => measureNearestMeters(p, blocked) <= PARALLEL_METERS);
+  if (near.length / coordinates.length < parallelShare) return 0;
+  // 区間の各点について、止まっている区間の最寄り点が進む向きの左右どちらにあるかを数える
+  let side = 0;
+  for (let i = 1; i < coordinates.length; i++) {
+    const a = coordinates[i - 1] as Position;
+    const b = coordinates[i] as Position;
+    const mid: Position = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const nearest = blocked.reduce((best, p) =>
+      computeDistanceMeters(mid, p) < computeDistanceMeters(mid, best) ? p : best,
+    );
+    const cross = (b[0] - a[0]) * (nearest[1] - a[1]) - (b[1] - a[1]) * (nearest[0] - a[0]);
+    side += Math.sign(cross);
+  }
+  // 外積が正なら区間は左にある。経路は右へずらす
+  return side >= 0 ? 1 : -1;
+}
+
+// 止まっている区間と並走する割合が高いか
+export function isParallelTo(
+  coordinates: readonly Position[],
+  blocked: readonly Position[],
+): boolean {
+  return computeParallelOffset(coordinates, blocked) !== 0;
 }
 
 // 乗換駅の名前は、出発・行き先からこの距離より離れているときだけ出す
@@ -588,16 +659,24 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
 
   const recommended = input.options.find((o) => o.id === input.recommendedOptionId);
   const routeLegs = recommended ? resolveRouteLegs(geo, recommended) : [];
+  const blockedCoordinates = blockedPath?.coordinates ?? [];
+  // 代替経路は乗車区間だけ。止まっている区間と並走するものは推奨経路と重なってうるさいので出さない
   const alternativeLegs = input.options
     .filter((o) => o.id !== input.recommendedOptionId)
     .flatMap((o) =>
       resolveRouteLegs(geo, o)
-        .filter((leg) => leg.mode === "ride")
+        .filter((leg) => leg.mode === "ride" && !isParallelTo(leg.coordinates, blockedCoordinates))
         .map((leg) => ({ optionId: o.id, leg })),
     );
 
-  const route = buildRouteFeatures(routeLegs);
   const english = labels.english === true;
+  const route = buildRouteFeatures(
+    routeLegs,
+    (line) => (english ? translateLineName(geo.index, line) : line),
+    routeLegs.map((leg) =>
+      leg.mode === "walk" ? 0 : computeParallelOffset(leg.coordinates, blockedCoordinates),
+    ),
+  );
   const originNode =
     input.origin.kind === "station"
       ? resolveStationByName(geo.index, input.origin.name)
@@ -619,17 +698,21 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
   const keyStations = buildKeyStations([
     {
       position: origin,
-      name: originNode ? pickNodeName(originNode, english) : labels.origin,
+      name: originNode
+        ? pickNodeName(geo.nodes, originNode, english, labels.origin)
+        : labels.origin,
       role: "origin",
     },
     {
       position: destination,
-      name: destinationNode ? pickNodeName(destinationNode, english) : labels.destination,
+      name: destinationNode
+        ? pickNodeName(geo.nodes, destinationNode, english, labels.destination)
+        : labels.destination,
       role: "destination",
     },
     ...transferNodes.map((node) => ({
       position: toPosition(node.lonLat),
-      name: pickNodeName(node, english),
+      name: pickNodeName(geo.nodes, node, english),
       role: "transfer" as const,
     })),
     ...blockedEnds.map((position, i) => {
@@ -637,7 +720,7 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
       const node = name ? resolveStationByName(geo.index, name, blockedLineIds) : undefined;
       return {
         position: position ?? null,
-        name: node ? pickNodeName(node, english) : name,
+        name: node ? pickNodeName(geo.nodes, node, english) : english ? "" : name,
         role: "blocked-end" as const,
       };
     }),

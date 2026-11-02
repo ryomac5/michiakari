@@ -35,13 +35,13 @@ export const mapPalettes: Record<MapTheme, MapPalette> = {
   light: {
     background: "#f1f1ef",
     // 淡色地図を灰色にし、暗い部分を持ち上げて白っぽく低いコントラストにする
-    rasterBrightnessMin: 0.5,
+    rasterBrightnessMin: 0.66,
     rasterBrightnessMax: 1,
     rasterContrast: -0.5,
     rail: "#71717a",
     railOpacity: 0.42,
     reach: "#2563eb",
-    route: { wait: "#2563eb", switch: "#f26b1d", hold: "#7c3aed" },
+    route: { wait: "#2563eb", switch: "#e8a20c", hold: "#7c3aed" },
     routeCasing: "#ffffff",
     alternative: "#71717a",
     blocked: "#dc2626",
@@ -55,13 +55,13 @@ export const mapPalettes: Record<MapTheme, MapPalette> = {
   dark: {
     background: "#161618",
     // 明るさの上限と下限を逆にして、淡色地図を濃い灰色に反転させる
-    rasterBrightnessMin: 0.21,
-    rasterBrightnessMax: 0.07,
+    rasterBrightnessMin: 0.19,
+    rasterBrightnessMax: 0.08,
     rasterContrast: -0.2,
     rail: "#a1a1aa",
     railOpacity: 0.3,
     reach: "#60a5fa",
-    route: { wait: "#3b82f6", switch: "#f97316", hold: "#8b5cf6" },
+    route: { wait: "#3b82f6", switch: "#fbbf24", hold: "#8b5cf6" },
     routeCasing: "#f4f4f5",
     alternative: "#a1a1aa",
     blocked: "#ef4444",
@@ -75,7 +75,7 @@ export const mapPalettes: Record<MapTheme, MapPalette> = {
 };
 
 export const sourceIds = {
-  gsi: "gsi-pale",
+  gsi: "gsi-blank",
   lines: "lines",
   reach: "walk-reach",
   blocked: "blocked-section",
@@ -89,8 +89,8 @@ export const sourceIds = {
 // 経路の色を変える層。判断が変わったら塗りだけを差し替える
 export const routeColorLayerIds = ["route-ride", "route-taxi", "route-walk"] as const;
 
-// 地理院タイル（淡色地図）。ズーム 5〜18 で提供される
-const gsiPaleTiles = "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png";
+// 地理院タイル（白地図）。地名や記号の文字が無く、主役の情報だけを立たせられる。ズーム 5〜14 で提供される
+const gsiBlankTiles = "https://cyberjapandata.gsi.go.jp/xyz/blank/{z}/{x}/{y}.png";
 
 // glyphs を指定しないので、文字はすべて端末のフォントで描かれる。名前の並びが CSS の font-family になる
 // 太字は先頭の名前に含まれる Bold から判定される
@@ -106,16 +106,16 @@ export function buildBaseStyle(palette: MapPalette): StyleSpecification {
     sources: {
       [sourceIds.gsi]: {
         type: "raster",
-        tiles: [gsiPaleTiles],
+        tiles: [gsiBlankTiles],
         tileSize: 256,
         minzoom: 5,
-        maxzoom: 18,
+        maxzoom: 14,
       },
     },
     layers: [
       { id: "background", type: "background", paint: { "background-color": palette.background } },
       {
-        id: "gsi-pale",
+        id: "gsi-blank",
         type: "raster",
         source: sourceIds.gsi,
         paint: {
@@ -141,6 +141,17 @@ const byZoom = (low: number, high: number): ExpressionSpecification => [
 ];
 
 const notWalk: FilterSpecification = ["!=", ["get", "mode"], "walk"];
+
+// 並走する区間をずらす幅（px）。向きは経路の offset（1 は右、-1 は左）
+const routeOffset: ExpressionSpecification = [
+  "interpolate",
+  ["linear"],
+  ["zoom"],
+  9,
+  ["*", ["get", "offset"], 6],
+  14,
+  ["*", ["get", "offset"], 9],
+];
 
 // 重ねる順（下から）: 到達範囲 → 路線 → 代替経路 → 推奨経路 → 止まっている区間 → 駅 → 文字
 export function buildDataLayers(palette: MapPalette, tone: Action = "wait"): LayerSpecification[] {
@@ -186,17 +197,41 @@ export function buildDataLayers(palette: MapPalette, tone: Action = "wait"): Lay
       layout: { "line-cap": "round", "line-join": "round" },
       paint: {
         "line-color": palette.alternative,
-        "line-width": byZoom(2.5, 4),
-        "line-opacity": 0.55,
+        "line-width": byZoom(2, 3),
+        "line-opacity": 0.35,
       },
     },
+    // 止まっている区間は細めの赤の破線にし、推奨経路の下に置く
+    {
+      id: "blocked-casing",
+      type: "line",
+      source: sourceIds.blocked,
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": palette.blockedCasing, "line-width": byZoom(5, 7) },
+    },
+    {
+      id: "blocked-line",
+      type: "line",
+      source: sourceIds.blocked,
+      layout: { "line-join": "round" },
+      paint: {
+        "line-color": palette.blocked,
+        "line-width": byZoom(3, 4.5),
+        "line-dasharray": [2, 1.4],
+      },
+    },
+    // 推奨経路は止まっている区間と並走するところで横へずらし、重ならないようにする
     {
       id: "route-casing",
       type: "line",
       source: sourceIds.route,
       filter: notWalk,
       layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": palette.routeCasing, "line-width": byZoom(8, 11) },
+      paint: {
+        "line-color": palette.routeCasing,
+        "line-width": byZoom(8, 11),
+        "line-offset": routeOffset,
+      },
     },
     {
       id: "route-ride",
@@ -208,6 +243,7 @@ export function buildDataLayers(palette: MapPalette, tone: Action = "wait"): Lay
         "line-color": accent,
         "line-color-transition": colorTransition,
         "line-width": byZoom(5, 7),
+        "line-offset": routeOffset,
       },
     },
     {
@@ -220,6 +256,7 @@ export function buildDataLayers(palette: MapPalette, tone: Action = "wait"): Lay
         "line-color-transition": colorTransition,
         "line-width": byZoom(5, 7),
         "line-dasharray": [2, 1],
+        "line-offset": routeOffset,
       },
     },
     {
@@ -233,24 +270,6 @@ export function buildDataLayers(palette: MapPalette, tone: Action = "wait"): Lay
         "line-color-transition": colorTransition,
         "line-width": 4,
         "line-dasharray": [0, 2],
-      },
-    },
-    {
-      id: "blocked-casing",
-      type: "line",
-      source: sourceIds.blocked,
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": palette.blockedCasing, "line-width": byZoom(8, 11) },
-    },
-    {
-      id: "blocked-line",
-      type: "line",
-      source: sourceIds.blocked,
-      layout: { "line-join": "round" },
-      paint: {
-        "line-color": palette.blocked,
-        "line-width": byZoom(5, 7),
-        "line-dasharray": [1.4, 0.9],
       },
     },
     // 乗換駅と止まっている区間の端は小さな丸。出発と行き先は画面側のピンで示す
@@ -300,7 +319,7 @@ export function buildDataLayers(palette: MapPalette, tone: Action = "wait"): Lay
         "text-size": 12,
         "text-max-width": 20,
         "text-variable-anchor": ["bottom-left", "top-right", "bottom-right", "top-left"],
-        "text-radial-offset": 0.7,
+        "text-radial-offset": 1.1,
       },
       paint: {
         "text-color": accent,

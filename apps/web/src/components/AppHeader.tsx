@@ -73,7 +73,7 @@ export function AppHeader({
             </Link>
           )}
           <div className="flex min-w-0 flex-1 items-center gap-1.5">{children}</div>
-          <AppMenu />
+          <AppMenu mock={mockEnabled && variant === "map"} />
         </div>
         {below && (
           <div
@@ -86,17 +86,11 @@ export function AppHeader({
           </div>
         )}
       </header>
-      {/* シートより下に置き、シートを開いたら隠れるようにする */}
-      {mockEnabled && (
+      {/* 地図以外の画面では下端に小さく出す。地図の画面ではメニューの中で示す */}
+      {mockEnabled && variant === "page" && (
         <p
           data-testid={testIds.app.mockBadge}
-          className={cn(
-            "glass fixed left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium whitespace-nowrap text-hold",
-            // 地図の画面は帯の下、ほかの画面は本文に重ならないよう下端に置く
-            variant === "map"
-              ? "top-[max(76px,calc(env(safe-area-inset-top)+64px))] lg:left-4 lg:translate-x-0"
-              : "bottom-[max(28px,calc(env(safe-area-inset-bottom)+20px))]",
-          )}
+          className="glass fixed bottom-[max(28px,calc(env(safe-area-inset-bottom)+20px))] left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium whitespace-nowrap text-hold"
         >
           <FlaskConical className="size-3.5" aria-hidden />
           {t("mockBadge")}

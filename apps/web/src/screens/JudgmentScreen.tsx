@@ -16,12 +16,14 @@ import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
 import { StatusChip, TripSummary } from "@/features/judgment/components/TripSummary";
+import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { testIds } from "@/features/judgment/testids";
 import { MapLegend } from "@/features/map/MapLegend";
 import { MapPanel, selectRouteTone } from "@/features/map/MapPanel";
 import type { ReachSource } from "@/features/map/scene";
+import { useLineLabel } from "@/features/map/use-line-label";
 import { SituationInput } from "@/features/situation/SituationInput";
 
 export function JudgmentScreen() {
@@ -31,6 +33,9 @@ export function JudgmentScreen() {
     useJudgmentSession();
   const chrome = useMapChrome();
   const [reachSource, setReachSource] = useState<ReachSource | null>(null);
+  const known = [...observations, ...state.observations];
+  const blockedLine = known.findLast((o) => o.line !== null)?.line ?? null;
+  const lineLabel = useLineLabel(blockedLine);
 
   // 判断をまだ求めていなければ開始画面へ戻す
   const hasStarted = state.status !== "idle";
@@ -42,9 +47,7 @@ export function JudgmentScreen() {
 
   const display = selectJudgmentDisplay(state);
   const streaming = state.status === "streaming";
-  const known = [...observations, ...state.observations];
   const blockedSection = known.findLast((o) => o.section !== null)?.section ?? null;
-  const blockedLine = known.findLast((o) => o.line !== null)?.line ?? null;
   const disclaimerExtra =
     display.judgment?.disclaimer ?? state.previousJudgment?.disclaimer ?? null;
   const options = display.options ?? [];
@@ -64,7 +67,7 @@ export function JudgmentScreen() {
           destination={destination}
           testId={testIds.judgment.tripSummary}
         />
-        {blockedLine && <StatusChip line={blockedLine} testId={testIds.judgment.statusChip} />}
+        {blockedLine && <StatusChip line={lineLabel} testId={testIds.judgment.statusChip} />}
       </AppHeader>
 
       <MapPanel
@@ -106,13 +109,19 @@ export function JudgmentScreen() {
             </div>
           }
         >
+          {/* 気象を使った判断のときだけ、半分の状態の先頭に雨量の推移を出す */}
+          {display.weather && (
+            <SheetSection>
+              <WeatherPanel weather={display.weather} stale={display.weatherStale} />
+            </SheetSection>
+          )}
           {display.judgment && (
             <SheetSection className="empty:hidden">
               <ConclusionDetail judgment={display.judgment} />
             </SheetSection>
           )}
           {display.breakEven && (
-            <SheetSection title={t("breakEven.title")}>
+            <SheetSection>
               <BreakEvenDetail {...breakEvenProps} />
             </SheetSection>
           )}

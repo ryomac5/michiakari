@@ -7,7 +7,9 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:opacity-90",
+        // 無効のときも重く見えないよう、薄い面と淡い文字にする
+        default:
+          "bg-primary text-primary-foreground hover:opacity-90 disabled:bg-foreground/[0.07] disabled:text-foreground/35 disabled:opacity-100",
         outline: "border border-border bg-transparent text-foreground hover:bg-foreground/5",
         secondary: "bg-foreground/[0.06] text-foreground hover:bg-foreground/10",
         ghost: "bg-transparent text-foreground hover:bg-foreground/5",

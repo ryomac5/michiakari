@@ -5,8 +5,10 @@ import { fileURLToPath } from "node:url";
 import { expect, type Page, test } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
+  loadReplayKnowledge,
   loadReplayScenarios,
   openSheet,
+  splitScenariosByWeather,
   waitForFiniteAnimations,
   waitForJudged,
 } from "../support/replay.ts";
@@ -40,6 +42,11 @@ const scenario =
   scenarios.find((s) => s.expectations.some((e) => e.action === "switch")) ?? scenarios[0];
 const switchAfter =
   scenario?.expectations.find((e) => e.action === "switch")?.after ?? scenario?.timeline.at(-1)?.id;
+// 気象を使う事象のシナリオは、知見の external_factors.weather で選ぶ。待つ判断になった観測で撮る
+const weatherScenario = splitScenariosByWeather(scenarios, loadReplayKnowledge()).weather[0];
+const weatherWaitAfter =
+  weatherScenario?.expectations.find((e) => e.action === "wait")?.after ??
+  weatherScenario?.timeline.at(-1)?.id;
 
 test.setTimeout(180_000);
 
@@ -99,12 +106,12 @@ async function expectFirstViewport(page: Page, variant: Variant, label: string) 
   await waitForFiniteAnimations(page);
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   const breakEven = page.getByTestId(testIds.judgment.breakEven);
-  const timeline = page.getByTestId(testIds.judgment.breakEvenTimeline);
+  const resume = page.getByTestId(testIds.judgment.breakEvenResume);
   const disclaimer = page.getByTestId(testIds.judgment.disclaimer);
   for (const [name, locator] of [
     ["結論", conclusion],
     ["分岐点", breakEven],
-    ["分岐点の時間軸", timeline],
+    ["再開見込み", resume],
     ["注意書き", disclaimer],
   ] as const) {
     const box = await locator.boundingBox();
@@ -254,6 +261,32 @@ for (const variant of variants) {
         await openSheet(page, "half");
         await capture(page, variant, "13-replay-half");
       }
+    });
+
+    test("リプレイ（気象を使う事象）", async ({ page }) => {
+      if (!weatherScenario || !weatherWaitAfter)
+        throw new Error("気象を使う事象のシナリオがありません");
+      await page.goto(`/replay?scenario=${weatherScenario.id}`);
+      await expect(page.getByTestId(testIds.replay.screen)).toHaveAttribute("data-state", "idle", {
+        timeout: 60_000,
+      });
+      for (const entry of weatherScenario.timeline) {
+        await page.getByTestId(testIds.replay.nextButton).click();
+        await waitForJudged(page, entry.id);
+        if (entry.id === weatherWaitAfter) break;
+      }
+      await expect(page.getByTestId(testIds.judgment.weather)).toBeVisible();
+      await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
+        timeout: 30_000,
+      });
+      await capture(page, variant, "16-replay-weather");
+      await checkScreen(page, "リプレイ（気象）");
+      if (variant.width === mobile.width) {
+        await expectFirstViewport(page, variant, "リプレイ（気象）");
+        await openSheet(page, "half");
+        await expect(page.getByTestId(testIds.judgment.weather)).toBeInViewport();
+      }
+      await capture(page, variant, "17-replay-weather-chart");
     });
   });
 }

@@ -30,6 +30,7 @@ import {
   resolvePlacePosition,
   resolveRouteLegs,
   resolveStationByName,
+  translateLineName,
 } from "./scene";
 
 const geo = createMapGeo(network as unknown as NetworkData);
@@ -534,11 +535,39 @@ describe("buildMapScene", () => {
     expect(scene.transferLineIds).toEqual(["hankyu.神戸線"]);
   });
 
-  it("推奨経路は最も長い乗車区間にだけ路線名を付け、ほかの選択肢は乗車区間を代替経路にする", () => {
+  it("推奨経路は最も長い乗車区間にだけ路線名を付け、止まっている区間と並走する乗車区間は横へずらす", () => {
     const scene = buildMapScene(geo, input, labels);
     expect(scene.route.features.map((f) => f.properties.label)).toEqual(["", "阪急神戸線", ""]);
-    expect(scene.alternatives.features.map((f) => f.properties.optionId)).toEqual(["wait_resume"]);
-    expect(scene.alternatives.features.every((f) => f.properties.mode === "ride")).toBe(true);
+    const offsets = scene.route.features.map((f) => f.properties.offset);
+    expect(offsets[0]).toBe(0);
+    expect(Math.abs(offsets[1] ?? 0)).toBe(1);
+  });
+
+  it("止まっている区間と並走する代替経路は出さず、並走しない乗車区間だけを出す", () => {
+    const scene = buildMapScene(geo, input, labels);
+    // 待つ経路は止まっている JR 神戸線そのものなので出さない
+    expect(scene.alternatives.features).toEqual([]);
+    const noBlocked = buildMapScene(geo, { ...input, blockedSection: null }, labels);
+    expect(noBlocked.alternatives.features.map((f) => f.properties.optionId)).toEqual([
+      "wait_resume",
+    ]);
+    expect(noBlocked.alternatives.features.every((f) => f.properties.mode === "ride")).toBe(true);
+  });
+
+  it("英語では路線名と駅名を英語にし、英語名の無い通称や駅名は出さない", () => {
+    const scene = buildMapScene(geo, input, { ...labels, english: true });
+    expect(scene.route.features.map((f) => f.properties.label)).toEqual([
+      "",
+      "Hankyu Kobe Line",
+      "",
+    ]);
+    expect(scene.keyStations.features.map((f) => f.properties.name).slice(0, 2)).toEqual([
+      "Osaka",
+      "Sannomiya",
+    ]);
+    expect(translateLineName(geo.index, "阪急京都線")).toBe("Hankyu Kyoto Line");
+    expect(translateLineName(geo.index, "JR神戸線")).toBeNull();
+    expect(translateLineName(geo.index, "JR Kobe Line")).toBe("JR Kobe Line");
   });
 
   it("名前を出す駅は出発・行き先・止まっている区間の端だけで、出発と行き先を先に置く", () => {

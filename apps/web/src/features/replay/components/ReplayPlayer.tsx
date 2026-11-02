@@ -18,6 +18,7 @@ import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
 import { StatusChip, TripChip } from "@/features/judgment/components/TripSummary";
+import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { testIds } from "@/features/judgment/testids";
 import { formatClockTime } from "@/features/judgment/time";
@@ -25,6 +26,7 @@ import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import { MapLegend } from "@/features/map/MapLegend";
 import { MapPanel, selectRouteTone } from "@/features/map/MapPanel";
 import type { ReachSource } from "@/features/map/scene";
+import { useLineLabel } from "@/features/map/use-line-label";
 import { pickStationName, type StationNames } from "@/features/stations/describe";
 import { computeReplayProgress } from "../clock";
 import { selectReplayOutcome } from "../outcome";
@@ -78,6 +80,7 @@ export function ReplayPlayer({
   const observations = [...player.observations, ...state.observations];
   const lastWithSection = observations.findLast((o) => o.section !== null);
   const blockedLine = observations.findLast((o) => o.line !== null)?.line ?? scenario.line;
+  const lineLabel = useLineLabel(blockedLine);
   const disclaimerExtra =
     display.judgment?.disclaimer ?? state.previousJudgment?.disclaimer ?? null;
   const options = display.options ?? [];
@@ -175,7 +178,7 @@ export function ReplayPlayer({
         }
       >
         <TripChip from={names.from} to={names.to} />
-        <StatusChip line={blockedLine} />
+        <StatusChip line={lineLabel} />
       </AppHeader>
 
       <MapPanel
@@ -246,13 +249,19 @@ export function ReplayPlayer({
         >
           {started && (
             <>
+              {/* 気象を使った判断のときだけ、半分の状態の先頭に雨量の推移を出す */}
+              {display.weather && (
+                <SheetSection>
+                  <WeatherPanel weather={display.weather} stale={display.weatherStale} />
+                </SheetSection>
+              )}
               {display.judgment && (
                 <SheetSection className="empty:hidden">
                   <ConclusionDetail judgment={display.judgment} />
                 </SheetSection>
               )}
               {display.breakEven && (
-                <SheetSection title={t("judgment.breakEven.title")}>
+                <SheetSection>
                   <BreakEvenDetail {...breakEvenProps} />
                 </SheetSection>
               )}

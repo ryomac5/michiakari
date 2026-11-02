@@ -25,10 +25,16 @@ export function createMapGeo(network: NetworkData): MapGeo {
   };
 }
 
-export async function loadMapGeoData(): Promise<MapGeoData> {
-  const [network, lines] = await Promise.all([
+// 地図・背景・路線名の英訳で共有する。索引の組み立ては 1 度だけにする
+let cached: Promise<MapGeoData> | null = null;
+
+export function loadMapGeoData(): Promise<MapGeoData> {
+  cached ??= Promise.all([
     import("@repo/geo/data/network.json").then((m) => m.default as unknown as NetworkData),
     import("@repo/geo/data/lines.geojson").then((m) => m.default as LinesGeoJson),
-  ]);
-  return { ...createMapGeo(network), lines };
+  ]).then(([network, lines]) => ({ ...createMapGeo(network), lines }));
+  cached.catch(() => {
+    cached = null;
+  });
+  return cached;
 }

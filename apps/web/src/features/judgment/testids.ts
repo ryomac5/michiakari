@@ -70,6 +70,8 @@ export const testIds = {
     breakEven: "judgment-break-even",
     breakEvenTime: "judgment-break-even-time",
     breakEvenCountdown: "judgment-break-even-countdown",
+    // 閉じたシートの「おおよその再開 23:43〜23:58 は分岐点より後」。data-relation を出す
+    breakEvenResume: "judgment-break-even-resume",
     // 「21:40 までに再開しなければ…」の文
     breakEvenSentence: "judgment-break-even-sentence",
     // 分岐点の時間軸。data-relation に before / straddle / after を出す
@@ -84,6 +86,14 @@ export const testIds = {
     signal: (id: string) => `judgment-signal-${id}`,
     signalLink: (id: string) => `judgment-signal-link-${id}`,
     evidenceItem: (id: string) => `judgment-evidence-item-${id}`,
+    // 判断に使った雨量の推移。data-trend と data-reading-count（欠測を含む観測の数）を出す
+    weather: "judgment-weather",
+    weatherChart: "judgment-weather-chart",
+    weatherTrend: "judgment-weather-trend",
+    weatherWarnings: "judgment-weather-warnings",
+    weatherMissing: "judgment-weather-missing",
+    weatherSummary: "judgment-weather-summary",
+    weatherFictional: "judgment-weather-fictional",
     addInfo: "judgment-add-info",
   },
   // リプレイ。判断の部品は judgment の testid をそのまま使う

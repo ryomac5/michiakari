@@ -40,7 +40,7 @@ export function TripChip({
 }) {
   const t = useTranslations();
   const content = (
-    <span className="flex h-8 min-w-0 items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 text-[13px] font-semibold">
+    <span className="flex h-8 min-w-0 items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 text-[13px] font-semibold whitespace-nowrap">
       <span className="sr-only">{t("judgment.trip", { origin: from, destination: to })}</span>
       <span aria-hidden className="truncate">
         {from}
@@ -54,7 +54,7 @@ export function TripChip({
 
   if (!href) {
     return (
-      <div data-testid={testId} className="flex max-w-[55%] min-w-0 shrink-0 items-center">
+      <div data-testid={testId} className="flex min-w-0 shrink items-center">
         {content}
       </div>
     );
@@ -64,7 +64,7 @@ export function TripChip({
       href={href}
       data-testid={testId}
       title={t("situation.edit")}
-      className="flex min-h-11 max-w-[55%] min-w-0 shrink-0 items-center rounded-full"
+      className="flex min-h-11 min-w-0 shrink items-center rounded-full"
     >
       {content}
     </Link>
@@ -72,13 +72,14 @@ export function TripChip({
 }
 
 // 「JR京都線 見合わせ」。色に加えて破線の印で止まっていることを示す
-export function StatusChip({ line, testId }: { line: string; testId?: string }) {
+// 英語名の無い通称のときは line が null で、「Service suspended」だけを出す
+export function StatusChip({ line, testId }: { line: string | null; testId?: string }) {
   const t = useTranslations("judgment");
 
   return (
     <p
       data-testid={testId}
-      className="flex h-8 min-w-0 shrink items-center gap-1.5 rounded-full bg-danger/10 px-2.5 text-[12px] font-semibold text-danger"
+      className="flex h-8 min-w-0 shrink items-center gap-1.5 rounded-full bg-danger/10 px-2.5 text-[12px] font-semibold whitespace-nowrap text-danger"
     >
       <svg viewBox="0 0 14 4" className="h-1 w-3.5 shrink-0" aria-hidden>
         <line
@@ -91,7 +92,7 @@ export function StatusChip({ line, testId }: { line: string; testId?: string }) 
           strokeDasharray="4 2.5"
         />
       </svg>
-      <span className="truncate">{t("status", { line })}</span>
+      <span className="truncate">{line ? t("status", { line }) : t("statusOnly")}</span>
     </p>
   );
 }
