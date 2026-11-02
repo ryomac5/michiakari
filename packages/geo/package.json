@@ -12,6 +12,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
+  "dependencies": {
+    "@repo/core": "workspace:*",
+    "@repo/schema": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "24.19.2",
     "typescript": "7.0.2",

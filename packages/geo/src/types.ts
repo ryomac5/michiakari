@@ -1,17 +1,10 @@
 // geo のデータ型。packages/data の前処理が出力し、ここで読む
 // packages/schema に地理データのスキーマがないため、ここに置く
 
-export const LINE_TYPES = [
-  "jr_rapid",
-  "jr_local",
-  "private_express",
-  "private_local",
-  "subway",
-  "monorail",
-  "tram",
-] as const;
+import type { LineType } from "@repo/schema";
 
-export type LineType = (typeof LINE_TYPES)[number];
+// 路線種別の定義は packages/schema が唯一の正
+export { LINE_TYPES, type LineType } from "@repo/schema";
 
 // [経度, 緯度]
 export type LonLat = readonly [number, number];

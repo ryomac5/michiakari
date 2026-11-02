@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { LINE_TYPES, TIMES_OF_DAY } from "../params/transit.ts";
-import { classifyTimeOfDay, computeRideMinutes, computeWaitMinutes } from "../src/transit.ts";
+import {
+  classifyTimeOfDay,
+  computeRideMinutes,
+  computeRideMinutesUnrounded,
+  computeWaitMinutes,
+} from "../src/transit.ts";
 
 describe("computeRideMinutes", () => {
   it("距離 0 なら 0 分", () => {
@@ -26,6 +31,19 @@ describe("computeRideMinutes", () => {
   it("負または有限でない距離は例外", () => {
     expect(() => computeRideMinutes(-1, "subway")).toThrow(RangeError);
     expect(() => computeRideMinutes(Number.NaN, "subway")).toThrow(RangeError);
+  });
+
+  it("路面電車にも表定速度がある", () => {
+    expect(computeRideMinutes(3, "tram")).toBe(10);
+  });
+});
+
+describe("computeRideMinutesUnrounded", () => {
+  it("切り上げ前の値を返し、切り上げると computeRideMinutes に一致する", () => {
+    expect(computeRideMinutesUnrounded(1, "subway")).toBeCloseTo(1.875, 6);
+    for (const line of LINE_TYPES) {
+      expect(Math.ceil(computeRideMinutesUnrounded(7.3, line))).toBe(computeRideMinutes(7.3, line));
+    }
   });
 });
 

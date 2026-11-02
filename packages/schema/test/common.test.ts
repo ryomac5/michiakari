@@ -3,6 +3,8 @@ import {
   DurationDistSchema,
   IdSchema,
   IsoDateTimeSchema,
+  LINE_TYPES,
+  LineTypeSchema,
   LocalizedTextSchema,
   ObservableKindSchema,
 } from "../src/index.ts";
@@ -58,5 +60,13 @@ describe("ObservableKindSchema", () => {
   it("train_movement を含み未知の値を拒否する", () => {
     expect(ObservableKindSchema.safeParse("train_movement").success).toBe(true);
     expect(ObservableKindSchema.safeParse("sns").success).toBe(false);
+  });
+});
+
+describe("LineTypeSchema", () => {
+  it("tram を含み未知の値を拒否する", () => {
+    expect(LINE_TYPES).toContain("tram");
+    expect(LineTypeSchema.safeParse("tram").success).toBe(true);
+    expect(LineTypeSchema.safeParse("shinkansen").success).toBe(false);
   });
 });

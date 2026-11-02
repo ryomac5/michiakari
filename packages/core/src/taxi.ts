@@ -1,4 +1,9 @@
-import { OSAKA_CITY_TAXI_FARE, OSAKA_CITY_TAXI_FARE_LABEL } from "../params/taxi.ts";
+import {
+  OSAKA_CITY_TAXI_FARE,
+  OSAKA_CITY_TAXI_FARE_LABEL,
+  TAXI_AVERAGE_SPEED_KMH,
+  TAXI_DETOUR_FACTOR,
+} from "../params/taxi.ts";
 import { getJstMinuteOfDay } from "./time.ts";
 
 // タクシー運賃の概算。距離制運賃のみを扱う
@@ -55,4 +60,20 @@ export function computeTaxiFare(distanceKm: number, departureIso: string): TaxiF
     isNightSurcharge,
     source: OSAKA_CITY_TAXI_FARE_LABEL,
   };
+}
+
+// 直線距離（km）から道のりの概算（km）= 直線距離 × 迂回係数
+export function estimateTaxiRoadKm(straightKm: number): number {
+  if (!Number.isFinite(straightKm) || straightKm < 0) {
+    throw new RangeError(`距離は 0 以上の有限値: ${straightKm}`);
+  }
+  return straightKm * TAXI_DETOUR_FACTOR;
+}
+
+// 所要時間（分、切り上げ）= 道のり ÷ 都市部の平均速度
+export function computeTaxiMinutes(roadKm: number): number {
+  if (!Number.isFinite(roadKm) || roadKm < 0) {
+    throw new RangeError(`距離は 0 以上の有限値: ${roadKm}`);
+  }
+  return Math.ceil((roadKm / TAXI_AVERAGE_SPEED_KMH) * 60);
 }

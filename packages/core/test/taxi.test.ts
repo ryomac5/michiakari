@@ -1,11 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { OSAKA_CITY_TAXI_FARE, OSAKA_CITY_TAXI_FARE_SOURCES } from "../params/taxi.ts";
+import {
+  OSAKA_CITY_TAXI_FARE,
+  OSAKA_CITY_TAXI_FARE_SOURCES,
+  TAXI_AVERAGE_SPEED_KMH,
+  TAXI_DETOUR_FACTOR,
+} from "../params/taxi.ts";
 import {
   applyDistanceShortening,
   checkNightSurcharge,
   computeDistanceFare,
   computeTaxiFare,
+  computeTaxiMinutes,
+  estimateTaxiRoadKm,
 } from "../src/taxi.ts";
+
+describe("タクシーの所要時間", () => {
+  it("道のりは直線距離 × 迂回係数", () => {
+    expect(estimateTaxiRoadKm(10)).toBeCloseTo(10 * TAXI_DETOUR_FACTOR, 6);
+  });
+
+  it("所要時間は道のり ÷ 平均速度を切り上げる", () => {
+    expect(computeTaxiMinutes(0)).toBe(0);
+    expect(computeTaxiMinutes(TAXI_AVERAGE_SPEED_KMH)).toBe(60);
+    expect(computeTaxiMinutes(0.1)).toBe(1);
+  });
+
+  it("負または有限でない距離は例外", () => {
+    expect(() => computeTaxiMinutes(-1)).toThrow(RangeError);
+    expect(() => estimateTaxiRoadKm(Number.NaN)).toThrow(RangeError);
+  });
+});
 
 const DAY = "2026-11-05T12:00:00+09:00";
 const NIGHT = "2026-11-05T23:30:00+09:00";

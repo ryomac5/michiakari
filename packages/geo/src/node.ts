@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createGeoIndex, type GeoIndex } from "./geo-index.ts";
+import { createRouter, type Router } from "./routing.ts";
 import type { GeoMeta, NetworkData } from "./types.ts";
 
 // Node 用の読み込み。ブラウザでは data/ の JSON を取得して createGeoIndex に渡す
@@ -18,4 +19,8 @@ export function loadGeoMeta(): GeoMeta {
 
 export function loadGeoIndex(): GeoIndex {
   return createGeoIndex(loadNetworkData());
+}
+
+export function loadRouter(): Router {
+  return createRouter(loadNetworkData());
 }

@@ -11,10 +11,15 @@ import { getJstMinuteOfDay } from "./time.ts";
 
 // 乗車時間（分、切り上げ）= 距離 ÷ 路線種別の表定速度
 export function computeRideMinutes(distanceKm: number, lineType: LineType): number {
+  return Math.ceil(computeRideMinutesUnrounded(distanceKm, lineType));
+}
+
+// 切り上げ前の乗車時間（分）。経路探索で駅間ごとの端数を積み上げないために使う
+export function computeRideMinutesUnrounded(distanceKm: number, lineType: LineType): number {
   if (!Number.isFinite(distanceKm) || distanceKm < 0) {
     throw new RangeError(`距離は 0 以上の有限値: ${distanceKm}`);
   }
-  return Math.ceil((distanceKm / SCHEDULED_SPEED_KMH[lineType]) * 60);
+  return (distanceKm / SCHEDULED_SPEED_KMH[lineType]) * 60;
 }
 
 // 待ち時間（分、切り上げ）= 運転間隔の半分

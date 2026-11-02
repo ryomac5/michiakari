@@ -1,10 +1,12 @@
 // 決定論的な計算。Claude を呼ばない
 
 export { MONTE_CARLO_SAMPLE_COUNT, MONTE_CARLO_SEED } from "../params/estimation.ts";
+export * from "../params/routing.ts";
 export {
   OSAKA_CITY_TAXI_FARE,
   OSAKA_CITY_TAXI_FARE_LABEL,
   OSAKA_CITY_TAXI_FARE_SOURCES,
+  TAXI_TRIP_PARAMS_SOURCE,
   type TaxiFareSource,
 } from "../params/taxi.ts";
 export {
@@ -47,7 +49,13 @@ export {
   findPhaseIndex,
   getFirstTrainWait,
 } from "./remaining.ts";
-export { checkNightSurcharge, computeTaxiFare, type TaxiFare } from "./taxi.ts";
+export {
+  checkNightSurcharge,
+  computeTaxiFare,
+  computeTaxiMinutes,
+  estimateTaxiRoadKm,
+  type TaxiFare,
+} from "./taxi.ts";
 export {
   addMinutesToIso,
   diffMinutes,
@@ -55,5 +63,15 @@ export {
   getJstMinuteOfDay,
   parseIsoToMs,
 } from "./time.ts";
-export { classifyTimeOfDay, computeRideMinutes, computeWaitMinutes } from "./transit.ts";
-export { computeHaversineMeters, estimateWalkMinutes, type LonLat } from "./walk.ts";
+export {
+  classifyTimeOfDay,
+  computeRideMinutes,
+  computeRideMinutesUnrounded,
+  computeWaitMinutes,
+} from "./transit.ts";
+export {
+  computeHaversineMeters,
+  computeWalkMinutesFromMeters,
+  estimateWalkMinutes,
+  type LonLat,
+} from "./walk.ts";
