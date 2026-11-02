@@ -10,3 +10,6 @@ next-env.d.ts
 .DS_Store
 .env*
 !.env.example
+
+# エージェントの作業ツリー
+.claude/worktrees/
