@@ -1,9 +1,9 @@
 import type { GeoIndex, LineInfo, StationNode } from "@repo/geo";
 import { computeDistanceMeters } from "@repo/geo";
 import { z } from "zod";
-import { romanizeStationName } from "./romanize";
 
 // 駅検索の候補。国土数値情報の駅（路線ごと）を、同じ名前で近くにある駅どうし 1 つにまとめる
+// 英語名は @repo/geo のデータが持つもの（主要駅と全路線・全事業者）を使う
 
 export const StationChoiceSchema = z.object({
   // 検索結果の安定した識別子。同名で離れた駅が無ければ駅名そのもの
@@ -12,7 +12,12 @@ export const StationChoiceSchema = z.object({
   name: z.string().min(1),
   nameEn: z.string().nullable(),
   operators: z.array(
-    z.object({ name: z.string(), nameEn: z.string(), lines: z.array(z.string()) }),
+    z.object({
+      name: z.string(),
+      nameEn: z.string(),
+      lines: z.array(z.string()),
+      linesEn: z.array(z.string()),
+    }),
   ),
   lat: z.number(),
   lon: z.number(),
@@ -34,33 +39,6 @@ export const LocationRequestSchema = z.object({
   lat: z.number().min(20).max(46),
   lon: z.number().min(122).max(154),
 });
-
-// 事業者の英語名。路線名は英語のデータが無いので日本語のまま出す
-const operatorNamesEn: Record<string, string> = {
-  eiden: "Eizan Electric Railway",
-  hankai: "Hankai Tramway",
-  hankyu: "Hankyu",
-  hanshin: "Hanshin",
-  hojo: "Hojo Railway",
-  "jr-west": "JR West",
-  keifuku: "Keifuku (Randen)",
-  keihan: "Keihan",
-  kintetsu: "Kintetsu",
-  kitakyu: "Kita-Osaka Kyuko",
-  "kobe-new-transit": "Kobe New Transit",
-  "kobe-subway": "Kobe Subway",
-  "kyoto-subway": "Kyoto Subway",
-  mizuma: "Mizuma Railway",
-  nankai: "Nankai",
-  nose: "Nose Electric Railway",
-  ohmi: "Ohmi Railway",
-  "osaka-metro": "Osaka Metro",
-  "osaka-monorail": "Osaka Monorail",
-  sanyo: "Sanyo Electric Railway",
-  shigaraki: "Shigaraki Kohgen Railway",
-  shintetsu: "Kobe Electric Railway",
-  "wakayama-dentetsu": "Wakayama Electric Railway",
-};
 
 // 同じ名前でもこの距離より離れた駅は別の駅として扱う（例: 神戸と東大阪の「長田」）
 const samePlaceMeters = 1000;
@@ -100,11 +78,15 @@ function summarizeOperators(
     const key = line?.operatorKey ?? node.operator;
     const entry = byOperator.get(key) ?? {
       name: node.operator,
-      nameEn: operatorNamesEn[key] ?? node.operator,
+      nameEn: line?.operatorEn ?? node.operator,
       lines: [],
+      linesEn: [],
     };
     const lineName = line?.lineName ?? node.lineId;
-    if (!entry.lines.includes(lineName)) entry.lines.push(lineName);
+    if (!entry.lines.includes(lineName)) {
+      entry.lines.push(lineName);
+      entry.linesEn.push(line?.nameEn ?? lineName);
+    }
     byOperator.set(key, entry);
   }
   return [...byOperator.values()];
@@ -116,12 +98,11 @@ function buildGroup(
   lineById: Map<string, LineInfo>,
 ): StationGroup {
   const [main] = nodes as [StationNode, ...StationNode[]];
-  const reading = nodes.find((n) => n.reading)?.reading;
   return {
     choice: {
       id,
       name: main.name,
-      nameEn: romanizeStationName(main.name, reading),
+      nameEn: nodes.find((n) => n.nameEn)?.nameEn ?? null,
       operators: summarizeOperators(nodes, lineById),
       lat: main.lonLat[1],
       lon: main.lonLat[0],

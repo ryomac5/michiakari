@@ -99,7 +99,7 @@ describe("describeStationNames / describeStationLines", () => {
     const umeda = catalog.groupById.get("大阪梅田")?.choice;
     if (!umeda) throw new Error("大阪梅田が無い");
     expect(describeStationLines(umeda, "ja")).toMatch(/阪急 .*神戸線/);
-    expect(describeStationLines(umeda, "en")).toMatch(/Hankyu/);
+    expect(describeStationLines(umeda, "en")).toMatch(/Hankyu Kobe Line/);
   });
 });
 

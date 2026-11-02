@@ -39,9 +39,9 @@ export function describePlace(
   };
 }
 
-// 候補に添える路線の要約。日本語は事業者と路線、英語は事業者名だけを並べる
+// 候補に添える路線の要約。日本語は事業者と路線、英語は事業者名入りの路線名を並べる
 export function describeStationLines(station: StationChoice, locale: string): string {
-  if (locale === "en") return station.operators.map((o) => o.nameEn).join(" · ");
+  if (locale === "en") return station.operators.flatMap((o) => o.linesEn).join(" · ");
   return station.operators.map((o) => `${o.name} ${o.lines.join("・")}`).join(" ／ ");
 }
 

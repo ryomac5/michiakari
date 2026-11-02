@@ -147,7 +147,7 @@ function BreakEvenSentence({ breakEven }: { breakEven: BreakEven }) {
 
   if (split) {
     return (
-      <p className="leading-snug font-bold sm:text-lg">
+      <p className="text-[0.9375rem] leading-snug font-bold sm:text-lg">
         {split.before}
         {clock(split.clock)}
         {split.after}
@@ -157,7 +157,7 @@ function BreakEvenSentence({ breakEven }: { breakEven: BreakEven }) {
   const formatted = formatClockTime(breakEven.time, locale);
   return (
     <div className="flex flex-col gap-1">
-      <p className="leading-snug font-bold sm:text-lg">
+      <p className="text-[0.9375rem] leading-snug font-bold sm:text-lg">
         {t.rich("condition", { time: formatted, clock: (chunks) => clock(chunks) })}
       </p>
       <p className="text-muted">{breakEven.explanation}</p>
