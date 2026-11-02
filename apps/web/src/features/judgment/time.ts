@@ -21,7 +21,7 @@ export function formatClockTime(iso: string, locale: string): string {
   return new Intl.DateTimeFormat(locale === "ja" ? "ja-JP" : "en-GB", {
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hourCycle: "h23",
     timeZone,
   }).format(new Date(iso));
 }

@@ -12,7 +12,7 @@ const runtimeContentFiles = [
 ];
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@repo/schema", "@repo/core", "@repo/geo", "@repo/data"],
+  transpilePackages: ["@repo/schema", "@repo/core", "@repo/geo"],
   // next dev が AGENTS.md を自動生成しないようにする
   agentRules: false,
   // 録画とスクリーンショットに開発用の表示を写さない
