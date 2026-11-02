@@ -1,6 +1,6 @@
+import { findShortestPhasePath } from "@repo/core";
 import { IdSchema } from "@repo/schema";
 import { z } from "zod";
-import { findShortestPhasePath } from "../domain/phase.ts";
 import type { ToolContext, ToolState } from "./types.ts";
 
 export const LookupKnowledgeInputSchema = z.object({

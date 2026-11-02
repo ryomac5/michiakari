@@ -43,6 +43,23 @@ export const ErrorEventSchema = defineEvent("error", {
   retryable: z.boolean(),
 });
 
+// 判断の途中経過。画面に短い一文で出す
+export const ProgressStageSchema = z.enum([
+  "interpret",
+  "knowledge",
+  "weather",
+  "phase",
+  "alternatives",
+  "break_even",
+  "judgment",
+]);
+export type ProgressStage = z.infer<typeof ProgressStageSchema>;
+
+export const ProgressEventSchema = defineEvent("progress", {
+  message: z.string().min(1),
+  stage: ProgressStageSchema.optional(),
+});
+
 export const JudgmentEventSchema = z.discriminatedUnion("type", [
   ObservationParsedEventSchema,
   SignalDetectedEventSchema,
@@ -51,6 +68,7 @@ export const JudgmentEventSchema = z.discriminatedUnion("type", [
   BreakEvenComputedEventSchema,
   JudgmentReadyEventSchema,
   ErrorEventSchema,
+  ProgressEventSchema,
 ]);
 export type JudgmentEvent = z.infer<typeof JudgmentEventSchema>;
 export type JudgmentEventType = JudgmentEvent["type"];

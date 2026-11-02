@@ -6,7 +6,7 @@ import {
 } from "@repo/core";
 import type { DurationDist, RouteOption } from "@repo/schema";
 
-// core の分岐点計算への入口。core の API 変更（firstTrainWaitMinutes の追加）はここだけで吸収する
+// core の分岐点計算への入口。分岐点の時刻は運転再開の期限
 
 export type BreakEvenComputation = {
   result: BreakEvenResult;
@@ -21,7 +21,7 @@ export type BreakEvenRequest = {
   waitRouteMinutesAfterResume: number;
   options: readonly RouteOption[];
   deadline: string | null;
-  // 知見の after_resume.first_train_wait_minutes.p50。core の新しい API に渡す
+  // 知見の after_resume.first_train_wait_minutes.p50。事象が不明なら null
   firstTrainWaitMinutes: number | null;
 };
 
@@ -37,6 +37,7 @@ export function computeBreakEvenForOptions(request: BreakEvenRequest): BreakEven
     now: request.now,
     remaining: request.remaining,
     waitRouteMinutesAfterResume: request.waitRouteMinutesAfterResume,
+    firstTrainWaitMinutes: request.firstTrainWaitMinutes ?? 0,
   };
   const result = computeBreakEven({ ...base, alternatives: basis });
   const comparison = compareOptions({

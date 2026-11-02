@@ -24,9 +24,12 @@ const ORDER: JudgmentEvent["type"][] = [
   "judgment_ready",
 ];
 
-// 同じ種類の連続をまとめた並び
+// 同じ種類の連続をまとめた並び。途中経過の progress は除く
 function collapseTypes(events: JudgmentEvent[]): string[] {
-  return events.map((e) => e.type).filter((t, i, all) => t !== all[i - 1]);
+  return events
+    .map((e) => e.type)
+    .filter((t) => t !== "progress")
+    .filter((t, i, all) => t !== all[i - 1]);
 }
 
 describe("判断イベントの列", () => {
@@ -43,6 +46,28 @@ describe("判断イベントの列", () => {
       }
     });
   }
+
+  it("決定論モードでも各段階の開始を利用者の言語で流す", async () => {
+    const scenario = scenarios[0];
+    const entry = scenario?.timeline[0];
+    if (!scenario || !entry) throw new Error("シナリオがありません");
+    for (const language of ["ja", "en"] as const) {
+      const request = { ...buildScenarioRequest(scenario, entry, []), language };
+      const events = await postJudge(createTestApp(deps), request);
+      const progress = events.flatMap((e) => (e.type === "progress" ? [e] : []));
+      const stages = progress.map((e) => e.stage);
+      expect(stages).toEqual(
+        expect.arrayContaining(["interpret", "phase", "alternatives", "break_even", "judgment"]),
+      );
+      const japanese = /[ぁ-んァ-ヶ一-龥]/;
+      expect(progress.every((e) => japanese.test(e.message) === (language === "ja"))).toBe(true);
+      // 段階の開始は、その段階の結果より前に届く
+      const indexOf = (pred: (e: (typeof events)[number]) => boolean) => events.findIndex(pred);
+      expect(indexOf((e) => e.type === "progress" && e.stage === "phase")).toBeLessThan(
+        indexOf((e) => e.type === "phase_estimated"),
+      );
+    }
+  });
 
   it("兆候のイベントは観測をまたいで重複しない", async () => {
     const scenario = scenarios[0];
@@ -93,8 +118,8 @@ describe("入口の検証と上限", () => {
       ...valid,
       newInput: { type: "photo", imageBase64: "aGVsbG8=", mediaType: "image/png" },
     });
-    expect(events.map((e) => e.type)).toEqual(["error"]);
-    expect(events[0]).toMatchObject({ retryable: false });
+    expect(collapseTypes(events)).toEqual(["error"]);
+    expect(events.find((e) => e.type === "error")).toMatchObject({ retryable: false });
   });
 
   it("大きすぎる画像は 413", async () => {

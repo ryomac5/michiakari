@@ -13,6 +13,7 @@ import { runClaudeJudgment } from "./claude-judge.ts";
 import { decideDeterministically } from "./deterministic-decision.ts";
 import type { EventSink } from "./event-sink.ts";
 import { createJudgeSession, type JudgeSession } from "./session.ts";
+import { buildProgressMessage } from "./templates.ts";
 
 // 1 回の判断の流れ: 解釈 → 兆候 → 段階 → 代替手段 → 分岐点 → 判断
 // claude モードが失敗したら、済んだ手順はそのままに決定論モードで仕上げる
@@ -115,6 +116,7 @@ async function finishDeterministically(session: JudgeSession, sink: EventSink): 
   if (!estimate || !alternatives || !breakEven)
     throw new Error("判断に必要なツールの結果がそろいません");
   const results = { estimate, alternatives, breakEven };
+  await session.emitProgress("judgment");
   const decision = decideDeterministically(session, results);
   const checked = validateJudgment({
     judgment: assembleJudgment(results, decision, session.ctx.request.language),
@@ -136,6 +138,13 @@ export async function runJudge(
   deps: JudgeDeps,
   sink: EventSink,
 ): Promise<void> {
+  if (request.newInput) {
+    await sink.emit({
+      type: "progress",
+      stage: "interpret",
+      message: buildProgressMessage("interpret", request.language),
+    });
+  }
   const parsed = await interpretNewInput(request, deps);
   if (request.newInput && !parsed) {
     await sink.emit({

@@ -3,7 +3,7 @@ import { type Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
-import { createNetworkProvider } from "./alternatives/network-provider.ts";
+import { createGeoProvider } from "./alternatives/geo-provider.ts";
 import { safetyLimits } from "./config.ts";
 import type { ContentStore } from "./content.ts";
 import { createEventSink } from "./judge/event-sink.ts";
@@ -30,7 +30,7 @@ export function createDefaultJudgeDeps(): JudgeDeps {
   return {
     mode: "deterministic",
     content: EMPTY_CONTENT,
-    provider: createNetworkProvider(),
+    provider: createGeoProvider(),
     fetchRain: async () => null,
     llm: null,
     prompts: loadPrompts(),
