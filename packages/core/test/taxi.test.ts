@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   OSAKA_CITY_TAXI_FARE,
   OSAKA_CITY_TAXI_FARE_SOURCES,
-  TAXI_AVERAGE_SPEED_KMH,
   TAXI_DETOUR_FACTOR,
+  TAXI_SPEED_BANDS,
 } from "../params/taxi.ts";
 import {
   applyDistanceShortening,
@@ -19,10 +19,34 @@ describe("タクシーの所要時間", () => {
     expect(estimateTaxiRoadKm(10)).toBeCloseTo(10 * TAXI_DETOUR_FACTOR, 6);
   });
 
-  it("所要時間は道のり ÷ 平均速度を切り上げる", () => {
+  it("最初の距離帯の中では 道のり ÷ その帯の速度を切り上げる", () => {
+    const first = TAXI_SPEED_BANDS[0];
+    if (!first) throw new Error("距離帯がありません");
     expect(computeTaxiMinutes(0)).toBe(0);
-    expect(computeTaxiMinutes(TAXI_AVERAGE_SPEED_KMH)).toBe(60);
+    expect(computeTaxiMinutes(first.upToKm)).toBe(Math.ceil((first.upToKm / first.speedKmh) * 60));
     expect(computeTaxiMinutes(0.1)).toBe(1);
+  });
+
+  it("距離帯をまたぐと 帯ごとの 距離 ÷ 速度 を足す", () => {
+    const expected = TAXI_SPEED_BANDS.reduce((sum, band, i) => {
+      const fromKm = i === 0 ? 0 : (TAXI_SPEED_BANDS[i - 1]?.upToKm ?? 0);
+      const km = Math.max(Math.min(50, band.upToKm) - fromKm, 0);
+      return sum + (km / band.speedKmh) * 60;
+    }, 0);
+    expect(computeTaxiMinutes(50)).toBe(Math.ceil(expected));
+  });
+
+  it("距離帯の速度は先へ行くほど速い", () => {
+    const speeds = TAXI_SPEED_BANDS.map((b) => b.speedKmh);
+    expect(speeds).toEqual([...speeds].sort((a, b) => a - b));
+    expect(TAXI_SPEED_BANDS.at(-1)?.upToKm).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("大阪から京都ほどの道のりは 1 時間台に収まる", () => {
+    // 直線約 40 km を迂回係数で道のりにした距離
+    const minutes = computeTaxiMinutes(estimateTaxiRoadKm(40));
+    expect(minutes).toBeGreaterThanOrEqual(60);
+    expect(minutes).toBeLessThan(100);
   });
 
   it("負または有限でない距離は例外", () => {

@@ -66,5 +66,10 @@ export const TAXI_TRIP_PARAMS_SOURCE = "開発者の推定（仮）";
 // 駅間の直線距離に対する道のりの比。出典: 開発者の推定（仮）
 export const TAXI_DETOUR_FACTOR = 1.3;
 
-// 都市部の平均走行速度（km/h）。信号待ちと渋滞を含む。出典: 開発者の推定（仮）
-export const TAXI_AVERAGE_SPEED_KMH = 20;
+// 距離帯ごとの平均走行速度（km/h）。信号待ちと渋滞を含む。出典: 開発者の推定（仮）
+// 道のりの先頭から順に当てはめる。10 km までは市街地、その先は幹線道路、さらに先は高速道路を想定する
+export const TAXI_SPEED_BANDS: readonly { upToKm: number; speedKmh: number }[] = [
+  { upToKm: 10, speedKmh: 20 },
+  { upToKm: 25, speedKmh: 40 },
+  { upToKm: Number.POSITIVE_INFINITY, speedKmh: 70 },
+];
