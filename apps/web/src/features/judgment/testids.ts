@@ -73,6 +73,14 @@ export const testIds = {
     signal: (id: string) => `judgment-signal-${id}`,
     signalLink: (id: string) => `judgment-signal-link-${id}`,
     evidenceItem: (id: string) => `judgment-evidence-item-${id}`,
+    // 判断に使った雨量の推移。data-trend と data-reading-count（欠測を含む観測の数）を出す
+    weather: "judgment-weather",
+    weatherChart: "judgment-weather-chart",
+    weatherTrend: "judgment-weather-trend",
+    weatherWarnings: "judgment-weather-warnings",
+    weatherMissing: "judgment-weather-missing",
+    weatherSummary: "judgment-weather-summary",
+    weatherFictional: "judgment-weather-fictional",
     addInfo: "judgment-add-info",
   },
   // リプレイ。判断の部品は judgment の testid をそのまま使う

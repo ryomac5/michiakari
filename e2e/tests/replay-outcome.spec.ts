@@ -88,8 +88,11 @@ function toDecision({ now, judgment }: RecordedJudgment): ReplayDecision {
   const recommended = judgment.options.find((o) => o.id === judgment.recommendedOptionId);
   const rideLegs =
     judgment.options.find((o) => o.kind === "wait")?.legs.filter((l) => l.mode !== "wait") ?? [];
-  const alternatives = judgment.options
-    .filter((o) => o.kind !== "wait")
+  // 切り替えた場合の比較は分岐点と同じく公共交通で行い、無ければタクシーにする
+  const publicOptions = judgment.options.filter((o) => o.kind === "transfer" || o.kind === "walk");
+  const basis =
+    publicOptions.length > 0 ? publicOptions : judgment.options.filter((o) => o.kind === "taxi");
+  const alternatives = basis
     .map((o) => o.arrivalTime)
     .sort((a, b) => Date.parse(a) - Date.parse(b));
   return {

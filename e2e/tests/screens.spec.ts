@@ -4,7 +4,13 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, type Page, test } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import { loadReplayScenarios, waitForFiniteAnimations, waitForJudged } from "../support/replay.ts";
+import {
+  loadReplayKnowledge,
+  loadReplayScenarios,
+  splitScenariosByWeather,
+  waitForFiniteAnimations,
+  waitForJudged,
+} from "../support/replay.ts";
 
 // 全画面を言語・テーマ・画面幅の組み合わせで撮り、見た目の約束を機械で確かめる
 // 撮った画像は e2e/screenshots/screens/<組み合わせ>/ に出る（git 管理外）
@@ -35,6 +41,11 @@ const scenario =
   scenarios.find((s) => s.expectations.some((e) => e.action === "switch")) ?? scenarios[0];
 const switchAfter =
   scenario?.expectations.find((e) => e.action === "switch")?.after ?? scenario?.timeline.at(-1)?.id;
+// 気象を使う事象のシナリオは、知見の external_factors.weather で選ぶ。待つ判断になった観測で撮る
+const weatherScenario = splitScenariosByWeather(scenarios, loadReplayKnowledge()).weather[0];
+const weatherWaitAfter =
+  weatherScenario?.expectations.find((e) => e.action === "wait")?.after ??
+  weatherScenario?.timeline.at(-1)?.id;
 
 test.setTimeout(180_000);
 
@@ -228,6 +239,34 @@ for (const variant of variants) {
       await capture(page, variant, "13-replay-full", true);
       await checkScreen(page, "リプレイ");
       if (variant.width === mobile.width) await expectFirstViewport(page, variant, "リプレイ");
+    });
+
+    test("リプレイ（気象を使う事象）", async ({ page }) => {
+      if (!weatherScenario || !weatherWaitAfter)
+        throw new Error("気象を使う事象のシナリオがありません");
+      await page.goto(`/replay?scenario=${weatherScenario.id}`);
+      await expect(page.getByTestId(testIds.replay.screen)).toHaveAttribute("data-state", "idle", {
+        timeout: 60_000,
+      });
+      for (const entry of weatherScenario.timeline) {
+        await page.getByTestId(testIds.replay.nextButton).click();
+        await waitForJudged(page, entry.id);
+        if (entry.id === weatherWaitAfter) break;
+      }
+      await expect(page.getByTestId(testIds.judgment.weather)).toBeVisible();
+      await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
+        timeout: 30_000,
+      });
+      await capture(page, variant, "16-replay-weather");
+      await page.getByTestId(testIds.judgment.weather).scrollIntoViewIfNeeded();
+      await waitForFiniteAnimations(page);
+      await page.screenshot({
+        path: `${screenshotRoot}${variant.name}/17-replay-weather-chart.png`,
+      });
+      await capture(page, variant, "18-replay-weather-full", true);
+      await checkScreen(page, "リプレイ（気象）");
+      if (variant.width === mobile.width)
+        await expectFirstViewport(page, variant, "リプレイ（気象）");
     });
   });
 }

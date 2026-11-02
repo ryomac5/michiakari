@@ -154,6 +154,26 @@
         }
       }
     },
+    "weather": {
+      "title": "Rainfall, every 10 min",
+      "stale": "Updating",
+      "trend": {
+        "rising": "Rising",
+        "falling": "Easing",
+        "steady": "Steady",
+        "unknown": "Trend unknown"
+      },
+      "issued": "{name} in effect",
+      "noWarnings": "No warnings or advisories",
+      "warningsUnknown": "No warning information",
+      "mm": "{mm} mm",
+      "missing": "missing",
+      "missingCount": "{count} missing",
+      "scaleMax": "Top {mm} mm",
+      "chartLabel": "10-minute rainfall. {values}",
+      "source": "Weather data: Japan Meteorological Agency",
+      "fictional": "Fictional scenario values"
+    },
     "options": {
       "title": "Options",
       "arrival": "Arrive",

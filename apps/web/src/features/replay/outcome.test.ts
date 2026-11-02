@@ -51,6 +51,45 @@ describe("buildReplayDecision", () => {
     expect(decision.eventType).toBe(judgment.estimate.eventType);
   });
 
+  it("最も早い代替の到着は、公共交通があればタクシーより公共交通から取る", () => {
+    const judgment = pickJudgment(false, "2026-11-05T22:10:00+09:00");
+    const wait = judgment.options.find((o) => o.kind === "wait");
+    if (!wait) throw new Error("待つ選択肢がありません");
+    const option = (id: string, kind: "transfer" | "taxi", arrivalTime: string) => ({
+      ...wait,
+      id,
+      kind,
+      label: id,
+      legs: [
+        {
+          mode: kind === "taxi" ? ("taxi" as const) : ("ride" as const),
+          from: "大阪",
+          to: "三ノ宮",
+          minutes: 30,
+        },
+      ],
+      arrivalTime,
+    });
+    const withTaxi: Judgment = {
+      ...judgment,
+      options: [
+        wait,
+        option("detour", "transfer", "2026-11-06T00:10:00+09:00"),
+        option("taxi", "taxi", "2026-11-05T22:50:00+09:00"),
+      ],
+    };
+    expect(buildReplayDecision(withTaxi, "2026-11-05T22:10:00+09:00").bestAlternativeArrival).toBe(
+      "2026-11-06T00:10:00+09:00",
+    );
+    const taxiOnly: Judgment = {
+      ...judgment,
+      options: [wait, option("taxi", "taxi", "2026-11-05T22:50:00+09:00")],
+    };
+    expect(buildReplayDecision(taxiOnly, "2026-11-05T22:10:00+09:00").bestAlternativeArrival).toBe(
+      "2026-11-05T22:50:00+09:00",
+    );
+  });
+
   it("待つ選択肢に乗車の区間が無ければ乗車分は null", () => {
     const judgment = pickJudgment(false, "2026-11-05T22:10:00+09:00");
     const unrouted: Judgment = {

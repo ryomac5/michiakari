@@ -205,3 +205,61 @@ describe("progress イベント", () => {
     expect(startJudgmentRun(state).progress).toEqual({});
   });
 });
+
+describe("weather_checked", () => {
+  const weatherEvent: Extract<JudgmentEvent, { type: "weather_checked" }> = {
+    type: "weather_checked",
+    seq: 1,
+    at: "2026-11-05T18:00:00+09:00",
+    source: "scenario",
+    readings: [
+      { time: "2026-11-05T17:50:00+09:00", rainfall10minMm: 6 },
+      { time: "2026-11-05T18:00:00+09:00", rainfall10minMm: null },
+    ],
+    warnings: ["大雨警報"],
+    trend: "unknown",
+    summary: "直近の10分雨量は6mmです。大雨警報が出ています。",
+  };
+  // 気象を確かめた判断のイベント列。seq を空けて weather_checked を差し込む
+  const withWeather: JudgmentEvent[] = [
+    ...events.map((e) => ({ ...e, seq: e.seq * 2 + 2 })),
+    weatherEvent,
+  ].sort((a, b) => a.seq - b.seq);
+
+  it("気象を取り込み、表示に出す。気象を使わない判断では出さない", () => {
+    const ready = applyEvents(startJudgmentRun(createJudgmentState()), withWeather);
+    const display = selectJudgmentDisplay(ready);
+    expect(display.weather).toMatchObject({
+      source: "scenario",
+      trend: "unknown",
+      warnings: ["大雨警報"],
+      at: weatherEvent.at,
+    });
+    expect(display.weather?.readings).toHaveLength(2);
+    expect(display.weatherStale).toBe(false);
+
+    const plain = applyEvents(startJudgmentRun(createJudgmentState()), events);
+    expect(selectJudgmentDisplay(plain).weather).toBeNull();
+  });
+
+  it("更新中は前回の気象を古い印付きで出し、新しい気象が届いたら置き換える", () => {
+    const ready = applyEvents(startJudgmentRun(createJudgmentState()), withWeather);
+    const rerun = startJudgmentRun(ready);
+    expect(selectJudgmentDisplay(rerun)).toMatchObject({
+      weather: ready.weather,
+      weatherStale: true,
+    });
+
+    const next = applyEvents(rerun, [{ ...weatherEvent, seq: 0, trend: "rising" }]);
+    expect(selectJudgmentDisplay(next).weatherStale).toBe(false);
+    expect(selectJudgmentDisplay(next).weather?.trend).toBe("rising");
+  });
+
+  it("次の判断が気象を使わなければ、確定した時点で気象を出さない", () => {
+    const ready = applyEvents(startJudgmentRun(createJudgmentState()), withWeather);
+    const next = applyEvents(startJudgmentRun(ready), events);
+    expect(selectJudgmentDisplay(next).weather).toBeNull();
+    // さらに次の更新中も、前回に気象が無いので出さない
+    expect(selectJudgmentDisplay(startJudgmentRun(next)).weather).toBeNull();
+  });
+});

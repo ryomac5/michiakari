@@ -15,6 +15,7 @@ import { EvidenceSection } from "@/features/judgment/components/EvidenceSection"
 import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
+import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { testIds } from "@/features/judgment/testids";
 import { formatClockTime } from "@/features/judgment/time";
@@ -198,6 +199,11 @@ export function ReplayPlayer({
 
         {started && (
           <>
+            {/* 気象を使った判断のときだけ。最初の画面の結論と分岐点を押し下げないよう、その下に置く */}
+            {display.weather && (
+              <WeatherPanel weather={display.weather} stale={display.weatherStale} />
+            )}
+
             <PhaseStrip estimate={display.estimate} catalog={catalog} />
 
             <MapPanel

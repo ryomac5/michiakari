@@ -90,6 +90,17 @@
   --animate-rise-in: rise-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-switch-flash: switch-flash 1.2s ease-out 2;
   --animate-fade-in: fade-in 400ms ease-out both;
+  /* 雨量の棒グラフ: 新しく足された棒のせり上がり */
+  --animate-bar-grow: bar-grow 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
 }
 
 /* 分岐点の図: 再開見込みが分岐点を越えた部分。色に加えて斜線で示す */
