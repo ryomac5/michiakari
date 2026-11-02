@@ -13,3 +13,6 @@ next-env.d.ts
 
 # エージェントの作業ツリー
 .claude/worktrees/
+
+# 前処理の元データ（国土数値情報の zip）
+packages/data/.cache/
