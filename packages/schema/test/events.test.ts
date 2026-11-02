@@ -10,9 +10,7 @@ describe("JudgmentEventSchema", () => {
     { type: "observation_parsed", observation: validObservation },
     {
       type: "signal_detected",
-      eventType: "sample_event",
-      signalId: "work_started",
-      quote: "対応を始めました",
+      signal: { eventType: "sample_event", signalId: "work_started", quote: "対応を始めました" },
     },
     { type: "phase_estimated", estimate: validJudgment.estimate },
     { type: "alternatives_computed", options: validJudgment.options },
@@ -33,6 +31,17 @@ describe("JudgmentEventSchema", () => {
     expect(JudgmentEventSchema.safeParse({ ...event, at: base.at }).success).toBe(false);
     expect(JudgmentEventSchema.safeParse({ ...event, seq: 1 }).success).toBe(false);
     expect(JudgmentEventSchema.safeParse({ ...event, seq: -1, at: base.at }).success).toBe(false);
+  });
+
+  it("signal_detected で兆候を展開した旧形式を拒否する", () => {
+    const event = {
+      ...base,
+      type: "signal_detected",
+      eventType: "sample_event",
+      signalId: "work_started",
+      quote: "対応を始めました",
+    };
+    expect(JudgmentEventSchema.safeParse(event).success).toBe(false);
   });
 
   it("type に合わない中身を拒否する", () => {

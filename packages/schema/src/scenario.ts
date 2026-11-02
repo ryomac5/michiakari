@@ -1,7 +1,6 @@
 import { z } from "zod";
 import {
   ActionSchema,
-  findDuplicateIds,
   IdSchema,
   IsoDateTimeSchema,
   LangSchema,
@@ -9,6 +8,7 @@ import {
   NonNegativeIntSchema,
   ObservableKindSchema,
 } from "./common.ts";
+import { findDuplicateIds } from "./internal.ts";
 
 // scenarios/*.yaml の書式。キーは雛形どおり snake_case
 
@@ -103,6 +103,16 @@ export function checkScenarioIntegrity(s: Scenario): string[] {
     }
   });
 
+  const readings = s.weather?.readings ?? [];
+  readings.forEach((reading, i) => {
+    const prev = readings[i - 1];
+    if (prev && reading.offset_minutes <= prev.offset_minutes) {
+      errors.push(
+        `weather.readings の offset_minutes が狭義の昇順ではありません: ${prev.offset_minutes} → ${reading.offset_minutes}`,
+      );
+    }
+  });
+
   const known = new Set(s.timeline.map((t) => t.id));
   for (const e of s.expectations) {
     if (!known.has(e.after)) {
@@ -117,6 +127,7 @@ const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // start_time 以降で最初に来る HH:MM（日本時間）を ISO 文字列で返す
+// シナリオの deadline を JudgeRequest の IsoDateTime に変換する補助なので schema に置く
 export function resolveDeadline(startTime: string, hhmm: string): string {
   const start = Date.parse(IsoDateTimeSchema.parse(startTime));
   const [hours, minutes] = HhmmSchema.parse(hhmm).split(":").map(Number) as [number, number];

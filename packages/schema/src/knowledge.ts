@@ -1,11 +1,11 @@
 import { z } from "zod";
 import {
   DurationDistSchema,
-  findDuplicateIds,
   IdSchema,
   LocalizedTextSchema,
   ObservableKindSchema,
 } from "./common.ts";
+import { findDuplicateIds } from "./internal.ts";
 
 // knowledge/*.yaml の書式。キーは雛形どおり snake_case
 

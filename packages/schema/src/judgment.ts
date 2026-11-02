@@ -7,6 +7,7 @@ import {
   IsoDateTimeSchema,
   NonNegativeIntSchema,
 } from "./common.ts";
+import { findDuplicateIds } from "./internal.ts";
 
 // emit_judgment の出力。Claude のツール定義に変換するため refine で ID 参照を検査しない
 
@@ -37,8 +38,9 @@ export const BreakEvenSchema = z.object({
 });
 export type BreakEven = z.infer<typeof BreakEvenSchema>;
 
+// 事象を特定できないときは eventType を null にし、分岐点だけで判断を返す
 export const EstimateSchema = z.object({
-  eventType: IdSchema,
+  eventType: IdSchema.nullable(),
   phaseId: IdSchema.nullable(),
   elapsedMinutes: NonNegativeIntSchema.nullable(),
   remaining: DurationDistSchema.nullable(),
@@ -65,9 +67,13 @@ export const JudgmentSchema = z.object({
 });
 export type Judgment = z.infer<typeof JudgmentSchema>;
 
-// 推奨する代替手段の参照を検査し、問題をエラー文字列で返す
+// options の id の一意性と推奨する代替手段の参照を検査し、問題をエラー文字列で返す
 export function checkJudgmentRefs(j: Judgment): string[] {
   const errors: string[] = [];
+
+  for (const id of findDuplicateIds(j.options.map((o) => o.id))) {
+    errors.push(`options の id が重複しています: ${id}`);
+  }
 
   if (j.action === "switch" && j.recommendedOptionId === null) {
     errors.push("action が switch のときは recommendedOptionId が必要です");

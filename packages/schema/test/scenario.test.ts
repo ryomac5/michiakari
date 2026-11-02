@@ -100,6 +100,24 @@ describe("checkScenarioIntegrity", () => {
     ]);
   });
 
+  it("weather.readings の逆順を検出する", () => {
+    const s = loadValid();
+    const first = s.weather?.readings[0];
+    if (first) first.offset_minutes = 20;
+    expect(checkScenarioIntegrity(s)).toEqual([
+      "weather.readings の offset_minutes が狭義の昇順ではありません: 20 → 10",
+    ]);
+  });
+
+  it("weather.readings の同じ offset_minutes の重複を検出する", () => {
+    const s = loadValid();
+    const second = s.weather?.readings[1];
+    if (second) second.offset_minutes = 0;
+    expect(checkScenarioIntegrity(s)).toEqual([
+      "weather.readings の offset_minutes が狭義の昇順ではありません: 0 → 0",
+    ]);
+  });
+
   it("未定義の timeline id を指す expectations.after を検出する", () => {
     const s = loadValid();
     s.expectations.push({ after: "obs_9", action: "wait", note: "" });
@@ -120,6 +138,10 @@ describe("resolveDeadline", () => {
 
   it("開始時刻と同じ時刻はその時刻を返す", () => {
     expect(resolveDeadline("2026-11-05T22:40:00+09:00", "22:40")).toBe("2026-11-05T22:40:00+09:00");
+  });
+
+  it("早朝開始で後の時刻は同じ日にする", () => {
+    expect(resolveDeadline("2026-11-06T01:00:00+09:00", "02:00")).toBe("2026-11-06T02:00:00+09:00");
   });
 
   it("月末と年末をまたぐ", () => {

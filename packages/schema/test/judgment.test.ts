@@ -19,7 +19,13 @@ describe("JudgmentSchema", () => {
     j.breakEven = null;
     j.recommendedOptionId = null;
     j.options = [];
-    j.estimate = { ...j.estimate, phaseId: null, elapsedMinutes: null, remaining: null };
+    j.estimate = {
+      ...j.estimate,
+      eventType: null,
+      phaseId: null,
+      elapsedMinutes: null,
+      remaining: null,
+    };
     expect(JudgmentSchema.safeParse(j).success).toBe(true);
     expect(checkJudgmentRefs(j)).toEqual([]);
   });
@@ -77,6 +83,14 @@ describe("checkJudgmentRefs", () => {
     j.action = "wait";
     j.recommendedOptionId = "taxi_9";
     expect(checkJudgmentRefs(j)).toEqual(["recommendedOptionId が options に存在しません: taxi_9"]);
+  });
+
+  it("options の id の重複を検出する", () => {
+    const j = cloneJudgment();
+    const option = j.options[0];
+    if (!option) throw new Error("fixture");
+    j.options.push({ ...option, kind: "taxi", label: "タクシー" });
+    expect(checkJudgmentRefs(j)).toEqual(["options の id が重複しています: transfer_1"]);
   });
 
   it("wait で recommendedOptionId が null なら問題なし", () => {

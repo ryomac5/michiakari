@@ -45,14 +45,3 @@ export type Action = z.infer<typeof ActionSchema>;
 
 export const ConfidenceSchema = z.enum(["low", "medium", "high"]);
 export type Confidence = z.infer<typeof ConfidenceSchema>;
-
-// ID の重複を検出する
-export function findDuplicateIds(ids: readonly string[]): string[] {
-  const seen = new Set<string>();
-  const duplicates = new Set<string>();
-  for (const id of ids) {
-    if (seen.has(id)) duplicates.add(id);
-    seen.add(id);
-  }
-  return [...duplicates];
-}

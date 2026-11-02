@@ -31,6 +31,8 @@ export const SelectionInputSchema = z.object({
 // リプレイでシナリオの timeline 1件を流し込む
 export const ScenarioInputSchema = z.object({
   type: z.literal("scenario"),
+  // weather.readings を引くシナリオを特定する
+  scenarioId: IdSchema,
   observationId: IdSchema,
   kind: ObservableKindSchema,
   text: LocalizedTextSchema,

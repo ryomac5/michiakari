@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { z } from "zod";
-import { findDuplicateIds } from "./common.ts";
+import { findDuplicateIds } from "./internal.ts";
 import { checkKnowledgeIntegrity, type Knowledge, KnowledgeSchema } from "./knowledge.ts";
 import {
   type ContentError,

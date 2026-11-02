@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { IdSchema, IsoDateTimeSchema, NonNegativeIntSchema } from "./common.ts";
+import { IsoDateTimeSchema, NonNegativeIntSchema } from "./common.ts";
 import { BreakEvenSchema, EstimateSchema, JudgmentSchema, RouteOptionSchema } from "./judgment.ts";
-import { ObservationSchema } from "./observation.ts";
+import { DetectedSignalSchema, ObservationSchema } from "./observation.ts";
 
 // SSE で送る判断イベント。種類を足すときは defineEvent で作り JudgmentEventSchema に並べる
 
@@ -19,9 +19,7 @@ export const ObservationParsedEventSchema = defineEvent("observation_parsed", {
 });
 
 export const SignalDetectedEventSchema = defineEvent("signal_detected", {
-  eventType: IdSchema,
-  signalId: IdSchema,
-  quote: z.string(),
+  signal: DetectedSignalSchema,
 });
 
 export const PhaseEstimatedEventSchema = defineEvent("phase_estimated", {

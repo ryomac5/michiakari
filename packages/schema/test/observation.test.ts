@@ -7,7 +7,13 @@ describe("RawInputSchema", () => {
     { type: "photo", imageBase64: "aGVsbG8=", mediaType: "image/jpeg" },
     { type: "text", text: "架空の発表文" },
     { type: "selection", eventType: "sample_event", signalIds: ["checking_announced"] },
-    { type: "scenario", observationId: "obs_1", kind: "announcement", text: { ja: "架空" } },
+    {
+      type: "scenario",
+      scenarioId: "sample_scenario",
+      observationId: "obs_1",
+      kind: "announcement",
+      text: { ja: "架空" },
+    },
   ])("$type を受け入れる", (input) => {
     expect(RawInputSchema.safeParse(input).success).toBe(true);
   });
@@ -16,7 +22,14 @@ describe("RawInputSchema", () => {
     { type: "photo", imageBase64: "aGVsbG8=", mediaType: "application/pdf" },
     { type: "text", text: "" },
     { type: "selection", eventType: "Sample", signalIds: [] },
-    { type: "scenario", observationId: "obs_1", kind: "rumor", text: { ja: "架空" } },
+    {
+      type: "scenario",
+      scenarioId: "sample_scenario",
+      observationId: "obs_1",
+      kind: "rumor",
+      text: { ja: "架空" },
+    },
+    { type: "scenario", observationId: "obs_1", kind: "announcement", text: { ja: "架空" } },
     { type: "voice", text: "未知の種類" },
   ])("不正な $type を拒否する", (input) => {
     expect(RawInputSchema.safeParse(input).success).toBe(false);
