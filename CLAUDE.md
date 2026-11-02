@@ -35,13 +35,13 @@ Built with Claude: Japan 2026 ハッカソン（2026/11/2〜11/8）の提出作�
 ## 技術スタック
 
 - モノレポ: pnpm workspaces + Turborepo、TypeScript（strict）
-- 画面: Next.js（App Router）、Tailwind CSS、shadcn/ui、MapLibre GL JS、deck.gl
+- 画面: Next.js（App Router）、Tailwind CSS、shadcn/ui、MapLibre GL JS
 - 判断エージェント: Node.js 常駐サービス（Hono）、Anthropic Client SDK（`@anthropic-ai/sdk`）による自前のツール実行ループ、SSE で画面へストリーミング
 - スキーマ: Zod（`packages/schema` が唯一の正）
-- データ前処理: DuckDB（空間拡張）を SQL 中心で使用、tippecanoe で PMTiles を生成
-- 徒歩経路: Valhalla（Docker、OpenStreetMap 関西抽出）
+- データ前処理: DuckDB（空間拡張）を SQL 中心で使用、路線と駅を GeoJSON で出力
+- 徒歩経路: 直線距離からの概算。Valhalla による経路探索は将来の拡張
 - テスト: Vitest（単体）、Playwright（シナリオの振る舞い・画面）
-- 公開: 画面は Vercel、エージェントと Valhalla はコンテナ環境
+- 公開: 画面は Vercel、エージェントはコンテナ環境
 
 ## ディレクトリ構成
 
@@ -56,7 +56,7 @@ packages/
   data/           前処理スクリプトと SQL
 knowledge/        指令員の知見ナレッジ（YAML、開発者が記述）
 scenarios/        リプレイ用の架空シナリオと期待する振る舞い（YAML、開発者が記述）
-infra/            Valhalla などのコンテナ定義
+infra/            エージェントのコンテナ定義
 docs/             設計文書、作業記録
 .claude/          Claude Code の設定とフック
 ```
@@ -68,7 +68,7 @@ docs/             設計文書、作業記録
 ```bash
 pnpm install
 pnpm dev                 # web と agent を同時起動
-pnpm dev:demo            # agent だけをダミーの知見・シナリオで起動。API キーが無ければ決定論モード
+pnpm dev:demo            # web と agent をダミーの知見・シナリオと決定論モードで起動
 pnpm build               # 全パッケージをビルド
 pnpm test                # 全パッケージの単体テスト
 pnpm test:e2e            # シナリオの振る舞いテスト（Playwright）。決定論モードの agent とダミー内容で動く
