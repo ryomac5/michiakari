@@ -99,6 +99,10 @@ async function main() {
   }
 
   const { lines, nodes, edges, issues } = buildNetwork(stations, sections);
+  const missingEn = lines.filter((l) => !l.nameEn || !l.operatorEn).map((l) => l.lineId);
+  if (missingEn.length > 0) {
+    console.warn(`英語名の表にない路線（日本語名で代用）: ${missingEn.join(", ")}`);
+  }
   const transfers = findTransfers(nodes);
   const generatedAt = new Date().toISOString();
   const network: NetworkData = { version: 1, generatedAt, nodes, lines, edges, transfers };

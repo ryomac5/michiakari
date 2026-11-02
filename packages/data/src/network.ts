@@ -2,7 +2,10 @@ import type { LineInfo, RideEdge, StationNode } from "@repo/geo";
 import {
   resolveLineAliases,
   resolveLineColor,
+  resolveLineNameEn,
   resolveLineType,
+  resolveOperatorNameEn,
+  resolveStationNameEn,
   resolveStationReading,
 } from "./attributes.ts";
 import { type Coord, computeDistanceMeters, extractLines, roundTo } from "./geometry.ts";
@@ -80,9 +83,11 @@ function buildLineNetwork(stations: StationRow[], sections: SectionRow[]) {
     const stationId = (nameCount.get(s.name)?.length ?? 0) > 1 ? `${base}-${s.code}` : base;
     idByCode.set(s.code, stationId);
     const reading = resolveStationReading(s.name);
+    const nameEn = resolveStationNameEn(s.name);
     return {
       stationId,
       name: s.name,
+      ...(nameEn ? { nameEn } : {}),
       ...(reading ? { reading } : {}),
       operator,
       lineId,
@@ -115,11 +120,15 @@ function buildLineNetwork(stations: StationRow[], sections: SectionRow[]) {
     rankStart,
   );
 
+  const nameEn = resolveLineNameEn(operatorKey, lineName);
+  const operatorEn = resolveOperatorNameEn(operatorKey);
   const line: LineInfo = {
     lineId,
     operator,
     operatorKey,
     lineName,
+    ...(nameEn ? { nameEn } : {}),
+    ...(operatorEn ? { operatorEn } : {}),
     aliases: resolveLineAliases(operatorKey, lineName),
     lineType,
     color: resolveLineColor(operatorKey, lineName),
