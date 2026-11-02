@@ -62,7 +62,8 @@ export type TextNumbers = {
 const CLOCK_PATTERN = /(\d{1,2})時(\d{1,2})分|(\d{1,2}):(\d{2})/g;
 const HOURS_DURATION_PATTERN = /(\d+)時間(?:(\d+)分)?/g;
 const HOUR_ONLY_PATTERN = /(\d{1,2})時/g;
-const MINUTES_PATTERN = /(\d+)\s*分|(\d+)\s*(?:minutes|minute|mins|min)\b/gi;
+const MINUTES_PATTERN =
+  /(\d+)\s*分|(\d+)\s*(?:(?:more|another|additional|extra)\s+)?(?:minutes|minute|mins|min)\b/gi;
 const YEN_PATTERN = /(\d[\d,]*)\s*円|¥\s*(\d[\d,]*)|(\d[\d,]*)\s*yen\b/gi;
 
 const parseNumber = (raw: string) => Number(raw.replaceAll(",", ""));

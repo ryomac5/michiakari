@@ -46,6 +46,16 @@ export type JudgeSession = {
   inferredEventType: string | null;
 };
 
+// 英語の利用者向けの兆候の根拠。知見の説明は日本語だけなので、引用・段階の英語名・兆候 id で組み立てる
+export function buildSignalEvidenceEn(
+  signalId: string,
+  quote: string,
+  phaseName: string | undefined,
+): string {
+  const phase = phaseName ? ` in the "${phaseName}" phase` : "";
+  return `Signal "${signalId}"${phase}, observed in the announcement: "${quote}"`;
+}
+
 function formatOptional(iso: string | null, language: Lang): string | null {
   return iso ? formatClock(iso, language) : null;
 }
@@ -243,17 +253,20 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     const eventType = state.estimate?.estimate.eventType ?? null;
     const knowledge = eventType ? ctx.content.knowledge.get(eventType) : undefined;
     if (knowledge) {
-      const signals = knowledge.phases.flatMap((p) => p.signals);
       const seen = new Set<string>();
       for (const o of ctx.observations) {
         for (const s of o.detectedSignals) {
           if (s.eventType !== knowledge.id || seen.has(s.signalId)) continue;
           seen.add(s.signalId);
-          const description = signals.find((k) => k.id === s.signalId)?.description ?? s.quote;
+          const phase = knowledge.phases.find((p) => p.signals.some((k) => k.id === s.signalId));
+          const known = phase?.signals.find((k) => k.id === s.signalId);
           refs.push({
             kind: "signal",
             id: s.signalId,
-            description: `${description}「${s.quote}」`,
+            description:
+              language === "en"
+                ? buildSignalEvidenceEn(s.signalId, s.quote, phase?.name.en ?? phase?.name.ja)
+                : `${known?.description ?? s.quote}「${s.quote}」`,
           });
         }
       }

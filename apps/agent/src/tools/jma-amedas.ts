@@ -63,7 +63,10 @@ function convertKeyToIso(key: string): string {
   return `${key.slice(0, 4)}-${key.slice(4, 6)}-${key.slice(6, 8)}T${key.slice(8, 10)}:${key.slice(10, 12)}:00+09:00`;
 }
 
-export function createAmedasRainFetcher(fetchImpl: FetchLike = fetch): RainFetcher {
+export function createAmedasRainFetcher(
+  fetchImpl: FetchLike = fetch,
+  logWarning: (message: string) => void = () => {},
+): RainFetcher {
   return async ({ coord, now, windowMinutes }) => {
     try {
       tableCache ??= AmedasTableSchema.parse(
@@ -93,7 +96,11 @@ export function createAmedasRainFetcher(fetchImpl: FetchLike = fetch): RainFetch
       }
       readings.sort((a, b) => parseIsoToMs(a.time) - parseIsoToMs(b.time));
       return { stationName: station.name, readings };
-    } catch {
+    } catch (error) {
+      // 利用者の入力と位置は出さず、失敗の種類だけ残す
+      logWarning(
+        `アメダスの雨量を取得できませんでした: ${error instanceof Error ? error.name : "unknown"}`,
+      );
       return null;
     }
   };

@@ -24,6 +24,7 @@ import {
   pickLocalized,
 } from "@/features/knowledge/catalog";
 import { cn } from "@/lib/utils";
+import { buildSignalNote } from "../signal-text";
 import { testIds } from "../testids";
 
 const evidenceIcons: Record<Evidence["kind"], LucideIcon> = {
@@ -202,6 +203,7 @@ function SignalList({
   catalog: KnowledgeCatalog;
 }) {
   const t = useTranslations("judgment.evidence");
+  const locale = useLocale();
 
   return (
     <div className="flex flex-col gap-2">
@@ -210,6 +212,7 @@ function SignalList({
       <ul className="flex flex-col gap-2">
         {signals.map((signal) => {
           const known = findCatalogSignal(catalog, signal.eventType, signal.signalId);
+          const note = buildSignalNote(catalog, signal.eventType, signal.signalId, locale);
           return (
             <li
               key={`${signal.eventType}-${signal.signalId}`}
@@ -222,7 +225,7 @@ function SignalList({
                 <Radio className="mt-0.5 size-5 shrink-0" aria-hidden />
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <p className="font-bold">「{signal.quote}」</p>
-                  {known && <p className="text-sm">{known.description}</p>}
+                  {note && <p className="text-sm">{note}</p>}
                   <code className="font-mono text-sm break-all text-muted">{signal.signalId}</code>
                 </div>
               </EvidenceCard>

@@ -102,6 +102,19 @@ describe("英語の判断: person_accident_last_train の obs_4", () => {
     if (observedEn) expect(wait?.label).toBe(`Wait for ${observedEn} to resume`);
   });
 
+  it("兆候の根拠は、知見の日本語の説明ではなく英語の説明になる", async () => {
+    const judgment = await judgmentPromise;
+    const signals = judgment.evidence.filter((e) => e.kind === "signal");
+    expect(signals.length).toBeGreaterThan(0);
+    for (const e of signals) {
+      expect(e.description).toMatch(new RegExp(`^Signal "${e.id}"`));
+      const known = [...deps.content.knowledge.values()]
+        .flatMap((k) => k.phases.flatMap((p) => p.signals))
+        .find((s) => s.id === e.id);
+      if (known) expect(e.description).not.toContain(known.description);
+    }
+  });
+
   it("推奨する経路のラベルは英語の書き方", async () => {
     const judgment = await judgmentPromise;
     const recommended = judgment.options.find((o) => o.id === judgment.recommendedOptionId);

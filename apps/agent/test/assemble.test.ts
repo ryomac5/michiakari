@@ -268,4 +268,11 @@ describe("extractTextNumbers", () => {
     expect(n.minutes.map((m) => m.value)).toEqual([125, 12]);
     expect(n.hours.map((h) => h.hour)).toEqual([8]);
   });
+
+  it("間に語が入る英語の分も分の数値として拾う", () => {
+    const n = extractTextNumbers(
+      "Wait 25 more minutes, or 10 min on foot. Another 5 minutes, then 3 additional mins and 7 extra minutes.",
+    );
+    expect(n.minutes.map((m) => m.value)).toEqual([25, 10, 5, 3, 7]);
+  });
 });

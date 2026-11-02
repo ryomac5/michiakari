@@ -23,7 +23,7 @@ services:
       # 1 分あたりに 1 クライアントへ許す /judge の回数
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-20}
       # X-Forwarded-For を信用するか。信用できるプロキシの背後に置くときだけ true にする
-      # 現在のエージェントは常に X-Forwarded-For を使う。この変数はエージェント側の対応後に効く
+      # false のときは接続元アドレスで数える。直接受けるときは false にする
       TRUST_PROXY: ${TRUST_PROXY:-false}
     restart: unless-stopped
 

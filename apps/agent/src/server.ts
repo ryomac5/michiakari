@@ -19,12 +19,18 @@ const port = Number(process.env.PORT ?? defaultPort);
 const mode = resolveJudgeMode();
 const content = loadContentStore();
 
+if (content.knowledge.size === 0) {
+  console.warn(
+    "知見が 0 件です。CONTENT_DIR の設定を確かめてください。未設定だとリポジトリの knowledge/ を読みます",
+  );
+}
+
 const app = createApp({
   judge: {
     mode,
     content,
     provider: createGeoProvider(),
-    fetchRain: createAmedasRainFetcher(),
+    fetchRain: createAmedasRainFetcher(fetch, (message) => console.warn(message)),
     llm: mode === "claude" ? createAnthropicLlmClient() : null,
     prompts: loadPrompts(),
     logWarning: (message) => console.warn(message),
