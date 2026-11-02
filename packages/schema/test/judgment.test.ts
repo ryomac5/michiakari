@@ -30,6 +30,13 @@ describe("JudgmentSchema", () => {
     expect(checkJudgmentRefs(j)).toEqual([]);
   });
 
+  it("reason は任意で、あれば受け入れ、空文字は拒否する", () => {
+    expect(
+      JudgmentSchema.safeParse({ ...validJudgment, reason: "現場の確認が続いています。" }).success,
+    ).toBe(true);
+    expect(JudgmentSchema.safeParse({ ...validJudgment, reason: "" }).success).toBe(false);
+  });
+
   it("disclaimer が空なら拒否する", () => {
     expect(JudgmentSchema.safeParse({ ...validJudgment, disclaimer: "" }).success).toBe(false);
   });

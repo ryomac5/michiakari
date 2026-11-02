@@ -62,6 +62,8 @@ export type Evidence = z.infer<typeof EvidenceSchema>;
 export const JudgmentSchema = z.object({
   action: ActionSchema,
   headline: z.string().min(1),
+  // 結論の理由を 1〜2 文で。任意で、無ければ画面は見出しだけを出す
+  reason: z.string().min(1).optional(),
   breakEven: BreakEvenSchema.nullable(),
   estimate: EstimateSchema,
   options: z.array(RouteOptionSchema),
