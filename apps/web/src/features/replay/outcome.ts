@@ -20,6 +20,13 @@ function findEarliestArrival(options: Judgment["options"]): string | null {
   return best;
 }
 
+// 切り替えた場合に比べる代替手段。分岐点と同じく公共交通を使い、無ければタクシーにする
+// 切り替えの判断で推奨されるのも、この中で最も早いもの
+export function selectSwitchBasis(options: Judgment["options"]): Judgment["options"] {
+  const publicOptions = options.filter((o) => o.kind === "transfer" || o.kind === "walk");
+  return publicOptions.length > 0 ? publicOptions : options.filter((o) => o.kind === "taxi");
+}
+
 // 待つ選択肢の再開後の乗車分 = 待つ区間以外の区間の和。経路を引けず乗車の区間が無ければ null
 function sumWaitRideMinutes(judgment: Judgment): number | null {
   const wait = judgment.options.find((o) => o.kind === "wait");
@@ -36,7 +43,7 @@ export function buildReplayDecision(judgment: Judgment, observedAt: string): Rep
     action: judgment.action,
     recommendedArrival: recommended?.arrivalTime ?? null,
     waitRideMinutesAfterResume: sumWaitRideMinutes(judgment),
-    bestAlternativeArrival: findEarliestArrival(judgment.options.filter((o) => o.kind !== "wait")),
+    bestAlternativeArrival: findEarliestArrival(selectSwitchBasis(judgment.options)),
     eventType: judgment.estimate.eventType,
   };
 }
