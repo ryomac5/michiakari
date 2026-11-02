@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { expect, type Page, test } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
+import { openSheet } from "../support/replay.ts";
 
 // モックの判断イベント（人身事故・終電間際の架空シナリオ）で、開始から判断までを通す
 // 開発サーバーでは ?mock=1 で NEXT_PUBLIC_JUDGE_MOCK=1 と同じモックになる
@@ -90,13 +91,15 @@ test("駅を選び、貼り付けで状況を入れると、推論過程が順�
   await expect(page.getByTestId(testIds.judgment.breakEvenTime)).toHaveText(/^\d{2}:\d{2}$/);
   // 残り時間は時刻と紛れない「あと N 分」で出し、時刻は文の中に置く
   await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(/^あと \d+ 分$/);
-  await expect(breakEven).toContainText(/\d{2}:\d{2}\s?までに再開しなければ/);
+  await expect(page.getByTestId(testIds.judgment.breakEvenSentence)).toContainText(
+    /\d{2}:\d{2}\s?までに再開しなければ/,
+  );
 
   const disclaimer = page.getByTestId(testIds.judgment.disclaimer);
   await expect(disclaimer).toBeVisible();
   await expect(disclaimer).toContainText("推定であり、公式発表を優先してください");
 
-  // 地図は描画が終わると data-state="ready" になり、凡例と出典が見える
+  // 地図は描画が終わると data-state="ready" になり、シートの中に地図の見方、地図の隅に出典が出る
   const map = page.getByTestId(testIds.judgment.map);
   await expect(map).toBeVisible();
   await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
@@ -109,17 +112,17 @@ test("駅を選び、貼り付けで状況を入れると、推論過程が順�
   await expect(page.getByTestId(testIds.judgment.option("transfer_hankyu"))).toBeVisible();
   await expect(page.getByTestId(testIds.judgment.option("transfer_hankyu"))).toContainText("—");
 
-  await page.evaluate(() => window.scrollTo(0, 0));
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}judgment-390x844.png` });
-  await page.screenshot({ path: `${screenshotDir}judgment-390x844-full.png`, fullPage: true });
+  await openSheet(page, "half");
+  await page.screenshot({ path: `${screenshotDir}judgment-390x844-half.png` });
+  await openSheet(page, "collapsed");
   await captureMap(page, "judgment-map-390x844.png");
 });
 
-// 地図を画面の中ほどに出して撮る。タイルの読み込みを待つため ready を確かめてから撮る
+// 地図を撮る。タイルの読み込みを待つため ready を確かめてから撮る
 async function captureMap(page: Page, fileName: string): Promise<void> {
   const map = page.getByTestId(testIds.judgment.map);
-  await map.evaluate((el) => el.scrollIntoView({ block: "center" }));
   await expect(map).toHaveAttribute("data-state", "ready");
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}${fileName}` });
@@ -133,8 +136,9 @@ test("情報を追加すると判断が更新され、根拠に段階と兆候�
     { timeout: 15_000 },
   );
 
-  // 根拠は既定で閉じていて、開くと段階の「いまここ」と兆候が見える
+  // 根拠は既定で閉じていて、シートを開いてから根拠を開くと段階の「いまここ」と兆候が見える
   await expect(page.getByTestId(testIds.judgment.phaseTimeline)).toBeHidden();
+  await openSheet(page, "full");
   await page.getByTestId(testIds.judgment.evidenceToggle).click();
   await expect(page.getByTestId(testIds.judgment.phase("on_site"))).toHaveAttribute(
     "data-position",
@@ -147,7 +151,9 @@ test("情報を追加すると判断が更新され、根拠に段階と兆候�
   await addInfo.getByTestId(testIds.situation.pasteInput).fill("振替輸送を行っています。");
   await addInfo.getByTestId(testIds.situation.submit("paste")).click();
 
+  // 送ると閉じたシートに戻り、推論の過程が出る
   await expect(page.getByTestId(testIds.judgment.reasoning)).toBeVisible();
+  await expect(page.getByTestId(testIds.judgment.sheet)).toHaveAttribute("data-snap", "collapsed");
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   await expect(conclusion).toHaveAttribute("data-action", "switch", { timeout: 15_000 });
   await expect(page.getByTestId(testIds.judgment.breakEven)).toHaveAttribute(
