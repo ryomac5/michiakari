@@ -1,0 +1,52 @@
+# テスト用の架空シナリオ
+id: sample_scenario
+title:
+  ja: 架空のシナリオ
+  en: Sample scenario
+event_type: sample_event
+operator: 架空鉄道
+line: 架空線
+blocked_section:
+  from_station: 甲駅
+  to_station: 乙駅
+start_time: "2026-11-05T22:40:00+09:00"
+user:
+  current_station: 甲駅
+  destination: 丙駅
+  constraints:
+    deadline: "23:45"
+    knows_alternatives: false
+    mobility_notes: null
+  language: ja
+timeline:
+  - id: obs_1
+    offset_minutes: 0
+    kind: announcement
+    text:
+      ja: 架空の発表文その1
+      en: Sample announcement 1
+  - id: obs_2
+    offset_minutes: 15
+    kind: station_broadcast
+    text: { ja: 架空の放送 }
+expectations:
+  - after: obs_1
+    action: hold
+    phase: initial
+    evidence_includes: [checking_announced]
+    break_even_shown: true
+    note: 発生直後は保留
+  - after: obs_2
+    action: switch
+    note: 対応が長引くため切り替え
+ground_truth:
+  resume_offset_minutes: 70
+  notes: 架空の結末
+weather:
+  readings:
+    - offset_minutes: 0
+      rainfall_10min_mm: 3.5
+      warnings: [大雨警報]
+    - offset_minutes: 10
+      rainfall_10min_mm: 0
+      warnings: []

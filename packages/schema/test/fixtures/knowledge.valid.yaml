@@ -1,0 +1,42 @@
+# テスト用の架空ナレッジ。実在の事象・数値とは無関係
+id: sample_event
+name:
+  ja: 架空の事象
+  en: Sample event
+summary:
+  ja: テスト用の架空の事象。
+identification:
+  phrases:
+    - 架空の確認
+phases:
+  - id: initial
+    name: { ja: 発生直後, en: Initial }
+    description: 状況を確認している段階
+    signals:
+      - id: checking_announced
+        observable_from: [announcement, signage]
+        description: 確認中である旨の発表
+        example_phrases:
+          - 現在確認を行っています
+    duration_minutes: { p50: 10, p80: 20 }
+    exit_signals: [work_started]
+    guidance: { ja: 情報を待つ }
+  - id: working
+    name: { ja: 対応中 }
+    description: 対応している段階
+    signals:
+      - id: work_started
+        observable_from: [station_broadcast]
+        description: 対応を始めた旨の放送
+        example_phrases: []
+    duration_minutes: { p50: 20, p80: 40 }
+    exit_signals: []
+    guidance: { ja: 代替手段を検討する, en: Consider alternatives }
+after_resume:
+  first_train_wait_minutes: { p50: 5, p80: 15 }
+  notes: 架空のメモ
+caveats:
+  - 架空の注意点
+external_factors:
+  weather: false
+  notes: なし
