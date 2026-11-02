@@ -50,9 +50,9 @@
 
 決定論的な計算。Claude を呼ばない。すべて単体テストを持つ。
 
-- `estimateRemaining`: 事象種別・現在の段階・段階の経過時間から、再開までの残り時間分布（p50, p80）を返す
+- `estimateRemaining`: 知見・現在の段階・段階の経過時間から、実際に乗れる列車が来るまでの残り時間分布（p50, p80）を返す。再開後の初列車待ちである after_resume を含む
 - `computeArrival`: 経路（徒歩・乗車・待ち）から到着時刻を返す
-- `computeBreakEven`: 待つ場合と各代替手段の到着時刻を比べ、分岐点の時刻を返す
+- `computeBreakEven`: 待つ場合と各代替手段の到着時刻を比べ、分岐点の時刻を返す。分岐点の time は運転再開の期限である
 - `computeTaxiFare`: 距離と時刻から公示運賃体系にもとづく概算運賃を返す
 
 ### 2.5 packages/geo
@@ -60,6 +60,8 @@
 - 路線・駅・事業者（国土数値情報から整形）
 - 駅間の徒歩時間行列、徒歩10分・20分の到達範囲（Valhalla で事前計算）
 - 路線上の距離からの乗車時間の概算（関西にはオープンな時刻表データがないため。後述）
+
+経路探索は packages/geo の routing が担う。ネットワーク上のダイクストラで探し、止まっている区間の辺を除く。前の候補の主な路線を除いて探し直し、多様な候補を最大 3 本返す。
 
 ### 2.6 packages/data
 
@@ -163,7 +165,7 @@ Estimate の項目は次のとおり。
 | `eventType` | 事象種別。特定できなければ null とし、分岐点だけで判断を返す |
 | `phaseId` | 段階の id。null を許す |
 | `elapsedMinutes` | 段階の経過分。null を許す |
-| `remaining` | 再開までの残り時間 `{ p50, p80 }`。null を許す |
+| `remaining` | 実際に乗れる列車が来るまでの残り時間 `{ p50, p80 }`。after_resume を含み、null を許す |
 | `confidence` | `low` / `medium` / `high` |
 
 RouteOption の項目は次のとおり。
