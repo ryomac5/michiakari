@@ -1,4 +1,4 @@
-import type { JudgeRequest, Observation, RawInput, Scenario } from "@repo/schema";
+import type { JudgeRequest, Lang, Observation, RawInput, Scenario } from "@repo/schema";
 import type { AlternativesProvider } from "../alternatives/provider.ts";
 import type { JudgeMode } from "../config.ts";
 import type { ContentStore } from "../content.ts";
@@ -8,10 +8,10 @@ import { interpretRawInputDeterministically } from "../interpret/deterministic-i
 import type { LlmClient } from "../llm-client.ts";
 import type { Prompts } from "../prompts/load-prompts.ts";
 import type { RainFetcher } from "../tools/types.ts";
-import { assembleJudgment, collectAllowedClockMinutes, validateJudgment } from "./assemble.ts";
+import { assembleJudgment } from "./assemble.ts";
 import { runClaudeJudgment } from "./claude-judge.ts";
 import { decideDeterministically } from "./deterministic-decision.ts";
-import type { EventSink } from "./event-sink.ts";
+import type { EventSink, JudgmentEventBody } from "./event-sink.ts";
 import { createJudgeSession, type JudgeSession } from "./session.ts";
 import { buildProgressMessage } from "./templates.ts";
 
@@ -32,6 +32,8 @@ export type JudgeDeps = {
 
 export type JudgeOptions = {
   scenarioId: string | null;
+  // 利用者が切断したら中断する
+  signal?: AbortSignal;
 };
 
 function findScenario(
@@ -55,6 +57,7 @@ function buildObservationId(input: RawInput, existing: readonly Observation[]): 
 async function interpretNewInput(
   request: JudgeRequest,
   deps: JudgeDeps,
+  signal: AbortSignal | undefined,
 ): Promise<Observation | null> {
   const input = request.newInput;
   if (!input) return null;
@@ -75,13 +78,38 @@ async function interpretNewInput(
       knowledge: deps.content.knowledge,
       observationId,
       observedAt: request.now,
+      signal,
     });
   } catch (error) {
+    if (signal?.aborted) return null;
     deps.logWarning(
       `解釈を決定論モードに切り替えました: ${error instanceof Error ? error.name : "unknown"}`,
     );
     return deterministic();
   }
+}
+
+// 新しい入力を観測にできなかったときの error イベント
+// claude モードでは一時的な失敗なので再試行を促す。決定論モードの写真は API キーが無いと読めない
+function buildInterpretFailure(language: Lang, claudeAvailable: boolean): JudgmentEventBody {
+  if (claudeAvailable) {
+    return {
+      type: "error",
+      message:
+        language === "ja"
+          ? "読み取りに失敗しました。再試行するか文章で入力してください。"
+          : "Could not read the input. Please try again or enter the text instead.",
+      retryable: true,
+    };
+  }
+  return {
+    type: "error",
+    message:
+      language === "ja"
+        ? "写真の読み取りには Claude の API キーが必要です。発表文の貼り付けか選択式で入力してください。"
+        : "Reading photos requires a Claude API key. Please paste the announcement text or use the selection input.",
+    retryable: false,
+  };
 }
 
 // 兆候のイベント。推定した事象種別の兆候を、観測をまたいで重複なく送る
@@ -118,15 +146,10 @@ async function finishDeterministically(session: JudgeSession, sink: EventSink): 
   const results = { estimate, alternatives, breakEven };
   await session.emitProgress("judgment");
   const decision = decideDeterministically(session, results);
-  const checked = validateJudgment({
-    judgment: assembleJudgment(results, decision, session.ctx.request.language),
-    evidenceRefs: session.collectEvidenceRefs(),
-    allowedClockMinutes: collectAllowedClockMinutes(
-      results,
-      session.ctx.observations,
-      session.ctx.request.now,
-    ),
-  });
+  const checked = session.checkJudgment(
+    assembleJudgment(results, decision, session.ctx.request.language),
+    results,
+  );
   if (!checked.judgment)
     throw new Error(`決定論モードの判断が検証に通りません: ${checked.errors.join(" / ")}`);
   await sink.emit({ type: "judgment_ready", judgment: checked.judgment });
@@ -145,16 +168,13 @@ export async function runJudge(
       message: buildProgressMessage("interpret", request.language),
     });
   }
-  const parsed = await interpretNewInput(request, deps);
+  const signal = options.signal;
+  const parsed = await interpretNewInput(request, deps, signal);
+  if (signal?.aborted) return;
   if (request.newInput && !parsed) {
-    await sink.emit({
-      type: "error",
-      message:
-        request.language === "ja"
-          ? "写真の読み取りには Claude の API キーが必要です。発表文の貼り付けか選択式で入力してください。"
-          : "Reading photos requires a Claude API key. Please paste the announcement text or use the selection input.",
-      retryable: false,
-    });
+    await sink.emit(
+      buildInterpretFailure(request.language, deps.mode === "claude" && deps.llm !== null),
+    );
     return;
   }
   if (parsed) await sink.emit({ type: "observation_parsed", observation: parsed });
@@ -174,13 +194,19 @@ export async function runJudge(
 
   if (deps.mode === "claude" && deps.llm) {
     try {
-      const outcome = await runClaudeJudgment(session, { llm: deps.llm, prompts: deps.prompts });
+      const outcome = await runClaudeJudgment(session, {
+        llm: deps.llm,
+        prompts: deps.prompts,
+        signal,
+      });
+      if (outcome.status === "aborted") return;
       if (outcome.status === "done") {
         await sink.emit({ type: "judgment_ready", judgment: outcome.judgment });
         return;
       }
       deps.logWarning(`判断を決定論モードに切り替えました: ${outcome.reason}`);
     } catch (error) {
+      if (signal?.aborted) return;
       deps.logWarning(
         `判断を決定論モードに切り替えました: ${error instanceof Error ? error.name : "unknown"}`,
       );

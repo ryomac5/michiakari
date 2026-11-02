@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { IsoDateTimeSchema, LangSchema } from "./common.ts";
-import { ObservationSchema, RawInputSchema } from "./observation.ts";
+import { MAX_INPUT_TEXT_LENGTH, ObservationSchema, RawInputSchema } from "./observation.ts";
 
 // POST /judge の入力
 
@@ -17,7 +17,7 @@ export type Place = z.infer<typeof PlaceSchema>;
 export const UserConstraintsSchema = z.object({
   deadline: IsoDateTimeSchema.nullable(),
   knowsAlternatives: z.boolean(),
-  mobilityNotes: z.string().nullable(),
+  mobilityNotes: z.string().max(MAX_INPUT_TEXT_LENGTH).nullable(),
 });
 export type UserConstraints = z.infer<typeof UserConstraintsSchema>;
 

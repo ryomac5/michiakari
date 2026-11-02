@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { JudgeRequestSchema, PlaceSchema, UserConstraintsSchema } from "../src/index.ts";
+import {
+  JudgeRequestSchema,
+  MAX_INPUT_TEXT_LENGTH,
+  PlaceSchema,
+  UserConstraintsSchema,
+} from "../src/index.ts";
 import { validJudgeRequest } from "./fixtures/api.ts";
 
 describe("PlaceSchema", () => {
@@ -22,6 +27,14 @@ describe("UserConstraintsSchema", () => {
   it("deadline に null を許す", () => {
     const value = { deadline: null, knowsAlternatives: true, mobilityNotes: "大きな荷物" };
     expect(UserConstraintsSchema.safeParse(value).success).toBe(true);
+  });
+
+  it("mobilityNotes は上限を超えたら拒否する", () => {
+    const base = { deadline: null, knowsAlternatives: true };
+    const ok = { ...base, mobilityNotes: "あ".repeat(MAX_INPUT_TEXT_LENGTH) };
+    const tooLong = { ...base, mobilityNotes: "あ".repeat(MAX_INPUT_TEXT_LENGTH + 1) };
+    expect(UserConstraintsSchema.safeParse(ok).success).toBe(true);
+    expect(UserConstraintsSchema.safeParse(tooLong).success).toBe(false);
   });
 
   it("HH:MM 形式の deadline を拒否する", () => {

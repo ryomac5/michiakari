@@ -1,8 +1,8 @@
 import {
   OSAKA_CITY_TAXI_FARE,
   OSAKA_CITY_TAXI_FARE_LABEL,
-  TAXI_AVERAGE_SPEED_KMH,
   TAXI_DETOUR_FACTOR,
+  TAXI_SPEED_BANDS,
 } from "../params/taxi.ts";
 import { getJstMinuteOfDay } from "./time.ts";
 
@@ -70,10 +70,18 @@ export function estimateTaxiRoadKm(straightKm: number): number {
   return straightKm * TAXI_DETOUR_FACTOR;
 }
 
-// 所要時間（分、切り上げ）= 道のり ÷ 都市部の平均速度
+// 所要時間（分、切り上げ）。道のりを距離帯に分け、帯ごとに 距離 ÷ 平均速度 を足す
 export function computeTaxiMinutes(roadKm: number): number {
   if (!Number.isFinite(roadKm) || roadKm < 0) {
     throw new RangeError(`距離は 0 以上の有限値: ${roadKm}`);
   }
-  return Math.ceil((roadKm / TAXI_AVERAGE_SPEED_KMH) * 60);
+  let hours = 0;
+  let fromKm = 0;
+  for (const band of TAXI_SPEED_BANDS) {
+    if (roadKm <= fromKm) break;
+    hours += (Math.min(roadKm, band.upToKm) - fromKm) / band.speedKmh;
+    fromKm = band.upToKm;
+  }
+  // 浮動小数点の誤差で 1 分繰り上がらないよう、分を丸めてから切り上げる
+  return Math.ceil(Number((hours * 60).toFixed(6)));
 }

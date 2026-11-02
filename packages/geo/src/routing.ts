@@ -22,7 +22,7 @@ import {
   WALK_ONLY_MAX_MINUTES,
   WALK_ONLY_MAX_MINUTES_REDUCED,
 } from "@repo/core";
-import type { RouteLeg, RouteOption } from "@repo/schema";
+import type { Lang, RouteLeg, RouteOption } from "@repo/schema";
 import { createGeoIndex } from "./geo-index.ts";
 import { buildNetworkGraph, type NetworkGraph } from "./graph.ts";
 import { normalizeSearchText } from "./text.ts";
@@ -139,14 +139,40 @@ const toStateKey = (stationId: string, phase: Phase) => `${phase}|${stationId}`;
 const toEdgeKey = (lineId: string, a: string, b: string) =>
   a < b ? `${lineId}|${a}|${b}` : `${lineId}|${b}|${a}`;
 
-// 画面に出す短い路線名。例: 阪急神戸線、JR神戸線、地下鉄御堂筋線
-export function formatLineName(line: LineInfo): string {
+function formatLineNameJa(line: LineInfo): string {
   if (line.operatorKey === "jr-west") {
     const name = line.aliases.length === 1 ? (line.aliases[0] as string) : line.lineName;
     return name.startsWith("JR") ? name : `JR${name}`;
   }
   if (line.lineName.startsWith(line.operator)) return line.lineName;
   return `${OPERATOR_PREFIXES[line.operatorKey] ?? line.operator}${line.lineName}`;
+}
+
+// 画面に出す短い路線名。例: 阪急神戸線、JR神戸線、地下鉄御堂筋線、Hankyu Kobe Line
+// 英語名のない路線は日本語名で代用する
+export function formatLineName(line: LineInfo, language: Lang = "ja"): string {
+  return language === "en" && line.nameEn ? line.nameEn : formatLineNameJa(line);
+}
+
+// 画面に出す駅名。英語名のない駅は日本語名で代用する
+export function formatStationName(station: StationNode, language: Lang = "ja"): string {
+  return language === "en" && station.nameEn ? station.nameEn : station.name;
+}
+
+export type RouteLabelInput = Pick<RouteOption, "kind" | "isTransferService"> & {
+  // 待つ選択肢では待つ路線、乗換の選択肢では主に乗る路線の表示名
+  line: string | null;
+};
+
+// 選択肢のラベル。路線名は呼び出し側が言語に合わせて渡す
+export function formatRouteLabel(input: RouteLabelInput, language: Lang = "ja"): string {
+  const ja = language === "ja";
+  const { kind, line } = input;
+  if (kind === "taxi") return ja ? "タクシー" : "Taxi";
+  if (kind === "walk" || line === null) return ja ? "徒歩で移動" : "Walk";
+  if (kind === "wait") return ja ? `${line}の運転再開を待つ` : `Wait for ${line} to resume`;
+  if (input.isTransferService) return ja ? `${line}で振替` : `Transfer service via ${line}`;
+  return ja ? `${line}経由` : `Via ${line}`;
 }
 
 // 最小ヒープ。遅延削除で使う
@@ -480,11 +506,10 @@ export function createRouter(network: NetworkData): Router {
       blockedLineId !== undefined &&
       rides.some((l) => l.lineId !== blockedLineId);
     const main = findMainRideLeg(legs, blockedLineId);
-    const label =
-      main === undefined ? "徒歩で移動" : `${main.line}${isTransferService ? "で振替" : "経由"}`;
+    const kind = main === undefined ? "walk" : "transfer";
     return {
-      kind: main === undefined ? "walk" : "transfer",
-      label,
+      kind,
+      label: formatRouteLabel({ kind, isTransferService, line: main?.line ?? null }),
       legs,
       arrivalTime: computeArrival(input.departureTime, legs),
       fareYen: null,
@@ -516,7 +541,7 @@ export function createRouter(network: NetworkData): Router {
     ];
     return {
       kind: "walk",
-      label: "徒歩で移動",
+      label: formatRouteLabel({ kind: "walk", isTransferService: false, line: null }),
       legs,
       arrivalTime: computeArrival(input.departureTime, legs),
       fareYen: null,
@@ -626,7 +651,7 @@ export function createRouter(network: NetworkData): Router {
       return {
         id: "taxi",
         kind: "taxi",
-        label: "タクシー",
+        label: formatRouteLabel({ kind: "taxi", isTransferService: false, line: null }),
         legs,
         arrivalTime: computeArrival(input.departureTime, legs),
         fareYen: computeTaxiFare(roadKm, input.departureTime).fareYen,
@@ -660,7 +685,7 @@ export function createRouter(network: NetworkData): Router {
       return {
         id: "wait",
         kind: "wait",
-        label: `${line}の運転再開を待つ`,
+        label: formatRouteLabel({ kind: "wait", isTransferService: false, line }),
         legs,
         arrivalTime: input.arrivalTime,
         fareYen: null,

@@ -15,6 +15,7 @@ import {
   type ToolState,
   type WeatherToolResult,
 } from "../tools/types.ts";
+import { collectAllowedNumbers, type JudgmentToolResults, validateJudgment } from "./assemble.ts";
 import type { EventSink } from "./event-sink.ts";
 import {
   buildBreakEvenSentence,
@@ -34,6 +35,11 @@ export type JudgeSession = {
   state: ToolState;
   executeTool(name: string, input: unknown): Promise<ToolOutcome>;
   collectEvidenceRefs(): Evidence[];
+  // 判断結果を検査する。根拠と文中の数値はこの判断のツールの結果と照らす
+  checkJudgment(
+    judgment: unknown,
+    results: JudgmentToolResults,
+  ): ReturnType<typeof validateJudgment>;
   // 途中経過を送る。段階を渡すと定型文を使う
   emitProgress(stage: ProgressStage | undefined, message?: string): Promise<void>;
   // 兆候のイベントで使う事象種別（観測の候補から決める）
@@ -300,5 +306,26 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     return refs;
   }
 
-  return { ctx, state, executeTool, collectEvidenceRefs, emitProgress, inferredEventType };
+  function checkJudgment(judgment: unknown, results: JudgmentToolResults) {
+    const evidenceRefs = collectEvidenceRefs();
+    const eventType = results.estimate.estimate.eventType;
+    const allowedNumbers = collectAllowedNumbers({
+      results,
+      observations: ctx.observations,
+      now: ctx.request.now,
+      knowledge: eventType ? (ctx.content.knowledge.get(eventType) ?? null) : null,
+      evidenceRefs,
+    });
+    return validateJudgment({ judgment, evidenceRefs, allowedNumbers, language });
+  }
+
+  return {
+    ctx,
+    state,
+    executeTool,
+    collectEvidenceRefs,
+    checkJudgment,
+    emitProgress,
+    inferredEventType,
+  };
 }

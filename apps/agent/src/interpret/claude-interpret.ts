@@ -3,6 +3,7 @@ import type { BetaContentBlockParam } from "@anthropic-ai/sdk/resources/beta/mes
 import {
   ConfidenceSchema,
   type Knowledge,
+  MAX_INPUT_TEXT_LENGTH,
   ObservableKindSchema,
   type Observation,
   type RawInput,
@@ -36,6 +37,7 @@ export type ClaudeInterpretContext = {
   knowledge: ReadonlyMap<string, Knowledge>;
   observationId: string;
   observedAt: string;
+  signal?: AbortSignal;
 };
 
 type InterpretableInput = Exclude<RawInput, { type: "selection" }>;
@@ -82,7 +84,8 @@ export function convertInterpretation(
     observedAt: ctx.observedAt,
     source: input.type,
     ...(kind ? { kind } : {}),
-    rawText: interpretation.rawText,
+    // 原文の上限を超えた読み取りは切り詰める
+    rawText: interpretation.rawText.slice(0, MAX_INPUT_TEXT_LENGTH),
     eventTypeCandidates: interpretation.eventTypeCandidates.filter((c) =>
       ctx.knowledge.has(c.eventType),
     ),
@@ -101,23 +104,26 @@ export async function interpretWithClaude(
   input: InterpretableInput,
   ctx: ClaudeInterpretContext,
 ): Promise<Observation> {
-  const response = await ctx.llm.createMessage({
-    model: models.interpretation,
-    max_tokens: claudeSettings.interpretationMaxTokens,
-    system: [
-      { type: "text", text: ctx.prompts.interpretationSystem },
-      {
-        type: "text",
-        text: buildKnowledgeCatalog(ctx.knowledge),
-        cache_control: { type: "ephemeral" },
+  const response = await ctx.llm.createMessage(
+    {
+      model: models.interpretation,
+      max_tokens: claudeSettings.interpretationMaxTokens,
+      system: [
+        { type: "text", text: ctx.prompts.interpretationSystem },
+        {
+          type: "text",
+          text: buildKnowledgeCatalog(ctx.knowledge),
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      messages: [{ role: "user", content: buildUserContent(input, ctx.observedAt) }],
+      output_config: {
+        effort: claudeSettings.interpretationEffort,
+        format: betaZodOutputFormat(InterpretationSchema),
       },
-    ],
-    messages: [{ role: "user", content: buildUserContent(input, ctx.observedAt) }],
-    output_config: {
-      effort: claudeSettings.interpretationEffort,
-      format: betaZodOutputFormat(InterpretationSchema),
     },
-  });
+    ctx.signal ? { signal: ctx.signal } : undefined,
+  );
   if (response.stop_reason !== "end_turn") {
     throw new Error(`解釈が完了しませんでした: ${response.stop_reason}`);
   }

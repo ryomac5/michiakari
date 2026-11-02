@@ -5,9 +5,10 @@ import type {
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import type { JudgmentEvent } from "@repo/schema";
 import { describe, expect, it } from "vitest";
-import { claudeSettings, models } from "../src/config.ts";
+import { claudeSettings, headlineLimits, models } from "../src/config.ts";
 import type { Interpretation } from "../src/interpret/claude-interpret.ts";
 import type { LlmClient } from "../src/llm-client.ts";
+import { buildClaudeTools } from "../src/tools/definitions.ts";
 import { buildScenarioRequest, createTestApp, createTestDeps, postJudge } from "./helpers.ts";
 
 // claude モードを Anthropic クライアントの偽物で動かし、ツールループ・再生成・フォールバックを確かめる
@@ -212,6 +213,37 @@ describe("claude モード", () => {
     const feedback = JSON.stringify(retryCall?.messages.at(-1)?.content);
     expect(feedback).toContain('"is_error":true');
     expect(feedback).toContain("made_up_signal");
+  });
+
+  it("見出しが長すぎれば、指摘を返して再生成させる", async () => {
+    const longDecision = {
+      ...validDecision,
+      headline:
+        "まだ見込みの幅が大きい段階なので、断言せずに判断を保留し、分岐点を目安にしてください",
+    };
+    const script = createScriptedLlm({
+      judgment: [
+        ...buildToolSequence(),
+        replyWithTool("emit_judgment", longDecision),
+        replyWithTool("emit_judgment", validDecision),
+      ],
+    });
+    const { judgment, warnings } = await runWith(script);
+    expect(warnings).toEqual([]);
+    expect(judgment?.headline).toBe(validDecision.headline);
+    const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
+    expect(feedback).toContain('"is_error":true');
+    expect(feedback).toContain("headline が長すぎます");
+  });
+
+  it("emit_judgment の見出しの説明に、長さの目安と上限と例を書く", () => {
+    const tool = buildClaudeTools().find((t) => t.name === "emit_judgment");
+    const headline = JSON.stringify(tool?.input_schema.properties);
+    for (const n of [headlineLimits.ja.target, headlineLimits.ja.max, headlineLimits.en.max]) {
+      expect(headline).toContain(String(n));
+    }
+    expect(headline).toContain("あと25分は待てます");
+    expect(tool?.description).toContain(String(headlineLimits.ja.max));
   });
 
   it("再生成でも検証に通らなければ、決定論モードで仕上げる", async () => {

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { headlineLimits } from "../src/config.ts";
 import {
   assembleJudgment,
-  collectAllowedClockMinutes,
-  validateJudgment,
+  checkHeadlineLength,
+  extractTextNumbers,
 } from "../src/judge/assemble.ts";
 import { createEventSink } from "../src/judge/event-sink.ts";
 import { createJudgeSession } from "../src/judge/session.ts";
@@ -99,7 +100,7 @@ describe("assembleJudgment", () => {
 
 describe("validateJudgment", () => {
   it("ツールの結果に無い根拠・時刻・推奨を指摘する", async () => {
-    const { session, results, request } = await prepareSession();
+    const { session, results } = await prepareSession();
     const judgment = assembleJudgment(
       results,
       {
@@ -111,23 +112,60 @@ describe("validateJudgment", () => {
       },
       "ja",
     );
-    const { judgment: valid, errors } = validateJudgment({
-      judgment,
-      evidenceRefs: session.collectEvidenceRefs(),
-      allowedClockMinutes: collectAllowedClockMinutes(
-        results,
-        session.ctx.observations,
-        request.now,
-      ),
-    });
+    const { judgment: valid, errors } = session.checkJudgment(judgment, results);
     expect(valid).toBeNull();
     expect(errors.some((e) => e.includes("unknown_signal"))).toBe(true);
-    expect(errors.some((e) => e.includes("3:33"))).toBe(true);
+    expect(errors.some((e) => e.includes("3時33分"))).toBe(true);
     expect(errors.some((e) => e.includes("switch"))).toBe(true);
   });
 
+  it("分・円・時だけの表記と英語の数値を、根拠の説明も含めて検査する", async () => {
+    const { session, results, signalId } = await prepareSession();
+    const fare = results.alternatives.options.find((o) => o.fareYen !== null)?.fareYen;
+    if (fare === undefined || fare === null) throw new Error("運賃のある選択肢がありません");
+    const judgment = assembleJudgment(
+      results,
+      {
+        action: "hold",
+        headline: `あと 7777分で再開します。タクシーは${fare.toLocaleString("ja-JP")}円です`,
+        breakEvenExplanation: "3時ごろまで待ちましょう。about 999 min, ¥12,345 or 54321 yen",
+        recommendedOptionId: null,
+        evidence: [{ kind: "signal", id: signalId, description: "8881分で直ります" }],
+      },
+      "ja",
+    );
+    const { errors } = session.checkJudgment(judgment, results);
+    const joined = errors.join("\n");
+    for (const raw of ["7777分", "3時", "999 min", "¥12,345", "54321 yen", "8881分"]) {
+      expect(joined).toContain(raw);
+    }
+    expect(joined).not.toContain(`${fare.toLocaleString("ja-JP")}円`);
+    expect(errors.filter((e) => e.startsWith("evidence[0].description"))).toHaveLength(1);
+  });
+
+  it("ツールの結果の残り時間・徒歩・運賃の数値なら通る", async () => {
+    const { session, results, signalId } = await prepareSession();
+    const remaining = results.estimate.estimate.remaining;
+    const option = results.alternatives.options.find((o) => o.kind === "transfer");
+    const fare = results.alternatives.options.find((o) => o.fareYen !== null)?.fareYen;
+    if (!remaining || !option || fare === undefined || fare === null)
+      throw new Error("前提がそろいません");
+    const judgment = assembleJudgment(
+      results,
+      {
+        action: "hold",
+        headline: `再開まで約${remaining.p50}分、遅いと${remaining.p80}分`,
+        breakEvenExplanation: `振替は徒歩${option.walkMinutes}分、タクシーは ¥${fare}`,
+        recommendedOptionId: null,
+        evidence: [{ kind: "signal", id: signalId, description: `p50 ${remaining.p50} min` }],
+      },
+      "ja",
+    );
+    expect(session.checkJudgment(judgment, results).errors).toEqual([]);
+  });
+
   it("ツールの結果の時刻と根拠だけなら通る", async () => {
-    const { session, results, signalId, request } = await prepareSession();
+    const { session, results, signalId } = await prepareSession();
     const r = results.breakEven.result;
     if (r.kind !== "future" && r.kind !== "passed") throw new Error("分岐点がありません");
     const judgment = assembleJudgment(
@@ -141,15 +179,46 @@ describe("validateJudgment", () => {
       },
       "ja",
     );
-    const checked = validateJudgment({
-      judgment,
-      evidenceRefs: session.collectEvidenceRefs(),
-      allowedClockMinutes: collectAllowedClockMinutes(
-        results,
-        session.ctx.observations,
-        request.now,
-      ),
-    });
+    const checked = session.checkJudgment(judgment, results);
     expect(checked.errors).toEqual([]);
+  });
+});
+
+describe("checkHeadlineLength", () => {
+  it("上限ちょうどは通し、超えたら指摘する", () => {
+    for (const language of ["ja", "en"] as const) {
+      const { max } = headlineLimits[language];
+      expect(checkHeadlineLength("あ".repeat(max), language)).toEqual([]);
+      expect(checkHeadlineLength("あ".repeat(max + 1), language)).toHaveLength(1);
+    }
+  });
+
+  it("長すぎる見出しは判断の検証でも指摘する", async () => {
+    const { session, results, signalId } = await prepareSession();
+    const judgment = assembleJudgment(
+      results,
+      {
+        action: "hold",
+        headline: "あ".repeat(headlineLimits.ja.max + 1),
+        breakEvenExplanation: "説明",
+        recommendedOptionId: null,
+        evidence: [{ kind: "signal", id: signalId, description: "根拠" }],
+      },
+      "ja",
+    );
+    const { judgment: valid, errors } = session.checkJudgment(judgment, results);
+    expect(valid).toBeNull();
+    expect(errors.some((e) => e.startsWith("headline が長すぎます"))).toBe(true);
+  });
+});
+
+describe("extractTextNumbers", () => {
+  it("時刻の中の分を分の数値として二重に拾わない", () => {
+    const n = extractTextNumbers(
+      "23時16分までに再開しなければ、徒歩12分の経路が早い。2時間5分かかる。8時ごろ",
+    );
+    expect(n.clocks.map((c) => c.minuteOfDay)).toEqual([23 * 60 + 16]);
+    expect(n.minutes.map((m) => m.value)).toEqual([125, 12]);
+    expect(n.hours.map((h) => h.hour)).toEqual([8]);
   });
 });

@@ -4,7 +4,12 @@ import type { Decision } from "../tools/emit-judgment.ts";
 import type { WeatherToolResult } from "../tools/types.ts";
 import type { JudgmentToolResults } from "./assemble.ts";
 import { buildComputedBreakEven, type JudgeSession } from "./session.ts";
-import { buildHeadline, buildNoAlternativeSentence, type DecisionReason } from "./templates.ts";
+import {
+  buildDecisionText,
+  buildNoAlternativeSentence,
+  type DecisionReason,
+  joinReasonAndExplanation,
+} from "./templates.ts";
 
 // 決定論モードの判断規則。API キーが無いときと Claude の失敗時に使う
 
@@ -78,20 +83,23 @@ export function decideDeterministically(
   });
   const r = results.breakEven.result;
   const hasBreakEven = r.kind === "future" || r.kind === "passed";
-  const bestLabel = hasBreakEven
-    ? (results.alternatives.options.find((o) => o.id === r.bestAlternativeId)?.label ?? null)
+  const bestOption = hasBreakEven
+    ? (results.alternatives.options.find((o) => o.id === r.bestAlternativeId) ?? null)
     : null;
   const computed = buildComputedBreakEven(results.breakEven, results.alternatives, language);
+  const text = buildDecisionText({
+    reason: outcome.reason,
+    language,
+    breakEvenMinutesFromNow: hasBreakEven ? r.minutesFromNow : null,
+    bestOption,
+    boardableP50: results.estimate.boardableP50,
+  });
   return {
     action: outcome.action,
-    headline: buildHeadline({
-      reason: outcome.reason,
-      language,
-      breakEvenTime: hasBreakEven ? r.time : null,
-      bestLabel,
-      boardableP50: results.estimate.boardableP50,
-    }),
-    breakEvenExplanation: computed?.explanation ?? buildNoAlternativeSentence(language),
+    headline: text.headline,
+    breakEvenExplanation: computed
+      ? joinReasonAndExplanation(text.reason, computed.explanation, language)
+      : buildNoAlternativeSentence(language),
     recommendedOptionId: outcome.recommendedOptionId,
     evidence: session.collectEvidenceRefs(),
   };
