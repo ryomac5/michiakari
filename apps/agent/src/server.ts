@@ -1,5 +1,4 @@
 import { serve } from "@hono/node-server";
-import { getConnInfo } from "@hono/node-server/conninfo";
 import { createGeoProvider } from "./alternatives/geo-provider.ts";
 import { createApp } from "./app.ts";
 import {
@@ -7,6 +6,7 @@ import {
   resolveCorsOrigins,
   resolveJudgeMode,
   resolveRateLimitPerWindow,
+  resolveTrustProxy,
 } from "./config.ts";
 import { loadContentStore } from "./content.ts";
 import { createAnthropicLlmClient } from "./llm-client.ts";
@@ -31,10 +31,7 @@ const app = createApp({
   },
   corsOrigins: resolveCorsOrigins(),
   rateLimitPerWindow: resolveRateLimitPerWindow(),
-  resolveClientKey: (c) =>
-    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
-    getConnInfo(c).remote.address ||
-    "anonymous",
+  trustProxy: resolveTrustProxy(),
 });
 
 serve({ fetch: app.fetch, port }, (info) => {

@@ -5,20 +5,29 @@ export const models = {
   interpretation: "claude-haiku-5-5",
 } as const;
 
+const MAX_TOOL_CALLS = 12;
+
 // 判断ループと解釈の呼び出し設定
 export const claudeSettings = {
   judgmentEffort: "medium",
   interpretationEffort: "low",
+  // 非ストリーミングで呼ぶので、SDK が長時間の応答としてストリーミングを求める上限（約 21,000）より小さく保つ
   judgmentMaxTokens: 16000,
   interpretationMaxTokens: 4000,
   // 判断ループで許すツール呼び出しの上限。超えたら決定論モードで仕上げる
-  maxToolCalls: 12,
+  maxToolCalls: MAX_TOOL_CALLS,
+  // 判断ループの反復の上限。ツールを呼ばない応答（促し・pause_turn）が続いても止める
+  maxLoopIterations: MAX_TOOL_CALLS + 4,
   // emit_judgment の検証に失敗したときに許す再生成の回数
   maxRegenerations: 1,
   // 拒否されたときにサーバー側で別モデルに回す
   fallbackBeta: "server-side-fallback-2026-07-01",
   // ツール呼び出しの合間の進捗メモ（thinking.display: "updates"）
   thinkingUpdatesBeta: "thinking-display-updates-2026-08-18",
+  thinkingDisplay: "updates",
+  // SDK のタイムアウト（ミリ秒）と再試行の回数
+  timeoutMs: 60_000,
+  maxRetries: 1,
 } as const;
 
 export const defaultPort = 8787;
@@ -46,6 +55,11 @@ export function resolveRateLimitPerWindow(env: NodeJS.ProcessEnv = process.env):
   return Number.isInteger(value) && value > 0 ? value : 20;
 }
 
+// X-Forwarded-For を信用するか。プロキシの後ろに置くときだけ true にする。既定は接続元アドレス
+export function resolveTrustProxy(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.TRUST_PROXY?.trim() === "true";
+}
+
 // CORS で許可するオリジン。カンマ区切り
 export function resolveCorsOrigins(env: NodeJS.ProcessEnv = process.env): string[] {
   const value = env.CORS_ORIGINS?.trim();
@@ -60,23 +74,6 @@ export function resolveCorsOrigins(env: NodeJS.ProcessEnv = process.env): string
 export const decisionParams = {
   // 乗り換えの手間を考え、待つより この分数以上早く着かなければ切り替えを勧めない
   switchMarginMinutes: 5,
-} as const;
-
-// 簡易の代替手段プロバイダのパラメータ。出典: 開発者の推定（仮）
-export const alternativesParams = {
-  // 路線上の距離 = 駅間の直線距離 × この係数
-  rideDetourFactor: 1.1,
-  // 駅どうしを徒歩でつなぐ直線距離の上限（m）
-  walkLinkMaxMeters: 1200,
-  // タクシーの道のり = 直線距離 × この係数（PM 指定）
-  taxiRoadFactor: 1.3,
-  // 輸送障害時のタクシーの平均速度（km/h）と配車・乗り場の待ち（分）
-  taxiSpeedKmh: 25,
-  taxiPickupMinutes: 10,
-  // 徒歩だけの選択肢を出す上限（分）
-  maxWalkOptionMinutes: 40,
-  // 1 本目と別の路線を使う 2 本目の振替を出すのは、1 本目よりこの分数以内に着くとき
-  secondTransferWithinMinutes: 30,
 } as const;
 
 // 気象の取得設定

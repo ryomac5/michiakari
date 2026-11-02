@@ -51,9 +51,11 @@ export {
 } from "./remaining.ts";
 export {
   type BranchAwareRemaining,
+  enumeratePhasePaths,
   estimateBranchAwareRemaining,
   estimateStatedRemaining,
-  findShortestPhasePath,
+  findPhasePaths,
+  type PhasePaths,
 } from "./remaining-paths.ts";
 export {
   checkNightSurcharge,

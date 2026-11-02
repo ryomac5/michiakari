@@ -9,6 +9,9 @@ import {
 
 // 利用者が持ち込む未解釈の入力
 
+// 文章の入力と原文の上限（文字）。過大な入力を境界で断る
+export const MAX_INPUT_TEXT_LENGTH = 4000;
+
 export const ImageMediaTypeSchema = z.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 export const PhotoInputSchema = z.object({
@@ -19,7 +22,7 @@ export const PhotoInputSchema = z.object({
 
 export const TextInputSchema = z.object({
   type: z.literal("text"),
-  text: z.string().min(1),
+  text: z.string().min(1).max(MAX_INPUT_TEXT_LENGTH),
 });
 
 export const SelectionInputSchema = z.object({
@@ -35,7 +38,10 @@ export const ScenarioInputSchema = z.object({
   scenarioId: IdSchema,
   observationId: IdSchema,
   kind: ObservableKindSchema,
-  text: LocalizedTextSchema,
+  text: LocalizedTextSchema.refine(
+    (t) => t.ja.length <= MAX_INPUT_TEXT_LENGTH && (t.en?.length ?? 0) <= MAX_INPUT_TEXT_LENGTH,
+    { message: `文章は ${MAX_INPUT_TEXT_LENGTH} 字まで` },
+  ),
 });
 
 export const RawInputSchema = z.discriminatedUnion("type", [
@@ -75,7 +81,7 @@ export const ObservationSchema = z.object({
   observedAt: IsoDateTimeSchema,
   source: ObservationSourceSchema,
   kind: ObservableKindSchema.optional(),
-  rawText: z.string().optional(),
+  rawText: z.string().max(MAX_INPUT_TEXT_LENGTH).optional(),
   eventTypeCandidates: z.array(EventTypeCandidateSchema),
   operator: z.string().nullable(),
   line: z.string().nullable(),

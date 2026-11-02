@@ -9,7 +9,7 @@ import type { ContentStore } from "./content.ts";
 import { createEventSink } from "./judge/event-sink.ts";
 import { type JudgeDeps, runJudge } from "./judge/run-judge.ts";
 import { loadPrompts } from "./prompts/load-prompts.ts";
-import { createRateLimiter } from "./rate-limit.ts";
+import { createRateLimiter, resolveClientKey } from "./rate-limit.ts";
 
 // HTTP の入口。リクエストの検証、上限、CORS、SSE を受け持つ
 
@@ -17,8 +17,8 @@ export type AppOptions = {
   judge: JudgeDeps;
   corsOrigins: string[];
   rateLimitPerWindow: number;
-  // 頻度制限の単位。既定はプロキシのヘッダ
-  resolveClientKey?: (c: Context) => string;
+  // X-Forwarded-For を頻度制限の単位に使うか。既定は接続元アドレス
+  trustProxy?: boolean;
   // サーバー時計の読み取り。頻度制限にだけ使い、判断には使わない
   readClockMs?: () => number;
 };
@@ -36,10 +36,6 @@ export function createDefaultJudgeDeps(): JudgeDeps {
     prompts: loadPrompts(),
     logWarning: () => {},
   };
-}
-
-function resolveForwardedFor(c: Context): string {
-  return c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "anonymous";
 }
 
 function estimateBase64Bytes(base64: string): number {
@@ -89,7 +85,7 @@ export function createApp(
 ) {
   const app = new Hono();
   const limiter = createRateLimiter(options.rateLimitPerWindow, safetyLimits.rateLimitWindowMs);
-  const resolveClientKey = options.resolveClientKey ?? resolveForwardedFor;
+  const trustProxy = options.trustProxy ?? false;
   const readClockMs = options.readClockMs ?? Date.now;
 
   app.use("*", cors({ origin: options.corsOrigins, allowMethods: ["GET", "POST", "OPTIONS"] }));
@@ -102,7 +98,7 @@ export function createApp(
       onError: (c) => respondWithError(c, 413, "リクエストが大きすぎます", false),
     }),
     async (c) => {
-      if (!limiter.consume(resolveClientKey(c), readClockMs())) {
+      if (!limiter.consume(resolveClientKey(c, trustProxy), readClockMs())) {
         return respondWithError(
           c,
           429,
@@ -124,6 +120,9 @@ export function createApp(
       const scenarioQuery = IdSchema.safeParse(c.req.query("scenarioId"));
       const request = parsed.data;
       return streamSSE(c, async (stream) => {
+        // 利用者が切断したら、Claude の呼び出しと判断ループを止める
+        const controller = new AbortController();
+        stream.onAbort(() => controller.abort());
         const sink = createEventSink(
           (event) =>
             stream.writeSSE({
@@ -136,11 +135,15 @@ export function createApp(
         try {
           await runJudge(
             request,
-            { scenarioId: scenarioQuery.success ? scenarioQuery.data : null },
+            {
+              scenarioId: scenarioQuery.success ? scenarioQuery.data : null,
+              signal: controller.signal,
+            },
             options.judge,
             sink,
           );
         } catch (error) {
+          if (controller.signal.aborted) return;
           options.judge.logWarning(
             `判断に失敗しました: ${error instanceof Error ? error.name : "unknown"}`,
           );
