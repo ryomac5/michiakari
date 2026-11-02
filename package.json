@@ -1,0 +1,27 @@
+{
+  "name": "built-with-claude-2026-japan",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "test": "turbo run test --filter=!e2e",
+    "test:e2e": "pnpm --filter e2e test",
+    "guard": "node scripts/guard.mjs",
+    "guard:approve": "node scripts/guard-approve.mjs",
+    "validate": "pnpm --filter @repo/schema validate",
+    "data:build": "turbo run data:build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.4",
+    "turbo": "2.11.10",
+    "typescript": "7.0.2"
+  }
+}
