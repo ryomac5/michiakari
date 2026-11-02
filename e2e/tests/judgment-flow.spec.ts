@@ -3,6 +3,7 @@
 import { fileURLToPath } from "node:url";
 import { expect, type Page, test } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 
 // モックの判断イベント（人身事故・終電間際の架空シナリオ）で、開始から判断までを通す
 // 開発サーバーでは ?mock=1 で NEXT_PUBLIC_JUDGE_MOCK=1 と同じモックになる
@@ -90,7 +91,14 @@ test("駅を選び、貼り付けで状況を入れると、推論過程が順�
   await expect(disclaimer).toBeVisible();
   await expect(disclaimer).toContainText("推定であり、公式発表を優先してください");
 
-  await expect(page.getByTestId(testIds.judgment.map)).toBeVisible();
+  // 地図は描画が終わると data-state="ready" になり、凡例と出典が見える
+  const map = page.getByTestId(testIds.judgment.map);
+  await expect(map).toBeVisible();
+  await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+  await expect(map).toHaveAttribute("data-blocked", "true");
+  await expect(map).toHaveAttribute("data-recommended-option", "wait_resume");
+  await expect(page.getByTestId(mapTestIds.legend)).toBeVisible();
+  await expect(page.getByTestId(mapTestIds.attribution)).toContainText("国土地理院");
   await expect(page.getByTestId(testIds.judgment.option("transfer_hankyu"))).toBeVisible();
   await expect(page.getByTestId(testIds.judgment.option("transfer_hankyu"))).toContainText("—");
 
@@ -98,7 +106,17 @@ test("駅を選び、貼り付けで状況を入れると、推論過程が順�
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}judgment-390x844.png` });
   await page.screenshot({ path: `${screenshotDir}judgment-390x844-full.png`, fullPage: true });
+  await captureMap(page, "judgment-map-390x844.png");
 });
+
+// 地図を画面の中ほどに出して撮る。タイルの読み込みを待つため ready を確かめてから撮る
+async function captureMap(page: Page, fileName: string): Promise<void> {
+  const map = page.getByTestId(testIds.judgment.map);
+  await map.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await expect(map).toHaveAttribute("data-state", "ready");
+  await waitForFiniteAnimations(page);
+  await page.screenshot({ path: `${screenshotDir}${fileName}` });
+}
 
 test("情報を追加すると判断が更新され、根拠に段階と兆候が出る", async ({ page }) => {
   await startWithPastedText(page);
@@ -133,4 +151,10 @@ test("情報を追加すると判断が更新され、根拠に段階と兆候�
     "data-recommended",
     "true",
   );
+
+  // 判断が変わると地図の推奨経路も追従する
+  const map = page.getByTestId(testIds.judgment.map);
+  await expect(map).toHaveAttribute("data-recommended-option", "transfer_hankyu");
+  await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+  await captureMap(page, "judgment-map-switch-390x844.png");
 });
