@@ -8,7 +8,7 @@ import {
   type Lang,
   type Observation,
 } from "@repo/schema";
-import { headlineLimits } from "../config.ts";
+import { headlineLimits, reasonLimits } from "../config.ts";
 import type { Decision } from "../tools/emit-judgment.ts";
 import type {
   AlternativesToolResult,
@@ -34,6 +34,7 @@ export function assembleJudgment(
   return {
     action: decision.action,
     headline: decision.headline,
+    reason: decision.reason,
     breakEven:
       r.kind === "future" || r.kind === "passed"
         ? { time: r.time, explanation: decision.breakEvenExplanation }
@@ -198,13 +199,23 @@ function findUnknownNumbers(field: string, text: string, allowed: AllowedNumbers
   );
 }
 
-// 見出しが上限より長ければ指摘する。理由は分岐点の説明へ回すよう促す
+// 見出しが上限より長ければ指摘する。理由は reason へ回すよう促す
 export function checkHeadlineLength(headline: string, language: Lang): string[] {
   const length = [...headline].length;
   const { target, max } = headlineLimits[language];
   if (length <= max) return [];
   return [
-    `headline が長すぎます。${length} 文字で、上限は ${max} 文字です。結論だけを ${target} 文字程度で書き、理由は breakEvenExplanation に回してください`,
+    `headline が長すぎます。${length} 文字で、上限は ${max} 文字です。結論だけを ${target} 文字程度で書き、理由は reason に回してください`,
+  ];
+}
+
+// 理由が上限より長ければ指摘する
+export function checkReasonLength(reason: string | undefined, language: Lang): string[] {
+  const length = [...(reason ?? "")].length;
+  const { target, max } = reasonLimits[language];
+  if (length <= max) return [];
+  return [
+    `reason が長すぎます。${length} 文字で、上限は ${max} 文字です。判断の根拠を比較の形で ${target} 文字程度の 1〜2 文にまとめてください`,
   ];
 }
 
@@ -228,7 +239,11 @@ export function validateJudgment(input: JudgmentCheckInput): {
     };
   }
   const j = parsed.data;
-  const errors = [...checkJudgmentRefs(j), ...checkHeadlineLength(j.headline, input.language)];
+  const errors = [
+    ...checkJudgmentRefs(j),
+    ...checkHeadlineLength(j.headline, input.language),
+    ...checkReasonLength(j.reason, input.language),
+  ];
 
   for (const e of j.evidence) {
     if (!input.evidenceRefs.some((r) => r.kind === e.kind && r.id === e.id)) {
@@ -244,6 +259,7 @@ export function validateJudgment(input: JudgmentCheckInput): {
   }
   const texts: [string, string][] = [
     ["headline", j.headline],
+    ["reason", j.reason ?? ""],
     ["breakEven.explanation", j.breakEven?.explanation ?? ""],
     ...j.evidence.map((e, i): [string, string] => [`evidence[${i}].description`, e.description]),
   ];

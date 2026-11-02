@@ -83,6 +83,12 @@ export const headlineLimits = {
   en: { target: 50, max: 80 },
 } as const;
 
+// 結論の理由（reason）の長さ。数え方と扱いは headline と同じ。出典: 開発者の推定（仮）
+export const reasonLimits = {
+  ja: { target: 60, max: 90 },
+  en: { target: 150, max: 200 },
+} as const;
+
 // 気象の取得設定
 export const weatherParams = {
   defaultWindowMinutes: 60,

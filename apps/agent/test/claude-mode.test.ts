@@ -5,7 +5,7 @@ import type {
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import type { JudgmentEvent } from "@repo/schema";
 import { describe, expect, it } from "vitest";
-import { claudeSettings, headlineLimits, models } from "../src/config.ts";
+import { claudeSettings, headlineLimits, models, reasonLimits } from "../src/config.ts";
 import type { Interpretation } from "../src/interpret/claude-interpret.ts";
 import type { LlmClient } from "../src/llm-client.ts";
 import { buildClaudeTools } from "../src/tools/definitions.ts";
@@ -76,6 +76,7 @@ const interpretation: Interpretation = {
 const validDecision = {
   action: "hold",
   headline: "判断を保留します",
+  reason: "見込みの幅が大きく、まだどちらとも言えません。",
   breakEvenExplanation: "分岐点までに再開しなければ代替手段のほうが早く着きます",
   recommendedOptionId: null,
   evidence: [{ kind: "knowledge", id: knowledge.id, description: "知見の要約" }],
@@ -234,6 +235,50 @@ describe("claude モード", () => {
     const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
     expect(feedback).toContain('"is_error":true');
     expect(feedback).toContain("headline が長すぎます");
+  });
+
+  it("理由が長すぎれば、指摘を返して再生成させる", async () => {
+    const longDecision = { ...validDecision, reason: "あ".repeat(reasonLimits.ja.max + 1) };
+    const script = createScriptedLlm({
+      judgment: [
+        ...buildToolSequence(),
+        replyWithTool("emit_judgment", longDecision),
+        replyWithTool("emit_judgment", validDecision),
+      ],
+    });
+    const { judgment, warnings } = await runWith(script);
+    expect(warnings).toEqual([]);
+    expect(judgment?.reason).toBe(validDecision.reason);
+    const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
+    expect(feedback).toContain('"is_error":true');
+    expect(feedback).toContain("reason が長すぎます");
+  });
+
+  it("理由にツールの結果に無い数値があれば、指摘を返して再生成させる", async () => {
+    const fabricated = { ...validDecision, reason: "再開まであと4321分かかるためです。" };
+    const script = createScriptedLlm({
+      judgment: [
+        ...buildToolSequence(),
+        replyWithTool("emit_judgment", fabricated),
+        replyWithTool("emit_judgment", validDecision),
+      ],
+    });
+    const { judgment } = await runWith(script);
+    expect(judgment?.reason).toBe(validDecision.reason);
+    const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
+    expect(feedback).toContain("reason の数値「4321分」");
+  });
+
+  it("emit_judgment の理由の説明に、長さの目安と上限と例を書く", () => {
+    const tool = buildClaudeTools().find((t) => t.name === "emit_judgment");
+    const properties = tool?.input_schema.properties as Record<string, unknown> | undefined;
+    const reason = JSON.stringify(properties?.reason);
+    for (const n of [reasonLimits.ja.target, reasonLimits.ja.max, reasonLimits.en.max]) {
+      expect(reason).toContain(String(n));
+    }
+    expect(reason).toContain("どちらとも言えません");
+    expect(tool?.input_schema.required).toContain("reason");
+    expect(tool?.description).toContain(String(reasonLimits.ja.max));
   });
 
   it("emit_judgment の見出しの説明に、長さの目安と上限と例を書く", () => {

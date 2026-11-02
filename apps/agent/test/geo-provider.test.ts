@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createGeoProvider, loadSharedGeoDeps } from "../src/alternatives/geo-provider.ts";
+import { findLineNicknameEn } from "../src/alternatives/line-names-en.ts";
 import type { AlternativesQuery } from "../src/alternatives/provider.ts";
 
 // 国土数値情報の路線ネットワークによる代替手段の算出
@@ -74,5 +75,52 @@ describe("createGeoProvider", () => {
   it("文章から路線名を拾うための一覧に通称を含める", () => {
     const names = provider.listLines().map((l) => l.name);
     expect(names).toEqual(expect.arrayContaining(["JR京都線", "阪急神戸線"]));
+  });
+
+  it("待つ選択肢のラベルと止まっている路線の区間は、観測の路線名を使う", async () => {
+    const result = await provider.findAlternatives(query);
+    const wait = result.options[0];
+    expect(wait?.label).toBe("JR京都線の運転再開を待つ");
+    const blockedLineId = wait?.legs[0]?.lineId;
+    const blockedLegs = wait?.legs.filter((l) => l.lineId === blockedLineId) ?? [];
+    expect(blockedLegs.length).toBeGreaterThan(0);
+    expect(blockedLegs.every((l) => l.line === "JR京都線")).toBe(true);
+  });
+
+  it("英語では、日本語の観測の路線名を通称の英語名に直す", async () => {
+    const result = await provider.findAlternatives({ ...query, language: "en" });
+    const wait = result.options[0];
+    expect(wait?.label).toBe("Wait for JR Kyoto Line to resume");
+    expect(wait?.legs[0]?.line).toBe("JR Kyoto Line");
+  });
+
+  it("英語の観測の路線名はそのまま使う", async () => {
+    const result = await provider.findAlternatives({
+      ...query,
+      blockedLine: "JR Kyoto Line",
+      language: "en",
+    });
+    expect(result.options[0]?.label).toBe("Wait for JR Kyoto Line to resume");
+  });
+
+  it("観測の路線名が無ければ、路線データの名前を使う", async () => {
+    const result = await provider.findAlternatives({ ...query, blockedLine: null });
+    const wait = result.options[0];
+    expect(wait?.kind).toBe("wait");
+    expect(wait?.label).not.toContain("JR京都線");
+    expect(wait?.label).toBe(`${wait?.legs[0]?.line}の運転再開を待つ`);
+  });
+});
+
+describe("findLineNicknameEn", () => {
+  it("JR の通称を英語名に直す", () => {
+    expect(findLineNicknameEn("JR京都線")).toBe("JR Kyoto Line");
+    expect(findLineNicknameEn("JR神戸線")).toBe("JR Kobe Line");
+    expect(findLineNicknameEn("ＪＲ宝塚線")).toBe("JR Takarazuka Line");
+  });
+
+  it("事業者を省いた名前や表に無い名前は null", () => {
+    expect(findLineNicknameEn("京都線")).toBeNull();
+    expect(findLineNicknameEn("阪急京都線")).toBeNull();
   });
 });
