@@ -31,6 +31,8 @@
 - 判断の受信: SSE。イベントごとに画面の該当部分を更新する
 - 多言語: 日本語・英語（next-intl）。エージェント出力も利用者の言語で返す
 - リプレイモード: `scenarios/` のシナリオを時刻順に入力として流し、判断の変化を再生する
+- 分岐点の時間軸: 分岐点と再開見込みの関係を横 1 本の軸で示す。観測が進むと帯と目盛りが動く
+- 知見の閲覧画面: `/knowledge` に知見ナレッジを並べる。PC 幅では左に YAML の該当部分、右に構造化した表示を置く
 
 リプレイは `/replay` で動く。要点は次のとおり。
 
@@ -79,8 +81,9 @@
 ### 2.5 packages/geo
 
 - 路線・駅・事業者（国土数値情報から整形）
-- 徒歩時間は直線距離の 1.3 倍を分速 80m で割って概算する。計算は packages/core の walk が担い、パラメータは `packages/core/params/walk.ts` に置く
-- 徒歩10分・20分の到達範囲も同じ概算の円で描く。Valhalla による徒歩時間と到達範囲の事前計算は将来の拡張とする
+- 乗換の徒歩時間は、Valhalla の経路を事前に計算して求める
+- 経路が大回りになる組と、データが無い組は、直線距離の 1.3 倍を分速 80m で割る概算に戻す。計算は packages/core の walk が担い、パラメータは `packages/core/params/walk.ts` に置く
+- 徒歩10分・20分の到達範囲は、乗降客数の上位 300 か所が事前計算の結果である。それ以外の駅は概算の円で描く
 - 路線上の距離からの乗車時間の概算（関西にはオープンな時刻表データがないため。後述）
 
 経路探索は packages/geo の routing が担う。ネットワーク上のダイクストラで探し、止まっている区間の辺を除く。前の候補の主な路線を除いて探し直し、多様な候補を最大 3 本返す。
@@ -95,6 +98,14 @@
 4. 駅別乗降客数を結合する
 5. 線路のグラフから隣接駅と駅間距離を求め、乗換候補を結ぶ
 6. 路線・駅を GeoJSON、ネットワークを JSON で `packages/geo/data/` に書き出す
+
+徒歩経路と到達範囲は、`pnpm data:build` とは別のコマンドで事前に計算する。
+
+1. `pnpm data:osm` で Geofabrik の関西抽出を `packages/data/.cache/valhalla/` に取得する
+2. `infra/valhalla/compose.yaml` で Valhalla を起動する
+3. `pnpm data:walk` で乗換の徒歩経路と到達範囲を求め、`packages/geo/data/` に書く
+
+公開環境では Valhalla を動かさず、書き出した結果を読むだけにする。手順は `infra/valhalla/README.md` を正とする。
 
 画面は GeoJSON を静的に読み込んで配信する。PMTiles は tippecanoe が開発環境に無いため作らない。手順の詳細は `packages/data/README.md` を正とする。
 
@@ -180,6 +191,7 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 |---|---|
 | `action` | `wait` / `switch` / `hold`（判断保留、分岐点のみ提示） |
 | `headline` | 結論の一文（利用者の言語） |
+| `reason` | 結論の理由。1〜2 文で、省略できる |
 | `breakEven` | 分岐点の時刻 `time` と意味の説明 `explanation`。null を許す |
 | `estimate` | Estimate。項目は下表に示す |
 | `options` | RouteOption の配列。`id` を重複させない |
