@@ -58,11 +58,53 @@ export type RideEdge = {
   distanceKm: number;
 };
 
-// 乗換の候補。徒歩距離は駅の代表点どうしの直線距離
+// 乗換の候補。walkMeters は駅の代表点どうしの直線距離
+// walkMinutes と walkMetersRoute は Valhalla の徒歩経路。pnpm data:walk が足す
 export type TransferEdge = {
   from: string;
   to: string;
   walkMeters: number;
+  walkMinutes?: number;
+  walkMetersRoute?: number;
+};
+
+// 到達範囲の徒歩分。pnpm data:walk が計算する分だけを持つ
+export const ISOCHRONE_MINUTES = [10, 20] as const;
+export type IsochroneMinutes = (typeof ISOCHRONE_MINUTES)[number];
+
+export type IsochroneGeometry =
+  | { type: "Polygon"; coordinates: LonLat[][] }
+  | { type: "MultiPolygon"; coordinates: LonLat[][][] };
+
+// 主要駅の徒歩の到達範囲。同じ場所の駅は 1 つにまとめ、stationIds に並べる
+export type IsochroneFeature = {
+  type: "Feature";
+  properties: {
+    stationName: string;
+    minutes: IsochroneMinutes;
+    stationIds: string[];
+  };
+  geometry: IsochroneGeometry;
+};
+
+export type IsochroneCollection = {
+  type: "FeatureCollection";
+  features: IsochroneFeature[];
+};
+
+// 徒歩経路の計算条件。pnpm data:walk が meta.json に書く
+export type WalkMeta = {
+  computedAt: string;
+  attribution: string;
+  osm: { name: string; url: string; date: string; license: string };
+  valhalla: { version: string; image: string };
+  walkingSpeedKmh: number;
+  counts: {
+    transfers: number;
+    transfersRouted: number;
+    isochronePlaces: number;
+  };
+  notes: string[];
 };
 
 export type NetworkData = {
@@ -91,4 +133,6 @@ export type GeoMeta = {
     edges: number;
     transfers: number;
   };
+  // pnpm data:walk を実行していなければ持たない
+  walk?: WalkMeta;
 };

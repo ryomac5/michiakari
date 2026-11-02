@@ -11,18 +11,18 @@ export type LineGeometryRow = {
   geometry: string;
 };
 
-type Feature = {
+export type Feature = {
   type: "Feature";
   properties: Record<string, unknown>;
   geometry: { type: string; coordinates: unknown };
 };
 
-function serializeFeatureCollection(features: readonly Feature[]): string {
+export function serializeFeatureCollection(features: readonly Feature[]): string {
   const body = features.map((f) => JSON.stringify(f)).join(",\n");
   return `{"type":"FeatureCollection","features":[\n${body}\n]}\n`;
 }
 
-function serializeArrays(object: Record<string, unknown>): string {
+export function serializeArrays(object: Record<string, unknown>): string {
   const entries = Object.entries(object).map(([key, value]) => {
     if (!Array.isArray(value)) return `${JSON.stringify(key)}:${JSON.stringify(value)}`;
     const items = value.map((v) => JSON.stringify(v)).join(",\n");

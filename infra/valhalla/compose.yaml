@@ -1,0 +1,27 @@
+# 徒歩経路の事前計算に使う Valhalla。公開環境では動かさない
+# 起動: docker compose -f infra/valhalla/compose.yaml up -d
+# 確認: curl http://localhost:8002/status
+# 手順は infra/valhalla/README.md を見る
+
+services:
+  valhalla:
+    # 版を固定するため digest で指定する。Valhalla 3.9.1
+    image: ghcr.io/valhalla/valhalla-scripted@sha256:2dab557c4786a411d6eb814f2bf6f927e56ff8b89df4b9412c89437fe59f93d9
+    ports:
+      - "8002:8002"
+    volumes:
+      # pbf の置き場所とタイルの生成先。git 管理外
+      - ../../packages/data/.cache/valhalla:/custom_files
+    environment:
+      # 生成済みのタイルがあれば pbf を読み直さない
+      use_tiles_ignore_pbf: "True"
+      force_rebuild: "False"
+      build_tar: "True"
+      serve_tiles: "True"
+      # 国ごとの通行規則に使う。pbf から作るのでネットワークは要らない
+      build_admins: "True"
+      # 徒歩の計算には不要。取得にネットワークが要るので作らない
+      build_time_zones: "False"
+      build_elevation: "False"
+      build_transit: "False"
+      use_default_speeds_config: "False"

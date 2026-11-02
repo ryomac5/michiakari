@@ -1,4 +1,5 @@
 import type { LineType, NetworkData } from "./types.ts";
+import { getTransferWalkMinutes } from "./walk.ts";
 
 // 経路探索用の隣接リスト。乗車の辺は双方向、乗換の辺も双方向に張る
 // 探索アルゴリズムは持たない。乗車時間は packages/core の計算と組み合わせて求める
@@ -11,10 +12,12 @@ export type RideLink = {
   distanceKm: number;
 };
 
+// walkMinutes は Valhalla の経路があればその分、無ければ直線距離からの概算
 export type TransferLink = {
   kind: "transfer";
   to: string;
   walkMeters: number;
+  walkMinutes: number;
 };
 
 export type GraphLink = RideLink | TransferLink;
@@ -36,8 +39,9 @@ export function buildNetworkGraph(network: NetworkData): NetworkGraph {
     link(e.to, ride(e.from));
   }
   for (const t of network.transfers) {
-    link(t.from, { kind: "transfer", to: t.to, walkMeters: t.walkMeters });
-    link(t.to, { kind: "transfer", to: t.from, walkMeters: t.walkMeters });
+    const walkMinutes = getTransferWalkMinutes(t);
+    link(t.from, { kind: "transfer", to: t.to, walkMeters: t.walkMeters, walkMinutes });
+    link(t.to, { kind: "transfer", to: t.from, walkMeters: t.walkMeters, walkMinutes });
   }
   return graph;
 }

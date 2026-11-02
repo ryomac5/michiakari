@@ -2,6 +2,7 @@ export { computeDistanceMeters } from "./distance.ts";
 export {
   createGeoIndex,
   type GeoIndex,
+  type GeoIndexOptions,
   type LineBetween,
   type NearestStation,
   type TransferOption,
@@ -30,3 +31,4 @@ export {
 } from "./routing.ts";
 export { normalizeSearchText } from "./text.ts";
 export * from "./types.ts";
+export { getTransferWalkMinutes } from "./walk.ts";
