@@ -1,0 +1,199 @@
+{
+  "app": {
+    "title": "待つか、切り替えるか",
+    "description": "輸送障害のとき、待つか切り替えるかを判断するための見込みと行動を示します。",
+    "home": "はじめに戻る",
+    "about": "このアプリについて",
+    "language": "言語",
+    "theme": {
+      "toLight": "ライト表示にする",
+      "toDark": "ダーク表示にする"
+    },
+    "mockBadge": "デモ用の架空データ"
+  },
+  "disclaimer": {
+    "short": "推定であり、公式発表を優先してください。"
+  },
+  "start": {
+    "lead": "いまいる駅と行き先を選んでください。運転見合わせのとき、待つか切り替えるかの見込みを示します。",
+    "originLabel": "いまいる駅",
+    "originPlaceholder": "駅名を入力（例: 大阪）",
+    "locate": "現在地を使う",
+    "locating": "現在地を取得しています…",
+    "locateFailed": "現在地を取得できませんでした。駅名で選んでください。",
+    "locateUnsupported": "この端末では現在地を取得できません。駅名で選んでください。",
+    "currentLocation": "現在地",
+    "nearest": "最寄り: {station}（約{distance}）",
+    "destinationLabel": "行き先",
+    "destinationPlaceholder": "駅名を入力（例: 三ノ宮）",
+    "useFreeText": "「{text}」を行き先にする",
+    "noResults": "一致する駅がありません",
+    "clear": "選び直す",
+    "next": "状況を伝える",
+    "stationListNote": "駅の一覧は仮のデータです。"
+  },
+  "situation": {
+    "heading": "いまの状況を教えてください",
+    "lead": "掲示や発表の内容から、いまの段階を読み取ります。",
+    "edit": "変更",
+    "tabs": {
+      "photo": "撮影する",
+      "paste": "貼り付ける",
+      "select": "選んで答える"
+    },
+    "photo": {
+      "hint": "駅の掲示や案内画面を撮影してください。",
+      "button": "カメラで撮影する",
+      "retake": "撮り直す",
+      "preview": "撮影した写真",
+      "unsupported": "この画像は読み込めませんでした。別の写真でお試しください。",
+      "submit": "この写真で判断する"
+    },
+    "paste": {
+      "label": "発表文・案内の文章",
+      "placeholder": "例: 人身事故のため、運転を見合わせています",
+      "submit": "この内容で判断する"
+    },
+    "select": {
+      "eventLabel": "何が起きていますか",
+      "signalLabel": "聞こえた案内・見えた様子（いくつでも）",
+      "empty": "選択肢を準備中です。撮影か貼り付けで伝えてください。",
+      "back": "事象を選び直す",
+      "submit": "この内容で判断する"
+    },
+    "busy": "判断しています…"
+  },
+  "judgment": {
+    "heading": "判断",
+    "trip": "{origin} → {destination}",
+    "reasoning": {
+      "title": "判断しています",
+      "steps": {
+        "reading": "掲示・発表を読み取る",
+        "signals": "兆候を見つける",
+        "phase": "いまの段階を推定する",
+        "options": "代替手段を調べる",
+        "breakEven": "分岐点を計算する"
+      },
+      "status": {
+        "pending": "待機中",
+        "active": "進行中",
+        "done": "完了",
+        "failed": "中断"
+      },
+      "detail": {
+        "reading": "「{text}」",
+        "signals": "{count}件の兆候",
+        "phase": "{phase}",
+        "options": "{count}件の選択肢",
+        "breakEven": "{time}",
+        "breakEvenNone": "分岐点なし"
+      }
+    },
+    "action": {
+      "wait": "待つ",
+      "switch": "切り替える",
+      "hold": "保留"
+    },
+    "conclusion": {
+      "label": "結論",
+      "recommended": "おすすめ: {label}（{time} 着）",
+      "remaining": "再開まで 約{p50}〜{p80}分（推定）",
+      "confidence": "確信度: {level}"
+    },
+    "confidence": {
+      "low": "低",
+      "medium": "中",
+      "high": "高"
+    },
+    "error": {
+      "title": "判断を取得できませんでした",
+      "retryable": "通信の状態を確認して、もう一度お試しください。",
+      "fatal": "時間をおいて、もう一度お試しください。",
+      "retry": "もう一度判断する",
+      "detail": "詳細: {message}"
+    },
+    "breakEven": {
+      "title": "分岐点",
+      "remaining": "残り",
+      "time": "時刻",
+      "passed": "分岐点を過ぎました",
+      "soon": "まもなく分岐点です",
+      "none": "分岐点はありません",
+      "noneDetail": "いまの見込みでは、待つ場合と切り替える場合の到着の早さは入れ替わりません。",
+      "pending": "計算しています…",
+      "stale": "更新中"
+    },
+    "options": {
+      "title": "選択肢",
+      "arrival": "到着",
+      "fare": "運賃",
+      "walk": "徒歩",
+      "minutes": "{minutes}分",
+      "recommended": "おすすめ",
+      "transferService": "振替輸送",
+      "pending": "調べています…",
+      "empty": "選択肢はありません",
+      "stale": "更新中",
+      "note": "乗車時間と運賃は概算です。",
+      "legs": {
+        "walk": "徒歩",
+        "ride": "乗車",
+        "wait": "待ち",
+        "taxi": "タクシー"
+      }
+    },
+    "evidence": {
+      "title": "判断の根拠",
+      "phases": "段階",
+      "here": "いまここ",
+      "elapsed": "この段階に入って約{minutes}分",
+      "unknownPhase": "段階を特定できていません",
+      "signals": "検出した兆候",
+      "noSignals": "兆候はまだ見つかっていません",
+      "items": "使った知見と計算",
+      "kinds": {
+        "signal": "兆候",
+        "knowledge": "知見",
+        "weather": "気象",
+        "computation": "計算"
+      }
+    },
+    "addInfo": {
+      "title": "情報を追加",
+      "lead": "新しい掲示や発表があれば入力してください。判断を更新します。"
+    }
+  },
+  "map": {
+    "title": "地図",
+    "placeholder": "地図は準備中です"
+  },
+  "about": {
+    "title": "このアプリについて",
+    "purpose": {
+      "title": "目的",
+      "p1": "運行情報は「何が起きたか」を伝えます。このアプリは「だから、あなたはどうすべきか」まで返します。",
+      "p2": "運転見合わせに出会ったとき、待つか、別の手段に切り替えるかを判断するための見込みと行動を示します。"
+    },
+    "approach": {
+      "title": "推定の考え方",
+      "p1": "元指令員の経験を、外から観察できる兆候にもとづいて一般化した知見を使います。",
+      "p2": "あなたが持ち込んだ掲示や発表から兆候を読み取り、いまの段階と再開までの残り時間を幅で推定します。",
+      "p3": "到着時刻や分岐点などの数値はプログラムで計算し、AI はその結果を解釈して説明します。",
+      "p4": "確信が持てないときは見込みを断言せず、分岐点を中心に示します。"
+    },
+    "attribution": {
+      "title": "出典",
+      "map": "地図: 国土地理院 / © OpenStreetMap contributors",
+      "rail": "鉄道データ: 国土数値情報（鉄道データ）（国土交通省）を加工して作成",
+      "weather": "気象データ: 気象庁"
+    },
+    "notes": {
+      "title": "注意事項",
+      "p1": "表示する内容は推定です。公式発表と駅係員の案内を優先してください。",
+      "p2": "鉄道事業者の運行情報は自動で取得していません。判断はあなたが入力した情報にもとづきます。",
+      "p3": "乗車時間と運賃は概算です。実際の時刻や運賃と異なることがあります。",
+      "p4": "現在地と入力内容は判断にのみ使い、保存しません。"
+    }
+  }
+}
