@@ -22,8 +22,9 @@ export function SituationScreen() {
 
   return (
     <main
+      id="main"
       data-testid={testIds.situation.screen}
-      className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-6"
+      className="mx-auto flex max-w-2xl flex-col gap-5 px-4 pt-2 pb-10"
     >
       <TripSummary
         origin={origin}
@@ -31,8 +32,8 @@ export function SituationScreen() {
         testId={testIds.situation.tripSummary}
       />
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl leading-tight font-extrabold">{t("heading")}</h1>
-        <p className="text-muted">{t("lead")}</p>
+        <h1 className="text-2xl leading-tight font-extrabold text-balance">{t("heading")}</h1>
+        <p className="leading-relaxed text-muted">{t("lead")}</p>
       </div>
       <SituationInput
         catalog={catalog}

@@ -20,23 +20,38 @@ describe("formatClockTime", () => {
 describe("computeCountdown", () => {
   const now = new Date("2026-11-05T21:26:18+09:00");
 
-  it("目標時刻までの残りを m:ss で返す", () => {
+  it("目標時刻までの残りを分で返し、端数の秒は切り捨てる", () => {
     expect(computeCountdown("2026-11-05T21:40:00+09:00", now)).toEqual({
       totalSeconds: 822,
       passed: false,
-      label: "13:42",
+      kind: "minutes",
+      hours: 0,
+      minutes: 13,
     });
   });
 
-  it("1 時間以上は h:mm:ss で返す", () => {
-    expect(computeCountdown("2026-11-05T22:30:00+09:00", now).label).toBe("1:03:42");
+  it("1 時間以上は時間と分に分ける", () => {
+    expect(computeCountdown("2026-11-05T22:30:00+09:00", now)).toMatchObject({
+      kind: "hours",
+      hours: 1,
+      minutes: 3,
+    });
   });
 
-  it("過ぎていれば passed にし、表示は 0:00 にする", () => {
+  it("1 分未満は imminent にする", () => {
+    expect(computeCountdown("2026-11-05T21:27:00+09:00", now)).toMatchObject({
+      kind: "imminent",
+      passed: false,
+      minutes: 0,
+    });
+  });
+
+  it("過ぎていれば passed にする", () => {
     expect(computeCountdown("2026-11-05T21:20:00+09:00", now)).toMatchObject({
+      kind: "passed",
       passed: true,
-      label: "0:00",
     });
+    expect(computeCountdown("2026-11-05T21:26:18+09:00", now).kind).toBe("passed");
   });
 });
 

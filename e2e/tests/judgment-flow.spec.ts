@@ -44,10 +44,13 @@ async function startWithPastedText(page: Page): Promise<void> {
   await page.goto("/?mock=1");
   await expect(page.getByTestId(testIds.app.mockBadge)).toBeVisible({ timeout: 30_000 });
 
+  // 駅は国土数値情報の実データからサーバーで探す
   await page.getByTestId(testIds.start.originSearch).fill("大阪");
-  await page.getByTestId(testIds.start.originOption("osaka")).click();
-  await page.getByTestId(testIds.start.destinationSearch).fill("三ノ宮");
-  await page.getByTestId(testIds.start.destinationOption("sannomiya")).click();
+  await page.getByTestId(testIds.start.originOption("大阪")).click();
+  await expect(page.getByTestId(testIds.start.originSelected)).toContainText("大阪");
+  await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
+  await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+  await expect(page.getByTestId(testIds.start.destinationSelected)).toContainText("三ノ宮");
   await page.getByTestId(testIds.start.nextButton).click();
 
   await expect(page.getByTestId(testIds.situation.screen)).toBeVisible({ timeout: 30_000 });
@@ -85,7 +88,9 @@ test("駅を選び、貼り付けで状況を入れると、推論過程が順�
   const breakEven = page.getByTestId(testIds.judgment.breakEven);
   await expect(breakEven).toBeVisible();
   await expect(page.getByTestId(testIds.judgment.breakEvenTime)).toHaveText(/^\d{2}:\d{2}$/);
-  await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(/^\d+:\d{2}$/);
+  // 残り時間は時刻と紛れない「あと N 分」で出し、時刻は文の中に置く
+  await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(/^あと \d+ 分$/);
+  await expect(breakEven).toContainText(/\d{2}:\d{2}\s?までに再開しなければ/);
 
   const disclaimer = page.getByTestId(testIds.judgment.disclaimer);
   await expect(disclaimer).toBeVisible();
@@ -146,6 +151,9 @@ test("情報を追加すると判断が更新され、根拠に段階と兆候�
   await expect(page.getByTestId(testIds.judgment.breakEven)).toHaveAttribute(
     "data-state",
     "passed",
+  );
+  await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(
+    "分岐点を過ぎました",
   );
   await expect(page.getByTestId(testIds.judgment.option("transfer_hankyu"))).toHaveAttribute(
     "data-recommended",

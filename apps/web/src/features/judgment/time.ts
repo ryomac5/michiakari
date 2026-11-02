@@ -26,23 +26,24 @@ export function formatClockTime(iso: string, locale: string): string {
   }).format(new Date(iso));
 }
 
+// 残り時間の表し方。時刻と紛れないよう「あと 13 分」の形にし、1 分未満は「まもなく」とする
 export type Countdown = {
   totalSeconds: number;
   passed: boolean;
-  label: string;
+  kind: "minutes" | "hours" | "imminent" | "passed";
+  hours: number;
+  minutes: number;
 };
 
-// 目標時刻までの残り時間。過ぎていれば passed
+// 目標時刻までの残り時間。分は切り捨てる
 export function computeCountdown(targetIso: string, now: Date): Countdown {
   const totalSeconds = Math.floor((Date.parse(targetIso) - now.getTime()) / 1000);
   const passed = totalSeconds <= 0;
   const remaining = Math.max(0, totalSeconds);
   const hours = Math.floor(remaining / 3600);
   const minutes = Math.floor((remaining % 3600) / 60);
-  const seconds = remaining % 60;
-  const label =
-    hours > 0 ? `${hours}:${padTwo(minutes)}:${padTwo(seconds)}` : `${minutes}:${padTwo(seconds)}`;
-  return { totalSeconds, passed, label };
+  const kind = passed ? "passed" : remaining < 60 ? "imminent" : hours > 0 ? "hours" : "minutes";
+  return { totalSeconds, passed, kind, hours, minutes };
 }
 
 // 運賃の表示。null は「—」

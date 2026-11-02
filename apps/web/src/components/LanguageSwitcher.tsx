@@ -31,7 +31,7 @@ export function LanguageSwitcher() {
       data-testid={testIds.app.languageSwitch}
       aria-label={t("language")}
       disabled={isPending}
-      className="flex rounded-xl bg-surface-raised p-1"
+      className="flex shrink-0 rounded-xl border border-border bg-surface-raised"
     >
       {locales.map((l) => (
         <button
@@ -44,8 +44,8 @@ export function LanguageSwitcher() {
           title={names[l]}
           onClick={() => changeLocale(l)}
           className={cn(
-            "h-9 rounded-lg px-3 text-sm font-bold whitespace-nowrap text-muted",
-            l === locale && "bg-surface text-foreground shadow-sm",
+            "h-11 w-11 rounded-[11px] text-sm font-bold whitespace-nowrap text-muted",
+            l === locale && "bg-foreground text-background",
           )}
         >
           {labels[l]}

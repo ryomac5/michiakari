@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "Wait or Switch",
-    "description": "When trains stop, see whether to wait or switch, with an estimate and what to do next.",
+    "title": "MatsuKaeru",
+    "description": "When trains stop in Kansai, MatsuKaeru estimates whether to wait or switch, based on a former train dispatcher's know-how.",
     "home": "Back to start",
     "about": "About this app",
     "language": "Language",
@@ -9,73 +9,80 @@
       "toLight": "Use light theme",
       "toDark": "Use dark theme"
     },
-    "mockBadge": "Demo data (fictional)"
+    "mockBadge": "Showing fictional demo data",
+    "name": "MatsuKaeru",
+    "tagline": "Wait, or switch?",
+    "skipToContent": "Skip to content"
   },
   "disclaimer": {
-    "short": "This is an estimate. Always follow official announcements."
+    "short": "Estimate only. Follow official notices."
   },
   "start": {
-    "lead": "Choose where you are and where you are going. When service is suspended, we estimate whether to wait or switch.",
+    "lead": "Pick where you are and where you're going. If trains stop, we'll estimate whether to wait or switch.",
     "originLabel": "Where are you?",
     "originPlaceholder": "Station name (e.g. Osaka)",
     "locate": "Use my location",
     "locating": "Getting your location…",
-    "locateFailed": "Could not get your location. Please choose a station.",
-    "locateUnsupported": "Location is not available on this device. Please choose a station.",
+    "locateFailed": "Couldn't get your location. Please choose a station.",
+    "locateUnsupported": "Location isn't available on this device. Please choose a station.",
     "currentLocation": "Current location",
     "nearest": "Nearest: {station} (about {distance})",
-    "destinationLabel": "Destination",
+    "destinationLabel": "Where are you going?",
     "destinationPlaceholder": "Station name (e.g. Sannomiya)",
-    "useFreeText": "Use “{text}” as destination",
-    "noResults": "No matching station",
+    "useFreeText": "Go to “{text}”",
+    "noResults": "No matching stations",
     "clear": "Change",
-    "next": "Tell us what is happening",
-    "stationListNote": "The station list is provisional.",
+    "next": "Tell us what's happening",
     "replayLink": "Watch the demo",
-    "replayNote": "Replay a fictional scenario and see the decision change as announcements update."
+    "replayNote": "Replay a fictional incident and watch the advice change with each announcement.",
+    "nearestFailed": "Couldn't find the nearest station. You can also choose one by name.",
+    "locationNote": "Your location is sent only to find the nearest station and is never stored.",
+    "resultCount": "{count, plural, one {# station found} other {# stations found}}",
+    "searchFailed": "Station search failed. Please check your connection.",
+    "or": "or"
   },
   "situation": {
-    "heading": "What is happening now?",
+    "heading": "What's happening now?",
     "lead": "We read the current phase from signs and announcements.",
     "edit": "Edit",
     "tabs": {
-      "photo": "Take a photo",
-      "paste": "Paste text",
-      "select": "Answer questions"
+      "photo": "Photo",
+      "paste": "Paste",
+      "select": "Choose"
     },
     "photo": {
-      "hint": "Take a photo of a station notice or information display.",
+      "hint": "Take a photo of a notice or information display at the station.",
       "button": "Open camera",
       "retake": "Retake",
       "preview": "Your photo",
-      "unsupported": "This image could not be read. Please try another photo.",
-      "submit": "Judge from this photo"
+      "unsupported": "We couldn't read this image. Please try another photo.",
+      "submit": "Use this photo"
     },
     "paste": {
       "label": "Announcement or notice text",
-      "placeholder": "e.g. Service is suspended due to a person struck by a train",
-      "submit": "Judge from this text"
+      "placeholder": "e.g. Service is suspended due to an accident involving a person",
+      "submit": "Use this text"
     },
     "select": {
       "eventLabel": "What happened?",
       "signalLabel": "What did you hear or see? (choose any)",
-      "empty": "Choices are not ready yet. Please use a photo or paste text.",
+      "empty": "Choices aren't ready yet. Please take a photo or paste text.",
       "back": "Choose another event",
-      "submit": "Judge from these answers"
+      "submit": "Use these answers"
     },
-    "busy": "Judging…"
+    "busy": "Thinking…"
   },
   "judgment": {
-    "heading": "Judgment",
+    "heading": "Advice",
     "trip": "{origin} → {destination}",
     "reasoning": {
-      "title": "Working it out",
+      "title": "Thinking it through",
       "steps": {
         "reading": "Reading the notice",
         "signals": "Finding signals",
         "phase": "Estimating the phase",
         "options": "Checking alternatives",
-        "breakEven": "Computing the break-even time"
+        "breakEven": "Finding the decision point"
       },
       "status": {
         "pending": "Waiting",
@@ -89,19 +96,21 @@
         "phase": "{phase}",
         "options": "{count, plural, one {# option} other {# options}}",
         "breakEven": "{time}",
-        "breakEvenNone": "No break-even time"
+        "breakEvenNone": "No decision point"
       }
     },
     "action": {
       "wait": "Wait",
       "switch": "Switch",
-      "hold": "Hold"
+      "hold": "Not yet"
     },
     "conclusion": {
-      "label": "Recommendation",
-      "recommended": "Suggested: {label} (arrive {time})",
-      "remaining": "About {p50}–{p80} min until service resumes (estimate)",
-      "confidence": "Confidence: {level}"
+      "label": "Advice",
+      "recommended": "Suggested: {label}, arriving {time}",
+      "remaining": "Resumes in {p50}–{p80} min",
+      "confidence": "Confidence: {level}",
+      "live": "Advice: {action}. {headline}",
+      "arrival": "Arrive {time}"
     },
     "confidence": {
       "low": "low",
@@ -109,22 +118,24 @@
       "high": "high"
     },
     "error": {
-      "title": "Could not get a judgment",
+      "title": "Couldn't get advice",
       "retryable": "Check your connection and try again.",
       "fatal": "Please try again later.",
       "retry": "Try again",
       "detail": "Details: {message}"
     },
     "breakEven": {
-      "title": "Break-even time",
-      "remaining": "Time left",
-      "time": "At",
-      "passed": "The break-even time has passed",
-      "soon": "The break-even time is close",
-      "none": "No break-even time",
-      "noneDetail": "With the current estimate, waiting and switching do not swap places in arrival time.",
-      "pending": "Computing…",
-      "stale": "Updating"
+      "title": "Decision point",
+      "passed": "Decision point passed",
+      "soon": "The decision point is close. Get ready to switch",
+      "none": "No decision point",
+      "noneDetail": "With the current estimate, waiting and switching arrive in the same order.",
+      "pending": "Calculating…",
+      "stale": "Updating",
+      "countdownMinutes": "{minutes} min left",
+      "countdownHours": "{hours} h {minutes} min left",
+      "imminent": "Any moment now",
+      "condition": "If service hasn't resumed by <clock>{time}</clock>, switching gets you there sooner"
     },
     "options": {
       "title": "Options",
@@ -133,7 +144,7 @@
       "walk": "Walk",
       "minutes": "{minutes} min",
       "recommended": "Suggested",
-      "transferService": "Transfer service",
+      "transferService": "Transfer ticket OK",
       "pending": "Checking…",
       "empty": "No options",
       "stale": "Updating",
@@ -146,7 +157,7 @@
       }
     },
     "evidence": {
-      "title": "Why this judgment",
+      "title": "Why we think so",
       "phases": "Phases",
       "here": "You are here",
       "elapsed": "About {minutes} min into this phase",
@@ -163,12 +174,12 @@
     },
     "addInfo": {
       "title": "Add information",
-      "lead": "If there is a new notice or announcement, add it to update the judgment."
+      "lead": "Seen a new notice or announcement? Add it to update the advice."
     }
   },
   "replay": {
     "heading": "Replay",
-    "lead": "Pick a fictional scenario. Announcements and signs are entered in time order, and you can watch the decision, phase and map change.",
+    "lead": "Pick a fictional incident. Announcements come in one by one, and you can watch the advice, phase and map change.",
     "fictional": "All scenarios are fictional. They are not real incidents or official announcements.",
     "empty": "No scenarios available.",
     "observationCount": "{count} announcements",
@@ -188,7 +199,7 @@
       "playing": "Playing",
       "paused": "Paused",
       "judging": "Deciding",
-      "error": "Could not get a decision",
+      "error": "Couldn't get advice",
       "ended": "Replay finished"
     },
     "kinds": {
@@ -200,46 +211,50 @@
     },
     "ready": {
       "title": "Ready to replay",
-      "lead": "Press play to decide from the first announcement onward.",
+      "lead": "Press play to start from the first announcement.",
       "start": "Start replay"
     },
-    "changed": "Decision changed",
+    "changed": "Advice changed",
     "phases": "Phase",
     "here": "Now",
     "unknownPhase": "Phase not identified",
     "history": "Announcements so far",
-    "trip": "{origin} → {destination}"
+    "trip": "{origin} → {destination}",
+    "bar": "Playback controls"
   },
   "map": {
     "title": "Map",
     "placeholder": "Map coming soon"
   },
   "about": {
-    "title": "About this app",
+    "title": "About MatsuKaeru",
     "purpose": {
       "title": "Purpose",
-      "p1": "Service updates tell you what happened. This app goes on to tell you what you should do.",
+      "p1": "Service updates tell you what happened. MatsuKaeru goes one step further and suggests what to do.",
       "p2": "When service is suspended, it shows an estimate and an action to help you decide whether to wait or switch."
     },
     "approach": {
       "title": "How we estimate",
       "p1": "We use knowledge from a former train dispatcher, generalized into signs anyone can observe.",
       "p2": "We read signals from the notices you bring and estimate the current phase and a range for the time to resumption.",
-      "p3": "Numbers such as arrival and break-even times are computed by code. The AI interprets and explains them.",
-      "p4": "When we are not confident, we focus on the break-even time instead of a firm estimate."
+      "p3": "Numbers such as arrival times and the decision point are computed by code. The AI interprets and explains them.",
+      "p4": "When we are not confident, we focus on the decision point instead of a firm estimate."
     },
     "attribution": {
       "title": "Sources",
       "map": "Map: Geospatial Information Authority of Japan / © OpenStreetMap contributors",
       "rail": "Railway data: processed from National Land Numerical Information (Railway), MLIT Japan",
+      "ridership": "Station ridership: processed from National Land Numerical Information (Passengers by Station), MLIT Japan",
       "weather": "Weather data: Japan Meteorological Agency"
     },
     "notes": {
       "title": "Notes",
       "p1": "Everything shown is an estimate. Follow official announcements and station staff first.",
-      "p2": "We do not fetch railway service information automatically. Judgments are based on what you enter.",
+      "p2": "We do not fetch railway service information automatically. Advice is based on what you enter.",
       "p3": "Ride times and fares are approximate and may differ from actual ones.",
-      "p4": "Your location and input are used only for the judgment and are not stored."
-    }
+      "p4": "Your location and input are used only to give advice and are never stored."
+    },
+    "intro": "MatsuKaeru blends the Japanese “matsu” (wait) and “norikaeru” (switch trains). Kaeru also means frog. It aims to shorten the time you spend not knowing what to do.",
+    "subtitle": "Wait, or switch?"
   }
 }

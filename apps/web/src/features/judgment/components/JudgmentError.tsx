@@ -20,7 +20,7 @@ export function JudgmentError({
     <section
       data-testid={testIds.judgment.error}
       role="alert"
-      className="flex min-h-[33dvh] flex-col justify-center gap-4 rounded-3xl border-2 border-danger bg-danger-surface p-5"
+      className="flex flex-col gap-3 rounded-3xl border-2 border-danger bg-danger-surface p-4 sm:p-5"
     >
       <h2 className="flex items-center gap-2 text-2xl font-extrabold text-danger">
         <CircleAlert className="size-7" aria-hidden />

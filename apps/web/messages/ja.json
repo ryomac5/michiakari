@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "待つか、切り替えるか",
-    "description": "輸送障害のとき、待つか切り替えるかを判断するための見込みと行動を示します。",
+    "title": "マツカエル",
+    "description": "運転見合わせに出会ったとき、待つか乗り換えるかを、元指令員の知見をもとに見込みと行動で示します。",
     "home": "はじめに戻る",
     "about": "このアプリについて",
     "language": "言語",
@@ -9,15 +9,18 @@
       "toLight": "ライト表示にする",
       "toDark": "ダーク表示にする"
     },
-    "mockBadge": "デモ用の架空データ"
+    "mockBadge": "デモ用の架空データで表示しています",
+    "name": "マツカエル",
+    "tagline": "待つか、乗り換えるか。",
+    "skipToContent": "本文へ移動"
   },
   "disclaimer": {
     "short": "推定であり、公式発表を優先してください。"
   },
   "start": {
-    "lead": "いまいる駅と行き先を選んでください。運転見合わせのとき、待つか切り替えるかの見込みを示します。",
+    "lead": "いる駅と行き先を選ぶと、運転見合わせのときに待つか乗り換えるかの見込みを示します。",
     "originLabel": "いまいる駅",
-    "originPlaceholder": "駅名を入力（例: 大阪）",
+    "originPlaceholder": "駅名・よみがな（例: 大阪）",
     "locate": "現在地を使う",
     "locating": "現在地を取得しています…",
     "locateFailed": "現在地を取得できませんでした。駅名で選んでください。",
@@ -25,14 +28,18 @@
     "currentLocation": "現在地",
     "nearest": "最寄り: {station}（約{distance}）",
     "destinationLabel": "行き先",
-    "destinationPlaceholder": "駅名を入力（例: 三ノ宮）",
+    "destinationPlaceholder": "駅名・よみがな（例: 三ノ宮）",
     "useFreeText": "「{text}」を行き先にする",
     "noResults": "一致する駅がありません",
     "clear": "選び直す",
     "next": "状況を伝える",
-    "stationListNote": "駅の一覧は仮のデータです。",
     "replayLink": "デモを見る",
-    "replayNote": "架空のシナリオで、発表が更新されるたびに判断が変わる様子を再生します。"
+    "replayNote": "架空のシナリオで、発表のたびに判断が変わる様子を再生します。",
+    "nearestFailed": "最寄り駅を調べられませんでした。駅名で選ぶこともできます。",
+    "locationNote": "現在地は最寄り駅を調べるためだけに送り、保存しません。",
+    "resultCount": "{count}件の駅が見つかりました",
+    "searchFailed": "駅を検索できませんでした。通信を確かめてください。",
+    "or": "または"
   },
   "situation": {
     "heading": "いまの状況を教えてください",
@@ -95,13 +102,15 @@
     "action": {
       "wait": "待つ",
       "switch": "切り替える",
-      "hold": "保留"
+      "hold": "様子を見る"
     },
     "conclusion": {
       "label": "結論",
       "recommended": "おすすめ: {label}（{time} 着）",
-      "remaining": "再開まで 約{p50}〜{p80}分（推定）",
-      "confidence": "確信度: {level}"
+      "remaining": "再開まで 約{p50}〜{p80}分",
+      "confidence": "確信度 {level}",
+      "live": "結論: {action}。{headline}",
+      "arrival": "{time} 着"
     },
     "confidence": {
       "low": "低",
@@ -117,14 +126,16 @@
     },
     "breakEven": {
       "title": "分岐点",
-      "remaining": "残り",
-      "time": "時刻",
       "passed": "分岐点を過ぎました",
-      "soon": "まもなく分岐点です",
+      "soon": "まもなく分岐点です。乗り換えの準備を",
       "none": "分岐点はありません",
-      "noneDetail": "いまの見込みでは、待つ場合と切り替える場合の到着の早さは入れ替わりません。",
+      "noneDetail": "いまの見込みでは、待っても乗り換えても着く順は変わりません。",
       "pending": "計算しています…",
-      "stale": "更新中"
+      "stale": "更新中",
+      "countdownMinutes": "あと {minutes} 分",
+      "countdownHours": "あと {hours} 時間 {minutes} 分",
+      "imminent": "まもなく",
+      "condition": "<clock>{time}</clock> までに再開しなければ、乗り換えたほうが早く着きます"
     },
     "options": {
       "title": "選択肢",
@@ -208,7 +219,8 @@
     "here": "いまここ",
     "unknownPhase": "段階を特定できていません",
     "history": "これまでの発表",
-    "trip": "{origin} → {destination}"
+    "trip": "{origin} → {destination}",
+    "bar": "再生の操作"
   },
   "map": {
     "title": "地図",
@@ -231,7 +243,8 @@
     "attribution": {
       "title": "出典",
       "map": "地図: 国土地理院 / © OpenStreetMap contributors",
-      "rail": "鉄道データ: 国土数値情報（鉄道データ）（国土交通省）を加工して作成",
+      "rail": "鉄道データ: 「国土数値情報（鉄道データ）」（国土交通省）を加工して作成",
+      "ridership": "駅の乗降客数: 「国土数値情報（駅別乗降客数データ）」（国土交通省）を加工して作成",
       "weather": "気象データ: 気象庁"
     },
     "notes": {
@@ -240,6 +253,8 @@
       "p2": "鉄道事業者の運行情報は自動で取得していません。判断はあなたが入力した情報にもとづきます。",
       "p3": "乗車時間と運賃は概算です。実際の時刻や運賃と異なることがあります。",
       "p4": "現在地と入力内容は判断にのみ使い、保存しません。"
-    }
+    },
+    "intro": "マツカエルは「待つ」と「乗り換える」を掛けた名前です。迷っている時間を少しでも短くすることを目指しています。",
+    "subtitle": "マツカエル — 待つか、乗り換えるか。"
   }
 }

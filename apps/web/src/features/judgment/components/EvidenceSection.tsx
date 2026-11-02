@@ -9,6 +9,7 @@ import {
   type LucideIcon,
   MapPin,
   Radio,
+  TriangleAlert,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -34,11 +35,14 @@ export function EvidenceSection({
   signals,
   evidence,
   catalog,
+  disclaimer = null,
 }: {
   estimate: Estimate | null;
   signals: DetectedSignal[];
   evidence: Evidence[];
   catalog: KnowledgeCatalog;
+  // 判断が添えた注意書き
+  disclaimer?: string | null;
 }) {
   const t = useTranslations("judgment.evidence");
 
@@ -84,6 +88,12 @@ export function EvidenceSection({
               })}
             </ul>
           </div>
+        )}
+        {disclaimer && (
+          <p className="flex items-start gap-2 text-sm text-muted">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            {disclaimer}
+          </p>
         )}
       </CollapsibleContent>
     </Collapsible>

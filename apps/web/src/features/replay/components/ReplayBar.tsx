@@ -11,6 +11,7 @@ import type { ReplayStatus } from "../use-replay-player";
 // 画面上部に固定する再生バー。再生・一時停止、速度、次の発表、時刻と進捗
 export function ReplayBar({
   title,
+  subtitle,
   status,
   clockLabel,
   progress,
@@ -24,6 +25,8 @@ export function ReplayBar({
   onBack,
 }: {
   title: string;
+  // 出発駅 → 行き先 と止まっている路線
+  subtitle: string;
   status: ReplayStatus;
   clockLabel: string;
   progress: number;
@@ -44,12 +47,27 @@ export function ReplayBar({
   const playLabel = status === "ended" ? t("replay") : playing ? t("pause") : t("play");
 
   return (
-    <div
+    <section
       data-testid={testIds.replay.bar}
       data-state={status}
+      aria-label={t("bar")}
       className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur"
     >
-      <div className="mx-auto flex max-w-2xl flex-col gap-2 px-4 py-2">
+      {/* 進捗は下端の線で示し、高さを使わない */}
+      <div
+        className="absolute inset-x-0 bottom-0 h-1 bg-surface-raised"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(progress * 100)}
+        aria-label={t("clock")}
+      >
+        <div
+          className="h-full bg-brand transition-[width] duration-100 ease-linear"
+          style={{ width: `${progress * 100}%` }}
+        />
+      </div>
+      <div className="mx-auto flex max-w-2xl flex-col gap-1 px-4 pt-1 pb-1.5">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -62,9 +80,12 @@ export function ReplayBar({
           >
             <ArrowLeft aria-hidden />
           </Button>
-          <p data-testid={testIds.replay.title} className="min-w-0 flex-1 truncate font-bold">
-            {title}
-          </p>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <p data-testid={testIds.replay.title} className="truncate font-bold leading-snug">
+              {title}
+            </p>
+            <p className="truncate text-xs font-bold text-muted">{subtitle}</p>
+          </div>
           <p
             data-testid={testIds.replay.progress}
             data-entered={enteredCount}
@@ -82,20 +103,6 @@ export function ReplayBar({
           </p>
         </div>
 
-        <div
-          className="h-1.5 w-full overflow-hidden rounded-full bg-surface-raised"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(progress * 100)}
-          aria-label={t("clock")}
-        >
-          <div
-            className="h-full rounded-full bg-foreground transition-[width] duration-100 ease-linear"
-            style={{ width: `${progress * 100}%` }}
-          />
-        </div>
-
         <div className="flex items-center gap-2">
           <Button
             size="sm"
@@ -103,7 +110,7 @@ export function ReplayBar({
             data-playing={playing}
             aria-label={playLabel}
             onClick={onTogglePlay}
-            className="min-w-24 shrink-0"
+            className="h-11 min-w-24 shrink-0"
           >
             {status === "ended" ? (
               <RotateCcw aria-hidden />
@@ -122,7 +129,7 @@ export function ReplayBar({
             title={t("next")}
             onClick={onNext}
             disabled={status === "judging" || status === "ended"}
-            className="size-10"
+            className="size-11"
           >
             <SkipForward aria-hidden />
           </Button>
@@ -134,13 +141,13 @@ export function ReplayBar({
             title={t("restart")}
             onClick={onRestart}
             disabled={enteredCount === 0}
-            className="size-10"
+            className="size-11"
           >
             <RotateCcw aria-hidden />
           </Button>
           <fieldset
             aria-label={t("speed")}
-            className="ml-auto flex rounded-xl bg-surface-raised p-1"
+            className="ml-auto flex rounded-xl border border-border bg-surface-raised"
           >
             {speeds.map((s) => (
               <button
@@ -150,8 +157,8 @@ export function ReplayBar({
                 aria-pressed={s === speed}
                 onClick={() => onChangeSpeed(s)}
                 className={cn(
-                  "h-8 rounded-lg px-2.5 text-sm font-bold text-muted tabular-nums",
-                  s === speed && "bg-surface text-foreground shadow-sm",
+                  "h-11 min-w-11 rounded-[11px] px-2 text-sm font-bold text-muted tabular-nums",
+                  s === speed && "bg-foreground text-background",
                 )}
               >
                 {s}x
@@ -160,6 +167,6 @@ export function ReplayBar({
           </fieldset>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

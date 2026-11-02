@@ -7,6 +7,7 @@ import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { actionStyles } from "@/features/judgment/action-style";
 import { BreakEvenPanel } from "@/features/judgment/components/BreakEvenPanel";
+import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
 import { ConclusionCard } from "@/features/judgment/components/ConclusionCard";
 import { Disclaimer } from "@/features/judgment/components/Disclaimer";
 import { EvidenceSection } from "@/features/judgment/components/EvidenceSection";
@@ -18,6 +19,7 @@ import { testIds } from "@/features/judgment/testids";
 import { formatClockTime } from "@/features/judgment/time";
 import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import { MapPanel } from "@/features/map/MapPanel";
+import { pickStationName, type StationNames } from "@/features/stations/describe";
 import { cn } from "@/lib/utils";
 import { computeReplayProgress } from "../clock";
 import {
@@ -36,11 +38,13 @@ import { ReplayHistory } from "./ReplayHistory";
 export function ReplayPlayer({
   scenario,
   catalog,
+  stationNames,
   initialSpeed,
   onBack,
 }: {
   scenario: ReplayScenario;
   catalog: KnowledgeCatalog;
+  stationNames: StationNames;
   initialSpeed: number;
   onBack: () => void;
 }) {
@@ -77,6 +81,16 @@ export function ReplayPlayer({
     >
       <ReplayBar
         title={pickScenarioText(scenario.title, locale)}
+        subtitle={`${t("replay.trip", {
+          origin: pickStationName(
+            { name: origin.name, nameEn: stationNames[origin.name] ?? null },
+            locale,
+          ),
+          destination: pickStationName(
+            { name: destination.name, nameEn: stationNames[destination.name] ?? null },
+            locale,
+          ),
+        })} · ${scenario.line}`}
         status={player.status}
         clockLabel={formatClockTime(nowIso, locale)}
         progress={computeReplayProgress(scenario.timeline, player.clockMinutes)}
@@ -90,64 +104,68 @@ export function ReplayPlayer({
         onBack={onBack}
       />
 
-      <main className="mx-auto flex max-w-2xl flex-col gap-5 px-4 py-4">
+      <main id="main" className="mx-auto flex max-w-2xl flex-col gap-5 px-4 pt-2 pb-10">
         <h1 className="sr-only">{t("replay.heading")}</h1>
-        <p className="truncate font-bold text-muted">
-          {t("replay.trip", { origin: origin.name, destination: destination.name })} ·{" "}
-          {scenario.line}
-        </p>
-
-        {latestEntry && (
-          <AnnouncementCard
-            key={latestEntry.id}
-            entry={latestEntry}
-            timeLabel={formatClockTime(
-              resolveScenarioTime(scenario.start_time, latestEntry.offset_minutes),
-              locale,
-            )}
-          />
-        )}
-
-        <div
-          data-testid={testIds.replay.judgment}
-          data-status={state.status}
-          data-observation-id={current?.observationId ?? ""}
-          data-pending-observation-id={pendingId}
-          data-action={current?.action ?? ""}
-          data-phase-id={current?.phaseId ?? ""}
-          data-evidence-ids={current?.evidenceIds.join(" ") ?? ""}
-          data-break-even-shown={current ? String(current.breakEvenShown) : ""}
-          data-changed={changed}
-          className="flex flex-col gap-2"
-        >
-          {!started && <ReadyCard scenario={scenario} onStart={player.togglePlay} />}
-          {streaming && <ReasoningProgress state={state} catalog={catalog} />}
-          {state.status === "error" && state.error && (
-            <JudgmentError
-              message={state.error.message}
-              retryable={state.error.retryable}
-              onRetry={player.retry}
+        <ConclusionAnnouncer
+          judgment={state.status === "ready" ? (display.judgment ?? null) : null}
+        />
+        {/* 390x844 の最初の画面に発表・結論・分岐点が収まるよう、ここまでは詰めて並べる */}
+        <div className="flex flex-col gap-2.5">
+          {latestEntry && (
+            <AnnouncementCard
+              key={latestEntry.id}
+              entry={latestEntry}
+              timeLabel={formatClockTime(
+                resolveScenarioTime(scenario.start_time, latestEntry.offset_minutes),
+                locale,
+              )}
             />
           )}
-          {state.status === "ready" && display.judgment && current && (
-            <div
-              key={current.observationId}
-              className={cn(
-                "flex flex-col gap-2 rounded-3xl",
-                changed && current.action === "switch" && "animate-switch-flash",
-              )}
-            >
-              {changed && previousAction && (
-                <ChangeBadge from={previousAction} to={current.action} />
-              )}
-              <ConclusionCard judgment={display.judgment} />
-            </div>
-          )}
-          {started && <Disclaimer extra={disclaimerExtra} />}
-        </div>
 
-        {started && (
-          <>
+          <div
+            data-testid={testIds.replay.judgment}
+            data-status={state.status}
+            data-observation-id={current?.observationId ?? ""}
+            data-pending-observation-id={pendingId}
+            data-action={current?.action ?? ""}
+            data-phase-id={current?.phaseId ?? ""}
+            data-evidence-ids={current?.evidenceIds.join(" ") ?? ""}
+            data-break-even-shown={current ? String(current.breakEvenShown) : ""}
+            data-changed={changed}
+            className="flex flex-col gap-2"
+          >
+            {!started && <ReadyCard scenario={scenario} onStart={player.togglePlay} />}
+            {streaming && <ReasoningProgress state={state} catalog={catalog} />}
+            {state.status === "error" && state.error && (
+              <JudgmentError
+                message={state.error.message}
+                retryable={state.error.retryable}
+                onRetry={player.retry}
+              />
+            )}
+            {state.status === "ready" && display.judgment && current && (
+              <div
+                key={current.observationId}
+                className={cn(
+                  "flex flex-col rounded-3xl",
+                  changed && "mt-3",
+                  changed && current.action === "switch" && "animate-switch-flash",
+                )}
+              >
+                <ConclusionCard
+                  judgment={display.judgment}
+                  badge={
+                    changed && previousAction ? (
+                      <ChangeBadge from={previousAction} to={current.action} />
+                    ) : undefined
+                  }
+                />
+              </div>
+            )}
+            {started && <Disclaimer />}
+          </div>
+
+          {started && (
             <div data-observation-id={current?.observationId ?? ""}>
               <BreakEvenPanel
                 breakEven={display.breakEven}
@@ -156,7 +174,11 @@ export function ReplayPlayer({
                 now={now}
               />
             </div>
+          )}
+        </div>
 
+        {started && (
+          <>
             <PhaseStrip estimate={display.estimate} catalog={catalog} />
 
             <MapPanel
@@ -180,6 +202,7 @@ export function ReplayPlayer({
               signals={state.signals}
               evidence={display.evidence}
               catalog={catalog}
+              disclaimer={disclaimerExtra}
             />
 
             <ReplayHistory
@@ -200,7 +223,7 @@ function ReadyCard({ scenario, onStart }: { scenario: ReplayScenario; onStart: (
   const deadline = scenario.user.constraints.deadline;
 
   return (
-    <section className="flex min-h-[33dvh] flex-col justify-between gap-5 rounded-3xl border-2 border-border bg-surface p-5">
+    <section className="flex flex-col gap-5 rounded-3xl border-2 border-border bg-surface p-5">
       <div className="flex flex-col gap-2">
         <h2 className="text-2xl font-extrabold">{t("ready.title")}</h2>
         <p className="text-lg leading-snug font-bold">{pickScenarioText(scenario.title, locale)}</p>
@@ -231,9 +254,8 @@ function ChangeBadge({ from, to }: { from: Action; to: Action }) {
       data-to={to}
       role="status"
       className={cn(
-        "flex w-fit animate-rise-in items-center gap-2 rounded-full border-2 px-3 py-1 text-sm font-extrabold",
+        "flex w-fit animate-rise-in flex-wrap items-center gap-x-2 rounded-full border-2 bg-background px-3 py-1 text-xs font-extrabold shadow-md",
         style.border,
-        style.surface,
         style.text,
       )}
     >

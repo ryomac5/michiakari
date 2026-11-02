@@ -15,6 +15,7 @@
   --focus: #7cc4ff;
   --danger: #ff8f85;
   --danger-surface: #3a1714;
+  --brand: #6fd99a;
 
   --wait: #8ccbff;
   --wait-surface: #0f2a42;
@@ -41,6 +42,7 @@
   --focus: #0b5ca8;
   --danger: #a3221a;
   --danger-surface: #fde8e6;
+  --brand: #1b7a43;
 
   --wait: #0a4f8f;
   --wait-surface: #e2f0fd;
@@ -67,6 +69,7 @@
   --color-focus: var(--focus);
   --color-danger: var(--danger);
   --color-danger-surface: var(--danger-surface);
+  --color-brand: var(--brand);
   --color-wait: var(--wait);
   --color-wait-surface: var(--wait-surface);
   --color-wait-border: var(--wait-border);
@@ -156,6 +159,9 @@ body {
 
 /* 層の外に書いた規則は Tailwind の utilities より優先される */
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   *,
   *::before,
   *::after {

@@ -11,7 +11,14 @@ import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("app");
-  return { title: t("title"), description: t("description") };
+  const title = `${t("name")} — ${t("tagline")}`;
+  return {
+    title: { default: title, template: `%s | ${t("name")}` },
+    description: t("description"),
+    applicationName: t("name"),
+    openGraph: { title, description: t("description"), siteName: t("name"), type: "website" },
+    twitter: { card: "summary", title, description: t("description") },
+  };
 }
 
 export const viewport: Viewport = {
