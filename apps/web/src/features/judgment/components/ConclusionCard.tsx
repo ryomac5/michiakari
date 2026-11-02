@@ -2,13 +2,14 @@
 
 import type { Judgment } from "@repo/schema";
 import { useLocale, useTranslations } from "next-intl";
-import { type ReactNode, useRef } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { actionStyles } from "../action-style";
 import { headlineSizesRem, splitHeadline } from "../headline";
 import { testIds } from "../testids";
 import { formatClockTime } from "../time";
 import { useFitHeadline } from "../use-fit-headline";
+import { useOverflow } from "../use-overflow";
 
 // 結論を一つだけ大きく出す。最初の 1 秒で行動が分かること
 export function ConclusionCard({
@@ -29,6 +30,11 @@ export function ConclusionCard({
   const reason = judgment.reason ?? rest;
   const headlineRef = useRef<HTMLHeadingElement>(null);
   const sizeIndex = useFitHeadline(headlineRef, lead);
+  const reasonRef = useRef<HTMLParagraphElement>(null);
+  const reasonClamped = useOverflow(reasonRef, reason ?? "");
+  // 全文を開いた理由。判断が変わったら閉じた状態に戻る
+  const [openReason, setOpenReason] = useState<string | null>(null);
+  const reasonOpen = reason !== undefined && reason !== "" && openReason === reason;
 
   return (
     <section
@@ -67,28 +73,54 @@ export function ConclusionCard({
         {lead}
       </h2>
 
-      {reason && <p className="leading-snug font-bold text-pretty">{reason}</p>}
+      {/* スマートフォンでは理由を 2 行に切り詰め、タップで全文を出す */}
+      {reason && (
+        <div className="relative">
+          <p
+            ref={reasonRef}
+            data-testid={testIds.judgment.conclusionReason}
+            data-expanded={reasonOpen}
+            className={cn(
+              "leading-snug font-bold text-pretty",
+              !reasonOpen && "line-clamp-2 sm:line-clamp-none",
+            )}
+          >
+            {reason}
+          </p>
+          {(reasonClamped || reasonOpen) && (
+            <button
+              type="button"
+              aria-expanded={reasonOpen}
+              aria-label={t("conclusion.expandReason")}
+              onClick={() => setOpenReason(reasonOpen ? null : reason)}
+              className="absolute inset-0 min-h-11 w-full rounded-md"
+            />
+          )}
+        </div>
+      )}
 
-      {/* 補足は短い札にして並べる。見出しに出ている選択肢の名前は繰り返さない */}
-      <ul className="flex flex-wrap gap-1 text-[0.8125rem]">
+      {/* 補足は短い札にして 1 行に並べる。見出しに出ている選択肢の名前は繰り返さない */}
+      {/* 再開までの残りは、分岐点の時間軸が出るときはそちらに任せる */}
+      <ul className="flex gap-1 overflow-hidden text-[0.8125rem] whitespace-nowrap">
         {recommended && judgment.action !== "wait" && (
-          <li className="rounded-md bg-background/60 px-1.5 py-0.5 font-bold">
+          <li className="flex min-w-0 rounded-md bg-background/60 px-1.5 py-0.5 font-bold">
             {lead.includes(recommended.label)
               ? t("conclusion.arrival", {
                   time: formatClockTime(recommended.arrivalTime, locale),
                 })
-              : t("conclusion.recommended", {
+              : t.rich("conclusion.recommended", {
                   label: recommended.label,
                   time: formatClockTime(recommended.arrivalTime, locale),
+                  name: (chunks) => <span className="min-w-0 truncate">{chunks}</span>,
                 })}
           </li>
         )}
-        {remaining && (
-          <li className="rounded-md bg-background/60 px-1.5 py-0.5">
+        {remaining && judgment.breakEven === null && (
+          <li className="shrink-0 rounded-md bg-background/60 px-1.5 py-0.5">
             {t("conclusion.remaining", remaining)}
           </li>
         )}
-        <li className="rounded-md bg-background/60 px-1.5 py-0.5">
+        <li className="shrink-0 rounded-md bg-background/60 px-1.5 py-0.5">
           {t("conclusion.confidence", { level: t(`confidence.${judgment.estimate.confidence}`) })}
         </li>
       </ul>

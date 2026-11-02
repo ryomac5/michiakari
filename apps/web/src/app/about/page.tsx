@@ -85,6 +85,17 @@ export default async function AboutPage() {
           <li>{t("approach.p3")}</li>
           <li>{t("approach.p4")}</li>
         </ul>
+        <Link
+          href="/knowledge"
+          data-testid={testIds.about.knowledgeLink}
+          className={buttonVariants({
+            variant: "outline",
+            className: "h-auto min-h-12 self-start py-2 text-left whitespace-normal",
+          })}
+        >
+          <BookOpen aria-hidden />
+          {t("knowledgeLink")}
+        </Link>
       </AboutSection>
 
       <AboutSection icon={<ShieldAlert className="size-6" aria-hidden />} title={t("notes.title")}>

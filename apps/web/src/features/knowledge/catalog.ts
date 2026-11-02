@@ -1,16 +1,21 @@
 import type { Knowledge, KnowledgePhase, KnowledgeSignal } from "@repo/schema";
 
-// 画面が表示に使う知見の抜粋。段階名・兆候の説明・聞こえる案内の例だけを持つ
+// 画面が表示に使う知見の抜粋。段階名・兆候の説明・聞こえる案内の例と、初列車待ちの目安を持つ
 
 export type CatalogSignal = Pick<KnowledgeSignal, "id" | "description" | "example_phrases">;
 export type CatalogPhase = Pick<KnowledgePhase, "id" | "name"> & { signals: CatalogSignal[] };
-export type CatalogEvent = Pick<Knowledge, "id" | "name"> & { phases: CatalogPhase[] };
+export type CatalogEvent = Pick<Knowledge, "id" | "name"> & {
+  phases: CatalogPhase[];
+  // after_resume.first_train_wait_minutes.p50。分岐点の図で再開見込みを近似するのに使う
+  firstTrainWaitMinutes?: number;
+};
 export type KnowledgeCatalog = CatalogEvent[];
 
 export function buildCatalogEvent(knowledge: Knowledge): CatalogEvent {
   return {
     id: knowledge.id,
     name: knowledge.name,
+    firstTrainWaitMinutes: knowledge.after_resume.first_train_wait_minutes.p50,
     phases: knowledge.phases.map((phase) => ({
       id: phase.id,
       name: phase.name,

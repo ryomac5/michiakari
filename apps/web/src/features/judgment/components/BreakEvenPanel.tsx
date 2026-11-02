@@ -6,9 +6,11 @@ import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { splitAroundClock } from "../break-even-text";
+import type { TimelineBasis } from "../break-even-timeline";
 import { testIds } from "../testids";
 import { type Countdown, computeCountdown, formatClockTime } from "../time";
 import { useNow } from "../use-now";
+import { BreakEvenTimeline } from "./BreakEvenTimeline";
 
 // 分岐点がこの秒数を切ったら「まもなく」と知らせる
 const soonThresholdSeconds = 5 * 60;
@@ -18,10 +20,13 @@ export function BreakEvenPanel({
   known,
   stale,
   now: nowOverride,
+  timeline = null,
 }: {
   breakEven: BreakEven | null;
   known: boolean;
   stale: boolean;
+  // 時間軸の図に使う値。再開見込みが分からなければ null で、図を出さない
+  timeline?: TimelineBasis | null;
   // リプレイではシナリオ内の時刻で残り時間を数える。省略時は端末の時計
   now?: Date | null;
 }) {
@@ -49,19 +54,21 @@ export function BreakEvenPanel({
       data-stale={stale}
       aria-labelledby="break-even-title"
       className={cn(
-        "flex flex-col gap-2 rounded-3xl border-2 border-border bg-surface p-4 sm:p-5",
+        "flex flex-col gap-2 rounded-3xl border-2 border-border bg-surface px-4 py-3 sm:p-5",
         urgent && "border-switch-border",
         stale && "opacity-70",
       )}
     >
-      {/* 見出しと残り時間を 1 行に並べ、狭ければ折り返す */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      {/* 見出しと残り時間を 1 行に並べる。狭ければ見出しの中で折り返す */}
+      <div className="flex items-center justify-between gap-x-3">
         <h2
           id="break-even-title"
-          className="flex items-center gap-1.5 text-sm font-extrabold text-muted"
+          className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm leading-tight font-extrabold text-muted"
         >
-          <GitFork className="size-4" aria-hidden />
-          {t("title")}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <GitFork className="size-4 shrink-0" aria-hidden />
+            {t("title")}
+          </span>
           {stale && (
             <span className="flex items-center gap-1 text-sm font-bold">
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
@@ -74,16 +81,18 @@ export function BreakEvenPanel({
             data-testid={testIds.judgment.breakEvenCountdown}
             data-kind={countdown?.kind ?? ""}
             className={cn(
-              "flex items-center gap-2 text-[2rem] leading-tight font-extrabold tabular-nums",
+              "flex shrink-0 items-center gap-2 text-[1.75rem] leading-none font-extrabold whitespace-nowrap tabular-nums sm:text-[2rem]",
               urgent && "text-switch",
             )}
           >
-            {state === "soon" && <AlarmClock className="size-8 shrink-0" aria-hidden />}
-            {state === "passed" && <TriangleAlert className="size-8 shrink-0" aria-hidden />}
+            {state === "soon" && <AlarmClock className="size-7 shrink-0" aria-hidden />}
+            {state === "passed" && <TriangleAlert className="size-7 shrink-0" aria-hidden />}
             {countdown ? formatCountdown(countdown, t) : "…"}
           </p>
         )}
       </div>
+
+      {breakEven && timeline && now && <BreakEvenTimeline basis={timeline} now={now} />}
 
       {state === "pending" && <p className="text-muted">{t("pending")}</p>}
 

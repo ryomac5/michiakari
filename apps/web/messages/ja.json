@@ -12,7 +12,8 @@
     "mockBadge": "デモ用の架空データで表示しています",
     "name": "マツカエル",
     "tagline": "待つか、乗り換えるか。",
-    "skipToContent": "本文へ移動"
+    "skipToContent": "本文へ移動",
+    "knowledge": "知見ナレッジ"
   },
   "disclaimer": {
     "short": "推定であり、公式発表を優先してください。"
@@ -106,11 +107,12 @@
     },
     "conclusion": {
       "label": "結論",
-      "recommended": "おすすめ: {label}（{time} 着）",
+      "recommended": "<name>おすすめ: {label}</name>（{time} 着）",
       "remaining": "再開まで 約{p50}〜{p80}分",
       "confidence": "確信度 {level}",
       "live": "結論: {action}。{headline}",
-      "arrival": "{time} 着"
+      "arrival": "{time} 着",
+      "expandReason": "理由の全文を表示"
     },
     "confidence": {
       "low": "低",
@@ -135,7 +137,22 @@
       "countdownMinutes": "あと {minutes} 分",
       "countdownHours": "あと {hours} 時間 {minutes} 分",
       "imminent": "まもなく",
-      "condition": "<clock>{time}</clock> までに再開しなければ、乗り換えたほうが早く着きます"
+      "condition": "<clock>{time}</clock> までに再開しなければ、乗り換えたほうが早く着きます",
+      "timeline": {
+        "now": "いま",
+        "breakEven": "分岐点 {time}",
+        "deadline": "期限 {time}",
+        "summary": {
+          "before": "おおよその再開見込み {from}〜{to} は、分岐点 {breakEven} より前です。待つほうが早く着く見込みです。",
+          "straddle": "おおよその再開見込み {from}〜{to} が、分岐点 {breakEven} をまたいでいます。見込みが延びれば、切り替えたほうが早く着きます。",
+          "after": "おおよその再開見込み {from}〜{to} は、分岐点 {breakEven} を越えています。切り替えたほうが早く着く見込みです。"
+        },
+        "caption": {
+          "before": "おおよその再開 {from}〜{to} は<em>分岐点より前</em>",
+          "straddle": "おおよその再開 {from}〜{to} が<em>分岐点をまたぐ</em>",
+          "after": "おおよその再開 {from}〜{to} は<em>分岐点より後</em>"
+        }
+      }
     },
     "options": {
       "title": "選択肢",
@@ -170,7 +187,8 @@
         "knowledge": "知見",
         "weather": "気象",
         "computation": "計算"
-      }
+      },
+      "openKnowledge": "知見で見る"
     },
     "addInfo": {
       "title": "情報を追加",
@@ -255,6 +273,44 @@
       "p4": "現在地と入力内容は判断にのみ使い、保存しません。"
     },
     "intro": "マツカエルは「待つ」と「乗り換える」を掛けた名前です。迷っている時間を少しでも短くすることを目指しています。",
-    "subtitle": "マツカエル — 待つか、乗り換えるか。"
+    "subtitle": "マツカエル — 待つか、乗り換えるか。",
+    "knowledgeLink": "判断に使う知見ナレッジを見る"
+  },
+  "knowledge": {
+    "title": "知見ナレッジ",
+    "lead": "判断に使う知見の中身です。事象ごとに、段階の流れと、外から観察できる兆候をまとめています。",
+    "notice": "知見は、開発者の実務経験を、外から観察できる兆候にもとづいて一般化したものです。社内情報は含みません。",
+    "dummy": "いま表示しているのは開発用のダミーです。開発者の知見ではなく、本番の判断には使いません。",
+    "empty": "表示できる知見がありません。",
+    "contents": "目次",
+    "file": "ファイル: {file}",
+    "replay": "リプレイで見る: {title}",
+    "phasesTitle": "段階の流れ",
+    "duration": "目安 {p50}〜{p80} 分",
+    "durationLabel": "所要時間の目安",
+    "durationDetail": "半数は {p50} 分以内、8 割は {p80} 分以内",
+    "description": "段階の様子",
+    "signals": "兆候",
+    "observableFrom": "観察できる経路",
+    "examples": "聞こえる案内の例",
+    "exitSignals": "次の段階へのつながり",
+    "exitSignalsLead": "次の兆候が観察されたら、この段階を抜けます。",
+    "exitInPhase": "{phase} の兆候",
+    "noExit": "最後の段階です",
+    "guidance": "利用者への提示方針",
+    "afterResume": "運転再開のあと",
+    "firstTrainWait": "再開から乗れる列車が来るまでの目安: {p50}〜{p80} 分",
+    "caveats": "判断を誤りやすい点",
+    "externalFactors": "外部の要因",
+    "yaml": "知見ファイルの該当部分",
+    "yamlToggle": "YAML を見る",
+    "backToTop": "目次へ戻る",
+    "observable": {
+      "announcement": "発表",
+      "signage": "掲示",
+      "station_broadcast": "駅の放送",
+      "weather": "気象",
+      "train_movement": "列車の動き"
+    }
   }
 }

@@ -33,6 +33,9 @@ export type JudgmentState = {
   lastSeq: number;
   // 更新中・失敗時に表示し続ける前回の判断
   previousJudgment: Judgment | null;
+  // 判断の基準時刻（judgment_ready の at）。残り時間はこの時刻から数える
+  judgedAt: string | null;
+  previousJudgedAt: string | null;
 };
 
 function buildSteps(status: StepStatus): Record<ReasoningStepId, StepStatus> {
@@ -54,6 +57,8 @@ export function createJudgmentState(): JudgmentState {
     progress: {},
     lastSeq: -1,
     previousJudgment: null,
+    judgedAt: null,
+    previousJudgedAt: null,
   };
 }
 
@@ -88,6 +93,7 @@ export function startJudgmentRun(prev: JudgmentState): JudgmentState {
     status: "streaming",
     steps: { ...buildSteps("pending"), reading: "active" },
     previousJudgment: prev.judgment ?? prev.previousJudgment,
+    previousJudgedAt: prev.judgment ? prev.judgedAt : prev.previousJudgedAt,
   };
 }
 
@@ -160,6 +166,7 @@ export function reduceJudgmentState(state: JudgmentState, event: JudgmentEvent):
         ...base,
         status: "ready",
         judgment: event.judgment,
+        judgedAt: event.at,
         estimate: event.judgment.estimate,
         options: event.judgment.options,
         breakEvenComputed: true,
@@ -198,6 +205,8 @@ export type JudgmentDisplay = {
   breakEvenStale: boolean;
   recommendedOptionId: string | null;
   evidence: Judgment["evidence"];
+  // 確定した判断とその基準時刻。更新中・失敗時は前回の判断
+  settled: { judgment: Judgment; at: string } | null;
 };
 
 // 表示に使う値を選ぶ。更新中・失敗時はまだ届いていない項目を前回の判断で補う
@@ -220,7 +229,16 @@ export function selectJudgmentDisplay(state: JudgmentState): JudgmentDisplay {
     recommendedOptionId:
       current?.recommendedOptionId ?? (current ? null : (fallback?.recommendedOptionId ?? null)),
     evidence: current?.evidence ?? fallback?.evidence ?? [],
+    settled: selectSettledJudgment(state),
   };
+}
+
+function selectSettledJudgment(state: JudgmentState): JudgmentDisplay["settled"] {
+  if (state.judgment && state.judgedAt) return { judgment: state.judgment, at: state.judgedAt };
+  const fallback =
+    state.status === "streaming" || state.status === "error" ? state.previousJudgment : null;
+  if (fallback && state.previousJudgedAt) return { judgment: fallback, at: state.previousJudgedAt };
+  return null;
 }
 
 // 次の要求で返送する観測の列。id が同じものは新しい方で置き換える

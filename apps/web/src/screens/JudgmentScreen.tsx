@@ -4,6 +4,7 @@ import { MessageSquarePlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect } from "react";
+import { selectTimelineBasis } from "@/features/judgment/break-even-timeline";
 import { BreakEvenPanel } from "@/features/judgment/components/BreakEvenPanel";
 import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
 import { ConclusionCard } from "@/features/judgment/components/ConclusionCard";
@@ -78,6 +79,7 @@ export function JudgmentScreen() {
           breakEven={display.breakEven}
           known={display.breakEvenKnown}
           stale={display.breakEvenStale}
+          timeline={selectTimelineBasis(display.settled, catalog, null)}
         />
       </div>
 

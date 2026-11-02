@@ -2,6 +2,7 @@
 
 import type { DetectedSignal, Estimate, Evidence } from "@repo/schema";
 import {
+  ArrowUpRight,
   BookOpen,
   Calculator,
   ChevronDown,
@@ -11,8 +12,11 @@ import {
   Radio,
   TriangleAlert,
 } from "lucide-react";
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { buildEvidenceHref, buildSignalHref } from "@/features/knowledge/anchors";
 import {
   findCatalogEvent,
   findCatalogSignal,
@@ -70,19 +74,22 @@ export function EvidenceSection({
             <ul className="flex flex-col gap-2">
               {evidence.map((item) => {
                 const Icon = evidenceIcons[item.kind];
+                const href = buildEvidenceHref(item, estimate?.eventType ?? null, catalog);
                 return (
                   <li
                     key={`${item.kind}-${item.id}`}
                     data-testid={testIds.judgment.evidenceItem(item.id)}
-                    className="flex items-start gap-3 rounded-xl bg-surface-raised p-3"
                   >
-                    <Icon className="mt-0.5 size-5 shrink-0" aria-hidden />
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                      <p className="text-sm font-bold text-muted">
-                        {t(`kinds.${item.kind}`)} · <code className="font-mono">{item.id}</code>
-                      </p>
-                      <p>{item.description}</p>
-                    </div>
+                    <EvidenceCard href={href}>
+                      <Icon className="mt-0.5 size-5 shrink-0" aria-hidden />
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <p className="text-sm font-bold text-muted">
+                          {t(`kinds.${item.kind}`)} ·{" "}
+                          <code className="font-mono break-all">{item.id}</code>
+                        </p>
+                        <p>{item.description}</p>
+                      </div>
+                    </EvidenceCard>
                   </li>
                 );
               })}
@@ -207,18 +214,50 @@ function SignalList({
             <li
               key={`${signal.eventType}-${signal.signalId}`}
               data-testid={testIds.judgment.signal(signal.signalId)}
-              className="flex items-start gap-3 rounded-xl bg-surface-raised p-3"
             >
-              <Radio className="mt-0.5 size-5 shrink-0" aria-hidden />
-              <div className="flex min-w-0 flex-col gap-0.5">
-                <p className="font-bold">「{signal.quote}」</p>
-                {known && <p className="text-sm">{known.description}</p>}
-                <code className="font-mono text-sm text-muted">{signal.signalId}</code>
-              </div>
+              <EvidenceCard
+                href={known ? buildSignalHref(signal.signalId) : null}
+                testId={testIds.judgment.signalLink(signal.signalId)}
+              >
+                <Radio className="mt-0.5 size-5 shrink-0" aria-hidden />
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <p className="font-bold">「{signal.quote}」</p>
+                  {known && <p className="text-sm">{known.description}</p>}
+                  <code className="font-mono text-sm break-all text-muted">{signal.signalId}</code>
+                </div>
+              </EvidenceCard>
             </li>
           );
         })}
       </ul>
     </div>
+  );
+}
+
+// 根拠の 1 項目。知見に対応する箇所があれば、知見の閲覧画面へのリンクにする
+function EvidenceCard({
+  href,
+  testId,
+  children,
+}: {
+  href: string | null;
+  testId?: string;
+  children: ReactNode;
+}) {
+  const t = useTranslations("judgment.evidence");
+  const className = "flex items-start gap-3 rounded-xl bg-surface-raised p-3";
+  if (href === null) return <div className={className}>{children}</div>;
+  return (
+    <Link
+      href={href}
+      data-testid={testId}
+      className={cn(className, "min-h-11 transition-colors hover:bg-border")}
+    >
+      {children}
+      <span className="flex shrink-0 items-center gap-0.5 self-center text-sm font-bold text-muted">
+        <span className="sr-only">{t("openKnowledge")}</span>
+        <ArrowUpRight className="size-5" aria-hidden />
+      </span>
+    </Link>
   );
 }
