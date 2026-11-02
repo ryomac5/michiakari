@@ -1,60 +1,72 @@
 @import "tailwindcss";
 
-/* 既定はダーク。html に .light が付いたときだけライトに切り替える */
-@custom-variant light (&:where(.light, .light *));
+/* 既定はライト。html に .dark が付いたときだけダークに切り替える */
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #0d1218;
-  --surface: #151d26;
-  --surface-raised: #1c2631;
-  --foreground: #f2f5f8;
-  --muted: #a7b4c2;
-  --border: #2c3a48;
-  --primary: #f2f5f8;
-  --primary-foreground: #0d1218;
-  --focus: #7cc4ff;
-  --danger: #ff8f85;
-  --danger-surface: #3a1714;
-  --brand: #6fd99a;
-
-  --wait: #8ccbff;
-  --wait-surface: #0f2a42;
-  --wait-border: #3d93dc;
-  --switch: #ffbe5c;
-  --switch-surface: #3a2709;
-  --switch-border: #e5952a;
-  --hold: #cbbcff;
-  --hold-surface: #261f42;
-  --hold-border: #8f7fe0;
-
-  color-scheme: dark;
-}
-
-:root.light {
-  --background: #f5f7f9;
+  --background: #f4f4f5;
   --surface: #ffffff;
-  --surface-raised: #eef2f6;
-  --foreground: #0a1016;
-  --muted: #45525f;
-  --border: #c9d2db;
-  --primary: #0a1016;
+  --surface-raised: #f1f1f3;
+  --foreground: #18181b;
+  --muted: #5f5f6b;
+  --border: rgb(24 24 27 / 0.1);
+  --primary: #18181b;
   --primary-foreground: #ffffff;
-  --focus: #0b5ca8;
-  --danger: #a3221a;
-  --danger-surface: #fde8e6;
-  --brand: #1b7a43;
+  --focus: #2563eb;
+  --danger: #dc2626;
+  --danger-surface: #fef2f2;
+  --brand: #16a34a;
 
-  --wait: #0a4f8f;
-  --wait-surface: #e2f0fd;
-  --wait-border: #2b7bc4;
-  --switch: #7f4300;
-  --switch-surface: #fff0d9;
-  --switch-border: #d4831a;
-  --hold: #46359a;
-  --hold-surface: #eeeafe;
-  --hold-border: #7a69cf;
+  /* 判断の種類ごとのアクセント。待つは青、切り替えるは橙、保留は紫 */
+  --wait: #1d4ed8;
+  --wait-surface: #e8f0fe;
+  --wait-border: #2563eb;
+  --switch: #b4430b;
+  --switch-surface: #fff1e6;
+  --switch-border: #f26b1d;
+  --hold: #6d28d9;
+  --hold-surface: #f3eefe;
+  --hold-border: #7c3aed;
+
+  /* 浮かせる要素 */
+  --glass: rgb(255 255 255 / 0.8);
+  --glass-strong: rgb(255 255 255 / 0.97);
+  --glass-border: rgb(24 24 27 / 0.08);
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.05), 0 8px 28px rgb(0 0 0 / 0.1);
 
   color-scheme: light;
+}
+
+:root.dark {
+  --background: #0e0e10;
+  --surface: #1c1c1f;
+  --surface-raised: #27272b;
+  --foreground: #f4f4f5;
+  --muted: #a1a1aa;
+  --border: rgb(255 255 255 / 0.1);
+  --primary: #f4f4f5;
+  --primary-foreground: #18181b;
+  --focus: #60a5fa;
+  --danger: #f87171;
+  --danger-surface: #2a1414;
+  --brand: #4ade80;
+
+  --wait: #93c5fd;
+  --wait-surface: #172238;
+  --wait-border: #3b82f6;
+  --switch: #fdba74;
+  --switch-surface: #2d1c10;
+  --switch-border: #f97316;
+  --hold: #c4b5fd;
+  --hold-surface: #231b3a;
+  --hold-border: #8b5cf6;
+
+  --glass: rgb(28 28 31 / 0.78);
+  --glass-strong: rgb(28 28 31 / 0.97);
+  --glass-border: rgb(255 255 255 / 0.08);
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 32px rgb(0 0 0 / 0.45);
+
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -80,16 +92,33 @@
   --color-hold-surface: var(--hold-surface);
   --color-hold-border: var(--hold-border);
 
+  /* 数字と英字は Inter、和文は Noto Sans JP */
   --font-sans:
-    "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "BIZ UDPGothic", system-ui,
-    -apple-system, "Segoe UI", sans-serif;
+    var(--font-inter), var(--font-noto-jp), "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
 
-  --animate-step-in: step-in 320ms ease-out both;
+  --animate-step-in: step-in 240ms ease-out both;
   --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
-  /* リプレイ: 新しい発表のせり上がりと、切り替えへ変わった瞬間の強調 */
-  --animate-rise-in: rise-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  --animate-switch-flash: switch-flash 1.2s ease-out 2;
-  --animate-fade-in: fade-in 400ms ease-out both;
+  --animate-rise-in: rise-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-drop-in: drop-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-fade-in: fade-in 240ms ease-out both;
+}
+
+/* 背景をぼかした半透明の面。上部の帯、メニュー、再生バー、カードに使う */
+@utility glass {
+  background-color: var(--glass);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-float);
+}
+
+/* 文字を載せる面。ぼかしは同じで、透けを抑える */
+@utility glass-strong {
+  background-color: var(--glass-strong);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-float);
 }
 
 /* 分岐点の図: 再開見込みが分岐点を越えた部分。色に加えて斜線で示す */
@@ -97,8 +126,8 @@
   background-color: var(--switch-surface);
   background-image: repeating-linear-gradient(
     135deg,
-    var(--switch-border) 0 3px,
-    transparent 3px 7px
+    var(--switch-border) 0 2px,
+    transparent 2px 6px
   );
 }
 
@@ -114,7 +143,7 @@
 @keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(28px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -122,24 +151,21 @@
   }
 }
 
-@keyframes switch-flash {
-  0% {
-    box-shadow: 0 0 0 0 var(--switch-border);
-    transform: scale(1);
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.98);
   }
-  25% {
-    transform: scale(1.015);
-  }
-  100% {
-    box-shadow: 0 0 0 14px transparent;
-    transform: scale(1);
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
 @keyframes step-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -153,13 +179,8 @@
     opacity: 1;
   }
   50% {
-    opacity: 0.55;
+    opacity: 0.45;
   }
-}
-
-/* 文字は大きめ。rem で組んだ部品がまとめて拡大される */
-html {
-  font-size: 106.25%;
 }
 
 /* 日本語は文節の切れ目で改行する */
@@ -170,11 +191,28 @@ html {
 body {
   background-color: var(--background);
   color: var(--foreground);
+  font-feature-settings: "palt" 1;
+}
+
+/* 時刻と分の数字は等幅の字形にする */
+.tabular-nums,
+time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 上部の帯が重なるぶん、アンカーへ飛んだときに下へずらす */
+[id] {
+  scroll-margin-top: 96px;
 }
 
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* MapLibre の既定の装飾を消す。出典は画面側で 1 行にまとめて出す */
+.maplibregl-ctrl-attrib {
+  display: none;
 }
 
 /* 層の外に書いた規則は Tailwind の utilities より優先される */

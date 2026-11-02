@@ -13,7 +13,11 @@
     "name": "マツカエル",
     "tagline": "待つか、乗り換えるか。",
     "skipToContent": "本文へ移動",
-    "knowledge": "知見ナレッジ"
+    "knowledge": "知見ナレッジ",
+    "menu": {
+      "label": "メニュー",
+      "darkMode": "ダーク表示"
+    }
   },
   "disclaimer": {
     "short": "推定であり、公式発表を優先してください。"
@@ -98,7 +102,15 @@
         "options": "{count}件の選択肢",
         "breakEven": "{time}",
         "breakEvenNone": "分岐点なし"
-      }
+      },
+      "short": {
+        "reading": "読み取り",
+        "signals": "兆候",
+        "phase": "段階",
+        "options": "選択肢",
+        "breakEven": "分岐点"
+      },
+      "logTitle": "推論の過程"
     },
     "action": {
       "wait": "待つ",
@@ -107,12 +119,11 @@
     },
     "conclusion": {
       "label": "結論",
-      "recommended": "<name>おすすめ: {label}</name>（{time} 着）",
+      "recommended": "おすすめ: {label}（{time} 着）",
       "remaining": "再開まで 約{p50}〜{p80}分",
       "confidence": "確信度 {level}",
       "live": "結論: {action}。{headline}",
-      "arrival": "{time} 着",
-      "expandReason": "理由の全文を表示"
+      "arrival": "{time} 着"
     },
     "confidence": {
       "low": "低",
@@ -171,7 +182,8 @@
         "ride": "乗車",
         "wait": "待ち",
         "taxi": "タクシー"
-      }
+      },
+      "walkShort": "徒歩{minutes}分"
     },
     "evidence": {
       "title": "判断の根拠",
@@ -193,7 +205,9 @@
     "addInfo": {
       "title": "情報を追加",
       "lead": "新しい掲示や発表があれば入力してください。判断を更新します。"
-    }
+    },
+    "sheet": "判断の詳細",
+    "status": "{line} 見合わせ"
   },
   "replay": {
     "heading": "リプレイ",
@@ -269,7 +283,10 @@
         "sameLate": "{deadline} の期限には間に合いませんでした。"
       },
       "method": "到着時刻は、各判断で示した推定の所要時間と、シナリオで実際に再開した時刻から求めた目安です。"
-    }
+    },
+    "announcements": "発表",
+    "scenario": "シナリオ",
+    "changedFrom": "「{action}」から変更"
   },
   "map": {
     "title": "地図",
@@ -343,6 +360,15 @@
       "station_broadcast": "駅の放送",
       "weather": "気象",
       "train_movement": "列車の動き"
+    }
+  },
+  "sheet": {
+    "handle": "詳細の表示を切り替える",
+    "hint": "上下の矢印キーで広げたり縮めたりできます。",
+    "state": {
+      "collapsed": "要点だけを表示しています。",
+      "half": "半分まで開いています。",
+      "full": "すべて開いています。"
     }
   }
 }

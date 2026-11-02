@@ -1,3 +1,4 @@
+import type { Action } from "@repo/schema";
 import type {
   ExpressionSpecification,
   FilterSpecification,
@@ -6,84 +7,87 @@ import type {
 } from "maplibre-gl";
 
 // MapLibre のスタイルとレイヤー定義。色はテーマごとの配色から作る
+// 背景と路線は無彩色で沈め、色は止まっている区間と経路にだけ使う
 
 export type MapTheme = "dark" | "light";
 
 export type MapPalette = {
   background: string;
+  rasterBrightnessMin: number;
   rasterBrightnessMax: number;
-  rasterSaturation: number;
-  lineOpacity: number;
+  rasterContrast: number;
+  rail: string;
+  railOpacity: number;
   reach: string;
-  transfer: string;
-  route: string;
+  route: Record<Action, string>;
   routeCasing: string;
+  alternative: string;
   blocked: string;
   blockedCasing: string;
   stationFill: string;
-  emphasisStroke: string;
-  origin: string;
-  destination: string;
-  placeStroke: string;
+  stationStroke: string;
   text: string;
+  textMuted: string;
   textHalo: string;
 };
 
 export const mapPalettes: Record<MapTheme, MapPalette> = {
-  dark: {
-    background: "#0d1218",
-    // 淡色地図を暗く沈め、路線と重ねる情報を浮かせる
-    rasterBrightnessMax: 0.3,
-    rasterSaturation: -0.8,
-    lineOpacity: 0.9,
-    reach: "#8ccbff",
-    transfer: "#ffbe5c",
-    route: "#2ee6a6",
-    routeCasing: "#04130d",
-    blocked: "#ff5a4f",
-    blockedCasing: "#1a0605",
-    stationFill: "#0d1218",
-    emphasisStroke: "#ffffff",
-    origin: "#ffffff",
-    destination: "#ffbe5c",
-    placeStroke: "#0d1218",
-    text: "#f2f5f8",
-    textHalo: "#0d1218",
-  },
   light: {
-    background: "#f5f7f9",
+    background: "#f1f1ef",
+    // 淡色地図を灰色にし、暗い部分を持ち上げて白っぽく低いコントラストにする
+    rasterBrightnessMin: 0.5,
     rasterBrightnessMax: 1,
-    rasterSaturation: -0.4,
-    lineOpacity: 0.95,
-    reach: "#2b7bc4",
-    transfer: "#e5952a",
-    route: "#007a4d",
+    rasterContrast: -0.5,
+    rail: "#71717a",
+    railOpacity: 0.42,
+    reach: "#2563eb",
+    route: { wait: "#2563eb", switch: "#f26b1d", hold: "#7c3aed" },
     routeCasing: "#ffffff",
-    blocked: "#d4251a",
+    alternative: "#71717a",
+    blocked: "#dc2626",
     blockedCasing: "#ffffff",
     stationFill: "#ffffff",
-    emphasisStroke: "#0a1016",
-    origin: "#0a1016",
-    destination: "#b35c00",
-    placeStroke: "#ffffff",
-    text: "#0a1016",
+    stationStroke: "#27272a",
+    text: "#27272a",
+    textMuted: "#71717a",
     textHalo: "#ffffff",
+  },
+  dark: {
+    background: "#161618",
+    // 明るさの上限と下限を逆にして、淡色地図を濃い灰色に反転させる
+    rasterBrightnessMin: 0.21,
+    rasterBrightnessMax: 0.07,
+    rasterContrast: -0.2,
+    rail: "#a1a1aa",
+    railOpacity: 0.3,
+    reach: "#60a5fa",
+    route: { wait: "#3b82f6", switch: "#f97316", hold: "#8b5cf6" },
+    routeCasing: "#f4f4f5",
+    alternative: "#a1a1aa",
+    blocked: "#ef4444",
+    blockedCasing: "#161618",
+    stationFill: "#18181b",
+    stationStroke: "#f4f4f5",
+    text: "#f4f4f5",
+    textMuted: "#a1a1aa",
+    textHalo: "#161618",
   },
 };
 
 export const sourceIds = {
   gsi: "gsi-pale",
   lines: "lines",
-  stations: "stations",
   reach: "walk-reach",
   blocked: "blocked-section",
   route: "recommended-route",
-  reachable: "reachable-stations",
-  places: "places",
+  routeLabel: "recommended-route-label",
+  alternatives: "alternative-routes",
+  keyStations: "key-stations",
   labels: "station-labels",
 } as const;
 
-export const transferHaloLayerId = "transfer-halo";
+// 経路の色を変える層。判断が変わったら塗りだけを差し替える
+export const routeColorLayerIds = ["route-ride", "route-taxi", "route-walk"] as const;
 
 // 地理院タイル（淡色地図）。ズーム 5〜18 で提供される
 const gsiPaleTiles = "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png";
@@ -92,6 +96,9 @@ const gsiPaleTiles = "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png"
 // 太字は先頭の名前に含まれる Bold から判定される
 const fontRegular = ["Hiragino Sans", "Noto Sans JP", "sans-serif"];
 const fontBold = ["Hiragino Sans Bold", "Hiragino Sans", "Noto Sans JP", "sans-serif"];
+
+// 経路の色の切り替えにかける時間
+const colorTransition = { duration: 260, delay: 0 };
 
 export function buildBaseStyle(palette: MapPalette): StyleSpecification {
   return {
@@ -112,17 +119,15 @@ export function buildBaseStyle(palette: MapPalette): StyleSpecification {
         type: "raster",
         source: sourceIds.gsi,
         paint: {
+          "raster-saturation": -1,
+          "raster-brightness-min": palette.rasterBrightnessMin,
           "raster-brightness-max": palette.rasterBrightnessMax,
-          "raster-saturation": palette.rasterSaturation,
+          "raster-contrast": palette.rasterContrast,
           "raster-fade-duration": 0,
         },
       },
     ],
   };
-}
-
-export function buildTransferFilter(lineIds: readonly string[]): FilterSpecification {
-  return ["in", ["get", "lineId"], ["literal", [...lineIds]]];
 }
 
 const byZoom = (low: number, high: number): ExpressionSpecification => [
@@ -135,56 +140,33 @@ const byZoom = (low: number, high: number): ExpressionSpecification => [
   high,
 ];
 
-// 重ねる順（下から）: 到達範囲 → 振替対象 → 路線 → 推奨経路 → 止まっている区間 → 駅 → 文字
-export function buildDataLayers(palette: MapPalette): LayerSpecification[] {
-  const labelPaint = {
-    "text-color": palette.text,
-    "text-halo-color": palette.textHalo,
-    "text-halo-width": 1.6,
-  };
-  const stationLabelLayout = {
-    "text-field": ["get", "name"],
-    "text-font": ["case", ["get", "emphasis"], ["literal", fontBold], ["literal", fontRegular]],
-    "text-size": [
-      "case",
-      ["get", "emphasis"],
-      13,
-      ["step", ["get", "passengers"], 11, 200000, 12.5],
-    ],
-    "symbol-sort-key": ["get", "sortKey"],
-    "text-variable-anchor": ["top", "bottom", "right", "left"],
-    "text-radial-offset": 0.6,
-    "text-padding": 3,
-  } as const;
+const notWalk: FilterSpecification = ["!=", ["get", "mode"], "walk"];
+
+// 重ねる順（下から）: 到達範囲 → 路線 → 代替経路 → 推奨経路 → 止まっている区間 → 駅 → 文字
+export function buildDataLayers(palette: MapPalette, tone: Action = "wait"): LayerSpecification[] {
+  const accent = palette.route[tone];
+  const halo = { "text-halo-color": palette.textHalo, "text-halo-width": 1.6 };
 
   return [
+    // 20 分の範囲だけを淡く塗り、10 分は細い輪郭だけにする
     {
       id: "walk-reach-fill",
       type: "fill",
       source: sourceIds.reach,
-      paint: {
-        "fill-color": palette.reach,
-        "fill-opacity": ["match", ["get", "minutes"], 10, 0.18, 0.08],
-      },
+      filter: ["==", ["get", "minutes"], 20],
+      paint: { "fill-color": palette.reach, "fill-opacity": 0.08 },
     },
     {
       id: "walk-reach-outline",
       type: "line",
       source: sourceIds.reach,
+      filter: ["==", ["get", "minutes"], 10],
       paint: {
         "line-color": palette.reach,
-        "line-width": 1.5,
+        "line-width": 1,
         "line-dasharray": [2, 2],
-        "line-opacity": 0.9,
+        "line-opacity": 0.45,
       },
-    },
-    {
-      id: transferHaloLayerId,
-      type: "line",
-      source: sourceIds.lines,
-      filter: buildTransferFilter([]),
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": palette.transfer, "line-width": 12, "line-opacity": 0.55 },
     },
     {
       id: "rail-lines",
@@ -192,18 +174,29 @@ export function buildDataLayers(palette: MapPalette): LayerSpecification[] {
       source: sourceIds.lines,
       layout: { "line-cap": "round", "line-join": "round" },
       paint: {
-        "line-color": ["get", "color"],
-        "line-width": byZoom(1.6, 4),
-        "line-opacity": palette.lineOpacity,
+        "line-color": palette.rail,
+        "line-width": byZoom(0.8, 2),
+        "line-opacity": palette.railOpacity,
+      },
+    },
+    {
+      id: "alternative-routes",
+      type: "line",
+      source: sourceIds.alternatives,
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: {
+        "line-color": palette.alternative,
+        "line-width": byZoom(2.5, 4),
+        "line-opacity": 0.55,
       },
     },
     {
       id: "route-casing",
       type: "line",
       source: sourceIds.route,
-      filter: ["!=", ["get", "mode"], "walk"],
+      filter: notWalk,
       layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": palette.routeCasing, "line-width": 9 },
+      paint: { "line-color": palette.routeCasing, "line-width": byZoom(8, 11) },
     },
     {
       id: "route-ride",
@@ -211,14 +204,23 @@ export function buildDataLayers(palette: MapPalette): LayerSpecification[] {
       source: sourceIds.route,
       filter: ["==", ["get", "mode"], "ride"],
       layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": palette.route, "line-width": 5 },
+      paint: {
+        "line-color": accent,
+        "line-color-transition": colorTransition,
+        "line-width": byZoom(5, 7),
+      },
     },
     {
       id: "route-taxi",
       type: "line",
       source: sourceIds.route,
       filter: ["==", ["get", "mode"], "taxi"],
-      paint: { "line-color": palette.route, "line-width": 5, "line-dasharray": [2, 1] },
+      paint: {
+        "line-color": accent,
+        "line-color-transition": colorTransition,
+        "line-width": byZoom(5, 7),
+        "line-dasharray": [2, 1],
+      },
     },
     {
       id: "route-walk",
@@ -226,119 +228,134 @@ export function buildDataLayers(palette: MapPalette): LayerSpecification[] {
       source: sourceIds.route,
       filter: ["==", ["get", "mode"], "walk"],
       layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": palette.route, "line-width": 5, "line-dasharray": [0, 2] },
+      paint: {
+        "line-color": accent,
+        "line-color-transition": colorTransition,
+        "line-width": 4,
+        "line-dasharray": [0, 2],
+      },
     },
     {
       id: "blocked-casing",
       type: "line",
       source: sourceIds.blocked,
       layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": palette.blockedCasing, "line-width": 10 },
+      paint: { "line-color": palette.blockedCasing, "line-width": byZoom(8, 11) },
     },
     {
       id: "blocked-line",
       type: "line",
       source: sourceIds.blocked,
       layout: { "line-join": "round" },
-      paint: { "line-color": palette.blocked, "line-width": 6, "line-dasharray": [1.6, 1] },
-    },
-    {
-      id: "stations",
-      type: "circle",
-      source: sourceIds.stations,
-      minzoom: 10,
       paint: {
-        "circle-radius": byZoom(1.5, 4),
+        "line-color": palette.blocked,
+        "line-width": byZoom(5, 7),
+        "line-dasharray": [1.4, 0.9],
+      },
+    },
+    // 乗換駅と止まっている区間の端は小さな丸。出発と行き先は画面側のピンで示す
+    {
+      id: "key-station-dots",
+      type: "circle",
+      source: sourceIds.keyStations,
+      filter: ["match", ["get", "role"], ["transfer", "blocked-end"], true, false],
+      paint: {
+        "circle-radius": 4,
         "circle-color": palette.stationFill,
-        "circle-stroke-color": ["get", "color"],
-        "circle-stroke-width": 1.5,
+        "circle-stroke-color": [
+          "match",
+          ["get", "role"],
+          "blocked-end",
+          palette.blocked,
+          palette.stationStroke,
+        ],
+        "circle-stroke-width": 2,
       },
     },
-    {
-      id: "reachable-stations",
-      type: "circle",
-      source: sourceIds.reachable,
-      paint: {
-        "circle-radius": 6,
-        "circle-color": ["get", "color"],
-        "circle-stroke-color": palette.emphasisStroke,
-        "circle-stroke-width": 2.5,
-      },
-    },
-    {
-      id: "places",
-      type: "circle",
-      source: sourceIds.places,
-      paint: {
-        "circle-radius": 9,
-        "circle-color": ["match", ["get", "role"], "origin", palette.origin, palette.destination],
-        "circle-stroke-color": palette.placeStroke,
-        "circle-stroke-width": 3,
-      },
-    },
-    // 文字は上のレイヤーほど先に配置される。乗降客数の少ない駅はズームしてから出す
-    {
-      id: "station-labels-minor",
-      type: "symbol",
-      source: sourceIds.labels,
-      minzoom: 12,
-      filter: ["all", ["!", ["get", "emphasis"]], ["<", ["get", "passengers"], 50000]],
-      layout: stationLabelLayout,
-      paint: labelPaint,
-    },
+    // 主要駅の名前はズームしたときだけ出す
     {
       id: "station-labels-major",
       type: "symbol",
       source: sourceIds.labels,
-      filter: ["any", ["get", "emphasis"], [">=", ["get", "passengers"], 50000]],
-      layout: stationLabelLayout,
-      paint: labelPaint,
+      minzoom: 12.5,
+      filter: [">=", ["get", "passengers"], 100000],
+      layout: {
+        "text-field": ["get", "name"],
+        "text-font": fontRegular,
+        "text-size": 11,
+        "symbol-sort-key": ["get", "sortKey"],
+        "text-variable-anchor": ["top", "bottom", "right", "left"],
+        "text-radial-offset": 0.5,
+        "text-padding": 4,
+      },
+      paint: { "text-color": palette.textMuted, ...halo },
     },
     {
-      id: "blocked-label",
+      id: "route-label",
       type: "symbol",
-      source: sourceIds.blocked,
+      source: sourceIds.routeLabel,
       layout: {
-        "symbol-placement": "line-center",
         "text-field": ["get", "label"],
         "text-font": fontBold,
-        "text-size": 13,
-        "text-offset": [0, -1.1],
-        "text-keep-upright": true,
+        "text-size": 12,
+        "text-max-width": 20,
+        "text-variable-anchor": ["bottom-left", "top-right", "bottom-right", "top-left"],
+        "text-radial-offset": 0.7,
       },
       paint: {
-        "text-color": palette.blocked,
+        "text-color": accent,
+        "text-color-transition": colorTransition,
         "text-halo-color": palette.textHalo,
         "text-halo-width": 2,
       },
     },
     {
-      id: "place-labels",
+      id: "key-station-labels",
       type: "symbol",
-      source: sourceIds.places,
+      source: sourceIds.keyStations,
       layout: {
-        "text-field": ["get", "label"],
-        "text-font": fontBold,
-        "text-size": 14,
-        "text-anchor": "bottom",
-        "text-offset": [0, -1],
-        "text-allow-overlap": true,
+        "text-field": ["get", "name"],
+        "text-font": [
+          "match",
+          ["get", "role"],
+          ["origin", "destination"],
+          ["literal", fontBold],
+          ["literal", fontRegular],
+        ],
+        "text-size": ["match", ["get", "role"], ["origin", "destination"], 14, 12],
+        "symbol-sort-key": [
+          "match",
+          ["get", "role"],
+          "origin",
+          0,
+          "destination",
+          1,
+          "transfer",
+          2,
+          3,
+        ],
+        "text-variable-anchor": ["left", "right", "top", "bottom"],
+        "text-radial-offset": ["match", ["get", "role"], ["origin", "destination"], 1.2, 0.8],
+        "text-padding": 2,
       },
-      paint: { ...labelPaint, "text-halo-width": 2.2 },
+      paint: {
+        "text-color": ["match", ["get", "role"], "blocked-end", palette.blocked, palette.text],
+        ...halo,
+        "text-halo-width": 2,
+      },
     },
   ] as LayerSpecification[];
 }
 
-// テーマが変わったときに塗りの値だけを入れ替えるための一覧
+// テーマや判断が変わったときに塗りの値だけを入れ替えるための一覧
 export function listPaintValues(
   palette: MapPalette,
+  tone: Action,
 ): { layerId: string; key: string; value: unknown }[] {
-  const layers = [...buildBaseStyle(palette).layers, ...buildDataLayers(palette)];
+  const layers = [...buildBaseStyle(palette).layers, ...buildDataLayers(palette, tone)];
   return layers.flatMap((layer) =>
-    Object.entries(("paint" in layer ? layer.paint : undefined) ?? {}).map(([key, value]) => ({
-      layerId: layer.id,
-      key,
-      value,
-    })),
+    Object.entries(("paint" in layer ? layer.paint : undefined) ?? {})
+      .filter(([key]) => !key.endsWith("-transition"))
+      .map(([key, value]) => ({ layerId: layer.id, key, value })),
   );
 }

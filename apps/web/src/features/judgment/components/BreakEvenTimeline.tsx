@@ -74,7 +74,16 @@ function selectTickLabels(timeline: Timeline): Set<number> {
   );
 }
 
-export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: Date }) {
+// mini は閉じたシートに出す文字のない細い帯。full は目盛りと説明付き
+export function BreakEvenTimeline({
+  basis,
+  now,
+  variant = "full",
+}: {
+  basis: TimelineBasis;
+  now: Date;
+  variant?: "mini" | "full";
+}) {
   const t = useTranslations("judgment.breakEven.timeline");
   const locale = useLocale();
   const timeline = buildBreakEvenTimeline({ ...basis, now });
@@ -88,39 +97,99 @@ export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: D
     width: toPercent(Math.max(to - from, 0)),
   });
 
+  const dataset = {
+    "data-relation": relation,
+    "data-break-even": basis.breakEvenTime,
+    "data-resume-p50": new Date(timeline.resumeP50Ms).toISOString(),
+    "data-resume-p80": new Date(timeline.resumeP80Ms).toISOString(),
+  };
+  const summary = (
+    <span className="sr-only">
+      {t(`summary.${relation}`, { ...range, breakEven: clock(timeline.breakEvenMs) })}
+      {positions.deadline !== null &&
+        basis.deadline !== null &&
+        ` ${t("deadline", { time: clock(Date.parse(basis.deadline)) })}`}
+    </span>
+  );
+
+  if (variant === "mini") {
+    return (
+      <figure data-testid={testIds.judgment.breakEvenTimeline} {...dataset} className="m-0">
+        <div className="relative h-3" aria-hidden>
+          <div className="absolute inset-x-0 top-1 h-1 overflow-hidden rounded-full bg-foreground/10">
+            <div
+              className={cn("absolute inset-y-0 right-0 bg-switch-border/25", motion)}
+              style={at(positions.breakEven)}
+            />
+          </div>
+          {timeline.bandBefore && (
+            <div
+              className={cn("absolute top-1 h-1 min-w-1 rounded-full bg-wait-border", motion)}
+              style={span(timeline.bandBefore.from, timeline.bandBefore.to)}
+            />
+          )}
+          {timeline.bandAfter && (
+            <div
+              className={cn("absolute top-1 h-1 min-w-1 rounded-full bg-switch-border", motion)}
+              style={span(timeline.bandAfter.from, timeline.bandAfter.to)}
+            />
+          )}
+          {/* 分岐点は縦の棒、いまは丸 */}
+          <span
+            className={cn(
+              "absolute top-0 h-3 w-[2px] -translate-x-1/2 rounded-full bg-foreground",
+              motion,
+            )}
+            style={at(positions.breakEven)}
+          />
+          <span
+            className={cn(
+              "absolute top-0.5 size-2 -translate-x-1/2 rounded-full border-2 border-surface bg-foreground ring-1 ring-foreground/40",
+              nowMotion,
+            )}
+            style={at(positions.now)}
+          />
+          {positions.deadline !== null && (
+            <span
+              className={cn(
+                "absolute top-0 h-3 -translate-x-1/2 border-l-2 border-dotted border-danger",
+                motion,
+              )}
+              style={at(positions.deadline)}
+            />
+          )}
+        </div>
+        <figcaption>{summary}</figcaption>
+      </figure>
+    );
+  }
+
   return (
-    <figure
-      data-testid={testIds.judgment.breakEvenTimeline}
-      data-relation={relation}
-      data-break-even={basis.breakEvenTime}
-      data-resume-p50={new Date(timeline.resumeP50Ms).toISOString()}
-      data-resume-p80={new Date(timeline.resumeP80Ms).toISOString()}
-      className="flex flex-col gap-0.5"
-    >
+    <figure {...dataset} className="m-0 flex flex-col gap-1">
       <div className="relative h-[50px]" aria-hidden>
         {/* 軸。分岐点より後ろは切り替えが得になる時間帯として薄く塗る */}
-        <div className="absolute inset-x-0 top-[16px] h-[17px] overflow-hidden rounded-md bg-surface-raised">
+        <div className="absolute inset-x-0 top-[18px] h-[12px] overflow-hidden rounded-full bg-foreground/[0.07]">
           <div
-            className={cn("absolute inset-y-0 right-0 bg-switch-surface", motion)}
+            className={cn("absolute inset-y-0 right-0 bg-switch-border/15", motion)}
             style={at(positions.breakEven)}
           />
           {timeline.ticks.map((tick) => (
             <span
               key={tick.ms}
-              className={cn("absolute bottom-0 h-1.5 w-px animate-fade-in bg-muted/60", motion)}
+              className={cn("absolute bottom-0 h-1 w-px animate-fade-in bg-muted/50", motion)}
               style={at(tick.position)}
             />
           ))}
           {timeline.bandBefore && (
             <div
-              className={cn("absolute inset-y-[3px] min-w-1 rounded-sm bg-wait-border", motion)}
+              className={cn("absolute inset-y-[2px] min-w-1 rounded-full bg-wait-border", motion)}
               style={span(timeline.bandBefore.from, timeline.bandBefore.to)}
             />
           )}
           {timeline.bandAfter && (
             <div
               className={cn(
-                "absolute inset-y-[3px] min-w-1 rounded-sm border-2 border-switch-border bg-hatch-switch",
+                "absolute inset-y-[2px] min-w-1 rounded-full border border-switch-border bg-hatch-switch",
                 motion,
               )}
               style={span(timeline.bandAfter.from, timeline.bandAfter.to)}
@@ -128,7 +197,7 @@ export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: D
           )}
           {/* 最も見込みの高い時刻（p50） */}
           <span
-            className={cn("absolute inset-y-px w-[3px] -translate-x-1/2 bg-foreground", motion)}
+            className={cn("absolute inset-y-0 w-[2px] -translate-x-1/2 bg-foreground/70", motion)}
             style={at(positions.resumeP50)}
           />
         </div>
@@ -136,7 +205,7 @@ export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: D
         {/* 分岐点。縦線と時刻で示す */}
         <span
           className={cn(
-            "absolute top-[12px] h-[25px] w-[3px] -translate-x-1/2 rounded-full bg-foreground",
+            "absolute top-[14px] h-[20px] w-[2px] -translate-x-1/2 rounded-full bg-foreground",
             motion,
           )}
           style={at(positions.breakEven)}
@@ -144,7 +213,7 @@ export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: D
         <AxisLabel
           position={positions.breakEven}
           align={selectAlign(positions.breakEven, labelReach.breakEven)}
-          className={cn("top-0 font-extrabold", motion)}
+          className={cn("top-0 font-semibold", motion)}
         >
           {t("breakEven", { time: clock(timeline.breakEvenMs) })}
         </AxisLabel>
@@ -152,7 +221,7 @@ export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: D
         {/* いま */}
         <span
           className={cn(
-            "absolute top-[13px] h-[23px] w-[3px] -translate-x-1/2 rounded-full bg-brand",
+            "absolute top-[17px] size-[14px] -translate-x-1/2 rounded-full border-[3px] border-surface bg-foreground shadow-sm",
             nowMotion,
           )}
           style={at(positions.now)}
@@ -160,7 +229,7 @@ export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: D
         <AxisLabel
           position={positions.now}
           align={selectAlign(positions.now, labelReach.now)}
-          className={cn("top-[35px] font-bold text-brand", nowMotion)}
+          className={cn("top-[35px] font-semibold", nowMotion)}
         >
           {t("now")}
         </AxisLabel>
@@ -170,7 +239,7 @@ export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: D
           <>
             <span
               className={cn(
-                "absolute top-[13px] h-[23px] -translate-x-1/2 border-l-[3px] border-dotted border-danger",
+                "absolute top-[14px] h-[20px] -translate-x-1/2 border-l-2 border-dotted border-danger",
                 motion,
               )}
               style={at(positions.deadline)}
@@ -178,7 +247,10 @@ export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: D
             <AxisLabel
               position={positions.deadline}
               align={selectAlign(positions.deadline, labelReach.deadline)}
-              className={cn("top-[35px] flex items-center gap-0.5 font-bold text-danger", motion)}
+              className={cn(
+                "top-[35px] flex items-center gap-0.5 font-semibold text-danger",
+                motion,
+              )}
             >
               <Flag className="size-3" aria-hidden />
               {clock(Date.parse(basis.deadline))}
@@ -194,28 +266,22 @@ export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: D
               key={tick.ms}
               position={tick.position}
               align="center"
-              className={cn("top-[35px] animate-fade-in text-[0.6875rem] text-muted", motion)}
+              className={cn("top-[35px] animate-fade-in text-[11px] text-muted", motion)}
             >
               {clock(tick.ms)}
             </AxisLabel>
           ))}
       </div>
 
-      <figcaption className="flex items-center gap-1.5 text-xs leading-4">
+      <figcaption className="flex items-center gap-1.5 text-[12px] leading-4 text-muted">
         <RelationSwatch relation={relation} />
         <span aria-hidden className="min-w-0 tabular-nums">
           {t.rich(`caption.${relation}`, {
             ...range,
             em: (chunks) => (
-              <strong className={cn("font-extrabold", relationText[relation])}>{chunks}</strong>
+              <strong className={cn("font-semibold", relationText[relation])}>{chunks}</strong>
             ),
           })}
-        </span>
-        <span className="sr-only">
-          {t(`summary.${relation}`, { ...range, breakEven: clock(timeline.breakEvenMs) })}
-          {positions.deadline !== null &&
-            basis.deadline !== null &&
-            ` ${t("deadline", { time: clock(Date.parse(basis.deadline)) })}`}
         </span>
       </figcaption>
     </figure>
@@ -250,10 +316,10 @@ function AxisLabel({
 // 凡例の見本。帯と同じ塗り分けで、分岐点を越えた部分は斜線
 function RelationSwatch({ relation }: { relation: ResumeRelation }) {
   return (
-    <span className="flex h-3 w-6 shrink-0 overflow-hidden rounded-sm" aria-hidden>
+    <span className="flex h-2.5 w-6 shrink-0 overflow-hidden rounded-full" aria-hidden>
       {relation !== "after" && <span className="flex-1 bg-wait-border" />}
       {relation !== "before" && (
-        <span className="flex-1 border-2 border-switch-border bg-hatch-switch" />
+        <span className="flex-1 border border-switch-border bg-hatch-switch" />
       )}
     </span>
   );

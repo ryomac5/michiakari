@@ -1,19 +1,20 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
+import { Info } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
 import { testIds } from "../testids";
 
-// 推定である旨を結論の直下に常時表示する。判断側の詳しい注意書きは根拠の欄に回し、ここでは同じ趣旨を重ねない
-export function Disclaimer() {
+// 推定である旨を結論の近くに常時表示する。判断側の詳しい注意書きは根拠の欄に回す
+export function Disclaimer({ className }: { className?: string }) {
   const t = useTranslations("disclaimer");
 
   return (
     <p
       data-testid={testIds.judgment.disclaimer}
-      className="flex items-start gap-2 px-1 text-sm font-bold text-muted"
+      className={cn("flex items-center gap-1.5 text-[12px] leading-snug text-muted", className)}
     >
-      <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+      <Info className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
       {t("short")}
     </p>
   );

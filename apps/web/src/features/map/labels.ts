@@ -11,10 +11,12 @@ export type MapLabels = {
     blocked: string;
     reach: string;
     approx: string;
-    reachable: string;
     route: string;
-    transfer: string;
+    alternative: string;
+    places: string;
   };
+  // 地図を推奨経路と区間の全体に戻すボタン
+  recenter: string;
   // 地図の隅の出典。short は画面幅 390px でも 1 行に収まる短い表記、full は読み上げ用の全文
   attribution: { short: string; full: string[]; link: string };
   gestures: { windows: string; mac: string; mobile: string };
@@ -27,14 +29,15 @@ const ja: MapLabels = {
   loading: "地図を読み込んでいます",
   error: "地図を表示できませんでした",
   legend: {
-    title: "凡例",
+    title: "地図の見方",
     blocked: "止まっている区間",
-    reach: "徒歩10分・20分の範囲",
+    reach: "徒歩20分の範囲。点線は10分",
     approx: "概算",
-    reachable: "徒歩圏で動いている駅",
-    route: "推奨経路。点線は徒歩",
-    transfer: "振替輸送の対象路線",
+    route: "おすすめの経路。点線は徒歩",
+    alternative: "ほかの選択肢",
+    places: "出発と行き先",
   },
+  recenter: "経路の全体を表示",
   attribution: {
     short: "国土地理院 / © OpenStreetMap contributors / 国土数値情報",
     full: [
@@ -58,14 +61,15 @@ const en: MapLabels = {
   loading: "Loading map",
   error: "The map could not be shown",
   legend: {
-    title: "Legend",
+    title: "Reading the map",
     blocked: "Suspended section",
-    reach: "10 and 20 min walk",
+    reach: "20 min walk. Dotted is 10 min",
     approx: "approx.",
-    reachable: "Running stations within walking range",
     route: "Recommended route. Dotted is walking",
-    transfer: "Lines accepting transfer tickets",
+    alternative: "Other options",
+    places: "Start and destination",
   },
+  recenter: "Show the whole route",
   attribution: {
     short: "GSI Japan / © OpenStreetMap contributors / MLIT",
     full: [

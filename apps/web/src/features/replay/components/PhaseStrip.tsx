@@ -30,16 +30,17 @@ export function PhaseStrip({
       data-testid={testIds.replay.phaseStrip}
       data-phase-id={estimate?.phaseId ?? ""}
       aria-labelledby="replay-phases-title"
-      className="flex flex-col gap-3 rounded-3xl border-2 border-border bg-surface p-4"
+      className="flex flex-col gap-3"
     >
-      <h2 id="replay-phases-title" className="flex items-baseline gap-2 font-extrabold">
+      <h2
+        id="replay-phases-title"
+        className="flex items-baseline gap-2 text-[13px] font-medium text-muted"
+      >
         {t("phases")}
-        {event && (
-          <span className="text-sm font-bold text-muted">{pickLocalized(event.name, locale)}</span>
-        )}
+        {event && <span>{pickLocalized(event.name, locale)}</span>}
       </h2>
       {phases.length === 0 && (
-        <p className="text-muted">
+        <p className="text-[14px] text-muted">
           {estimate?.phaseId ? (
             <code className="font-mono">{estimate.phaseId}</code>
           ) : (
@@ -61,22 +62,22 @@ export function PhaseStrip({
               >
                 <span
                   className={cn(
-                    "h-2 rounded-full transition-colors duration-500",
-                    position === "past" && "bg-muted",
+                    "h-1.5 rounded-full transition-colors duration-300",
+                    position === "past" && "bg-foreground/35",
                     position === "current" && "bg-foreground",
-                    position === "future" && "bg-surface-raised",
+                    position === "future" && "bg-foreground/10",
                   )}
                 />
                 <span
                   className={cn(
-                    "text-xs leading-tight break-words",
-                    position === "current" ? "font-extrabold" : "text-muted",
+                    "text-[11px] leading-tight break-words",
+                    position === "current" ? "font-semibold" : "text-muted",
                   )}
                 >
                   {pickLocalized(phase.name, locale)}
                 </span>
                 {position === "current" && (
-                  <span className="inline-flex w-fit animate-step-in items-center gap-0.5 rounded-full bg-foreground px-1.5 py-0.5 text-[11px] font-bold text-background">
+                  <span className="inline-flex w-fit animate-step-in items-center gap-0.5 rounded-full bg-foreground px-1.5 py-0.5 text-[10px] font-semibold text-background">
                     <MapPin className="size-3" aria-hidden />
                     {t("here")}
                   </span>

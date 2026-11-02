@@ -11,7 +11,7 @@ export function Tabs({ className, ...props }: ComponentProps<typeof TabsPrimitiv
 export function TabsList({ className, ...props }: ComponentProps<typeof TabsPrimitive.List>) {
   return (
     <TabsPrimitive.List
-      className={cn("grid grid-cols-3 gap-1 rounded-2xl bg-surface-raised p-1", className)}
+      className={cn("grid grid-cols-3 gap-1 rounded-xl bg-foreground/[0.06] p-1", className)}
       {...props}
     />
   );
@@ -21,9 +21,9 @@ export function TabsTrigger({ className, ...props }: ComponentProps<typeof TabsP
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-sm font-bold whitespace-nowrap text-muted transition-colors",
+        "flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-lg px-1 text-[13px] font-medium whitespace-nowrap text-muted transition-colors",
         "data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm",
-        "[&_svg]:size-5",
+        "[&_svg]:size-4 [&_svg]:stroke-[1.75]",
         className,
       )}
       {...props}

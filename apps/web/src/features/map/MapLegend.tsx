@@ -1,101 +1,104 @@
+"use client";
+
+import type { Action } from "@repo/schema";
+import { useLocale } from "next-intl";
 import type { ReactNode } from "react";
-import type { MapLabels } from "./labels";
-import type { MapPalette } from "./layers";
+import { useDocumentTheme } from "@/lib/use-document-theme";
+import { selectMapLabels } from "./labels";
+import { mapPalettes } from "./layers";
 import type { ReachSource } from "./scene";
 import { mapTestIds } from "./testids";
 
-// 凡例。地図と同じ線種のサンプルを添え、色だけに頼らない
+// 地図の見方。地図の上には常設せず、シートの中に小さく置く。線種の見本を添え、色だけに頼らない
 
 function renderSample(children: ReactNode) {
   return (
-    <svg viewBox="0 0 40 16" className="h-4 w-10 shrink-0" aria-hidden>
+    <svg viewBox="0 0 32 16" className="h-4 w-8 shrink-0" aria-hidden>
       {children}
     </svg>
   );
 }
 
 export function MapLegend({
-  palette,
-  labels,
+  tone,
   reachSource,
 }: {
-  palette: MapPalette;
-  labels: MapLabels;
+  // 推奨経路の色。判断の種類に合わせる
+  tone: Action;
   // 円で概算したときだけ「概算」を添える
   reachSource: ReachSource | null;
 }) {
+  const labels = selectMapLabels(useLocale());
+  const palette = mapPalettes[useDocumentTheme()];
+  const accent = palette.route[tone];
+
   const items: { id: string; sample: ReactNode; text: ReactNode }[] = [
-    {
-      id: "blocked",
-      sample: renderSample(
-        <>
-          <line x1="2" y1="8" x2="38" y2="8" stroke={palette.blockedCasing} strokeWidth="8" />
-          <line
-            x1="2"
-            y1="8"
-            x2="38"
-            y2="8"
-            stroke={palette.blocked}
-            strokeWidth="5"
-            strokeDasharray="8 5"
-          />
-        </>,
-      ),
-      text: labels.legend.blocked,
-    },
     {
       id: "route",
       sample: renderSample(
         <>
-          <line x1="2" y1="8" x2="22" y2="8" stroke={palette.routeCasing} strokeWidth="8" />
-          <line x1="2" y1="8" x2="22" y2="8" stroke={palette.route} strokeWidth="4.5" />
+          <line x1="2" y1="8" x2="18" y2="8" stroke={palette.routeCasing} strokeWidth="7" />
+          <line x1="2" y1="8" x2="18" y2="8" stroke={accent} strokeWidth="4" />
           <line
-            x1="28"
+            x1="23"
             y1="8"
-            x2="38"
+            x2="31"
             y2="8"
-            stroke={palette.route}
-            strokeWidth="4.5"
+            stroke={accent}
+            strokeWidth="3.5"
             strokeLinecap="round"
-            strokeDasharray="0 7"
+            strokeDasharray="0 6"
           />
         </>,
       ),
       text: labels.legend.route,
     },
     {
-      id: "transfer",
+      id: "blocked",
       sample: renderSample(
-        <>
-          <line
-            x1="4"
-            y1="8"
-            x2="36"
-            y2="8"
-            stroke={palette.transfer}
-            strokeOpacity="0.55"
-            strokeWidth="11"
-            strokeLinecap="round"
-          />
-          <line x1="4" y1="8" x2="36" y2="8" stroke="#8b2332" strokeWidth="3" />
-        </>,
+        <line
+          x1="2"
+          y1="8"
+          x2="30"
+          y2="8"
+          stroke={palette.blocked}
+          strokeWidth="4"
+          strokeDasharray="6 4"
+        />,
       ),
-      text: labels.legend.transfer,
+      text: labels.legend.blocked,
+    },
+    {
+      id: "alternative",
+      sample: renderSample(
+        <line
+          x1="2"
+          y1="8"
+          x2="30"
+          y2="8"
+          stroke={palette.alternative}
+          strokeOpacity="0.6"
+          strokeWidth="3"
+          strokeLinecap="round"
+        />,
+      ),
+      text: labels.legend.alternative,
     },
     {
       id: "reach",
       sample: renderSample(
         <>
-          <circle
-            cx="20"
-            cy="8"
-            r="7.5"
-            fill={palette.reach}
-            fillOpacity="0.12"
+          <rect x="3" y="2" width="26" height="12" rx="6" fill={palette.reach} fillOpacity="0.14" />
+          <rect
+            x="9"
+            y="5"
+            width="14"
+            height="6"
+            rx="3"
+            fill="none"
             stroke={palette.reach}
             strokeDasharray="2 2"
           />
-          <circle cx="20" cy="8" r="4" fill={palette.reach} fillOpacity="0.3" />
         </>,
       ),
       text: (
@@ -104,7 +107,7 @@ export function MapLegend({
           {reachSource === "circle" && (
             <span
               data-testid={mapTestIds.reachApprox}
-              className="ml-1 rounded border border-border px-1 text-xs font-bold text-muted"
+              className="ml-1 rounded border border-border px-1 text-[11px] text-muted"
             >
               {labels.legend.approx}
             </span>
@@ -113,27 +116,23 @@ export function MapLegend({
       ),
     },
     {
-      id: "reachable",
+      id: "places",
       sample: renderSample(
-        <circle
-          cx="20"
-          cy="8"
-          r="5"
-          fill="#e5171f"
-          stroke={palette.emphasisStroke}
-          strokeWidth="2.5"
-        />,
+        <>
+          <circle cx="9" cy="8" r="5" fill="currentColor" stroke="white" strokeWidth="2" />
+          <path d="M23 15c-3-4-5-6-5-8.5a5 5 0 0 1 10 0c0 2.5-2 4.5-5 8.5Z" fill="currentColor" />
+        </>,
       ),
-      text: labels.legend.reachable,
+      text: labels.legend.places,
     },
   ];
 
   return (
-    <div data-testid={mapTestIds.legend} className="px-1">
-      <h3 className="sr-only">{labels.legend.title}</h3>
-      <ul className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2">
+    <div data-testid={mapTestIds.legend} className="flex flex-col gap-2">
+      <h3 className="text-[13px] font-medium text-muted">{labels.legend.title}</h3>
+      <ul className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-[13px] sm:grid-cols-2 lg:grid-cols-1">
         {items.map((item) => (
-          <li key={item.id} data-legend={item.id} className="flex items-center gap-2">
+          <li key={item.id} data-legend={item.id} className="flex items-center gap-2.5">
             {item.sample}
             <span>{item.text}</span>
           </li>
