@@ -172,6 +172,7 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 |---|---|---|
 | `observation_parsed` | `{ observation: Observation }` | 「掲示を読み取りました」 |
 | `signal_detected` | `{ signal: DetectedSignal }` | 根拠リストに追加 |
+| `weather_checked` | `{ source, readings, warnings, trend, summary }` | 雨量の推移と警報を出す。readings は 36 件・6 時間まで |
 | `phase_estimated` | `{ estimate: Estimate }` | タイムラインの「いまここ」を更新 |
 | `alternatives_computed` | `{ options: RouteOption[] }` | 地図に経路と到達範囲を描画 |
 | `break_even_computed` | `{ breakEven: BreakEven \| null }` | 分岐点の表示を更新 |

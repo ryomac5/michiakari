@@ -16,12 +16,13 @@ import {
   type WeatherToolResult,
 } from "../tools/types.ts";
 import { collectAllowedNumbers, type JudgmentToolResults, validateJudgment } from "./assemble.ts";
-import type { EventSink } from "./event-sink.ts";
+import type { EventSink, JudgmentEventBody } from "./event-sink.ts";
 import {
   buildBreakEvenSentence,
   buildNoAlternativeSentence,
   buildPassedSentence,
   buildProgressMessage,
+  buildWeatherSummary,
   formatClock,
 } from "./templates.ts";
 
@@ -126,6 +127,33 @@ function presentBreakEven(
   };
 }
 
+// weather_checked で送る気象。取得できなかったとき、値が無いときは送らない
+// リプレイの雨量は get_weather が現在時刻までに絞っているので、未来の値は含まない
+export function buildWeatherCheckedEvent(
+  r: WeatherToolResult,
+  language: Lang,
+): JudgmentEventBody | null {
+  if (r.source === "unavailable" || r.readings.length === 0) return null;
+  const warnings = r.readings.at(-1)?.warnings ?? [];
+  const trend = r.summary.trend ?? "unknown";
+  return {
+    type: "weather_checked",
+    source: r.source === "scenario" ? "scenario" : "jma",
+    readings: r.readings.map((reading) => ({
+      time: reading.time,
+      rainfall10minMm: reading.rainfall10minMm,
+    })),
+    warnings,
+    trend,
+    summary: buildWeatherSummary({
+      latestMm: r.summary.latest?.rainfall10minMm ?? null,
+      trend,
+      warnings,
+      language,
+    }),
+  };
+}
+
 function presentWeather(r: WeatherToolResult) {
   return { ...r, attribution: "出典: 気象庁" };
 }
@@ -205,6 +233,8 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     const parsed = parseInput(GetWeatherInputSchema, input);
     if (isOutcome(parsed)) return parsed;
     state.weather = await runGetWeather(ctx, parsed);
+    const event = buildWeatherCheckedEvent(state.weather, language);
+    if (event) await sink.emit(event);
     return { isError: false, content: presentWeather(state.weather) };
   }
 
