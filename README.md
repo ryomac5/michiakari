@@ -143,6 +143,7 @@ Node.js 24 以上と pnpm 10 が必要です。
 
 ```bash
 pnpm install
+pnpm --filter e2e exec playwright install chromium  # e2e と録画に使うブラウザ
 ```
 
 ### API キーなしの起動
@@ -150,19 +151,16 @@ pnpm install
 API キーが無いと、エージェントは決定論モードで動きます。
 解釈は文字列照合で、判断は規則で行います。
 写真の読み取りだけは使えません。
-端末を 2 つ開き、開発用のダミー内容で起動します。
+次のコマンドで、画面とエージェントを開発用のダミー内容で起動します。
 
 ```bash
-# 端末 1: 判断エージェント。ポート 8787 で起動する
 pnpm dev:demo
-
-# 端末 2: 画面。知見とシナリオを読むので同じ内容を指定する
-CONTENT_DIR=packages/schema/test/fixtures/dev-content pnpm --filter @repo/web dev
 ```
 
 http://localhost:3000 を開きます。
 リプレイは http://localhost:3000/replay から始められます。
-API キーを設定済みの環境で決定論モードにするには `JUDGE_MODE=deterministic` を付けます。
+エージェントはポート 8787 で待ち受けます。
+`pnpm dev:demo` は API キーがあっても決定論モードで動きます。
 
 ### claude モードの起動
 
@@ -171,10 +169,10 @@ API キーを設定済みの環境で決定論モードにするには `JUDGE_MO
 
 ```bash
 export ANTHROPIC_API_KEY=<あなたのキー>
-pnpm dev:demo
+JUDGE_MODE=claude pnpm dev:demo
 ```
 
-画面は前節と同じ方法で起動します。
+`JUDGE_MODE=claude` を付けると、ダミー内容のまま claude モードになります。
 起動時のログに `mode: claude` と出れば有効です。
 
 ### 環境変数

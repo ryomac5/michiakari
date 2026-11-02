@@ -316,7 +316,7 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
       knowledge: eventType ? (ctx.content.knowledge.get(eventType) ?? null) : null,
       evidenceRefs,
     });
-    return validateJudgment({ judgment, evidenceRefs, allowedNumbers });
+    return validateJudgment({ judgment, evidenceRefs, allowedNumbers, language });
   }
 
   return {

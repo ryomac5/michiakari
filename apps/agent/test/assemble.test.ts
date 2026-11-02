@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { assembleJudgment, extractTextNumbers } from "../src/judge/assemble.ts";
+import { headlineLimits } from "../src/config.ts";
+import {
+  assembleJudgment,
+  checkHeadlineLength,
+  extractTextNumbers,
+} from "../src/judge/assemble.ts";
 import { createEventSink } from "../src/judge/event-sink.ts";
 import { createJudgeSession } from "../src/judge/session.ts";
 import { formatClock } from "../src/judge/templates.ts";
@@ -95,7 +100,7 @@ describe("assembleJudgment", () => {
 
 describe("validateJudgment", () => {
   it("ツールの結果に無い根拠・時刻・推奨を指摘する", async () => {
-    const { session, results, request } = await prepareSession();
+    const { session, results } = await prepareSession();
     const judgment = assembleJudgment(
       results,
       {
@@ -160,7 +165,7 @@ describe("validateJudgment", () => {
   });
 
   it("ツールの結果の時刻と根拠だけなら通る", async () => {
-    const { session, results, signalId, request } = await prepareSession();
+    const { session, results, signalId } = await prepareSession();
     const r = results.breakEven.result;
     if (r.kind !== "future" && r.kind !== "passed") throw new Error("分岐点がありません");
     const judgment = assembleJudgment(
@@ -176,6 +181,34 @@ describe("validateJudgment", () => {
     );
     const checked = session.checkJudgment(judgment, results);
     expect(checked.errors).toEqual([]);
+  });
+});
+
+describe("checkHeadlineLength", () => {
+  it("上限ちょうどは通し、超えたら指摘する", () => {
+    for (const language of ["ja", "en"] as const) {
+      const { max } = headlineLimits[language];
+      expect(checkHeadlineLength("あ".repeat(max), language)).toEqual([]);
+      expect(checkHeadlineLength("あ".repeat(max + 1), language)).toHaveLength(1);
+    }
+  });
+
+  it("長すぎる見出しは判断の検証でも指摘する", async () => {
+    const { session, results, signalId } = await prepareSession();
+    const judgment = assembleJudgment(
+      results,
+      {
+        action: "hold",
+        headline: "あ".repeat(headlineLimits.ja.max + 1),
+        breakEvenExplanation: "説明",
+        recommendedOptionId: null,
+        evidence: [{ kind: "signal", id: signalId, description: "根拠" }],
+      },
+      "ja",
+    );
+    const { judgment: valid, errors } = session.checkJudgment(judgment, results);
+    expect(valid).toBeNull();
+    expect(errors.some((e) => e.startsWith("headline が長すぎます"))).toBe(true);
   });
 });
 

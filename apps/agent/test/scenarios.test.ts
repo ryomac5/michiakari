@@ -1,5 +1,6 @@
 import type { JudgmentEvent } from "@repo/schema";
 import { describe, expect, it } from "vitest";
+import { headlineLimits } from "../src/config.ts";
 import { createTestApp, createTestDeps, replayScenario } from "./helpers.ts";
 
 // 決定論モードで、ダミーの各シナリオの expectations を満たすことを確かめる
@@ -22,6 +23,16 @@ describe("決定論モードのシナリオ", () => {
     describe(scenario.id, () => {
       const app = createTestApp(deps);
       const stepsPromise = replayScenario(app, scenario);
+
+      it("すべての観測で、見出しが目安の長さに収まる", async () => {
+        const steps = await stepsPromise;
+        const limit = headlineLimits[scenario.user.language].target;
+        for (const step of steps) {
+          const headline = findJudgment(step.events)?.headline ?? "";
+          expect(headline.length, step.entry.id).toBeGreaterThan(0);
+          expect([...headline].length, step.entry.id).toBeLessThanOrEqual(limit);
+        }
+      });
 
       for (const expectation of scenario.expectations) {
         it(`${expectation.after} の後: ${expectation.note}`, async () => {

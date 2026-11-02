@@ -34,14 +34,14 @@ timeline:
     offset_minutes: 8
     kind: station_broadcast
     text:
-      ja: お客様にお知らせします。ただいま現場で救護活動と警察による確認を行っております。阪急線、京阪線、Osaka Metroで振替輸送を行っています。
-      en: Attention passengers. Rescue and police work is under way at the site. Transfer service is available on Hankyu, Keihan, and Osaka Metro lines.
+      ja: お客様にお知らせします。JR京都線は人身事故の影響で運転を見合わせております。この列車はしばらく停車します。運転再開の見込みは立っていません。
+      en: Attention passengers. The JR Kyoto Line is suspended due to a person-strike accident. This train will remain stopped for some time. No estimated resumption time is available.
   - id: obs_3
     offset_minutes: 22
     kind: announcement
     text:
-      ja: JR京都線の運転再開は、22時50分頃を見込んでいます。
-      en: The JR Kyoto Line is expected to resume at around 22:50.
+      ja: JR京都線の運転再開は、22時50分頃を見込んでいます。阪急線、京阪線、Osaka Metroで振替輸送を行っています。
+      en: The JR Kyoto Line is expected to resume at around 22:50. Transfer service is available on Hankyu, Keihan, and Osaka Metro lines.
   - id: obs_4
     offset_minutes: 35
     kind: announcement
@@ -68,6 +68,12 @@ expectations:
     evidence_includes: [pa_occurred_announced]
     break_even_shown: true
     note: 発生直後で見込みの幅が大きい。断言せず、分岐点と振替経路を示して保留する。
+  - after: obs_2
+    action: hold
+    phase: initial
+    evidence_includes: [pa_occurred_announced]
+    break_even_shown: true
+    note: 状況は変わらず、再開見込みの発表もまだない。保留を続け、分岐点を示す。
   - after: obs_3
     action: wait
     phase: resume_estimate

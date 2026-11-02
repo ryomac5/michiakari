@@ -7,7 +7,17 @@
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": [
+        "CONTENT_DIR",
+        "JUDGE_MODE",
+        "NEXT_PUBLIC_AGENT_URL",
+        "ANTHROPIC_API_KEY",
+        "PORT",
+        "CORS_ORIGINS",
+        "RATE_LIMIT_PER_MINUTE",
+        "TRUST_PROXY"
+      ]
     },
     "typecheck": {
       "dependsOn": ["^typecheck"]

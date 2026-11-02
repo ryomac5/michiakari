@@ -1,5 +1,5 @@
 import { getJstMinuteOfDay } from "@repo/core";
-import type { Lang, ProgressStage } from "@repo/schema";
+import type { Lang, ProgressStage, RouteOption } from "@repo/schema";
 
 // 利用者向けの定型文（ja / en）。数値は呼び出し側がツールの結果から渡す
 
@@ -49,58 +49,117 @@ export type DecisionReason =
   | "deadline_risk"
   | "resume_before_break_even";
 
-export type HeadlineInput = {
+export type DecisionTextInput = {
   reason: DecisionReason;
   language: Lang;
-  breakEvenTime: string | null;
-  bestLabel: string | null;
+  // 分岐点までの分。待てる残りの時間として見出しに使う
+  breakEvenMinutesFromNow: number | null;
+  bestOption: Pick<RouteOption, "kind" | "label" | "isTransferService"> | null;
   boardableP50: string | null;
 };
 
-// 決定論モードの結論の一文
-export function buildHeadline(input: HeadlineInput): string {
+// 見出しは結論だけの短い一言。理由や経緯は reason に分ける
+export type DecisionText = {
+  headline: string;
+  reason: string;
+};
+
+// 切り替え先の呼び名。見出しを短く保つため、経路名ではなく手段の種類で呼ぶ
+function nameSwitchTarget(option: DecisionTextInput["bestOption"], language: Lang): string {
+  const ja = language === "ja";
+  if (option?.kind === "taxi") return ja ? "タクシー" : "a taxi";
+  if (option?.kind === "walk") return ja ? "徒歩" : "walking";
+  if (option?.isTransferService) return ja ? "振替" : "the transfer service";
+  return ja ? "別の路線" : "another line";
+}
+
+// 決定論モードの見出しと理由
+export function buildDecisionText(input: DecisionTextInput): DecisionText {
   const ja = input.language === "ja";
-  const be = input.breakEvenTime ? formatClock(input.breakEvenTime, input.language) : null;
-  const best = input.bestLabel ?? (ja ? "代替手段" : "the alternative");
+  const best = input.bestOption?.label ?? (ja ? "代替手段" : "the alternative");
   const boardable = input.boardableP50 ? formatClock(input.boardableP50, input.language) : null;
+  const target = nameSwitchTarget(input.bestOption, input.language);
+  const switchHeadline = ja ? `いま${target}に切り替えてください` : `Switch to ${target} now.`;
+  const holdHeadline = ja
+    ? "まだ判断できません。分岐点を見てください"
+    : "Too early to decide. Watch the break-even time.";
   switch (input.reason) {
     case "unknown_event":
-      return ja
-        ? "事象を特定できないため、分岐点を目安に判断してください。"
-        : "The cause could not be identified. Use the break-even time as your guide.";
+      return {
+        headline: holdHeadline,
+        reason: ja ? "事象を特定できていません。" : "The cause could not be identified.",
+      };
     case "no_alternative":
-      return ja
-        ? "代替手段が見つからないため、運転再開を待つしかなさそうです。"
-        : "No alternative route was found, so waiting for resumption seems to be the only option.";
+      return {
+        headline: ja ? "運転再開を待ってください" : "Wait for service to resume.",
+        reason: ja ? "代替手段が見つかりません。" : "No alternative route was found.",
+      };
     case "break_even_passed":
-      return ja
-        ? `${best}に切り替えましょう。分岐点の${be}を過ぎています。`
-        : `Switch to ${best}. The break-even time of ${be} has passed.`;
+      return {
+        headline: switchHeadline,
+        reason: ja
+          ? "待ち続けても、代替手段より早くは着けません。"
+          : "Waiting can no longer beat the alternative.",
+      };
     case "rain_continuing":
-      return ja
-        ? `雨が続くあいだは代替経路も止まりやすいため、判断を保留します。${be}までに再開しなければ、${best}のほうが早く着きます。`
-        : `While the rain continues, alternatives may also stop, so the decision is on hold. If service has not resumed by ${be}, ${best} gets you there sooner.`;
+      return {
+        headline: ja ? "雨が続くあいだは判断を保留します" : "Holding off while the rain continues.",
+        reason: ja
+          ? "雨が続くあいだは、代替経路も止まりやすくなります。"
+          : "While the rain continues, alternative routes may also stop.",
+      };
     case "low_confidence":
-      return ja
-        ? `まだ見込みの幅が大きい段階です。${be}までに再開しなければ、${best}のほうが早く着きます。`
-        : `The outlook is still very uncertain. If service has not resumed by ${be}, ${best} gets you there sooner.`;
+      return {
+        headline: holdHeadline,
+        reason: ja ? "まだ見込みの幅が大きい段階です。" : "The outlook is still very uncertain.",
+      };
     case "estimate_extended":
-      return ja
-        ? `${best}に切り替えましょう。再開見込みが延びており、さらに延びると${be}の分岐点を過ぎます。`
-        : `Switch to ${best}. The resumption estimate has been extended, and a further delay would pass the break-even time of ${be}.`;
+      return {
+        headline: switchHeadline,
+        reason: ja
+          ? "再開見込みが延びました。さらに延びるおそれがあります。"
+          : "The resumption estimate was extended and may slip further.",
+      };
     case "resume_after_break_even":
-      return ja
-        ? `${best}に切り替えましょう。再開して乗れる見込みの${boardable}頃では、${best}より遅く着きます。`
-        : `Switch to ${best}. Boarding around ${boardable} after resumption would arrive later than ${best}.`;
+      return {
+        headline: switchHeadline,
+        reason: ja
+          ? `再開して乗れるのは${boardable}頃の見込みで、${best}より遅く着きます。`
+          : `Boarding after resumption is expected around ${boardable}, arriving later than ${best}.`,
+      };
     case "deadline_risk":
-      return ja
-        ? `${best}に切り替えましょう。待つと期限に間に合わない見込みです。`
-        : `Switch to ${best}. Waiting is likely to miss your deadline.`;
-    case "resume_before_break_even":
-      return ja
-        ? `運転再開を待ちましょう。${boardable}頃に乗れる見込みです。${be}までに再開しなければ、${best}のほうが早く着きます。`
-        : `Wait for resumption. You should be able to board around ${boardable}. If service has not resumed by ${be}, ${best} gets you there sooner.`;
+      return {
+        headline: switchHeadline,
+        reason: ja
+          ? "待つと期限に間に合わない見込みです。"
+          : "Waiting is likely to miss your deadline.",
+      };
+    case "resume_before_break_even": {
+      const minutes = input.breakEvenMinutesFromNow;
+      const canWait = minutes !== null && minutes > 0;
+      return {
+        headline: canWait
+          ? ja
+            ? `あと${minutes}分は待てます`
+            : `You can wait ${minutes} more minutes.`
+          : ja
+            ? "運転再開を待ってください"
+            : "Wait for service to resume.",
+        reason: ja
+          ? `${boardable}頃に乗れる見込みです。`
+          : `You should be able to board around ${boardable}.`,
+      };
+    }
   }
+}
+
+// 理由と分岐点の説明をつなぐ。理由は後で Judgment の専用欄へ移す
+export function joinReasonAndExplanation(
+  reason: string,
+  explanation: string,
+  language: Lang,
+): string {
+  return language === "ja" ? `${reason}${explanation}` : `${reason} ${explanation}`;
 }
 
 const PROGRESS_MESSAGES: Record<ProgressStage, { ja: string; en: string }> = {

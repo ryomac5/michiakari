@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "turbo run dev",
-    "dev:demo": "CONTENT_DIR=packages/schema/test/fixtures/dev-content pnpm --filter @repo/agent dev",
+    "dev:demo": "CONTENT_DIR=packages/schema/test/fixtures/dev-content JUDGE_MODE=${JUDGE_MODE:-deterministic} turbo run dev --filter=@repo/web --filter=@repo/agent",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "biome check .",
