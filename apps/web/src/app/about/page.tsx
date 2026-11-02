@@ -114,6 +114,7 @@ export default async function AboutPage() {
       >
         <ul className="flex flex-col gap-3 text-sm leading-relaxed">
           <li>{t("attribution.map")}</li>
+          <li>{t("attribution.walk")}</li>
           <li className="flex flex-col">
             <span>{t("attribution.rail")}</span>
             <SourceLink href={railDataUrl}>{railDataUrl}</SourceLink>

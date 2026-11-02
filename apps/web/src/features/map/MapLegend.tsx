@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { MapLabels } from "./labels";
 import type { MapPalette } from "./layers";
+import type { ReachSource } from "./scene";
 import { mapTestIds } from "./testids";
 
 // 凡例。地図と同じ線種のサンプルを添え、色だけに頼らない
@@ -13,7 +14,16 @@ function renderSample(children: ReactNode) {
   );
 }
 
-export function MapLegend({ palette, labels }: { palette: MapPalette; labels: MapLabels }) {
+export function MapLegend({
+  palette,
+  labels,
+  reachSource,
+}: {
+  palette: MapPalette;
+  labels: MapLabels;
+  // 円で概算したときだけ「概算」を添える
+  reachSource: ReachSource | null;
+}) {
   const items: { id: string; sample: ReactNode; text: ReactNode }[] = [
     {
       id: "blocked",
@@ -91,9 +101,14 @@ export function MapLegend({ palette, labels }: { palette: MapPalette; labels: Ma
       text: (
         <>
           {labels.legend.reach}
-          <span className="ml-1 rounded border border-border px-1 text-xs font-bold text-muted">
-            {labels.legend.approx}
-          </span>
+          {reachSource === "circle" && (
+            <span
+              data-testid={mapTestIds.reachApprox}
+              className="ml-1 rounded border border-border px-1 text-xs font-bold text-muted"
+            >
+              {labels.legend.approx}
+            </span>
+          )}
         </>
       ),
     },

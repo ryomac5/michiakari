@@ -1,6 +1,7 @@
 import {
-  computeDistanceMeters,
   type GeoIndex,
+  type IsochroneGeometry,
+  isPointInGeometry,
   type LineInfo,
   type LonLat,
   type NetworkGraph,
@@ -8,10 +9,12 @@ import {
   type StationNode,
 } from "@repo/geo";
 import type { Place, RouteLeg, RouteOption, Section } from "@repo/schema";
+import type { ReachArea } from "./reach";
 
 // 地図に重ねる GeoJSON を判断の状態から組み立てる。表示用の純関数だけを置く
 
-// 徒歩の到達範囲の概算。packages/core/params/walk.ts と同じ値（core が公開していないため写している）
+// 徒歩の到達範囲。Valhalla の事前計算が無い駅は円で概算する
+// 概算の値は packages/core/params/walk.ts と同じ（core が公開していないため写している）
 export const WALK_SPEED_M_PER_MIN = 80;
 export const WALK_DETOUR_FACTOR = 1.3;
 export const WALK_REACH_MINUTES = [10, 20] as const;
@@ -30,9 +33,10 @@ type Feature<G, P> = { type: "Feature"; geometry: G; properties: P };
 export type FeatureCollection<G, P> = { type: "FeatureCollection"; features: Feature<G, P>[] };
 type LineStringGeometry = { type: "LineString"; coordinates: Position[] };
 type PointGeometry = { type: "Point"; coordinates: Position };
-type PolygonGeometry = { type: "Polygon"; coordinates: Position[][] };
 
 export type RouteMode = "ride" | "walk" | "taxi";
+// valhalla は事前計算の到達範囲、circle は円の概算
+export type ReachSource = "valhalla" | "circle";
 export type PlaceRole = "origin" | "destination";
 
 export type MapScene = {
@@ -40,7 +44,9 @@ export type MapScene = {
   destination: Position | null;
   blockedLineIds: string[];
   blocked: FeatureCollection<LineStringGeometry, { label: string }>;
-  reach: FeatureCollection<PolygonGeometry, { minutes: number }>;
+  reach: FeatureCollection<IsochroneGeometry, { minutes: number }>;
+  // 現在地が引けず範囲を描かないときは null
+  reachSource: ReachSource | null;
   reachableStations: FeatureCollection<
     PointGeometry,
     { stationId: string; name: string; color: string }
@@ -63,6 +69,8 @@ export type MapSceneInput = {
   blockedSection: Section | null;
   // 止まっている路線の名前。分からなければ選択肢の「待つ」経路から推し量る
   blockedLine?: string | null;
+  // 現在地の駅の到達範囲（Valhalla）。10 分と 20 分がそろわなければ円で概算する
+  reachAreas?: readonly ReachArea[];
 };
 
 export type MapSceneLabels = {
@@ -305,15 +313,49 @@ export function buildCirclePolygon(center: Position, meters: number, steps = 64)
   return ring;
 }
 
+type ReachFeature = Feature<IsochroneGeometry, { minutes: number }>;
+
+// 到達範囲を広い順に並べる。事前計算が 10 分と 20 分そろっていればそれを、無ければ円を使う
+export function buildReachFeatures(
+  origin: Position,
+  areas: readonly ReachArea[] = [],
+): { source: ReachSource; features: ReachFeature[] } {
+  const byMinutes = new Map<number, IsochroneGeometry>(areas.map((a) => [a.minutes, a.geometry]));
+  const source: ReachSource = WALK_REACH_MINUTES.every((m) => byMinutes.has(m))
+    ? "valhalla"
+    : "circle";
+  const features = [...WALK_REACH_MINUTES]
+    .sort((a, b) => b - a)
+    .map(
+      (minutes): ReachFeature => ({
+        type: "Feature",
+        geometry:
+          source === "valhalla"
+            ? (byMinutes.get(minutes) as IsochroneGeometry)
+            : {
+                type: "Polygon",
+                coordinates: [buildCirclePolygon(origin, computeWalkReachMeters(minutes))],
+              },
+        properties: { minutes },
+      }),
+    );
+  return { source, features };
+}
+
+// 多角形の外周の頂点。地図を寄せる範囲に使う
+function listOuterPositions(geometry: IsochroneGeometry): Position[] {
+  const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
+  return polygons.flatMap((polygon) => (polygon[0] ?? []).map(toPosition));
+}
+
 // 到達範囲内にある、止まっていない路線の駅
 export function listReachableStations(
   nodes: readonly StationNode[],
-  center: Position,
-  meters: number,
+  area: IsochroneGeometry,
   excludedLineIds: readonly string[],
 ): StationNode[] {
   return nodes.filter(
-    (n) => !excludedLineIds.includes(n.lineId) && computeDistanceMeters(center, n.lonLat) <= meters,
+    (n) => !excludedLineIds.includes(n.lineId) && isPointInGeometry(n.lonLat, area),
   );
 }
 
@@ -398,21 +440,10 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
     ? `${labels.blocked} ${input.blockedSection.fromStation}–${input.blockedSection.toStation}`
     : labels.blocked;
 
-  const maxReach = computeWalkReachMeters(Math.max(...WALK_REACH_MINUTES));
-  const reachPolygons = origin
-    ? [...WALK_REACH_MINUTES]
-        .sort((a, b) => b - a)
-        .map((minutes) => ({
-          type: "Feature" as const,
-          geometry: {
-            type: "Polygon" as const,
-            coordinates: [buildCirclePolygon(origin, computeWalkReachMeters(minutes))],
-          },
-          properties: { minutes },
-        }))
-    : [];
-  const reachable = origin
-    ? listReachableStations(geo.nodes, origin, maxReach, blockedLineIds)
+  const reach = origin ? buildReachFeatures(origin, input.reachAreas) : null;
+  const widestReach = reach?.features[0]?.geometry;
+  const reachable = widestReach
+    ? listReachableStations(geo.nodes, widestReach, blockedLineIds)
     : [];
 
   const recommended = input.options.find((o) => o.id === input.recommendedOptionId);
@@ -427,7 +458,7 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
   );
 
   const fitPoints: Position[] = [
-    ...(origin ? (reachPolygons[0]?.geometry.coordinates[0] ?? [origin]) : []),
+    ...(origin ? (widestReach ? listOuterPositions(widestReach) : [origin]) : []),
     ...(destination ? [destination] : []),
     ...routeLegs.flatMap((leg) => leg.coordinates),
     ...(blockedPath?.coordinates ?? []),
@@ -440,7 +471,8 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
     blocked: buildFeatureCollection(
       blockedPath ? [buildLineFeature(blockedPath.coordinates, { label: blockedLabel })] : [],
     ),
-    reach: buildFeatureCollection(reachPolygons),
+    reach: buildFeatureCollection(reach?.features ?? []),
+    reachSource: reach?.source ?? null,
     reachableStations: buildFeatureCollection(
       reachable.map((n) =>
         buildPointFeature(toPosition(n.lonLat), {

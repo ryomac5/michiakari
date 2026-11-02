@@ -27,4 +27,4 @@ services:
       TRUST_PROXY: ${TRUST_PROXY:-false}
     restart: unless-stopped
 
-  # 将来の拡張点: 徒歩経路の Valhalla を導入したら、ここにサービスを足す
+  # 徒歩経路の Valhalla は事前計算専用で、infra/valhalla/compose.yaml で別に起動する

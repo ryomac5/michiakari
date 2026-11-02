@@ -261,6 +261,7 @@
     "attribution": {
       "title": "出典",
       "map": "地図: 国土地理院 / © OpenStreetMap contributors",
+      "walk": "徒歩経路・到達範囲: © OpenStreetMap contributors のデータから Valhalla で計算",
       "rail": "鉄道データ: 「国土数値情報（鉄道データ）」（国土交通省）を加工して作成",
       "ridership": "駅の乗降客数: 「国土数値情報（駅別乗降客数データ）」（国土交通省）を加工して作成",
       "weather": "気象データ: 気象庁"

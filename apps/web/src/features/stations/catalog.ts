@@ -177,12 +177,7 @@ export function searchStationChoices(
   if (/^[\x20-\x7e]+$/.test(query.trim()) && /[a-z]/i.test(query)) {
     return searchByRoman(catalog, query, limit);
   }
-  // カタカナの読みはひらがなにしてから渡す。geo の正規化は表記ゆれのため「ノ」「ケ」を落とすので、読みの「ノ」が消えないようにする
-  // 漢字の駅名（三ノ宮）の「ノ」は変えないよう、全体がカタカナの入力だけを変える
-  const kana = /^[ァ-ヶー\s]+$/.test(query.trim())
-    ? query.replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60))
-    : query;
-  const nodes = index.findStationsByName(kana, 400);
+  const nodes = index.findStationsByName(query, 400);
   return collectGroups(
     catalog,
     nodes.map((n) => n.stationId),
