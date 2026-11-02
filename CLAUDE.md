@@ -77,6 +77,10 @@ pnpm lint && pnpm typecheck
 pnpm format              # Biome で整形
 pnpm validate            # knowledge/ と scenarios/ の YAML と雛形の整合を検証
 pnpm validate:dev        # ダミーの知見・シナリオで同じ検証を行う
+pnpm validate --watch    # knowledge/ と scenarios/ の変更を監視し、そのつど検証する
+pnpm knowledge:new <event_id>                         # 開発者専用。雛形から知見を作る。ALLOW_PROTECTED_EDIT=1 が必要
+pnpm scenario:new <scenario_id> --event <event_id>    # 開発者専用。雛形からシナリオを作る。ALLOW_PROTECTED_EDIT=1 が必要
+pnpm smoke:claude        # 実 API で claude モードを 1 回動かす確認。pnpm test には含めない。キーが無ければ案内して exit 0
 pnpm guard               # knowledge/ と scenarios/ を承認記録との照合、ブランチ差分、シンボリックリンク、内容検証で確認
 pnpm guard:approve       # 開発者専用。ALLOW_PROTECTED_EDIT=1 と TTY での確認が必要
 pnpm data:build          # 前処理（国土数値情報から路線・駅・駅間距離の GeoJSON と JSON を生成）

@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts",
+    "test": "vitest run --passWithNoTests",
+    "smoke:claude": "tsx scripts/smoke-claude.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.3.0",
