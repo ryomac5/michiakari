@@ -8,6 +8,7 @@ import {
   type Lang,
   type Observation,
 } from "@repo/schema";
+import { headlineLimits } from "../config.ts";
 import type { Decision } from "../tools/emit-judgment.ts";
 import type {
   AlternativesToolResult,
@@ -197,8 +198,19 @@ function findUnknownNumbers(field: string, text: string, allowed: AllowedNumbers
   );
 }
 
+// 見出しが上限より長ければ指摘する。理由は分岐点の説明へ回すよう促す
+export function checkHeadlineLength(headline: string, language: Lang): string[] {
+  const length = [...headline].length;
+  const { target, max } = headlineLimits[language];
+  if (length <= max) return [];
+  return [
+    `headline が長すぎます。${length} 文字で、上限は ${max} 文字です。結論だけを ${target} 文字程度で書き、理由は breakEvenExplanation に回してください`,
+  ];
+}
+
 export type JudgmentCheckInput = {
   judgment: unknown;
+  language: Lang;
   evidenceRefs: readonly Evidence[];
   allowedNumbers: AllowedNumbers;
 };
@@ -216,7 +228,7 @@ export function validateJudgment(input: JudgmentCheckInput): {
     };
   }
   const j = parsed.data;
-  const errors = checkJudgmentRefs(j);
+  const errors = [...checkJudgmentRefs(j), ...checkHeadlineLength(j.headline, input.language)];
 
   for (const e of j.evidence) {
     if (!input.evidenceRefs.some((r) => r.kind === e.kind && r.id === e.id)) {

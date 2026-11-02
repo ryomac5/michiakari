@@ -76,6 +76,13 @@ export const decisionParams = {
   switchMarginMinutes: 5,
 } as const;
 
+// 結論の一言（headline）の長さ。target は書き方の目安、max を超えたら検証エラーにする
+// ja は文字数、en は英数字を含む文字数で数える。出典: 開発者の推定（仮）
+export const headlineLimits = {
+  ja: { target: 20, max: 30 },
+  en: { target: 50, max: 80 },
+} as const;
+
 // 気象の取得設定
 export const weatherParams = {
   defaultWindowMinutes: 60,

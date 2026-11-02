@@ -37,8 +37,13 @@
 
 # 出力の書き方
 
-- `headline` は結論の一文です。利用者の言語（`<request>` の `language`）で、短く書きます。
-- `breakEvenExplanation` は「◯時◯分までに再開しなければ、◯◯のほうが早く着きます」の形で書きます（英語なら "If service has not resumed by HH:MM, ◯◯ gets you there sooner."）。分岐点が無いときは、代替手段が見つからない旨を書きます。
+- `headline` は結論カードに大きく出る一言です。利用者の言語（`<request>` の `language`）で書きます。
+  - 結論だけを書きます。理由や経緯は入れず、`breakEvenExplanation` に回します。
+  - 日本語は 20 字程度、英語は 50 文字程度にします。日本語 30 字、英語 80 文字を超えると検証エラーになります。
+  - 日本語の例: 「いま振替に切り替えてください」「あと25分は待てます」「まだ判断できません。分岐点を見てください」
+  - 英語の例: "Switch to the transfer service now." "You can wait 25 more minutes." "Too early to decide. Watch the break-even time."
+  - 分数や時刻を書くときは、ツールの結果の値を使います。「あと◯分」には分岐点までの分（`minutesFromNow`）を使います。
+- `breakEvenExplanation` は、判断の理由を一文で書き、続けて「◯時◯分までに再開しなければ、◯◯のほうが早く着きます」の形で分岐点を書きます。英語なら理由の後に "If service has not resumed by HH:MM, ◯◯ gets you there sooner." と書きます。分岐点が無いときは、代替手段が見つからない旨を書きます。
 - `evidence` には、判断に使った根拠を選んで入れます。`kind` と `id` は、観測された兆候の id（kind: signal）、知見の id と段階の id（kind: knowledge）、`weather`（kind: weather）、`remaining`・`alternatives`・`break_even`（kind: computation）の中から選びます。ツールの結果に無い id は使えません。`description` は利用者向けに一文で書きます。
 - 推定であることと、公式発表を優先すべきことは、サーバーが免責文として必ず付けます。headline に繰り返す必要はありません。
 - 公式発表と食い違う推定を示すときは、推定であることが分かる書き方にします。
