@@ -1,0 +1,30 @@
+# docker build の文脈から除くもの。infra/agent/Dockerfile はルートを文脈にする
+
+# 秘密情報
+.env*
+**/.env*
+
+# 依存とビルド成果物
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/next-env.d.ts
+
+# e2e の成果物
+**/playwright-report
+**/test-results
+e2e/screenshots
+
+# エージェントと開発環境の設定
+.claude
+.agents
+.git
+.github
+.vscode
+**/.DS_Store
+
+# 前処理の元データ
+packages/data/.cache

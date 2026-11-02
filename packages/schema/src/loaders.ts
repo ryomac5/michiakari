@@ -9,8 +9,9 @@ import { type Scenario, ScenarioSchema } from "./scenario.ts";
 
 // start から親へたどり、pnpm-workspace.yaml があるディレクトリを返す
 // import.meta.url に依存しない（Turbopack がバンドル時に import と誤認するため）
+// turbopackIgnore: 実行時に決まるパスを Turbopack に追跡させない。同梱は apps/web の next.config.ts で指定する
 export function findRepoRoot(start: string = process.cwd()): string {
-  let dir = resolve(start);
+  let dir = resolve(/*turbopackIgnore: true*/ start);
   while (!existsSync(join(dir, "pnpm-workspace.yaml"))) {
     const parent = dirname(dir);
     if (parent === dir) throw new Error(`リポジトリルートが見つかりません: ${start}`);

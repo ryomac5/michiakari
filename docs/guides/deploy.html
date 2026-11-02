@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>公開手順書</title>
+<style>
+  :root {
+    --bg: #fbfaf8;
+    --fg: #1d1d1f;
+    --muted: #5d5d63;
+    --line: #dddad3;
+    --panel: #f1efea;
+    --accent: #1f5fa8;
+    --warn-bg: #fff4e0;
+    --warn-line: #e0a93a;
+    --code-bg: #ecebe6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17181a;
+      --fg: #e9e8e4;
+      --muted: #a4a3a0;
+      --line: #34363a;
+      --panel: #202226;
+      --accent: #7fb0ec;
+      --warn-bg: #2d2617;
+      --warn-line: #a9801f;
+      --code-bg: #26282c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17181a;
+    --fg: #e9e8e4;
+    --muted: #a4a3a0;
+    --line: #34363a;
+    --panel: #202226;
+    --accent: #7fb0ec;
+    --warn-bg: #2d2617;
+    --warn-line: #a9801f;
+    --code-bg: #26282c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+    line-height: 1.8;
+    font-size: 16px;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 80px; }
+  h1 { font-size: 1.9rem; margin: 0 0 4px; }
+  h2 { font-size: 1.35rem; margin: 48px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 1.08rem; margin: 28px 0 8px; }
+  p, li { margin: 6px 0; }
+  .lead { color: var(--muted); margin-bottom: 24px; }
+  a { color: var(--accent); }
+  nav { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 20px; }
+  nav ol { margin: 0; padding-left: 1.2em; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.9em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; line-height: 1.55; }
+  pre code { background: none; padding: 0; word-break: normal; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--panel); white-space: nowrap; }
+  .note { background: var(--warn-bg); border-left: 4px solid var(--warn-line); padding: 10px 14px; border-radius: 4px; margin: 14px 0; }
+  ul.check { list-style: none; padding-left: 0; }
+  ul.check li { padding-left: 1.8em; position: relative; }
+  ul.check li::before { content: "□"; position: absolute; left: 0.2em; color: var(--muted); }
+  .diagram { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+  .box { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 12px; }
+  .arrow { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<h1>公開手順書</h1>
+<p class="lead">画面を Vercel に、判断エージェントをコンテナ環境に出す手順です。2026年11月2日時点の構成に合わせています。</p>
+
+<nav>
+<ol>
+  <li><a href="#overview">全体構成</a></li>
+  <li><a href="#vercel">Vercel の設定</a></li>
+  <li><a href="#agent">エージェントのコンテナ公開</a></li>
+  <li><a href="#env">環境変数</a></li>
+  <li><a href="#secret">API キーの管理</a></li>
+  <li><a href="#cors">CORS と頻度制限</a></li>
+  <li><a href="#local">ローカルでの確認</a></li>
+  <li><a href="#checklist">公開前の確認リスト</a></li>
+</ol>
+</nav>
+
+<h2 id="overview">全体構成</h2>
+<div class="diagram">
+  <span class="box">利用者のブラウザ</span><span class="arrow">→</span>
+  <span class="box">画面 apps/web　Vercel</span>
+</div>
+<div class="diagram">
+  <span class="box">利用者のブラウザ</span><span class="arrow">→ POST /judge と SSE →</span>
+  <span class="box">判断エージェント apps/agent　コンテナ</span><span class="arrow">→</span>
+  <span class="box">Claude API</span>
+</div>
+<p>ブラウザはエージェントへ直接つなぎ、判断を SSE で受け取ります。</p>
+<p>API キーを持つのはエージェントだけです。画面はキーを一切持ちません。</p>
+<p>知見とシナリオは、画面とエージェントの両方が実行時に読みます。</p>
+
+<h2 id="vercel">Vercel の設定</h2>
+<h3>プロジェクト設定</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>項目</th><th>値</th></tr>
+  <tr><td>Root Directory</td><td><code>apps/web</code></td></tr>
+  <tr><td>Framework Preset</td><td>Next.js</td></tr>
+  <tr><td>Install Command</td><td>既定のままにします。ルートの <code>pnpm-lock.yaml</code> から pnpm を使います。</td></tr>
+  <tr><td>Build Command</td><td>既定の <code>next build</code> のままにします。</td></tr>
+  <tr><td>Node.js Version</td><td><code>24.x</code> を選びます。</td></tr>
+  <tr><td>Root Directory 外のファイル</td><td>ビルドに含める設定を有効にします。ワークスペースのパッケージと知見を読むためです。</td></tr>
+</table>
+</div>
+
+<h3>環境変数</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>名前</th><th>値の例</th><th>説明</th></tr>
+  <tr><td><code>NEXT_PUBLIC_AGENT_URL</code></td><td><code>https://agent.example.com</code></td><td>エージェントの公開 URL です。末尾にスラッシュを付けません。</td></tr>
+  <tr><td><code>CONTENT_DIR</code></td><td>未設定</td><td>エージェントと同じ値にします。未設定ならリポジトリの <code>knowledge/</code> を読みます。</td></tr>
+  <tr><td><code>NEXT_PUBLIC_JUDGE_MOCK</code></td><td>設定しない</td><td>本番では必ず未設定にします。設定すると固定の判断を表示します。</td></tr>
+</table>
+</div>
+<div class="note">
+<p><code>NEXT_PUBLIC_</code> で始まる値はビルド時に画面へ埋め込まれます。</p>
+<p>値を変えたら再デプロイが必要です。秘密の値には決して使いません。</p>
+</div>
+
+<h3>同梱するファイル</h3>
+<p>画面のサーバー関数は、知見の YAML を fs で読みます。</p>
+<p>そのため <code>apps/web/next.config.ts</code> の <code>outputFileTracingIncludes</code> で同梱を指定しています。</p>
+<div class="table-wrap">
+<table>
+  <tr><th>対象</th><th>理由</th></tr>
+  <tr><td><code>pnpm-workspace.yaml</code></td><td>リポジトリのルートを探す目印です。</td></tr>
+  <tr><td><code>knowledge/</code> と <code>scenarios/</code></td><td>知見の抜粋とリプレイに使います。</td></tr>
+  <tr><td>ダミー内容</td><td><code>packages/schema/test/fixtures/dev-content/</code> です。デモで <code>CONTENT_DIR</code> に指定できます。</td></tr>
+  <tr><td><code>packages/geo/data/</code></td><td>路線と駅のデータです。</td></tr>
+</table>
+</div>
+<p>同梱を変えたら <code>.next/server/app/page.js.nft.json</code> で中身を確かめます。</p>
+
+<h2 id="agent">エージェントのコンテナ公開</h2>
+<h3>イメージの中身</h3>
+<p>定義は <code>infra/agent/Dockerfile</code> です。ビルドの文脈はリポジトリのルートです。</p>
+<ul>
+  <li>Node 24 の型の除去で、TypeScript をそのまま実行します。</li>
+  <li>エージェントが使うワークスペースだけを本番依存で入れます。</li>
+  <li>知見、シナリオ、ダミー内容、路線データを同梱します。</li>
+  <li>実行ユーザーは非 root の <code>node</code> です。</li>
+  <li>待ち受けのポートは <code>PORT</code> で決まり、既定は 8787 です。</li>
+  <li><code>HEALTHCHECK</code> が <code>/health</code> を定期的に確かめます。</li>
+</ul>
+
+<h3>Cloud Run での公開</h3>
+<p>Cloud Run を例に示します。他のコンテナ環境でも流れは同じです。</p>
+<p>以下の <code>PROJECT_ID</code> と <code>REGION</code> は自分の値に置き換えます。</p>
+<pre><code># 1. イメージの置き場所を作る
+gcloud artifacts repositories create kansai \
+  --repository-format=docker --location=REGION
+
+# 2. ビルドして送る。Cloud Run は amd64 で動く
+docker build --platform linux/amd64 -f infra/agent/Dockerfile \
+  -t REGION-docker.pkg.dev/PROJECT_ID/kansai/agent:v1 .
+docker push REGION-docker.pkg.dev/PROJECT_ID/kansai/agent:v1
+
+# 3. API キーを Secret Manager に入れる。値は標準入力から渡す
+gcloud secrets create anthropic-api-key --data-file=-
+
+# 4. デプロイする
+gcloud run deploy kansai-agent \
+  --image REGION-docker.pkg.dev/PROJECT_ID/kansai/agent:v1 \
+  --region REGION \
+  --allow-unauthenticated \
+  --set-env-vars JUDGE_MODE=claude,CORS_ORIGINS=https://your-app.vercel.app \
+  --set-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest \
+  --max-instances 2 \
+  --timeout 300</code></pre>
+<p>Cloud Run は <code>PORT</code> を自動で渡します。指定は不要です。</p>
+<p>判断は SSE で数十秒続きます。タイムアウトは 300 秒あれば足ります。</p>
+<p>デプロイ後に表示される URL を、Vercel の <code>NEXT_PUBLIC_AGENT_URL</code> に入れます。</p>
+
+<h2 id="env">環境変数</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>名前</th><th>既定</th><th>説明</th></tr>
+  <tr><td><code>PORT</code></td><td>8787</td><td>待ち受けるポートです。</td></tr>
+  <tr><td><code>JUDGE_MODE</code></td><td>キーの有無で決まる</td><td><code>claude</code> か <code>deterministic</code> を指定します。公開では明示します。</td></tr>
+  <tr><td><code>ANTHROPIC_API_KEY</code></td><td>なし</td><td>Claude API のキーです。秘密の置き場所から渡します。</td></tr>
+  <tr><td><code>CONTENT_DIR</code></td><td>リポジトリのルート</td><td>知見とシナリオの置き場所です。相対パスはルートから解決します。</td></tr>
+  <tr><td><code>CORS_ORIGINS</code></td><td><code>http://localhost:3000</code></td><td>画面のオリジンです。カンマ区切りで複数指定できます。</td></tr>
+  <tr><td><code>RATE_LIMIT_PER_MINUTE</code></td><td>20</td><td>1 分あたりの <code>/judge</code> の上限です。クライアントごとに数えます。</td></tr>
+  <tr><td><code>TRUST_PROXY</code></td><td>false</td><td>プロキシのヘッダを信用するかの設定です。エージェント側の対応後に有効になります。</td></tr>
+</table>
+</div>
+
+<h2 id="secret">API キーの管理</h2>
+<ul>
+  <li>キーはエージェントの環境変数だけに置きます。</li>
+  <li>Cloud Run では Secret Manager から渡します。</li>
+  <li>Vercel にはキーを登録しません。画面はキーを必要としません。</li>
+  <li><code>NEXT_PUBLIC_</code> の付いた名前にキーを入れることは禁止です。</li>
+  <li><code>.env</code> のファイルはコミットしません。イメージにも入れません。</li>
+  <li>Anthropic Console で利用額の上限を設定します。</li>
+  <li>漏れた疑いがあれば、キーを無効にして作り直します。</li>
+</ul>
+<p><code>.dockerignore</code> は <code>.env*</code> をビルドの文脈から除きます。</p>
+
+<h2 id="cors">CORS と頻度制限</h2>
+<h3>CORS</h3>
+<p><code>CORS_ORIGINS</code> には画面の本番オリジンだけを入れます。</p>
+<p>オリジンは <code>https://</code> から始め、末尾のスラッシュを付けません。</p>
+<p>プレビュー用の URL はデプロイごとに変わります。必要なときだけ一時的に足します。</p>
+<p><code>*</code> は指定しません。他のサイトから API キーの費用を使われるためです。</p>
+
+<h3>頻度制限</h3>
+<p>エージェントは <code>/judge</code> をクライアントごとに 1 分単位で数えます。</p>
+<p>上限を超えると、状態 429 の <code>error</code> イベントを返します。</p>
+<p>数える単位は <code>X-Forwarded-For</code> の先頭の値です。無ければ接続元の IP を使います。</p>
+<div class="note">
+<p>先頭の値は利用者が偽れます。偽ると上限を逃れられます。</p>
+<p>カウンタはインスタンスごとのメモリにあります。台数が増えると上限も増えます。</p>
+</div>
+<p>当面は次の対策を重ねます。</p>
+<ul>
+  <li><code>--max-instances</code> を小さく保ちます。</li>
+  <li>必要なら手前のロードバランサで IP ごとの制限をかけます。</li>
+  <li>Anthropic Console の利用額の上限を最後の防壁にします。</li>
+</ul>
+<p>信用できるプロキシの値だけを使う改修は、エージェント側で予定しています。</p>
+
+<h2 id="local">ローカルでの確認</h2>
+<p>リポジトリのルートで次を実行します。既定は決定論モードとダミー内容です。</p>
+<pre><code>docker compose -f infra/compose.yaml up --build</code></pre>
+<p>別の端末で、生存確認と判断の SSE を確かめます。</p>
+<pre><code>curl http://localhost:8787/health
+
+curl -N -X POST http://localhost:8787/judge \
+  -H 'content-type: application/json' \
+  -d '{"observations":[],
+       "newInput":{"type":"text","text":"JR京都線は人身事故の影響で、大阪駅〜京都駅間で運転を見合わせています。"},
+       "origin":{"kind":"station","name":"大阪"},
+       "destination":{"kind":"station","name":"京都"},
+       "constraints":{"deadline":"2026-11-06T00:25:00+09:00","knowsAlternatives":false,"mobilityNotes":null},
+       "language":"ja","now":"2026-11-05T22:12:00+09:00"}'</code></pre>
+<p>最後に <code>judgment_ready</code> のイベントが届けば成功です。</p>
+<p>Claude を使うときは、ホストで <code>ANTHROPIC_API_KEY</code> を設定して起動します。</p>
+<pre><code>JUDGE_MODE=claude docker compose -f infra/compose.yaml up</code></pre>
+
+<h2 id="checklist">公開前の確認リスト</h2>
+<h3>表示</h3>
+<ul class="check">
+  <li>判断の画面に、推定である旨の注意書きが出ています。</li>
+  <li>注意書きに、公式発表を優先する旨が含まれています。</li>
+  <li>地図の隅に出典が出ています。</li>
+  <li>「このアプリについて」に、全データの出典が並んでいます。</li>
+  <li>出典は <code>docs/data-sources.md</code> の 4 章と一致しています。</li>
+</ul>
+<h3>ログと秘密</h3>
+<ul class="check">
+  <li>判断を数回流し、エージェントのログを読みます。</li>
+  <li>ログに入力の文面、画像、現在地が残っていません。</li>
+  <li>Vercel のログにも入力が残っていません。</li>
+  <li>画面の配信物に API キーが含まれていません。</li>
+  <li><code>NEXT_PUBLIC_JUDGE_MOCK</code> が本番で未設定です。</li>
+</ul>
+<h3>動作</h3>
+<ul class="check">
+  <li><code>JUDGE_MODE=deterministic</code> で判断が最後まで届きます。</li>
+  <li><code>JUDGE_MODE=claude</code> で判断が最後まで届きます。</li>
+  <li>本番の画面から判断を流し、CORS で止まりません。</li>
+  <li>上限を超えて送ると、状態 429 が返ります。</li>
+  <li>起動ログの知見の件数と、読めなかった件数を確かめます。</li>
+  <li><code>CONTENT_DIR</code> が本番の意図どおりの内容を指しています。</li>
+</ul>
+<h3>リポジトリ</h3>
+<ul class="check">
+  <li><code>pnpm typecheck</code>、<code>pnpm lint</code>、<code>pnpm test</code> が通ります。</li>
+  <li><code>pnpm guard</code> が通ります。</li>
+  <li><code>pnpm --filter @repo/web build</code> が警告なく通ります。</li>
+</ul>
+</main>
+</body>
+</html>
