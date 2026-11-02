@@ -83,6 +83,34 @@
 
   --animate-step-in: step-in 320ms ease-out both;
   --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
+  /* リプレイ: 新しい発表のせり上がりと、切り替えへ変わった瞬間の強調 */
+  --animate-rise-in: rise-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-switch-flash: switch-flash 1.2s ease-out 2;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes switch-flash {
+  0% {
+    box-shadow: 0 0 0 0 var(--switch-border);
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.015);
+  }
+  100% {
+    box-shadow: 0 0 0 14px transparent;
+    transform: scale(1);
+  }
 }
 
 @keyframes step-in {

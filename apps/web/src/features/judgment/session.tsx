@@ -109,7 +109,8 @@ export function JudgmentSessionProvider({
   }, [runJudgment, observations]);
 
   const effectiveCatalog = useMemo(
-    () => (mockEnabled ? mergeCatalogs(catalog, personAccidentCatalog) : catalog),
+    // モックのイベントはモック用の段階 id を使うので、モックの抜粋を優先する
+    () => (mockEnabled ? mergeCatalogs(personAccidentCatalog, catalog) : catalog),
     [catalog, mockEnabled],
   );
 

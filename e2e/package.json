@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
+    "record": "playwright test --config playwright.record.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

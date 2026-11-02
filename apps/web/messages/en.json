@@ -30,7 +30,9 @@
     "noResults": "No matching station",
     "clear": "Change",
     "next": "Tell us what is happening",
-    "stationListNote": "The station list is provisional."
+    "stationListNote": "The station list is provisional.",
+    "replayLink": "Watch the demo",
+    "replayNote": "Replay a fictional scenario and see the decision change as announcements update."
   },
   "situation": {
     "heading": "What is happening now?",
@@ -163,6 +165,50 @@
       "title": "Add information",
       "lead": "If there is a new notice or announcement, add it to update the judgment."
     }
+  },
+  "replay": {
+    "heading": "Replay",
+    "lead": "Pick a fictional scenario. Announcements and signs are entered in time order, and you can watch the decision, phase and map change.",
+    "fictional": "All scenarios are fictional. They are not real incidents or official announcements.",
+    "empty": "No scenarios available.",
+    "observationCount": "{count} announcements",
+    "deadline": "Must arrive by {time}",
+    "noDeadline": "No time limit",
+    "back": "Choose another scenario",
+    "play": "Play",
+    "pause": "Pause",
+    "replay": "Again",
+    "next": "Next announcement",
+    "restart": "Back to start",
+    "speed": "Playback speed",
+    "clock": "Scenario time",
+    "progress": "{count}/{total}",
+    "status": {
+      "idle": "Stopped",
+      "playing": "Playing",
+      "paused": "Paused",
+      "judging": "Deciding",
+      "error": "Could not get a decision",
+      "ended": "Replay finished"
+    },
+    "kinds": {
+      "announcement": "New announcement",
+      "signage": "New sign",
+      "station_broadcast": "Station broadcast",
+      "weather": "Weather update",
+      "train_movement": "Train movement"
+    },
+    "ready": {
+      "title": "Ready to replay",
+      "lead": "Press play to decide from the first announcement onward.",
+      "start": "Start replay"
+    },
+    "changed": "Decision changed",
+    "phases": "Phase",
+    "here": "Now",
+    "unknownPhase": "Phase not identified",
+    "history": "Announcements so far",
+    "trip": "{origin} → {destination}"
   },
   "map": {
     "title": "Map",

@@ -1,7 +1,7 @@
 // data-testid の一覧。リプレイ（WS7）と録画が使うので、値を変えるときは e2e も直す
 // e2e からも相対パスで読むので、このファイルは何も import しない
 // 命名規則: <画面>-<領域>[-<要素>]。すべて kebab-case
-//   画面: app（共通）/ start / situation / judgment / about
+//   画面: app（共通）/ start / situation / judgment / replay / about
 //   一覧の要素は末尾に -<id> を付ける（例: judgment-option-transfer_hankyu）
 //   状態は data-state・data-action などの属性で表し、testid には含めない
 
@@ -28,6 +28,7 @@ export const testIds = {
     destinationSelected: "start-destination-selected",
     destinationClear: "start-destination-clear",
     nextButton: "start-next-button",
+    replayLink: "start-replay-link",
   },
   situation: {
     screen: "situation-screen",
@@ -49,6 +50,7 @@ export const testIds = {
     tripSummary: "judgment-trip-summary",
     reasoning: "judgment-reasoning",
     reasoningStep: (id: string) => `judgment-reasoning-step-${id}`,
+    reasoningProgress: (id: string) => `judgment-reasoning-progress-${id}`,
     conclusion: "judgment-conclusion",
     conclusionHeadline: "judgment-conclusion-headline",
     disclaimer: "judgment-disclaimer",
@@ -67,6 +69,28 @@ export const testIds = {
     signal: (id: string) => `judgment-signal-${id}`,
     evidenceItem: (id: string) => `judgment-evidence-item-${id}`,
     addInfo: "judgment-add-info",
+  },
+  // リプレイ。判断の部品は judgment の testid をそのまま使う
+  replay: {
+    screen: "replay-screen",
+    scenarioList: "replay-scenario-list",
+    scenario: (id: string) => `replay-scenario-${id}`,
+    backButton: "replay-back-button",
+    bar: "replay-bar",
+    title: "replay-title",
+    playButton: "replay-play-button",
+    nextButton: "replay-next-button",
+    restartButton: "replay-restart-button",
+    speed: (speed: number) => `replay-speed-${speed}`,
+    clock: "replay-clock",
+    progress: "replay-progress",
+    announcement: "replay-announcement",
+    judgment: "replay-judgment",
+    changeBadge: "replay-change-badge",
+    phaseStrip: "replay-phase-strip",
+    phase: (id: string) => `replay-phase-${id}`,
+    history: "replay-history",
+    historyItem: (observationId: string) => `replay-history-item-${observationId}`,
   },
   about: {
     screen: "about-screen",

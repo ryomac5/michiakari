@@ -63,6 +63,16 @@ describe("streamJudgment", () => {
     });
   });
 
+  it("知らない種類のイベントは読み飛ばして続ける", async () => {
+    const [first, ...rest] = events;
+    const unknown = `event: future_event\ndata: {"type":"future_event","seq":1,"at":"2026-11-05T22:40:00+09:00"}\n\n`;
+    const body = `${encodeSse([first])}${unknown}${encodeSse(rest)}`;
+    const out = await collect(
+      streamJudgment(request, { fetchImpl: async () => buildSseResponse(body) }),
+    );
+    expect(out).toEqual(events);
+  });
+
   it("JSON として読めない data は error にする", async () => {
     const out = await collect(
       streamJudgment(request, { fetchImpl: async () => buildSseResponse("data: {oops\n\n") }),

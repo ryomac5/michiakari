@@ -40,7 +40,21 @@ export function buildClientError(
   };
 }
 
-type ParseResult = { ok: true; event: JudgmentEvent } | { ok: false; reason: string };
+type ParseResult =
+  | { ok: true; event: JudgmentEvent }
+  | { ok: false; reason: string }
+  | { ok: "skip"; type: string };
+
+const knownEventTypes: ReadonlySet<string> = new Set(
+  JudgmentEventSchema.options.map((option) => option.shape.type.value),
+);
+
+// 画面が知らない種類のイベント。エージェント側で種類が増えても読み飛ばして続ける
+function findUnknownEventType(json: unknown): string | null {
+  if (typeof json !== "object" || json === null || !("type" in json)) return null;
+  const type = json.type;
+  return typeof type === "string" && !knownEventTypes.has(type) ? type : null;
+}
 
 // 1 メッセージを JudgmentEventSchema で検証する。event 名と type の食い違いも不正とする
 export function parseJudgmentEvent(message: SseMessage): ParseResult {
@@ -50,6 +64,8 @@ export function parseJudgmentEvent(message: SseMessage): ParseResult {
   } catch {
     return { ok: false, reason: "invalid_json" };
   }
+  const unknownType = findUnknownEventType(json);
+  if (unknownType !== null) return { ok: "skip", type: unknownType };
   const parsed = JudgmentEventSchema.safeParse(json);
   if (!parsed.success) return { ok: false, reason: "invalid_event" };
   if (message.event !== null && message.event !== "message" && message.event !== parsed.data.type) {
@@ -98,6 +114,7 @@ export async function* streamJudgment(
       const messages = done ? parser.flush() : parser.push(value);
       for (const message of messages) {
         const result = parseJudgmentEvent(message);
+        if (result.ok === "skip") continue;
         if (!result.ok) {
           yield buildClientError(result.reason, true, lastSeq);
           return;

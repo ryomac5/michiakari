@@ -1,0 +1,219 @@
+/// <reference lib="dom" />
+// page 内で動かす関数（addInitScript・evaluate）のために DOM の型を読む
+import { fileURLToPath } from "node:url";
+import { expect, type Page, test } from "@playwright/test";
+import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import type { Expectation, Scenario } from "../../packages/schema/src/scenario.ts";
+import {
+  loadReplayScenarios,
+  openReplay,
+  waitForFiniteAnimations,
+  waitForJudged,
+} from "../support/replay.ts";
+
+// シナリオの振る舞いテスト（architecture.md 7.2）
+// CONTENT_DIR のすべてのシナリオをリプレイで流し、YAML の expectations を画面の DOM で確かめる
+// シナリオ ID と期待値はコードに書かず、YAML から生成する
+
+const screenshotDir = fileURLToPath(new URL("../screenshots/", import.meta.url));
+// テスト用の再生速度。シナリオの 60 分を実時間 1 秒で進める
+const testSpeed = 60;
+const scenarios = loadReplayScenarios();
+
+test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+test.setTimeout(180_000);
+
+test("CONTENT_DIR にシナリオがあり、一覧から選べる", async ({ page }) => {
+  expect(scenarios.length).toBeGreaterThan(0);
+  await page.goto("/replay");
+  for (const scenario of scenarios) {
+    await expect(page.getByTestId(testIds.replay.scenario(scenario.id))).toBeVisible({
+      timeout: 60_000,
+    });
+  }
+  const [first] = scenarios;
+  if (!first) return;
+  await page.getByTestId(testIds.replay.scenario(first.id)).click();
+  await expect(page.getByTestId(testIds.replay.screen)).toHaveAttribute(
+    "data-scenario-id",
+    first.id,
+  );
+  await expect(page.getByTestId(testIds.replay.progress)).toHaveAttribute(
+    "data-total",
+    String(first.timeline.length),
+  );
+});
+
+// 期待する振る舞い 1 件を、いま表示中の判断について確かめる
+async function checkExpectation(page: Page, expectation: Expectation): Promise<void> {
+  const judgment = page.getByTestId(testIds.replay.judgment);
+  const label = `${expectation.after}: ${expectation.note}`;
+
+  if (expectation.action !== undefined) {
+    await expect(page.getByTestId(testIds.judgment.conclusion), label).toHaveAttribute(
+      "data-action",
+      expectation.action,
+    );
+  }
+  if (expectation.phase !== undefined) {
+    await expect(judgment, label).toHaveAttribute("data-phase-id", expectation.phase);
+    await expect(page.getByTestId(testIds.replay.phase(expectation.phase)), label).toHaveAttribute(
+      "data-position",
+      "current",
+    );
+  }
+  for (const id of expectation.evidence_includes ?? []) {
+    await expect(judgment, label).toHaveAttribute(
+      "data-evidence-ids",
+      new RegExp(`(^| )${id}( |$)`),
+    );
+    await expect(page.getByTestId(testIds.judgment.evidenceItem(id)).first(), label).toBeVisible();
+  }
+  if (expectation.break_even_shown !== undefined) {
+    const breakEven = page.getByTestId(testIds.judgment.breakEven);
+    if (expectation.break_even_shown) {
+      await expect(breakEven, label).toHaveAttribute("data-state", /^(open|soon|passed)$/);
+      await expect(page.getByTestId(testIds.judgment.breakEvenTime), label).toHaveText(
+        /^\d{2}:\d{2}$/,
+      );
+    } else {
+      await expect(breakEven, label).toHaveAttribute("data-state", "none");
+    }
+  }
+}
+
+// 画面の上端と、ページ全体（-full）を撮る
+async function captureReplay(page: Page, name: string): Promise<void> {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await waitForFiniteAnimations(page);
+  await page.screenshot({ path: `${screenshotDir}${name}-390x844.png` });
+  await page.screenshot({ path: `${screenshotDir}${name}-390x844-full.png`, fullPage: true });
+}
+
+// 判断が確定するたびに、表示中の観測 id を記録する
+async function recordJudgedObservations(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const log: string[] = [];
+    Object.assign(window, { __judgedLog: log });
+    new MutationObserver(() => {
+      const el = document.querySelector("[data-testid='replay-judgment']");
+      const id = el?.getAttribute("data-observation-id") ?? "";
+      if (el?.getAttribute("data-status") === "ready" && id !== "" && log.at(-1) !== id) {
+        log.push(id);
+      }
+    }).observe(document, { subtree: true, attributes: true, childList: true });
+  });
+}
+
+function findExpectations(scenario: Scenario, observationId: string): Expectation[] {
+  return scenario.expectations.filter((e) => e.after === observationId);
+}
+
+for (const scenario of scenarios) {
+  test.describe(`シナリオ ${scenario.id}`, () => {
+    test("観測を 1 件ずつ入れると、毎回結論と分岐点が更新され、期待どおりの振る舞いになる", async ({
+      page,
+    }) => {
+      await openReplay(page, scenario.id, testSpeed);
+      const bar = page.getByTestId(testIds.replay.bar);
+
+      for (const [index, entry] of scenario.timeline.entries()) {
+        await page.getByTestId(testIds.replay.nextButton).click();
+        await waitForJudged(page, entry.id);
+
+        // 新しい発表が表示され、進捗と時刻が進む
+        await expect(page.getByTestId(testIds.replay.announcement)).toHaveAttribute(
+          "data-observation-id",
+          entry.id,
+        );
+        await expect(page.getByTestId(testIds.replay.progress)).toHaveAttribute(
+          "data-entered",
+          String(index + 1),
+        );
+        await expect(page.getByTestId(testIds.replay.clock)).toHaveText(/\d{2}:\d{2}$/);
+
+        // 結論と分岐点が、この観測の判断で描き直されている
+        await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
+          "data-action",
+          /^(wait|switch|hold)$/,
+        );
+        await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).not.toBeEmpty();
+        const breakEvenFrame = page.locator(`[data-observation-id="${entry.id}"]`, {
+          has: page.getByTestId(testIds.judgment.breakEven),
+        });
+        await expect(breakEvenFrame).toBeVisible();
+        await expect(page.getByTestId(testIds.judgment.breakEven)).toHaveAttribute(
+          "data-state",
+          /^(open|soon|passed|none)$/,
+        );
+        await expect(page.getByTestId(testIds.judgment.breakEven)).toHaveAttribute(
+          "data-stale",
+          "false",
+        );
+        await expect(page.getByTestId(testIds.replay.historyItem(entry.id))).toHaveAttribute(
+          "data-action",
+          /^(wait|switch|hold)$/,
+        );
+
+        // 根拠は既定で閉じているので、最初の判断の後に開いておく
+        if (index === 0) await page.getByTestId(testIds.judgment.evidenceToggle).click();
+
+        for (const expectation of findExpectations(scenario, entry.id)) {
+          await checkExpectation(page, expectation);
+          if (expectation.action === "switch") {
+            await captureReplay(page, `replay-${scenario.id}-${entry.id}`);
+          }
+        }
+      }
+
+      await expect(page.getByTestId(testIds.replay.screen)).toHaveAttribute("data-state", "ended");
+      await expect(bar).toHaveAttribute("data-state", "ended");
+      await captureReplay(page, `replay-${scenario.id}-end`);
+    });
+
+    test(`再生すると ${testSpeed}x で最後まで流れ、観測ごとに判断が確定して履歴に残る`, async ({
+      page,
+    }) => {
+      await recordJudgedObservations(page);
+      await openReplay(page, scenario.id, testSpeed);
+      await expect(page.getByTestId(testIds.replay.speed(testSpeed))).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+
+      await page.getByTestId(testIds.replay.playButton).click();
+      await expect(page.getByTestId(testIds.replay.screen)).toHaveAttribute("data-state", "ended", {
+        timeout: 120_000,
+      });
+
+      // 各観測の判断が順に画面へ出ている
+      const log = await page.evaluate(
+        () => (window as unknown as { __judgedLog: string[] }).__judgedLog,
+      );
+      expect(log).toEqual(scenario.timeline.map((entry) => entry.id));
+
+      for (const expectation of scenario.expectations) {
+        const item = page.getByTestId(testIds.replay.historyItem(expectation.after));
+        const label = `${expectation.after}: ${expectation.note}`;
+        if (expectation.action !== undefined) {
+          await expect(item, label).toHaveAttribute("data-action", expectation.action);
+        }
+        if (expectation.phase !== undefined) {
+          await expect(item, label).toHaveAttribute("data-phase-id", expectation.phase);
+        }
+        for (const id of expectation.evidence_includes ?? []) {
+          await expect(item, label).toHaveAttribute(
+            "data-evidence-ids",
+            new RegExp(`(^| )${id}( |$)`),
+          );
+        }
+        if (expectation.break_even_shown !== undefined) {
+          await expect(item, label).toHaveAttribute(
+            "data-break-even-shown",
+            String(expectation.break_even_shown),
+          );
+        }
+      }
+    });
+  });
+}
