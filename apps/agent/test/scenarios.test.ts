@@ -1,6 +1,6 @@
 import type { JudgmentEvent } from "@repo/schema";
 import { describe, expect, it } from "vitest";
-import { headlineLimits } from "../src/config.ts";
+import { headlineLimits, reasonLimits } from "../src/config.ts";
 import { createTestApp, createTestDeps, replayScenario } from "./helpers.ts";
 
 // 決定論モードで、ダミーの各シナリオの expectations を満たすことを確かめる
@@ -31,6 +31,18 @@ describe("決定論モードのシナリオ", () => {
           const headline = findJudgment(step.events)?.headline ?? "";
           expect(headline.length, step.entry.id).toBeGreaterThan(0);
           expect([...headline].length, step.entry.id).toBeLessThanOrEqual(limit);
+        }
+      });
+
+      it("すべての観測で、理由が空でなく上限に収まり、分岐点の説明と重ならない", async () => {
+        const steps = await stepsPromise;
+        const { max } = reasonLimits[scenario.user.language];
+        for (const step of steps) {
+          const judgment = findJudgment(step.events);
+          const reason = judgment?.reason ?? "";
+          expect(reason.length, step.entry.id).toBeGreaterThan(0);
+          expect([...reason].length, step.entry.id).toBeLessThanOrEqual(max);
+          expect(judgment?.breakEven?.explanation ?? "", step.entry.id).not.toContain(reason);
         }
       });
 

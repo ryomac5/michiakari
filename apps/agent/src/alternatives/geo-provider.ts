@@ -12,6 +12,7 @@ import {
 } from "@repo/geo";
 import { loadGeoIndex, loadRouter } from "@repo/geo/node";
 import type { Lang, Place, RouteLeg, RouteOption } from "@repo/schema";
+import { findLineNicknameEn } from "./line-names-en.ts";
 import type {
   AlternativesProvider,
   AlternativesQuery,
@@ -198,6 +199,32 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
     return { ...option, label: localizeLabel(option), legs: option.legs.map(localizeLeg) };
   }
 
+  // 観測の路線名を画面の言語に合わせる。英語に直せなければ null を返し、路線データの名前を使う
+  function localizeObservedLine(name: string, language: Lang): string | null {
+    if (language === "ja" || !/[^\p{ASCII}]/u.test(name)) return name;
+    const nickname = findLineNicknameEn(name);
+    if (nickname) return nickname;
+    const key = normalizeSearchText(name);
+    const line = geo.listLines().find((l) => collectLineKeys(l).includes(key));
+    return line?.nameEn ? formatLineName(line, "en") : null;
+  }
+
+  // 待つ選択肢のラベルと、止まっている路線の区間の路線名を、利用者の呼び方（観測の line）に揃える
+  function applyObservedLine(
+    option: RouteOption,
+    lineId: string,
+    query: AlternativesQuery,
+  ): RouteOption {
+    const line = query.blockedLine ? localizeObservedLine(query.blockedLine, query.language) : null;
+    if (option.kind !== "wait" || line === null) return option;
+    if (!option.legs.some((l) => l.lineId === lineId)) return option;
+    return {
+      ...option,
+      label: formatRouteLabel({ kind: "wait", isTransferService: false, line }, query.language),
+      legs: option.legs.map((l) => (l.lineId === lineId ? { ...l, line } : l)),
+    };
+  }
+
   // 経路を引けないときの待つ選択肢。到着ではなく、乗れる見込みの時刻を示す
   function buildUnroutedWaitOption(query: AlternativesQuery, place: string): RouteOption {
     const legs: RouteLeg[] = [
@@ -275,7 +302,11 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
       ...alternatives,
       taxi,
     ].map((o) =>
-      localizeOption(attachAccessWalks(o, origin, destination, query.language), query.language),
+      applyObservedLine(
+        localizeOption(attachAccessWalks(o, origin, destination, query.language), query.language),
+        waitLineId,
+        query,
+      ),
     );
 
     return {

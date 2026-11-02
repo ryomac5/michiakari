@@ -4,12 +4,7 @@ import type { Decision } from "../tools/emit-judgment.ts";
 import type { WeatherToolResult } from "../tools/types.ts";
 import type { JudgmentToolResults } from "./assemble.ts";
 import { buildComputedBreakEven, type JudgeSession } from "./session.ts";
-import {
-  buildDecisionText,
-  buildNoAlternativeSentence,
-  type DecisionReason,
-  joinReasonAndExplanation,
-} from "./templates.ts";
+import { buildDecisionText, buildNoAlternativeSentence, type DecisionReason } from "./templates.ts";
 
 // 決定論モードの判断規則。API キーが無いときと Claude の失敗時に使う
 
@@ -91,15 +86,18 @@ export function decideDeterministically(
     reason: outcome.reason,
     language,
     breakEvenMinutesFromNow: hasBreakEven ? r.minutesFromNow : null,
+    breakEvenTime: hasBreakEven ? r.time : null,
+    resumeP50: hasBreakEven ? (r.resumeOutlook?.resumeP50 ?? null) : null,
+    resumeP80: hasBreakEven ? (r.resumeOutlook?.resumeP80 ?? null) : null,
+    marginP50Minutes: hasBreakEven ? (r.resumeOutlook?.marginP50Minutes ?? null) : null,
+    deadline: results.breakEven.deadline,
     bestOption,
-    boardableP50: results.estimate.boardableP50,
   });
   return {
     action: outcome.action,
     headline: text.headline,
-    breakEvenExplanation: computed
-      ? joinReasonAndExplanation(text.reason, computed.explanation, language)
-      : buildNoAlternativeSentence(language),
+    reason: text.reason,
+    breakEvenExplanation: computed?.explanation ?? buildNoAlternativeSentence(language),
     recommendedOptionId: outcome.recommendedOptionId,
     evidence: session.collectEvidenceRefs(),
   };

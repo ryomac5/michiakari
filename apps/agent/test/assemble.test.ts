@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { headlineLimits } from "../src/config.ts";
+import { headlineLimits, reasonLimits } from "../src/config.ts";
 import {
   assembleJudgment,
   checkHeadlineLength,
+  checkReasonLength,
   extractTextNumbers,
 } from "../src/judge/assemble.ts";
 import { createEventSink } from "../src/judge/event-sink.ts";
@@ -65,6 +66,7 @@ describe("assembleJudgment", () => {
     const tampered = {
       action: "hold",
       headline: "様子を見ましょう",
+      reason: "理由",
       breakEvenExplanation: "説明",
       recommendedOptionId: null,
       evidence: [{ kind: "signal", id: signalId, description: "根拠" }],
@@ -82,7 +84,14 @@ describe("assembleJudgment", () => {
     };
     const decision = DecisionSchema.parse(tampered);
     expect(Object.keys(decision).sort()).toEqual(
-      ["action", "breakEvenExplanation", "evidence", "headline", "recommendedOptionId"].sort(),
+      [
+        "action",
+        "breakEvenExplanation",
+        "evidence",
+        "headline",
+        "reason",
+        "recommendedOptionId",
+      ].sort(),
     );
     const judgment = assembleJudgment(
       results,
@@ -94,6 +103,7 @@ describe("assembleJudgment", () => {
     const r = results.breakEven.result;
     if (r.kind !== "future" && r.kind !== "passed") throw new Error("分岐点がありません");
     expect(judgment.breakEven).toEqual({ time: r.time, explanation: "説明" });
+    expect(judgment.reason).toBe("理由");
     expect(judgment.disclaimer.length).toBeGreaterThan(0);
   });
 });
@@ -106,6 +116,7 @@ describe("validateJudgment", () => {
       {
         action: "switch",
         headline: "3時33分までに切り替えてください",
+        reason: "理由",
         breakEvenExplanation: "説明",
         recommendedOptionId: "wait",
         evidence: [{ kind: "signal", id: "unknown_signal", description: "根拠" }],
@@ -128,6 +139,7 @@ describe("validateJudgment", () => {
       {
         action: "hold",
         headline: `あと 7777分で再開します。タクシーは${fare.toLocaleString("ja-JP")}円です`,
+        reason: "6661分後に再開するためです。",
         breakEvenExplanation: "3時ごろまで待ちましょう。about 999 min, ¥12,345 or 54321 yen",
         recommendedOptionId: null,
         evidence: [{ kind: "signal", id: signalId, description: "8881分で直ります" }],
@@ -136,11 +148,12 @@ describe("validateJudgment", () => {
     );
     const { errors } = session.checkJudgment(judgment, results);
     const joined = errors.join("\n");
-    for (const raw of ["7777分", "3時", "999 min", "¥12,345", "54321 yen", "8881分"]) {
+    for (const raw of ["7777分", "6661分", "3時", "999 min", "¥12,345", "54321 yen", "8881分"]) {
       expect(joined).toContain(raw);
     }
     expect(joined).not.toContain(`${fare.toLocaleString("ja-JP")}円`);
     expect(errors.filter((e) => e.startsWith("evidence[0].description"))).toHaveLength(1);
+    expect(errors.filter((e) => e.startsWith("reason"))).toHaveLength(1);
   });
 
   it("ツールの結果の残り時間・徒歩・運賃の数値なら通る", async () => {
@@ -155,6 +168,7 @@ describe("validateJudgment", () => {
       {
         action: "hold",
         headline: `再開まで約${remaining.p50}分、遅いと${remaining.p80}分`,
+        reason: `振替なら徒歩${option.walkMinutes}分で済むためです。`,
         breakEvenExplanation: `振替は徒歩${option.walkMinutes}分、タクシーは ¥${fare}`,
         recommendedOptionId: null,
         evidence: [{ kind: "signal", id: signalId, description: `p50 ${remaining.p50} min` }],
@@ -173,6 +187,9 @@ describe("validateJudgment", () => {
       {
         action: "hold",
         headline: `${formatClock(r.time, "ja")}までに再開しなければ切り替えを考えましょう`,
+        reason: r.resumeOutlook
+          ? `再開見込み${formatClock(r.resumeOutlook.resumeP50, "ja")}頃と分岐点${formatClock(r.time, "ja")}を比べたためです。`
+          : `分岐点${formatClock(r.time, "ja")}を見たためです。`,
         breakEvenExplanation: "説明",
         recommendedOptionId: null,
         evidence: [{ kind: "signal", id: signalId, description: "根拠" }],
@@ -200,6 +217,7 @@ describe("checkHeadlineLength", () => {
       {
         action: "hold",
         headline: "あ".repeat(headlineLimits.ja.max + 1),
+        reason: "理由",
         breakEvenExplanation: "説明",
         recommendedOptionId: null,
         evidence: [{ kind: "signal", id: signalId, description: "根拠" }],
@@ -209,6 +227,35 @@ describe("checkHeadlineLength", () => {
     const { judgment: valid, errors } = session.checkJudgment(judgment, results);
     expect(valid).toBeNull();
     expect(errors.some((e) => e.startsWith("headline が長すぎます"))).toBe(true);
+  });
+});
+
+describe("checkReasonLength", () => {
+  it("上限ちょうどは通し、超えたら指摘する", () => {
+    for (const language of ["ja", "en"] as const) {
+      const { max } = reasonLimits[language];
+      expect(checkReasonLength("あ".repeat(max), language)).toEqual([]);
+      expect(checkReasonLength("あ".repeat(max + 1), language)).toHaveLength(1);
+    }
+  });
+
+  it("長すぎる理由は判断の検証でも指摘する", async () => {
+    const { session, results, signalId } = await prepareSession();
+    const judgment = assembleJudgment(
+      results,
+      {
+        action: "hold",
+        headline: "様子を見ましょう",
+        reason: "あ".repeat(reasonLimits.ja.max + 1),
+        breakEvenExplanation: "説明",
+        recommendedOptionId: null,
+        evidence: [{ kind: "signal", id: signalId, description: "根拠" }],
+      },
+      "ja",
+    );
+    const { judgment: valid, errors } = session.checkJudgment(judgment, results);
+    expect(valid).toBeNull();
+    expect(errors.some((e) => e.startsWith("reason が長すぎます"))).toBe(true);
   });
 });
 

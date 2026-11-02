@@ -38,12 +38,18 @@
 # 出力の書き方
 
 - `headline` は結論カードに大きく出る一言です。利用者の言語（`<request>` の `language`）で書きます。
-  - 結論だけを書きます。理由や経緯は入れず、`breakEvenExplanation` に回します。
+  - 結論だけを書きます。理由や経緯は入れず、`reason` に回します。
   - 日本語は 20 字程度、英語は 50 文字程度にします。日本語 30 字、英語 80 文字を超えると検証エラーになります。
   - 日本語の例: 「いま振替に切り替えてください」「あと25分は待てます」「まだ判断できません。分岐点を見てください」
   - 英語の例: "Switch to the transfer service now." "You can wait 25 more minutes." "Too early to decide. Watch the break-even time."
   - 分数や時刻を書くときは、ツールの結果の値を使います。「あと◯分」には分岐点までの分（`minutesFromNow`）を使います。
-- `breakEvenExplanation` は、判断の理由を一文で書き、続けて「◯時◯分までに再開しなければ、◯◯のほうが早く着きます」の形で分岐点を書きます。英語なら理由の後に "If service has not resumed by HH:MM, ◯◯ gets you there sooner." と書きます。分岐点が無いときは、代替手段が見つからない旨を書きます。
+- `reason` は結論の理由です。見出しの下に中くらいの文字で出ます。
+  - 判断の根拠を、比較の形で 1〜2 文で書きます。再開見込みと分岐点、待つ場合と期限など、何と何を比べてそう決めたかが分かるようにします。
+  - 日本語は 60 字程度、英語は 150 文字程度にします。日本語 90 字、英語 200 文字を超えると検証エラーになります。
+  - 日本語の例: 「再開見込み23時40分頃が、分岐点23時23分より遅いためです。」「見込みの幅が大きく、まだどちらとも言えません。」「待つと期限の23時50分に間に合わず、振替なら間に合うためです。」
+  - 英語の例: "Resumption is expected around 23:40, later than the break-even time of 23:23." "The outlook is still too uncertain to favor either option."
+  - 時刻や分数はツールの結果の表示をそのまま写します。止まっている路線を書くときは、観測の `line` の呼び方を使います。
+- `breakEvenExplanation` は分岐点の意味だけを「◯時◯分までに再開しなければ、◯◯のほうが早く着きます」の形で書きます。英語なら "If service has not resumed by HH:MM, ◯◯ gets you there sooner." と書きます。理由は `reason` に書き、ここには繰り返しません。分岐点が無いときは、代替手段が見つからない旨を書きます。
 - `evidence` には、判断に使った根拠を選んで入れます。`kind` と `id` は、観測された兆候の id（kind: signal）、知見の id と段階の id（kind: knowledge）、`weather`（kind: weather）、`remaining`・`alternatives`・`break_even`（kind: computation）の中から選びます。ツールの結果に無い id は使えません。`description` は利用者向けに一文で書きます。
 - 推定であることと、公式発表を優先すべきことは、サーバーが免責文として必ず付けます。headline に繰り返す必要はありません。
 - 公式発表と食い違う推定を示すときは、推定であることが分かる書き方にします。

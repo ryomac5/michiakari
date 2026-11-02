@@ -54,11 +54,17 @@ export type DecisionTextInput = {
   language: Lang;
   // 分岐点までの分。待てる残りの時間として見出しに使う
   breakEvenMinutesFromNow: number | null;
+  // 分岐点（運転再開の期限）。無ければ null
+  breakEvenTime: string | null;
+  // 運転再開の見込み時刻（p50・p80）と、分岐点 − 再開見込み p50 の分。見込みが無ければ null
+  resumeP50: string | null;
+  resumeP80: string | null;
+  marginP50Minutes: number | null;
+  deadline: string | null;
   bestOption: Pick<RouteOption, "kind" | "label" | "isTransferService"> | null;
-  boardableP50: string | null;
 };
 
-// 見出しは結論だけの短い一言。理由や経緯は reason に分ける
+// 見出しは結論だけの短い一言。理由は比較の形で reason に分ける
 export type DecisionText = {
   headline: string;
   reason: string;
@@ -73,93 +79,118 @@ function nameSwitchTarget(option: DecisionTextInput["bestOption"], language: Lan
   return ja ? "別の路線" : "another line";
 }
 
-// 決定論モードの見出しと理由
-export function buildDecisionText(input: DecisionTextInput): DecisionText {
+// 決定論モードの理由。判断の根拠を、時刻どうしの比較の形で 1〜2 文にする
+function buildDecisionReason(input: DecisionTextInput): string {
   const ja = input.language === "ja";
-  const best = input.bestOption?.label ?? (ja ? "代替手段" : "the alternative");
-  const boardable = input.boardableP50 ? formatClock(input.boardableP50, input.language) : null;
+  const clock = (iso: string | null) => (iso ? formatClock(iso, input.language) : null);
+  const be = clock(input.breakEvenTime);
+  const p50 = clock(input.resumeP50);
+  const p80 = clock(input.resumeP80);
+  const deadline = clock(input.deadline);
+  const target = nameSwitchTarget(input.bestOption, input.language);
+  switch (input.reason) {
+    case "unknown_event":
+      return ja
+        ? "事象を特定できず、再開の見込みを分岐点と比べられません。"
+        : "The cause is unknown, so the outlook cannot be compared with the break-even time.";
+    case "no_alternative":
+      return ja
+        ? "代替手段が見つからず、待つほかに比べる手段がありません。"
+        : "No alternative route was found, so there is nothing to compare with waiting.";
+    case "break_even_passed":
+      if (!be) {
+        return ja
+          ? `分岐点を過ぎ、いま再開しても${target}より早く着けないためです。`
+          : `The break-even time has passed, so even an immediate resumption cannot beat ${target}.`;
+      }
+      return ja
+        ? `分岐点の${be}を過ぎ、いま再開しても${target}より早く着けないためです。`
+        : `The break-even time of ${be} has passed, so even an immediate resumption cannot beat ${target}.`;
+    case "rain_continuing":
+      return ja
+        ? "雨が続き、代替経路も止まるおそれがあるため、まだ比べられません。"
+        : "Rain continues and alternative routes may also stop, so the options cannot be compared yet.";
+    case "low_confidence":
+      return ja
+        ? "見込みの幅が大きく、まだどちらとも言えません。"
+        : "The outlook is still too uncertain to favor either option.";
+    case "estimate_extended":
+      if (!p80 || !be) {
+        return ja
+          ? "再開見込みが延長され、さらに延びるおそれがあるためです。"
+          : "The resumption estimate was extended and may slip further.";
+      }
+      return ja
+        ? `見込みが延長され、遅めの再開見込み${p80}頃が分岐点${be}より遅いためです。`
+        : `The estimate was extended, and the later outlook of ${p80} is past the break-even time of ${be}.`;
+    case "resume_after_break_even":
+      if (!p50 || !be) {
+        return ja
+          ? "再開見込みが分岐点より遅いためです。"
+          : "Resumption is expected after the break-even time.";
+      }
+      return ja
+        ? `再開見込み${p50}頃が、分岐点${be}より遅いためです。`
+        : `Resumption is expected around ${p50}, later than the break-even time of ${be}.`;
+    case "deadline_risk":
+      if (!deadline) {
+        return ja
+          ? `待つと期限に間に合わず、${target}なら間に合うためです。`
+          : `Waiting would miss your deadline, while ${target} would make it.`;
+      }
+      return ja
+        ? `待つと期限の${deadline}に間に合わず、${target}なら間に合うためです。`
+        : `Waiting would miss your ${deadline} deadline, while ${target} would make it.`;
+    case "resume_before_break_even":
+      if (!p50 || !be || input.marginP50Minutes === null) {
+        return ja
+          ? "待つほうが早く着く見込みです。"
+          : "Waiting is expected to get you there sooner.";
+      }
+      // 分岐点をわずかに過ぎる見込みでも、乗り換えの手間を考えて待つ場合がある
+      if (input.marginP50Minutes < 0) {
+        return ja
+          ? `再開見込み${p50}頃と分岐点${be}の差が小さく、乗り換えるほどの差がないためです。`
+          : `Resumption around ${p50} is close to the break-even time of ${be}, too close to justify switching.`;
+      }
+      return ja
+        ? `再開見込み${p50}頃が、分岐点${be}より早いためです。`
+        : `Resumption is expected around ${p50}, earlier than the break-even time of ${be}.`;
+  }
+}
+
+function buildDecisionHeadline(input: DecisionTextInput): string {
+  const ja = input.language === "ja";
   const target = nameSwitchTarget(input.bestOption, input.language);
   const switchHeadline = ja ? `いま${target}に切り替えてください` : `Switch to ${target} now.`;
   const holdHeadline = ja
     ? "まだ判断できません。分岐点を見てください"
     : "Too early to decide. Watch the break-even time.";
+  const waitHeadline = ja ? "運転再開を待ってください" : "Wait for service to resume.";
   switch (input.reason) {
     case "unknown_event":
-      return {
-        headline: holdHeadline,
-        reason: ja ? "事象を特定できていません。" : "The cause could not be identified.",
-      };
-    case "no_alternative":
-      return {
-        headline: ja ? "運転再開を待ってください" : "Wait for service to resume.",
-        reason: ja ? "代替手段が見つかりません。" : "No alternative route was found.",
-      };
-    case "break_even_passed":
-      return {
-        headline: switchHeadline,
-        reason: ja
-          ? "待ち続けても、代替手段より早くは着けません。"
-          : "Waiting can no longer beat the alternative.",
-      };
-    case "rain_continuing":
-      return {
-        headline: ja ? "雨が続くあいだは判断を保留します" : "Holding off while the rain continues.",
-        reason: ja
-          ? "雨が続くあいだは、代替経路も止まりやすくなります。"
-          : "While the rain continues, alternative routes may also stop.",
-      };
     case "low_confidence":
-      return {
-        headline: holdHeadline,
-        reason: ja ? "まだ見込みの幅が大きい段階です。" : "The outlook is still very uncertain.",
-      };
+      return holdHeadline;
+    case "no_alternative":
+      return waitHeadline;
+    case "rain_continuing":
+      return ja ? "雨が続くあいだは判断を保留します" : "Holding off while the rain continues.";
+    case "break_even_passed":
     case "estimate_extended":
-      return {
-        headline: switchHeadline,
-        reason: ja
-          ? "再開見込みが延びました。さらに延びるおそれがあります。"
-          : "The resumption estimate was extended and may slip further.",
-      };
     case "resume_after_break_even":
-      return {
-        headline: switchHeadline,
-        reason: ja
-          ? `再開して乗れるのは${boardable}頃の見込みで、${best}より遅く着きます。`
-          : `Boarding after resumption is expected around ${boardable}, arriving later than ${best}.`,
-      };
     case "deadline_risk":
-      return {
-        headline: switchHeadline,
-        reason: ja
-          ? "待つと期限に間に合わない見込みです。"
-          : "Waiting is likely to miss your deadline.",
-      };
+      return switchHeadline;
     case "resume_before_break_even": {
       const minutes = input.breakEvenMinutesFromNow;
-      const canWait = minutes !== null && minutes > 0;
-      return {
-        headline: canWait
-          ? ja
-            ? `あと${minutes}分は待てます`
-            : `You can wait ${minutes} more minutes.`
-          : ja
-            ? "運転再開を待ってください"
-            : "Wait for service to resume.",
-        reason: ja
-          ? `${boardable}頃に乗れる見込みです。`
-          : `You should be able to board around ${boardable}.`,
-      };
+      if (minutes === null || minutes <= 0) return waitHeadline;
+      return ja ? `あと${minutes}分は待てます` : `You can wait ${minutes} more minutes.`;
     }
   }
 }
 
-// 理由と分岐点の説明をつなぐ。理由は後で Judgment の専用欄へ移す
-export function joinReasonAndExplanation(
-  reason: string,
-  explanation: string,
-  language: Lang,
-): string {
-  return language === "ja" ? `${reason}${explanation}` : `${reason} ${explanation}`;
+// 決定論モードの見出しと理由
+export function buildDecisionText(input: DecisionTextInput): DecisionText {
+  return { headline: buildDecisionHeadline(input), reason: buildDecisionReason(input) };
 }
 
 const PROGRESS_MESSAGES: Record<ProgressStage, { ja: string; en: string }> = {
