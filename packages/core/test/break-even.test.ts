@@ -7,6 +7,9 @@ import {
   convertToBreakEven,
   selectBestAlternative,
 } from "../src/break-even.ts";
+import { estimateRemaining, getFirstTrainWait } from "../src/remaining.ts";
+import { addMinutesToIso, diffMinutes } from "../src/time.ts";
+import { resumeExampleKnowledge } from "./fixtures/knowledge.ts";
 
 const NOW = "2026-11-05T22:00:00+09:00";
 
@@ -49,24 +52,98 @@ describe("computeWaitArrival", () => {
 });
 
 describe("computeBreakEven", () => {
-  it("境目 = 最良の代替の到着 − 再開後の乗車時間", () => {
+  it("例: 段階 {10,20}・初列車待ち {10,15}・W=30・代替 23:00 なら再開の期限は 22:20", () => {
+    const firstTrainWaitMinutes = getFirstTrainWait(resumeExampleKnowledge).p50;
+    const remaining = estimateRemaining(resumeExampleKnowledge, "only", 0);
+    const result = computeBreakEven({
+      now: NOW,
+      remaining,
+      waitRouteMinutesAfterResume: 30,
+      firstTrainWaitMinutes,
+      alternatives: [{ id: "transfer", arrivalTime: "2026-11-05T23:00:00+09:00" }],
+    });
+    expect(firstTrainWaitMinutes).toBe(10);
+    expect(result).toMatchObject({
+      kind: "future",
+      time: "2026-11-05T22:20:00+09:00",
+      minutesFromNow: 20,
+      bestAlternativeId: "transfer",
+      resumeOutlook: {
+        resumeP50: addMinutesToIso(NOW, remaining.p50 - 10),
+        resumeP80: addMinutesToIso(NOW, remaining.p80 - 10),
+        // 乗れる期限 22:30 − 乗れる見込み（現在 + 残り）
+        marginP50Minutes: 30 - remaining.p50,
+        marginP80Minutes: 30 - remaining.p80,
+      },
+    });
+  });
+
+  it("境目 = 最良の代替の到着 − 再開後の乗車時間 − 初列車待ち", () => {
     const result = computeBreakEven({
       now: NOW,
       remaining: { p50: 20, p80: 45 },
       waitRouteMinutesAfterResume: 30,
+      firstTrainWaitMinutes: 10,
       alternatives,
     });
     expect(result).toEqual({
       kind: "future",
-      time: "2026-11-05T22:30:00+09:00",
-      minutesFromNow: 30,
+      time: "2026-11-05T22:20:00+09:00",
+      minutesFromNow: 20,
       bestAlternativeId: "transfer_b",
       bestAlternativeArrival: "2026-11-05T23:00:00+09:00",
       resumeOutlook: {
-        resumeP50: "2026-11-05T22:20:00+09:00",
-        resumeP80: "2026-11-05T22:45:00+09:00",
+        resumeP50: "2026-11-05T22:10:00+09:00",
+        resumeP80: "2026-11-05T22:35:00+09:00",
         marginP50Minutes: 10,
         marginP80Minutes: -15,
+      },
+    });
+  });
+
+  it("境目ちょうどに再開すると、待つ場合の到着は最良の代替と同時刻", () => {
+    const result = computeBreakEven({
+      now: NOW,
+      remaining: null,
+      waitRouteMinutesAfterResume: 30,
+      firstTrainWaitMinutes: 10,
+      alternatives,
+    });
+    if (result.kind === "no_alternative") throw new Error("代替があるはず");
+    expect(computeWaitArrival(result.time, 10, 30)).toBe(result.bestAlternativeArrival);
+  });
+
+  it("margin は 境目 − 再開見込み と一致する", () => {
+    const result = computeBreakEven({
+      now: NOW,
+      remaining: { p50: 25, p80: 50 },
+      waitRouteMinutesAfterResume: 20,
+      firstTrainWaitMinutes: 8,
+      alternatives,
+    });
+    if (result.kind === "no_alternative" || result.resumeOutlook === null) {
+      throw new Error("見込みがあるはず");
+    }
+    const { resumeP50, resumeP80, marginP50Minutes, marginP80Minutes } = result.resumeOutlook;
+    expect(marginP50Minutes).toBe(diffMinutes(resumeP50, result.time));
+    expect(marginP80Minutes).toBe(diffMinutes(resumeP80, result.time));
+  });
+
+  it("残りが初列車待ちより短くても再開見込みは現在より前にならない", () => {
+    const result = computeBreakEven({
+      now: NOW,
+      remaining: { p50: 3, p80: 8 },
+      waitRouteMinutesAfterResume: 30,
+      firstTrainWaitMinutes: 5,
+      alternatives,
+    });
+    expect(result).toMatchObject({
+      time: "2026-11-05T22:25:00+09:00",
+      resumeOutlook: {
+        resumeP50: NOW,
+        resumeP80: "2026-11-05T22:03:00+09:00",
+        marginP50Minutes: 27,
+        marginP80Minutes: 22,
       },
     });
   });
@@ -76,37 +153,55 @@ describe("computeBreakEven", () => {
       now: NOW,
       remaining: { p50: 10, p80: 20 },
       waitRouteMinutesAfterResume: 30,
+      firstTrainWaitMinutes: 5,
       alternatives: [{ id: "taxi", arrivalTime: "2026-11-05T22:20:00+09:00" }],
     });
     expect(result).toMatchObject({
       kind: "passed",
-      time: "2026-11-05T21:50:00+09:00",
-      minutesFromNow: -10,
+      time: "2026-11-05T21:45:00+09:00",
+      minutesFromNow: -15,
     });
   });
 
   it("境目がちょうど現在なら passed、1 分先なら future", () => {
-    const base = { now: NOW, remaining: null, waitRouteMinutesAfterResume: 30 };
+    const base = {
+      now: NOW,
+      remaining: null,
+      waitRouteMinutesAfterResume: 30,
+      firstTrainWaitMinutes: 10,
+    };
     const atNow = computeBreakEven({
       ...base,
-      alternatives: [{ id: "alt", arrivalTime: "2026-11-05T22:30:00+09:00" }],
+      alternatives: [{ id: "alt", arrivalTime: "2026-11-05T22:40:00+09:00" }],
     });
     const oneMinute = computeBreakEven({
       ...base,
-      alternatives: [{ id: "alt", arrivalTime: "2026-11-05T22:31:00+09:00" }],
+      alternatives: [{ id: "alt", arrivalTime: "2026-11-05T22:41:00+09:00" }],
     });
-    expect(atNow).toMatchObject({ kind: "passed", minutesFromNow: 0 });
+    expect(atNow).toMatchObject({ kind: "passed", time: NOW, minutesFromNow: 0 });
     expect(oneMinute).toMatchObject({ kind: "future", minutesFromNow: 1 });
   });
 
-  it("再開後の乗車時間が 0 なら境目は代替の到着時刻", () => {
+  it("再開後の乗車時間と初列車待ちが 0 なら境目は代替の到着時刻", () => {
     const result = computeBreakEven({
       now: NOW,
       remaining: null,
       waitRouteMinutesAfterResume: 0,
+      firstTrainWaitMinutes: 0,
       alternatives,
     });
     expect(result).toMatchObject({ kind: "future", time: "2026-11-05T23:00:00+09:00" });
+  });
+
+  it("初列車待ちだけでも境目を前に倒す", () => {
+    const result = computeBreakEven({
+      now: NOW,
+      remaining: null,
+      waitRouteMinutesAfterResume: 0,
+      firstTrainWaitMinutes: 10,
+      alternatives,
+    });
+    expect(result).toMatchObject({ kind: "future", time: "2026-11-05T22:50:00+09:00" });
   });
 
   it("日付をまたぐ", () => {
@@ -114,15 +209,16 @@ describe("computeBreakEven", () => {
       now: "2026-11-05T23:50:00+09:00",
       remaining: { p50: 15, p80: 40 },
       waitRouteMinutesAfterResume: 20,
+      firstTrainWaitMinutes: 5,
       alternatives: [{ id: "alt", arrivalTime: "2026-11-06T00:40:00+09:00" }],
     });
     expect(result).toMatchObject({
       kind: "future",
-      time: "2026-11-06T00:20:00+09:00",
-      minutesFromNow: 30,
+      time: "2026-11-06T00:15:00+09:00",
+      minutesFromNow: 25,
       resumeOutlook: {
-        resumeP50: "2026-11-06T00:05:00+09:00",
-        resumeP80: "2026-11-06T00:30:00+09:00",
+        resumeP50: "2026-11-06T00:00:00+09:00",
+        resumeP80: "2026-11-06T00:25:00+09:00",
         marginP50Minutes: 15,
         marginP80Minutes: -10,
       },
@@ -134,6 +230,7 @@ describe("computeBreakEven", () => {
       now: NOW,
       remaining: { p50: 20, p80: 45 },
       waitRouteMinutesAfterResume: 30,
+      firstTrainWaitMinutes: 10,
       alternatives: [],
     });
     expect(result).toEqual({ kind: "no_alternative" });
@@ -144,6 +241,7 @@ describe("computeBreakEven", () => {
       now: NOW,
       remaining: null,
       waitRouteMinutesAfterResume: 30,
+      firstTrainWaitMinutes: 10,
       alternatives,
     });
     expect(result).toMatchObject({ kind: "future", resumeOutlook: null });
@@ -154,23 +252,29 @@ describe("computeBreakEven", () => {
       now: NOW,
       remaining: null,
       waitRouteMinutesAfterResume: 10,
+      firstTrainWaitMinutes: 5,
       alternatives: [{ id: "alt", arrivalTime: "2026-11-05T14:00:00Z" }],
     });
     expect(result).toMatchObject({
-      time: "2026-11-05T22:50:00+09:00",
+      time: "2026-11-05T22:45:00+09:00",
       bestAlternativeArrival: "2026-11-05T23:00:00+09:00",
     });
   });
 
-  it("再開後の乗車時間が負なら例外", () => {
+  it("再開後の乗車時間か初列車待ちが負なら例外", () => {
+    const base = { now: NOW, remaining: null, alternatives };
     expect(() =>
-      computeBreakEven({
-        now: NOW,
-        remaining: null,
-        waitRouteMinutesAfterResume: -1,
-        alternatives,
-      }),
+      computeBreakEven({ ...base, waitRouteMinutesAfterResume: -1, firstTrainWaitMinutes: 0 }),
     ).toThrow(RangeError);
+    expect(() =>
+      computeBreakEven({ ...base, waitRouteMinutesAfterResume: 0, firstTrainWaitMinutes: -1 }),
+    ).toThrow(RangeError);
+  });
+});
+
+describe("getFirstTrainWait", () => {
+  it("知見の after_resume.first_train_wait_minutes を返す", () => {
+    expect(getFirstTrainWait(resumeExampleKnowledge)).toEqual({ p50: 10, p80: 15 });
   });
 });
 
@@ -180,12 +284,13 @@ describe("convertToBreakEven", () => {
       now: NOW,
       remaining: null,
       waitRouteMinutesAfterResume: 30,
+      firstTrainWaitMinutes: 10,
       alternatives,
     });
-    const breakEven = convertToBreakEven(result, "22時30分までに再開しなければ振替が早い");
+    const breakEven = convertToBreakEven(result, "22時20分までに再開しなければ振替が早い");
     expect(breakEven).toEqual({
-      time: "2026-11-05T22:30:00+09:00",
-      explanation: "22時30分までに再開しなければ振替が早い",
+      time: "2026-11-05T22:20:00+09:00",
+      explanation: "22時20分までに再開しなければ振替が早い",
     });
     expect(BreakEvenSchema.safeParse(breakEven).success).toBe(true);
   });
@@ -195,9 +300,10 @@ describe("convertToBreakEven", () => {
       now: NOW,
       remaining: null,
       waitRouteMinutesAfterResume: 30,
+      firstTrainWaitMinutes: 5,
       alternatives: [{ id: "taxi", arrivalTime: "2026-11-05T22:20:00+09:00" }],
     });
-    expect(convertToBreakEven(result, "すでに過ぎている")?.time).toBe("2026-11-05T21:50:00+09:00");
+    expect(convertToBreakEven(result, "すでに過ぎている")?.time).toBe("2026-11-05T21:45:00+09:00");
   });
 
   it("no_alternative は null", () => {

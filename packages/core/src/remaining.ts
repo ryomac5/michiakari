@@ -19,6 +19,11 @@ export function findPhaseIndex(knowledge: Knowledge, phaseId: string): number {
   return index;
 }
 
+// 知見から「運転再開から実際に乗れる列車が来るまで」の分布を取り出す
+export function getFirstTrainWait(knowledge: Knowledge): DurationDist {
+  return knowledge.after_resume.first_train_wait_minutes;
+}
+
 // 昇順に並んだ標本の分位点を線形補間で返す
 export function computeQuantile(sorted: readonly number[], q: number): number {
   if (sorted.length === 0) throw new RangeError("標本が空です");
@@ -64,7 +69,7 @@ export function estimateRemaining(
   const samples = sampleTotalRemaining(
     current,
     models.slice(index + 1),
-    fitDurationModel(knowledge.after_resume.first_train_wait_minutes),
+    fitDurationModel(getFirstTrainWait(knowledge)),
     elapsedInPhaseMinutes,
   ).sort((a, b) => a - b);
   return {
