@@ -10,3 +10,6 @@ next-env.d.ts
 .DS_Store
 .env*
 !.env.example
+
+# 前処理の元データ（国土数値情報の zip）
+packages/data/.cache/
