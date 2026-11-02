@@ -1,0 +1,48 @@
+import type { JudgmentEvent } from "@repo/schema";
+import { describe, expect, it } from "vitest";
+import { createTestApp, createTestDeps, replayScenario } from "./helpers.ts";
+
+// 決定論モードで、ダミーの各シナリオの expectations を満たすことを確かめる
+// 期待値はシナリオの YAML から読み、コードに埋め込まない
+
+const deps = createTestDeps();
+const scenarios = [...deps.content.scenarios.values()];
+
+function findJudgment(events: JudgmentEvent[]) {
+  const ready = events.find((e) => e.type === "judgment_ready");
+  return ready?.type === "judgment_ready" ? ready.judgment : null;
+}
+
+describe("決定論モードのシナリオ", () => {
+  it("ダミーのシナリオが 3 件読める", () => {
+    expect(scenarios).toHaveLength(3);
+  });
+
+  for (const scenario of scenarios) {
+    describe(scenario.id, () => {
+      const app = createTestApp(deps);
+      const stepsPromise = replayScenario(app, scenario);
+
+      for (const expectation of scenario.expectations) {
+        it(`${expectation.after} の後: ${expectation.note}`, async () => {
+          const steps = await stepsPromise;
+          const step = steps.find((s) => s.entry.id === expectation.after);
+          const judgment = step ? findJudgment(step.events) : null;
+          expect(judgment, "judgment_ready が届くこと").not.toBeNull();
+          if (!judgment) return;
+
+          if (expectation.action !== undefined) expect(judgment.action).toBe(expectation.action);
+          if (expectation.phase !== undefined)
+            expect(judgment.estimate.phaseId).toBe(expectation.phase);
+          if (expectation.evidence_includes !== undefined) {
+            const signalIds = judgment.evidence.filter((e) => e.kind === "signal").map((e) => e.id);
+            expect(signalIds).toEqual(expect.arrayContaining(expectation.evidence_includes));
+          }
+          if (expectation.break_even_shown !== undefined) {
+            expect(judgment.breakEven !== null).toBe(expectation.break_even_shown);
+          }
+        });
+      }
+    });
+  }
+});

@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "turbo run dev",
+    "dev:demo": "CONTENT_DIR=packages/schema/test/fixtures/dev-content pnpm --filter @repo/agent dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "biome check .",

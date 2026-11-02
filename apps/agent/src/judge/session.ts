@@ -1,0 +1,281 @@
+import type { BreakEven, Evidence, Lang } from "@repo/schema";
+import type { z } from "zod";
+import { selectEventType } from "../domain/phase.ts";
+import { ComputeBreakEvenInputSchema, runComputeBreakEven } from "../tools/compute-break-even.ts";
+import { EstimatePhaseInputSchema, runEstimatePhase } from "../tools/estimate-phase.ts";
+import { FindAlternativesInputSchema, runFindAlternatives } from "../tools/find-alternatives.ts";
+import { GetWeatherInputSchema, runGetWeather } from "../tools/get-weather.ts";
+import { LookupKnowledgeInputSchema, runLookupKnowledge } from "../tools/lookup-knowledge.ts";
+import {
+  type AlternativesToolResult,
+  type BreakEvenToolResult,
+  createToolState,
+  type EstimateToolResult,
+  type ToolContext,
+  type ToolState,
+  type WeatherToolResult,
+} from "../tools/types.ts";
+import type { EventSink } from "./event-sink.ts";
+import {
+  buildBreakEvenSentence,
+  buildNoAlternativeSentence,
+  buildPassedSentence,
+  formatClock,
+} from "./templates.ts";
+
+// 1 回の判断の状態。ツールの実行と、その結果に対応する判断イベントの送出を受け持つ
+// 両モードが同じ実装を使う。各ツールは最初の成功で確定し、呼び直しには確定済みの結果を返す
+
+export type ToolOutcome = { isError: boolean; content: unknown };
+
+export type JudgeSession = {
+  ctx: ToolContext;
+  state: ToolState;
+  executeTool(name: string, input: unknown): Promise<ToolOutcome>;
+  collectEvidenceRefs(): Evidence[];
+  // 兆候のイベントで使う事象種別（観測の候補から決める）
+  inferredEventType: string | null;
+};
+
+function formatOptional(iso: string | null, language: Lang): string | null {
+  return iso ? formatClock(iso, language) : null;
+}
+
+function presentEstimate(r: EstimateToolResult, language: Lang) {
+  return {
+    ...r,
+    labels: {
+      phaseStartedAt: formatOptional(r.phaseStartedAt, language),
+      statedResumeTime: formatOptional(r.statedResumeTime, language),
+      boardableP50: formatOptional(r.boardableP50, language),
+      boardableP80: formatOptional(r.boardableP80, language),
+    },
+  };
+}
+
+function presentAlternatives(r: AlternativesToolResult, language: Lang) {
+  return {
+    ...r,
+    options: r.options.map((o) => ({ ...o, arrivalLabel: formatClock(o.arrivalTime, language) })),
+  };
+}
+
+function findOptionLabel(alternatives: AlternativesToolResult | null, id: string): string {
+  return alternatives?.options.find((o) => o.id === id)?.label ?? id;
+}
+
+// break_even_computed で送る分岐点。説明は定型文で、確定した判断では Claude の説明に置き換わる
+export function buildComputedBreakEven(
+  breakEven: BreakEvenToolResult,
+  alternatives: AlternativesToolResult | null,
+  language: Lang,
+): BreakEven | null {
+  const r = breakEven.result;
+  if (r.kind === "no_route" || r.kind === "no_alternative") return null;
+  const label = findOptionLabel(alternatives, r.bestAlternativeId);
+  const explanation =
+    r.kind === "passed"
+      ? buildPassedSentence(r.time, label, language)
+      : buildBreakEvenSentence(r.time, label, language);
+  return { time: r.time, explanation };
+}
+
+function presentBreakEven(
+  r: BreakEvenToolResult,
+  alternatives: AlternativesToolResult | null,
+  language: Lang,
+) {
+  const result = r.result;
+  if (result.kind === "no_route" || result.kind === "no_alternative") {
+    return { ...r, explanationTemplate: buildNoAlternativeSentence(language) };
+  }
+  return {
+    ...r,
+    labels: {
+      breakEvenTime: formatClock(result.time, language),
+      bestAlternative: findOptionLabel(alternatives, result.bestAlternativeId),
+      bestAlternativeArrival: formatClock(result.bestAlternativeArrival, language),
+      boardableP50: result.resumeOutlook
+        ? formatClock(result.resumeOutlook.resumeP50, language)
+        : null,
+      boardableP80: result.resumeOutlook
+        ? formatClock(result.resumeOutlook.resumeP80, language)
+        : null,
+      deadline: formatOptional(r.deadline, language),
+    },
+    explanationTemplate: buildComputedBreakEven(r, alternatives, language)?.explanation ?? null,
+  };
+}
+
+function presentWeather(r: WeatherToolResult) {
+  return { ...r, attribution: "出典: 気象庁" };
+}
+
+export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSession {
+  const state = createToolState();
+  const language = ctx.request.language;
+  const inferredEventType = selectEventType(ctx.observations, ctx.content.knowledge);
+
+  function parseInput<S extends z.ZodType>(schema: S, input: unknown): z.infer<S> | ToolOutcome {
+    const parsed = schema.safeParse(input ?? {});
+    if (parsed.success) return parsed.data;
+    return {
+      isError: true,
+      content: { error: "入力がスキーマに合いません", issues: parsed.error.issues },
+    };
+  }
+
+  const isOutcome = (v: unknown): v is ToolOutcome =>
+    typeof v === "object" && v !== null && "isError" in v && "content" in v;
+
+  const cached = (content: unknown): ToolOutcome => ({
+    isError: false,
+    content: { note: "この判断では確定済みです。前回の結果を返します", result: content },
+  });
+
+  async function runEstimate(input: unknown): Promise<ToolOutcome> {
+    if (state.estimate) return cached(presentEstimate(state.estimate, language));
+    const parsed = parseInput(EstimatePhaseInputSchema, input);
+    if (isOutcome(parsed)) return parsed;
+    const result = runEstimatePhase(ctx, parsed);
+    state.estimate = result;
+    await sink.emit({ type: "phase_estimated", estimate: result.estimate });
+    return { isError: false, content: presentEstimate(result, language) };
+  }
+
+  async function runAlternatives(input: unknown): Promise<ToolOutcome> {
+    if (state.alternatives) return cached(presentAlternatives(state.alternatives, language));
+    if (!state.estimate) {
+      return {
+        isError: true,
+        content: { error: "先に estimate_phase_and_remaining を呼んでください" },
+      };
+    }
+    const parsed = parseInput(FindAlternativesInputSchema, input);
+    if (isOutcome(parsed)) return parsed;
+    const result = await runFindAlternatives(ctx, state.estimate, parsed);
+    state.alternatives = result;
+    await sink.emit({ type: "alternatives_computed", options: result.options });
+    return { isError: false, content: presentAlternatives(result, language) };
+  }
+
+  async function runBreakEven(input: unknown): Promise<ToolOutcome> {
+    if (state.breakEven)
+      return cached(presentBreakEven(state.breakEven, state.alternatives, language));
+    if (!state.estimate || !state.alternatives) {
+      return {
+        isError: true,
+        content: {
+          error: "先に estimate_phase_and_remaining と find_alternatives を呼んでください",
+        },
+      };
+    }
+    const parsed = parseInput(ComputeBreakEvenInputSchema, input);
+    if (isOutcome(parsed)) return parsed;
+    const result = runComputeBreakEven(ctx, state.estimate, state.alternatives);
+    state.breakEven = result;
+    await sink.emit({
+      type: "break_even_computed",
+      breakEven: buildComputedBreakEven(result, state.alternatives, language),
+    });
+    return { isError: false, content: presentBreakEven(result, state.alternatives, language) };
+  }
+
+  async function runWeather(input: unknown): Promise<ToolOutcome> {
+    if (state.weather) return cached(presentWeather(state.weather));
+    const parsed = parseInput(GetWeatherInputSchema, input);
+    if (isOutcome(parsed)) return parsed;
+    state.weather = await runGetWeather(ctx, parsed);
+    return { isError: false, content: presentWeather(state.weather) };
+  }
+
+  async function executeTool(name: string, input: unknown): Promise<ToolOutcome> {
+    switch (name) {
+      case "lookup_knowledge": {
+        const parsed = parseInput(LookupKnowledgeInputSchema, input);
+        return isOutcome(parsed) ? parsed : runLookupKnowledge(ctx, state, parsed);
+      }
+      case "get_weather":
+        return runWeather(input);
+      case "estimate_phase_and_remaining":
+        return runEstimate(input);
+      case "find_alternatives":
+        return runAlternatives(input);
+      case "compute_break_even":
+        return runBreakEven(input);
+      default:
+        return { isError: true, content: { error: `未知のツールです: ${name}` } };
+    }
+  }
+
+  // 根拠として挙げてよい項目。Claude の根拠はこの中から選ばせる
+  function collectEvidenceRefs(): Evidence[] {
+    const refs: Evidence[] = [];
+    const eventType = state.estimate?.estimate.eventType ?? null;
+    const knowledge = eventType ? ctx.content.knowledge.get(eventType) : undefined;
+    if (knowledge) {
+      const signals = knowledge.phases.flatMap((p) => p.signals);
+      const seen = new Set<string>();
+      for (const o of ctx.observations) {
+        for (const s of o.detectedSignals) {
+          if (s.eventType !== knowledge.id || seen.has(s.signalId)) continue;
+          seen.add(s.signalId);
+          const description = signals.find((k) => k.id === s.signalId)?.description ?? s.quote;
+          refs.push({
+            kind: "signal",
+            id: s.signalId,
+            description: `${description}「${s.quote}」`,
+          });
+        }
+      }
+      refs.push({
+        kind: "knowledge",
+        id: knowledge.id,
+        description: knowledge.summary[language] ?? knowledge.summary.ja,
+      });
+      const phase = knowledge.phases.find((p) => p.id === state.estimate?.estimate.phaseId);
+      if (phase) {
+        refs.push({
+          kind: "knowledge",
+          id: phase.id,
+          description: phase.guidance[language] ?? phase.guidance.ja,
+        });
+      }
+    }
+    if (state.weather && state.weather.readings.length > 0) {
+      const latest = state.weather.summary.latest;
+      const ja = language === "ja";
+      const detail = latest
+        ? ja
+          ? `${formatClock(latest.time, language)}の10分雨量 ${latest.rainfall10minMm}mm${latest.warnings.length > 0 ? `、${latest.warnings.join("・")}` : ""}（出典: 気象庁）`
+          : `10-min rainfall at ${formatClock(latest.time, language)}: ${latest.rainfall10minMm} mm${latest.warnings.length > 0 ? `, ${latest.warnings.join(", ")}` : ""} (source: JMA)`
+        : "";
+      refs.push({ kind: "weather", id: "weather", description: detail });
+    }
+    if (state.estimate?.estimate.remaining) {
+      const r = state.estimate.estimate.remaining;
+      refs.push({
+        kind: "computation",
+        id: "remaining",
+        description:
+          language === "ja"
+            ? `再開して乗れるまで p50 ${r.p50}分・p80 ${r.p80}分`
+            : `Until a boardable train: p50 ${r.p50} min, p80 ${r.p80} min`,
+      });
+    }
+    if (state.alternatives && state.alternatives.options.length > 1) {
+      refs.push({
+        kind: "computation",
+        id: "alternatives",
+        description: language === "ja" ? "代替手段の到着時刻の比較" : "Comparison of arrival times",
+      });
+    }
+    const be = state.breakEven
+      ? buildComputedBreakEven(state.breakEven, state.alternatives, language)
+      : null;
+    if (be) refs.push({ kind: "computation", id: "break_even", description: be.explanation });
+    return refs;
+  }
+
+  return { ctx, state, executeTool, collectEvidenceRefs, inferredEventType };
+}
