@@ -1,1 +1,138 @@
 @import "tailwindcss";
+
+/* 既定はダーク。html に .light が付いたときだけライトに切り替える */
+@custom-variant light (&:where(.light, .light *));
+
+:root {
+  --background: #0d1218;
+  --surface: #151d26;
+  --surface-raised: #1c2631;
+  --foreground: #f2f5f8;
+  --muted: #a7b4c2;
+  --border: #2c3a48;
+  --primary: #f2f5f8;
+  --primary-foreground: #0d1218;
+  --focus: #7cc4ff;
+  --danger: #ff8f85;
+  --danger-surface: #3a1714;
+
+  --wait: #8ccbff;
+  --wait-surface: #0f2a42;
+  --wait-border: #3d93dc;
+  --switch: #ffbe5c;
+  --switch-surface: #3a2709;
+  --switch-border: #e5952a;
+  --hold: #cbbcff;
+  --hold-surface: #261f42;
+  --hold-border: #8f7fe0;
+
+  color-scheme: dark;
+}
+
+:root.light {
+  --background: #f5f7f9;
+  --surface: #ffffff;
+  --surface-raised: #eef2f6;
+  --foreground: #0a1016;
+  --muted: #45525f;
+  --border: #c9d2db;
+  --primary: #0a1016;
+  --primary-foreground: #ffffff;
+  --focus: #0b5ca8;
+  --danger: #a3221a;
+  --danger-surface: #fde8e6;
+
+  --wait: #0a4f8f;
+  --wait-surface: #e2f0fd;
+  --wait-border: #2b7bc4;
+  --switch: #7f4300;
+  --switch-surface: #fff0d9;
+  --switch-border: #d4831a;
+  --hold: #46359a;
+  --hold-surface: #eeeafe;
+  --hold-border: #7a69cf;
+
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-focus: var(--focus);
+  --color-danger: var(--danger);
+  --color-danger-surface: var(--danger-surface);
+  --color-wait: var(--wait);
+  --color-wait-surface: var(--wait-surface);
+  --color-wait-border: var(--wait-border);
+  --color-switch: var(--switch);
+  --color-switch-surface: var(--switch-surface);
+  --color-switch-border: var(--switch-border);
+  --color-hold: var(--hold);
+  --color-hold-surface: var(--hold-surface);
+  --color-hold-border: var(--hold-border);
+
+  --font-sans:
+    "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "BIZ UDPGothic", system-ui,
+    -apple-system, "Segoe UI", sans-serif;
+
+  --animate-step-in: step-in 320ms ease-out both;
+  --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
+}
+
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* 文字は大きめ。rem で組んだ部品がまとめて拡大される */
+html {
+  font-size: 106.25%;
+}
+
+/* 日本語は文節の切れ目で改行する */
+:lang(ja) {
+  word-break: auto-phrase;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* 層の外に書いた規則は Tailwind の utilities より優先される */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+    transition-duration: 1ms;
+  }
+}
