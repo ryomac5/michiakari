@@ -42,6 +42,14 @@ export {
   sampleDuration,
   sampleRemainingDuration,
 } from "./duration-model.ts";
+export {
+  compareReplayOutcome,
+  OUTCOME_SMALL_DIFF_MINUTES,
+  type ReplayDecision,
+  type ReplayOutcome,
+  type ReplayOutcomeInput,
+  type ReplayOutcomeVerdict,
+} from "./outcome.ts";
 export { createMulberry32, type Random } from "./random.ts";
 export {
   computeQuantile,

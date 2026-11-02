@@ -23,6 +23,7 @@ import { MapPanel } from "@/features/map/MapPanel";
 import { pickStationName, type StationNames } from "@/features/stations/describe";
 import { cn } from "@/lib/utils";
 import { computeReplayProgress } from "../clock";
+import { selectReplayOutcome } from "../outcome";
 import {
   buildScenarioPlaces,
   pickScenarioText,
@@ -34,6 +35,7 @@ import { AnnouncementCard } from "./AnnouncementCard";
 import { PhaseStrip } from "./PhaseStrip";
 import { ReplayBar } from "./ReplayBar";
 import { ReplayHistory } from "./ReplayHistory";
+import { ReplayOutcomeCard } from "./ReplayOutcomeCard";
 
 // 1 本のシナリオを再生する。判断の表示は判断画面と同じ部品を使う
 export function ReplayPlayer({
@@ -75,6 +77,18 @@ export function ReplayPlayer({
   const pendingId = streaming ? (latestEntry?.id ?? "") : "";
   const deadlineClock = scenario.user.constraints.deadline;
   const deadline = deadlineClock ? resolveDeadline(scenario.start_time, deadlineClock) : null;
+  // 最後まで流れたら、記録した判断の列から結末を求める
+  const outcome = useMemo(
+    () =>
+      player.status === "ended"
+        ? selectReplayOutcome(
+            scenario,
+            history.map((h) => h.decision),
+            catalog,
+          )
+        : null,
+    [player.status, scenario, history, catalog],
+  );
 
   return (
     <div
@@ -114,6 +128,7 @@ export function ReplayPlayer({
         />
         {/* 390x844 の最初の画面に発表・結論・分岐点が収まるよう、ここまでは詰めて並べる */}
         <div className="flex flex-col gap-2.5">
+          {outcome && <ReplayOutcomeCard outcome={outcome} deadlineClock={deadlineClock} />}
           {latestEntry && (
             <AnnouncementCard
               key={latestEntry.id}

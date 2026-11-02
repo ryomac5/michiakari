@@ -371,6 +371,51 @@ describe("buildStationLabels", () => {
     const minKey = Math.min(...features.map((f) => f.properties.sortKey));
     expect(emphasizedLabel?.properties.sortKey).toBe(minKey);
   });
+
+  it("阪急と阪神の大阪梅田のように、500m 以内の同名駅はラベルを 1 つにする", () => {
+    const features = buildStationLabels(geo.nodes, new Set()).features;
+    expect(features.filter((f) => f.properties.name === "大阪梅田")).toHaveLength(1);
+    // 同じ名前のラベルどうしは 500m より離れている
+    const byName = new Map<string, typeof features>();
+    for (const f of features) {
+      byName.set(f.properties.name, [...(byName.get(f.properties.name) ?? []), f]);
+    }
+    for (const group of byName.values()) {
+      for (const [i, a] of group.entries()) {
+        for (const b of group.slice(i + 1)) {
+          const meters = computeDistanceMeters(
+            a.geometry.coordinates as [number, number],
+            b.geometry.coordinates as [number, number],
+          );
+          expect(meters, a.properties.name).toBeGreaterThan(500);
+        }
+      }
+    }
+  });
+
+  it("格子の境目をまたぐ近い同名駅はまとめ、遠い同名駅は分けたままにする", () => {
+    const node = (stationId: string, lon: number, passengers: number) => ({
+      stationId,
+      name: "架空",
+      operator: "架空鉄道",
+      lineId: stationId,
+      lonLat: [lon, 34.7] as const,
+      passengers,
+    });
+    // 135.0049 と 135.0051 は小数 2 桁で丸めると別の格子になる。約 20m
+    const near = buildStationLabels(
+      [node("a", 135.0049, 100), node("b", 135.0051, 200)],
+      new Set(),
+    ).features;
+    expect(near).toHaveLength(1);
+    expect(near[0]?.properties.passengers).toBe(200);
+    // 約 1.8km 離れた同名駅
+    const far = buildStationLabels(
+      [node("a", 135.0, 100), node("b", 135.02, 200)],
+      new Set(),
+    ).features;
+    expect(far).toHaveLength(2);
+  });
 });
 
 describe("computeFitBounds", () => {

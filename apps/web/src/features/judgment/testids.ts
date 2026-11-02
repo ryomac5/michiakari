@@ -96,6 +96,11 @@ export const testIds = {
     phase: (id: string) => `replay-phase-${id}`,
     history: "replay-history",
     historyItem: (observationId: string) => `replay-history-item-${observationId}`,
+    // 結末の比較。data-followed-arrival / data-waited-arrival / data-diff-minutes に値を出す
+    outcome: "replay-outcome",
+    outcomeSummary: "replay-outcome-summary",
+    outcomeFollowed: "replay-outcome-followed",
+    outcomeWaited: "replay-outcome-waited",
   },
   about: {
     screen: "about-screen",

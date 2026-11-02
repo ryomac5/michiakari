@@ -15,7 +15,11 @@ import {
 export type ReplayScenario = Pick<
   Scenario,
   "id" | "title" | "event_type" | "operator" | "line" | "blocked_section" | "start_time" | "user"
-> & { timeline: TimelineEntry[] };
+> & {
+  timeline: TimelineEntry[];
+  // ground_truth.resume_offset_minutes。結末の画面だけが使う
+  resumeOffsetMinutes: number | null;
+};
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -23,11 +27,22 @@ function padTwo(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-// 期待値と正解はリプレイの表示に使わないので画面へ渡さない
+// 期待値と正解の説明文は画面へ渡さない。実際の再開時刻だけを結末の比較に渡す
 export function buildReplayScenario(scenario: Scenario): ReplayScenario {
   const { id, title, event_type, operator, line, blocked_section, start_time, user, timeline } =
     scenario;
-  return { id, title, event_type, operator, line, blocked_section, start_time, user, timeline };
+  return {
+    id,
+    title,
+    event_type,
+    operator,
+    line,
+    blocked_section,
+    start_time,
+    user,
+    timeline,
+    resumeOffsetMinutes: scenario.ground_truth.resume_offset_minutes,
+  };
 }
 
 // start_time から offsetMinutes 後の時刻を日本時間の ISO 8601（秒まで）で返す
