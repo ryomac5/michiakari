@@ -125,8 +125,12 @@ async function runWith(script: ReturnType<typeof createScriptedLlm>) {
   return { events, warnings, judgment: ready?.type === "judgment_ready" ? ready.judgment : null };
 }
 
+// 同じ種類の連続をまとめた並び。途中経過の progress は除く
 function collapseTypes(events: JudgmentEvent[]): string[] {
-  return events.map((e) => e.type).filter((t, i, all) => t !== all[i - 1]);
+  return events
+    .map((e) => e.type)
+    .filter((t) => t !== "progress")
+    .filter((t, i, all) => t !== all[i - 1]);
 }
 
 function countType(events: JudgmentEvent[], type: JudgmentEvent["type"]): number {
@@ -143,6 +147,21 @@ describe("claude モード", () => {
     expect(warnings).toEqual([]);
     expect(collapseTypes(events)).toEqual(ORDER);
     expect(judgment?.headline).toBe(validDecision.headline);
+    // Claude の説明文とツールの開始を progress で流す
+    const progress = events.flatMap((e) => (e.type === "progress" ? [e] : []));
+    expect(progress.some((e) => e.message === "知見を確かめます" && e.stage === undefined)).toBe(
+      true,
+    );
+    expect(progress.map((e) => e.stage)).toEqual(
+      expect.arrayContaining([
+        "interpret",
+        "knowledge",
+        "phase",
+        "alternatives",
+        "break_even",
+        "judgment",
+      ]),
+    );
     const estimated = events.find((e) => e.type === "phase_estimated");
     expect(judgment?.estimate).toEqual(
       estimated?.type === "phase_estimated" ? estimated.estimate : null,
@@ -156,7 +175,7 @@ describe("claude モード", () => {
     const first = judgeCalls[0];
     if (!first) throw new Error("判断の呼び出しがありません");
     expect(first.model).toBe(models.judgment);
-    expect(first.thinking).toEqual({ type: "adaptive" });
+    expect(first.thinking).toEqual({ type: "adaptive", display: "updates" });
     expect(first.fallbacks).toBe("default");
     expect(first.betas).toContain(claudeSettings.fallbackBeta);
     expect(first.tools?.map((t) => ("name" in t ? t.name : ""))).toContain("emit_judgment");
@@ -247,7 +266,7 @@ describe("claude モード", () => {
     });
     const { events, judgment, warnings } = await runWith(script);
     expect(warnings.some((w) => w.includes("解釈"))).toBe(true);
-    expect(events[0]?.type).toBe("observation_parsed");
+    expect(collapseTypes(events)[0]).toBe("observation_parsed");
     expect(judgment?.headline).toBe(validDecision.headline);
   });
 });

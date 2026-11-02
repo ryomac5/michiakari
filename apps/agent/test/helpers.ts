@@ -9,8 +9,8 @@ import {
   type Scenario,
   type TimelineEntry,
 } from "@repo/schema";
-import { REPO_ROOT } from "@repo/schema/loaders";
-import { createNetworkProvider } from "../src/alternatives/network-provider.ts";
+import { findRepoRoot } from "@repo/schema/loaders";
+import { createGeoProvider } from "../src/alternatives/geo-provider.ts";
 import { createApp } from "../src/app.ts";
 import { loadContentStore } from "../src/content.ts";
 import type { JudgeDeps } from "../src/judge/run-judge.ts";
@@ -18,13 +18,13 @@ import { loadPrompts } from "../src/prompts/load-prompts.ts";
 
 // テスト用の共通部品。開発用のダミー知見とシナリオを読む（読むだけで変更しない）
 
-export const DEV_CONTENT_DIR = join(REPO_ROOT, "packages/schema/test/fixtures/dev-content");
+export const DEV_CONTENT_DIR = join(findRepoRoot(), "packages/schema/test/fixtures/dev-content");
 
 export function createTestDeps(overrides: Partial<JudgeDeps> = {}): JudgeDeps {
   return {
     mode: "deterministic",
     content: loadContentStore(DEV_CONTENT_DIR),
-    provider: createNetworkProvider(),
+    provider: createGeoProvider(),
     fetchRain: async () => null,
     llm: null,
     prompts: loadPrompts(),

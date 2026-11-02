@@ -1,4 +1,4 @@
-import type { BreakEven, Evidence, Lang } from "@repo/schema";
+import type { BreakEven, Evidence, Lang, ProgressStage } from "@repo/schema";
 import type { z } from "zod";
 import { selectEventType } from "../domain/phase.ts";
 import { ComputeBreakEvenInputSchema, runComputeBreakEven } from "../tools/compute-break-even.ts";
@@ -20,6 +20,7 @@ import {
   buildBreakEvenSentence,
   buildNoAlternativeSentence,
   buildPassedSentence,
+  buildProgressMessage,
   formatClock,
 } from "./templates.ts";
 
@@ -33,6 +34,8 @@ export type JudgeSession = {
   state: ToolState;
   executeTool(name: string, input: unknown): Promise<ToolOutcome>;
   collectEvidenceRefs(): Evidence[];
+  // 途中経過を送る。段階を渡すと定型文を使う
+  emitProgress(stage: ProgressStage | undefined, message?: string): Promise<void>;
   // 兆候のイベントで使う事象種別（観測の候補から決める）
   inferredEventType: string | null;
 };
@@ -189,7 +192,27 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     return { isError: false, content: presentWeather(state.weather) };
   }
 
+  async function emitProgress(stage: ProgressStage | undefined, message?: string): Promise<void> {
+    const text = message ?? (stage ? buildProgressMessage(stage, language) : "");
+    if (text.length === 0) return;
+    await sink.emit({ type: "progress", message: text, ...(stage ? { stage } : {}) });
+  }
+
+  // 確定済みでないツールを始めるときに、その段階の開始を知らせる
+  async function announceToolStart(name: string): Promise<void> {
+    const pending: Record<string, ProgressStage | null> = {
+      lookup_knowledge: "knowledge",
+      get_weather: state.weather ? null : "weather",
+      estimate_phase_and_remaining: state.estimate ? null : "phase",
+      find_alternatives: state.alternatives || !state.estimate ? null : "alternatives",
+      compute_break_even: state.breakEven || !state.alternatives ? null : "break_even",
+    };
+    const stage = pending[name];
+    if (stage) await emitProgress(stage);
+  }
+
   async function executeTool(name: string, input: unknown): Promise<ToolOutcome> {
+    await announceToolStart(name);
     switch (name) {
       case "lookup_knowledge": {
         const parsed = parseInput(LookupKnowledgeInputSchema, input);
@@ -277,5 +300,5 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     return refs;
   }
 
-  return { ctx, state, executeTool, collectEvidenceRefs, inferredEventType };
+  return { ctx, state, executeTool, collectEvidenceRefs, emitProgress, inferredEventType };
 }

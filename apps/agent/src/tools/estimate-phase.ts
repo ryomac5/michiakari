@@ -1,14 +1,13 @@
-import { addMinutesToIso, parseIsoToMs } from "@repo/core";
-import type { Estimate } from "@repo/schema";
-import { z } from "zod";
 import {
-  decideEstimateConfidence,
-  detectPhase,
+  addMinutesToIso,
   estimateBranchAwareRemaining,
   estimateStatedRemaining,
-  extractFirstTrainWait,
-  findLatestStatedResume,
-} from "../domain/phase.ts";
+  getFirstTrainWait,
+  parseIsoToMs,
+} from "@repo/core";
+import type { Estimate } from "@repo/schema";
+import { z } from "zod";
+import { decideEstimateConfidence, detectPhase, findLatestStatedResume } from "../domain/phase.ts";
 import type { EstimateToolResult, ToolContext } from "./types.ts";
 
 export const EstimatePhaseInputSchema = z.object({
@@ -56,15 +55,19 @@ export function runEstimatePhase(
   const detection = detectPhase(knowledge, ctx.observations, now);
   const stated = findLatestStatedResume(ctx.observations);
   const statedIsFuture = stated !== null && parseIsoToMs(stated.time) > parseIsoToMs(now);
-  const firstTrainWait = extractFirstTrainWait(knowledge);
-  const fromKnowledge = estimateBranchAwareRemaining(knowledge, detection);
+  const firstTrainWait = getFirstTrainWait(knowledge);
+  const fromKnowledge = estimateBranchAwareRemaining(
+    knowledge,
+    detection.phaseId,
+    detection.elapsedMinutes,
+  );
   // 再開済みなら、乗れる列車が来るまでの待ちだけが残る
   const basis = detection.resumed ? "resumed" : stated && statedIsFuture ? "stated" : "knowledge";
   const remaining =
     basis === "resumed"
       ? firstTrainWait
       : basis === "stated" && stated
-        ? estimateStatedRemaining(stated.time, now, firstTrainWait)
+        ? estimateStatedRemaining(knowledge, stated.time, now)
         : fromKnowledge.remaining;
   const phase = knowledge.phases[detection.phaseIndex];
   const language = ctx.request.language;

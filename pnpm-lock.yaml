@@ -29,6 +29,9 @@ importers:
       '@repo/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@repo/geo':
+        specifier: workspace:*
+        version: link:../../packages/geo
       '@repo/schema':
         specifier: workspace:*
         version: link:../../packages/schema

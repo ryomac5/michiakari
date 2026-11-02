@@ -18,6 +18,8 @@ describe("JudgmentEventSchema", () => {
     { type: "break_even_computed", breakEven: null },
     { type: "judgment_ready", judgment: validJudgment },
     { type: "error", message: "タイムアウト", retryable: true },
+    { type: "progress", message: "知見を確かめています", stage: "knowledge" },
+    { type: "progress", message: "考えています" },
   ])("$type を受け入れる", (event) => {
     expect(JudgmentEventSchema.safeParse({ ...base, ...event }).success).toBe(true);
   });
@@ -51,6 +53,14 @@ describe("JudgmentEventSchema", () => {
 
   it("z.toJSONSchema で例外なく変換できる", () => {
     const schema = z.toJSONSchema(JudgmentEventSchema);
-    expect(schema.oneOf).toHaveLength(7);
+    expect(schema.oneOf).toHaveLength(8);
+  });
+
+  it("progress は空の文と未知の段階を拒否する", () => {
+    expect(JudgmentEventSchema.safeParse({ ...base, type: "progress", message: "" }).success).toBe(
+      false,
+    );
+    const unknownStage = { ...base, type: "progress", message: "x", stage: "unknown" };
+    expect(JudgmentEventSchema.safeParse(unknownStage).success).toBe(false);
   });
 });

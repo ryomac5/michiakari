@@ -17,6 +17,8 @@ export const claudeSettings = {
   maxRegenerations: 1,
   // 拒否されたときにサーバー側で別モデルに回す
   fallbackBeta: "server-side-fallback-2026-07-01",
+  // ツール呼び出しの合間の進捗メモ（thinking.display: "updates"）
+  thinkingUpdatesBeta: "thinking-display-updates-2026-08-18",
 } as const;
 
 export const defaultPort = 8787;

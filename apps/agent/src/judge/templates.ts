@@ -1,5 +1,5 @@
 import { getJstMinuteOfDay } from "@repo/core";
-import type { Lang } from "@repo/schema";
+import type { Lang, ProgressStage } from "@repo/schema";
 
 // 利用者向けの定型文（ja / en）。数値は呼び出し側がツールの結果から渡す
 
@@ -101,4 +101,22 @@ export function buildHeadline(input: HeadlineInput): string {
         ? `運転再開を待ちましょう。${boardable}頃に乗れる見込みです。${be}までに再開しなければ、${best}のほうが早く着きます。`
         : `Wait for resumption. You should be able to board around ${boardable}. If service has not resumed by ${be}, ${best} gets you there sooner.`;
   }
+}
+
+const PROGRESS_MESSAGES: Record<ProgressStage, { ja: string; en: string }> = {
+  interpret: { ja: "掲示や発表を読み取っています", en: "Reading the announcement" },
+  knowledge: { ja: "元指令員の知見を確かめています", en: "Checking the dispatcher knowledge" },
+  weather: { ja: "雨量と警報を確かめています", en: "Checking rainfall and warnings" },
+  phase: {
+    ja: "段階と再開までの時間を見積もっています",
+    en: "Estimating the phase and time to resumption",
+  },
+  alternatives: { ja: "代替経路を探しています", en: "Searching for alternative routes" },
+  break_even: { ja: "分岐点を計算しています", en: "Computing the break-even time" },
+  judgment: { ja: "判断をまとめています", en: "Putting the judgment together" },
+};
+
+// 各段階の開始を知らせる短文
+export function buildProgressMessage(stage: ProgressStage, language: Lang): string {
+  return PROGRESS_MESSAGES[stage][language];
 }

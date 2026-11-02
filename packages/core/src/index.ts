@@ -50,6 +50,12 @@ export {
   getFirstTrainWait,
 } from "./remaining.ts";
 export {
+  type BranchAwareRemaining,
+  estimateBranchAwareRemaining,
+  estimateStatedRemaining,
+  findShortestPhasePath,
+} from "./remaining-paths.ts";
+export {
   checkNightSurcharge,
   computeTaxiFare,
   computeTaxiMinutes,

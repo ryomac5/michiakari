@@ -1,7 +1,7 @@
-import { diffMinutes, estimateRemaining } from "@repo/core";
-import type { Confidence, DurationDist, Knowledge, Observation } from "@repo/schema";
+import { diffMinutes } from "@repo/core";
+import type { Confidence, Knowledge, Observation } from "@repo/schema";
 
-// 観測の列から事象種別・段階・残り時間を決める。数値の計算は core を呼ぶ
+// 観測の列から事象種別と段階を決める。残り時間の計算は core が受け持つ
 
 const CONFIDENCE_SCORE: Record<Confidence, number> = { high: 3, medium: 2, low: 1 };
 
@@ -88,73 +88,6 @@ function checkResumed(knowledge: Knowledge, observations: readonly Observation[]
       (s) => s.eventType === knowledge.id && last.exit_signals.includes(s.signalId),
     ),
   );
-}
-
-// 現在の段階から、exit_signals をたどって最も先へ進む経路の段階の位置を返す
-export function findShortestPhasePath(knowledge: Knowledge, phaseIndex: number): number[] {
-  const path = [phaseIndex];
-  let current = phaseIndex;
-  for (;;) {
-    const phase = knowledge.phases[current];
-    if (!phase) break;
-    const next = phase.exit_signals
-      .map((id) => findSignalPhaseIndex(knowledge, id))
-      .filter((i) => i > current)
-      .reduce((max, i) => Math.max(max, i), -1);
-    const fallback = current + 1 < knowledge.phases.length ? current + 1 : -1;
-    const step = next >= 0 ? next : fallback;
-    if (step < 0) break;
-    path.push(step);
-    current = step;
-  }
-  return path;
-}
-
-export type RemainingEstimate = {
-  remaining: DurationDist;
-  basis: "knowledge" | "stated";
-  // 短い経路で省いた段階
-  skippedPhaseIds: string[];
-};
-
-// 段階が分岐するときは、p50 を省ける段階を省いた経路で、p80 をすべての段階を通る経路で求める
-export function estimateBranchAwareRemaining(
-  knowledge: Knowledge,
-  detection: PhaseDetection,
-): RemainingEstimate {
-  const full = estimateRemaining(knowledge, detection.phaseId, detection.elapsedMinutes);
-  const path = findShortestPhasePath(knowledge, detection.phaseIndex);
-  const pathPhases = path.flatMap((i) => (knowledge.phases[i] ? [knowledge.phases[i]] : []));
-  const skippedPhaseIds = knowledge.phases
-    .slice(detection.phaseIndex)
-    .filter((p) => !pathPhases.includes(p))
-    .map((p) => p.id);
-  if (skippedPhaseIds.length === 0) return { remaining: full, basis: "knowledge", skippedPhaseIds };
-  const short = estimateRemaining(
-    { ...knowledge, phases: pathPhases },
-    detection.phaseId,
-    detection.elapsedMinutes,
-  );
-  return {
-    remaining: { p50: short.p50, p80: Math.max(full.p80, short.p80) },
-    basis: "knowledge",
-    skippedPhaseIds,
-  };
-}
-
-// 再開後に乗れる列車が来るまでの待ち（分）。core に getFirstTrainWait が入ったら差し替える
-export function extractFirstTrainWait(knowledge: Knowledge): DurationDist {
-  return knowledge.after_resume.first_train_wait_minutes;
-}
-
-// 発表された再開見込み時刻に、再開後の初列車待ちを足す
-export function estimateStatedRemaining(
-  statedResumeTime: string,
-  now: string,
-  firstTrainWait: DurationDist,
-): DurationDist {
-  const untilResume = Math.max(0, Math.ceil(diffMinutes(now, statedResumeTime)));
-  return { p50: untilResume + firstTrainWait.p50, p80: untilResume + firstTrainWait.p80 };
 }
 
 export type StatedResume = {

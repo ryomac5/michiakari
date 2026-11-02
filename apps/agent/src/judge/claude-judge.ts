@@ -1,4 +1,5 @@
 import type {
+  BetaMessage,
   BetaMessageParam,
   BetaToolResultBlockParam,
   BetaToolUseBlock,
@@ -47,9 +48,10 @@ function buildBaseParams(session: JudgeSession, deps: ClaudeJudgeDeps) {
   return {
     model: models.judgment,
     max_tokens: claudeSettings.judgmentMaxTokens,
-    betas: [claudeSettings.fallbackBeta],
     fallbacks: "default",
-    thinking: { type: "adaptive" },
+    betas: [claudeSettings.fallbackBeta, claudeSettings.thinkingUpdatesBeta],
+    // ツール呼び出しの合間の短い進捗メモを受け取り、progress イベントで流す
+    thinking: { type: "adaptive", display: "updates" },
     output_config: { effort: claudeSettings.judgmentEffort },
     system: [
       { type: "text", text: deps.prompts.judgmentSystem },
@@ -61,6 +63,19 @@ function buildBaseParams(session: JudgeSession, deps: ClaudeJudgeDeps) {
     ],
     tools: buildClaudeTools(),
   } satisfies Omit<MessageCreateParamsNonStreaming, "messages">;
+}
+
+const MAX_PROGRESS_NOTE_LENGTH = 200;
+
+// Claude の説明文と進捗メモを短文にそろえる
+function collectProgressNotes(content: BetaMessage["content"]): string[] {
+  return content
+    .flatMap((b) => (b.type === "text" ? [b.text] : b.type === "thinking" ? [b.thinking] : []))
+    .map((t) => t.trim().replace(/\s+/g, " "))
+    .filter((t) => t.length > 0)
+    .map((t) =>
+      t.length > MAX_PROGRESS_NOTE_LENGTH ? `${t.slice(0, MAX_PROGRESS_NOTE_LENGTH - 1)}…` : t,
+    );
 }
 
 function toToolResult(id: string, outcome: ToolOutcome): BetaToolResultBlockParam {
@@ -141,6 +156,9 @@ export async function runClaudeJudgment(
     }
     // 思考のブロックも含めて、応答をそのまま履歴に戻す
     messages.push({ role: "assistant", content: response.content });
+    for (const note of collectProgressNotes(response.content)) {
+      await session.emitProgress(undefined, note);
+    }
 
     const toolUses = response.content.filter((b): b is BetaToolUseBlock => b.type === "tool_use");
     if (toolUses.length === 0) {
@@ -163,6 +181,7 @@ export async function runClaudeJudgment(
         );
         continue;
       }
+      await session.emitProgress("judgment");
       const emitted = handleEmitJudgment(session, toolUse.input);
       if (emitted.judgment) return { status: "done", judgment: emitted.judgment };
       // ツールを呼ぶ前の emit_judgment は再生成の回数に数えない

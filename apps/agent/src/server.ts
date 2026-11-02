@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
 import { getConnInfo } from "@hono/node-server/conninfo";
-import { createNetworkProvider } from "./alternatives/network-provider.ts";
+import { createGeoProvider } from "./alternatives/geo-provider.ts";
 import { createApp } from "./app.ts";
 import {
   defaultPort,
@@ -23,7 +23,7 @@ const app = createApp({
   judge: {
     mode,
     content,
-    provider: createNetworkProvider(),
+    provider: createGeoProvider(),
     fetchRain: createAmedasRainFetcher(),
     llm: mode === "claude" ? createAnthropicLlmClient() : null,
     prompts: loadPrompts(),
