@@ -1,7 +1,7 @@
 // data-testid の一覧。リプレイ（WS7）と録画が使うので、値を変えるときは e2e も直す
 // e2e からも相対パスで読むので、このファイルは何も import しない
 // 命名規則: <画面>-<領域>[-<要素>]。すべて kebab-case
-//   画面: app（共通）/ start / situation / judgment / replay / about
+//   画面: app（共通）/ start / situation / judgment / replay / about / knowledge
 //   一覧の要素は末尾に -<id> を付ける（例: judgment-option-transfer_hankyu）
 //   状態は data-state・data-action などの属性で表し、testid には含めない
 
@@ -10,6 +10,7 @@ export const testIds = {
     header: "app-header",
     homeLink: "app-home-link",
     aboutLink: "app-about-link",
+    knowledgeLink: "app-knowledge-link",
     languageSwitch: "app-language-switch",
     language: (locale: string) => `app-language-${locale}`,
     themeToggle: "app-theme-toggle",
@@ -53,12 +54,15 @@ export const testIds = {
     reasoningProgress: (id: string) => `judgment-reasoning-progress-${id}`,
     conclusion: "judgment-conclusion",
     conclusionHeadline: "judgment-conclusion-headline",
+    conclusionReason: "judgment-conclusion-reason",
     disclaimer: "judgment-disclaimer",
     error: "judgment-error",
     retryButton: "judgment-retry-button",
     breakEven: "judgment-break-even",
     breakEvenTime: "judgment-break-even-time",
     breakEvenCountdown: "judgment-break-even-countdown",
+    // 分岐点の時間軸。data-relation に before / straddle / after を出す
+    breakEvenTimeline: "judgment-break-even-timeline",
     map: "judgment-map",
     options: "judgment-options",
     option: (id: string) => `judgment-option-${id}`,
@@ -67,6 +71,7 @@ export const testIds = {
     phaseTimeline: "judgment-phase-timeline",
     phase: (id: string) => `judgment-phase-${id}`,
     signal: (id: string) => `judgment-signal-${id}`,
+    signalLink: (id: string) => `judgment-signal-link-${id}`,
     evidenceItem: (id: string) => `judgment-evidence-item-${id}`,
     addInfo: "judgment-add-info",
   },
@@ -95,6 +100,19 @@ export const testIds = {
   about: {
     screen: "about-screen",
     attribution: "about-attribution",
+    knowledgeLink: "about-knowledge-link",
+  },
+  // 知見ナレッジの閲覧画面
+  knowledge: {
+    screen: "knowledge-screen",
+    notice: "knowledge-notice",
+    dummyNotice: "knowledge-dummy-notice",
+    event: (id: string) => `knowledge-event-${id}`,
+    phase: (id: string) => `knowledge-phase-${id}`,
+    signal: (id: string) => `knowledge-signal-${id}`,
+    yaml: (id: string) => `knowledge-yaml-${id}`,
+    caveats: (id: string) => `knowledge-caveats-${id}`,
+    replayLink: (scenarioId: string) => `knowledge-replay-link-${scenarioId}`,
   },
 } as const;
 

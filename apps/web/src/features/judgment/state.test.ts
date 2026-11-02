@@ -119,6 +119,18 @@ describe("selectJudgmentDisplay", () => {
     expect(display.recommendedOptionId).toBe("wait_resume");
   });
 
+  it("確定した判断を基準時刻とともに返し、更新中は前回の判断を返す", () => {
+    const ready = applyEvents(startJudgmentRun(createJudgmentState()), events);
+    const readyAt = findEvent(events, "judgment_ready").at;
+    expect(selectJudgmentDisplay(ready).settled).toEqual({
+      judgment: ready.judgment,
+      at: readyAt,
+    });
+    const rerun = selectJudgmentDisplay(startJudgmentRun(ready));
+    expect(rerun.settled).toEqual({ judgment: ready.judgment, at: readyAt });
+    expect(selectJudgmentDisplay(startJudgmentRun(createJudgmentState())).settled).toBeNull();
+  });
+
   it("新しい値が届いたらそちらを使う", () => {
     const ready = applyEvents(startJudgmentRun(createJudgmentState()), events);
     const rerun = applyEvents(startJudgmentRun(ready), [

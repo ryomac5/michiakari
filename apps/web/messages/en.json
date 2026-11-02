@@ -12,7 +12,8 @@
     "mockBadge": "Showing fictional demo data",
     "name": "MatsuKaeru",
     "tagline": "Wait, or switch?",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "knowledge": "Knowledge base"
   },
   "disclaimer": {
     "short": "Estimate only. Follow official notices."
@@ -106,11 +107,12 @@
     },
     "conclusion": {
       "label": "Advice",
-      "recommended": "Suggested: {label}, arriving {time}",
+      "recommended": "<name>Suggested: {label}</name>, arriving {time}",
       "remaining": "Resumes in {p50}–{p80} min",
       "confidence": "Confidence: {level}",
       "live": "Advice: {action}. {headline}",
-      "arrival": "Arrive {time}"
+      "arrival": "Arrive {time}",
+      "expandReason": "Show the full reason"
     },
     "confidence": {
       "low": "low",
@@ -135,7 +137,22 @@
       "countdownMinutes": "{minutes} min left",
       "countdownHours": "{hours} h {minutes} min left",
       "imminent": "Any moment now",
-      "condition": "If service hasn't resumed by <clock>{time}</clock>, switching gets you there sooner"
+      "condition": "If service hasn't resumed by <clock>{time}</clock>, switching gets you there sooner",
+      "timeline": {
+        "now": "Now",
+        "breakEven": "Decision {time}",
+        "deadline": "Deadline {time}",
+        "summary": {
+          "before": "Service should resume around {from}–{to}, before the decision point at {breakEven}. Waiting is likely faster.",
+          "straddle": "Service should resume around {from}–{to}, straddling the decision point at {breakEven}. If it slips, switching is faster.",
+          "after": "Service should resume around {from}–{to}, past the decision point at {breakEven}. Switching is likely faster."
+        },
+        "caption": {
+          "before": "Resumes ~{from}–{to}: <em>before decision</em>",
+          "straddle": "Resumes ~{from}–{to}: <em>spans decision</em>",
+          "after": "Resumes ~{from}–{to}: <em>past decision</em>"
+        }
+      }
     },
     "options": {
       "title": "Options",
@@ -170,7 +187,8 @@
         "knowledge": "Knowledge",
         "weather": "Weather",
         "computation": "Calculation"
-      }
+      },
+      "openKnowledge": "See in knowledge base"
     },
     "addInfo": {
       "title": "Add information",
@@ -255,6 +273,44 @@
       "p4": "Your location and input are used only to give advice and are never stored."
     },
     "intro": "MatsuKaeru blends the Japanese “matsu” (wait) and “norikaeru” (switch trains). Kaeru also means frog. It aims to shorten the time you spend not knowing what to do.",
-    "subtitle": "Wait, or switch?"
+    "subtitle": "Wait, or switch?",
+    "knowledgeLink": "See the knowledge behind the advice"
+  },
+  "knowledge": {
+    "title": "Knowledge base",
+    "lead": "This is the knowledge behind the advice. For each kind of disruption, it lists the phases and the signals you can observe from outside.",
+    "notice": "The knowledge generalizes the developer's hands-on experience into signals observable from outside. It contains no internal company information.",
+    "dummy": "You are viewing dummy content for development. It is not the developer's knowledge and is not used for real advice.",
+    "empty": "No knowledge to show.",
+    "contents": "Contents",
+    "file": "File: {file}",
+    "replay": "Watch in replay: {title}",
+    "phasesTitle": "Phase flow",
+    "duration": "About {p50}–{p80} min",
+    "durationLabel": "Typical duration",
+    "durationDetail": "Half end within {p50} min, 80% within {p80} min",
+    "description": "What it looks like",
+    "signals": "Signals",
+    "observableFrom": "Where you can observe it",
+    "examples": "Example announcements",
+    "exitSignals": "Link to the next phase",
+    "exitSignalsLead": "This phase ends when any of these signals is observed.",
+    "exitInPhase": "Signal of {phase}",
+    "noExit": "Final phase",
+    "guidance": "How to advise users",
+    "afterResume": "After service resumes",
+    "firstTrainWait": "Wait from resumption until a train you can board: {p50}–{p80} min",
+    "caveats": "Easy mistakes in judgment",
+    "externalFactors": "External factors",
+    "yaml": "The matching part of the knowledge file",
+    "yamlToggle": "Show YAML",
+    "backToTop": "Back to contents",
+    "observable": {
+      "announcement": "Announcement",
+      "signage": "Signage",
+      "station_broadcast": "Station broadcast",
+      "weather": "Weather",
+      "train_movement": "Train movement"
+    }
   }
 }

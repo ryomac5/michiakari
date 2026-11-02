@@ -1,6 +1,6 @@
 "use client";
 
-import { FlaskConical, Info } from "lucide-react";
+import { BookOpen, FlaskConical, Info } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useJudgmentSession } from "@/features/judgment/session";
@@ -41,6 +41,15 @@ export function AppHeader({ initialTheme }: { initialTheme: Theme }) {
         </Link>
         <LanguageSwitcher />
         <ThemeToggle initialTheme={initialTheme} />
+        <Link
+          href="/knowledge"
+          data-testid={testIds.app.knowledgeLink}
+          aria-label={t("knowledge")}
+          title={t("knowledge")}
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-surface-raised"
+        >
+          <BookOpen className="size-5" aria-hidden />
+        </Link>
         <Link
           href="/about"
           data-testid={testIds.app.aboutLink}

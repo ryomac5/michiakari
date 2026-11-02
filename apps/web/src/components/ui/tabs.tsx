@@ -21,7 +21,7 @@ export function TabsTrigger({ className, ...props }: ComponentProps<typeof TabsP
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        "flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-sm font-bold text-muted transition-colors",
+        "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-sm font-bold whitespace-nowrap text-muted transition-colors",
         "data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm",
         "[&_svg]:size-5",
         className,

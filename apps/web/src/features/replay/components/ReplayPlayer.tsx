@@ -1,11 +1,12 @@
 "use client";
 
-import type { Action } from "@repo/schema";
+import { type Action, resolveDeadline } from "@repo/schema";
 import { ArrowRight, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { actionStyles } from "@/features/judgment/action-style";
+import { selectTimelineBasis } from "@/features/judgment/break-even-timeline";
 import { BreakEvenPanel } from "@/features/judgment/components/BreakEvenPanel";
 import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
 import { ConclusionCard } from "@/features/judgment/components/ConclusionCard";
@@ -72,6 +73,8 @@ export function ReplayPlayer({
   const changed =
     current !== undefined && previousAction !== null && previousAction !== current.action;
   const pendingId = streaming ? (latestEntry?.id ?? "") : "";
+  const deadlineClock = scenario.user.constraints.deadline;
+  const deadline = deadlineClock ? resolveDeadline(scenario.start_time, deadlineClock) : null;
 
   return (
     <div
@@ -172,6 +175,7 @@ export function ReplayPlayer({
                 known={display.breakEvenKnown}
                 stale={display.breakEvenStale}
                 now={now}
+                timeline={selectTimelineBasis(display.settled, catalog, deadline)}
               />
             </div>
           )}

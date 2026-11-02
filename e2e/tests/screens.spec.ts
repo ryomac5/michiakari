@@ -85,15 +85,17 @@ async function checkScreen(page: Page, label: string) {
   await expectTapTargets(page, label);
 }
 
-// スマートフォンの最初の画面に、結論カードと分岐点と注意書きが収まっていること
+// スマートフォンの最初の画面に、結論カードと分岐点（時間軸を含む）と注意書きが収まっていること
 async function expectFirstViewport(page: Page, variant: Variant, label: string) {
   await page.evaluate(() => window.scrollTo(0, 0));
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   const breakEven = page.getByTestId(testIds.judgment.breakEven);
+  const timeline = page.getByTestId(testIds.judgment.breakEvenTimeline);
   const disclaimer = page.getByTestId(testIds.judgment.disclaimer);
   for (const [name, locator] of [
     ["結論", conclusion],
     ["分岐点", breakEven],
+    ["分岐点の時間軸", timeline],
     ["注意書き", disclaimer],
   ] as const) {
     const box = await locator.boundingBox();
@@ -109,6 +111,20 @@ async function expectFirstViewport(page: Page, variant: Variant, label: string) 
       Math.round(el.scrollHeight / Number.parseFloat(getComputedStyle(el).lineHeight)),
     );
   expect(lines, `${label}: 見出しが 4 行を超えている`).toBeLessThanOrEqual(4);
+}
+
+// PC 幅では、段階ごとに左に YAML の抜粋、右に構造化した表示が並ぶこと
+async function expectKnowledgeSideBySide(page: Page, label: string) {
+  const phase = page.locator("[data-testid^='knowledge-phase-']").first();
+  const phaseId = (await phase.getAttribute("data-testid"))?.replace("knowledge-phase-", "");
+  const yaml = page.locator(`[data-testid$='-${phaseId}'][data-testid^='knowledge-yaml-']`);
+  await expect(yaml, `${label}: YAML の抜粋が見えない`).toBeVisible();
+  await expect(yaml).toContainText(`id: ${phaseId}`);
+  const [yamlBox, phaseBox] = [await yaml.boundingBox(), await phase.boundingBox()];
+  expect(
+    (yamlBox?.x ?? 0) + (yamlBox?.width ?? 0),
+    `${label}: YAML が左に無い`,
+  ).toBeLessThanOrEqual(phaseBox?.x ?? 0);
 }
 
 for (const variant of variants) {
@@ -176,6 +192,14 @@ for (const variant of variants) {
       await expect(page.getByTestId(testIds.about.screen)).toBeVisible({ timeout: 30_000 });
       await capture(page, variant, "09-about", true);
       await checkScreen(page, "このアプリについて");
+
+      await page.getByTestId(testIds.about.knowledgeLink).click();
+      await expect(page.getByTestId(testIds.knowledge.screen)).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId(testIds.knowledge.notice)).toBeVisible();
+      await capture(page, variant, "14-knowledge");
+      await capture(page, variant, "15-knowledge-full", true);
+      await checkScreen(page, "知見ナレッジ");
+      if (variant.width === desktop.width) await expectKnowledgeSideBySide(page, "知見ナレッジ");
     });
 
     test("リプレイ", async ({ page }) => {
