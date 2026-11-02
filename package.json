@@ -19,6 +19,9 @@
     "guard:approve": "node scripts/guard-approve.mjs",
     "validate": "pnpm --filter @repo/schema validate",
     "validate:dev": "CONTENT_DIR=packages/schema/test/fixtures/dev-content pnpm validate",
+    "knowledge:new": "node scripts/content-new.mjs knowledge",
+    "scenario:new": "node scripts/content-new.mjs scenario",
+    "smoke:claude": "pnpm --filter @repo/agent smoke:claude",
     "data:build": "turbo run data:build",
     "data:osm": "pnpm --filter @repo/data data:osm",
     "data:walk": "pnpm --filter @repo/data data:walk"

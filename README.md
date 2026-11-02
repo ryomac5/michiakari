@@ -196,6 +196,8 @@ pnpm test                # 全パッケージの単体テスト
 pnpm test:e2e            # シナリオの振る舞いテスト
 pnpm guard               # knowledge/ と scenarios/ が改変されていないかを検査
 pnpm validate:dev        # ダミーの知見とシナリオの YAML を検証
+pnpm validate --watch    # 保存のたびに knowledge/ と scenarios/ を検証
+pnpm smoke:claude        # 実 API で claude モードを 1 回確認。キーが無ければ案内だけ
 ```
 
 `pnpm test:e2e` は画面とエージェントを自動で起動します。
@@ -217,6 +219,14 @@ pnpm --filter e2e record
 エージェントは読むだけで、フックが書き込みを遮断します。
 `pnpm guard` は承認記録と照合し、改変を検出します。
 現時点では、両方とも雛形と書式の説明だけを置いています。
+
+開発者は次のコマンドで雛形から書き始めます。
+手順は [docs/guides/knowledge-authoring.html](docs/guides/knowledge-authoring.html) にあります。
+
+```bash
+ALLOW_PROTECTED_EDIT=1 pnpm knowledge:new <event_id>
+ALLOW_PROTECTED_EDIT=1 pnpm scenario:new <scenario_id> --event <event_id>
+```
 
 開発用のダミーは `packages/schema/test/fixtures/dev-content/` にあります。
 人身事故、車両故障、大雨の知見とシナリオが 3 本ずつです。
