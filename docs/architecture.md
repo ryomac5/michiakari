@@ -95,34 +95,51 @@
 
 ## 4. 主要スキーマ（packages/schema）
 
+YAML のキーは雛形どおり snake_case で書く。API とイベントの項目は camelCase で書く。型はスキーマから `z.infer` で導出し、同じ形を別に定義しない。時刻はオフセット付きの ISO 8601 で表す。
+
 ### 4.1 Knowledge（知見ナレッジ）
 
 書式は `knowledge/README.md` と `knowledge/_template.yaml` を正とする。
 
+- 文言は `ja` を必須とし、`en` は省略できる
+- 所要時間の `p50` と `p80` は必須で、0 以上の整数とする。`p80` は `p50` 以上にする
+- ファイルごとに次を検査する
+  - 段階の id が重複しない
+  - 兆候の id がファイル全体で重複しない
+  - `exit_signals` は同じファイルで定義した兆候の id を指す
+  - `id` は拡張子を除いたファイル名と一致する
+
 ### 4.2 Observation（利用者が持ち込んだ観測）
+
+`kind` と `rawText` だけが省略できる。null を許す項目も、キーは省略せずに null を入れる。
 
 | フィールド | 内容 |
 |---|---|
+| `id` | 観測の ID。空でない文字列 |
 | `observedAt` | 観測時刻 |
 | `source` | `photo` / `text` / `selection` / `scenario` |
-| `rawText` | 読み取った原文（写真の場合は OCR 結果） |
-| `eventTypeCandidates` | 事象種別の候補と確信度 |
-| `operator`, `line`, `section` | 事業者、路線、区間 |
-| `statedResumeTime` | 発表文に記載された再開見込み時刻（あれば） |
-| `transferServiceActive` | 振替輸送の実施有無（記載があれば） |
-| `detectedSignals` | ナレッジの兆候 ID との対応 |
+| `kind` | 観測の種類。知見の `observable_from` と同じ 5 値をとる |
+| `rawText` | 読み取った原文。写真では OCR 結果を入れる |
+| `eventTypeCandidates` | 事象種別 `eventType` と確信度 `confidence` の配列。確信度は `low` / `medium` / `high` |
+| `operator`, `line` | 事業者と路線。不明なら null |
+| `section` | 区間 `{ fromStation, toStation }`。不明なら null |
+| `statedResumeTime` | 発表文に記載された再開見込み時刻。記載が無ければ null |
+| `transferServiceActive` | 振替輸送の実施有無。記載が無ければ null |
+| `detectedSignals` | 兆候との対応 `{ eventType, signalId, quote }` の配列。`quote` は根拠の文言 |
 
 ### 4.3 JudgmentEvent（SSE で送るイベント）
 
+全イベントは `type` に加えて、連番 `seq` と時刻 `at` を持つ。
+
 | type | 内容 | 画面での表示 |
 |---|---|---|
-| `observation_parsed` | Observation | 「掲示を読み取りました」 |
-| `signal_detected` | 兆候 ID、根拠の文言 | 根拠リストに追加 |
-| `phase_estimated` | 段階 ID、残り時間分布 | タイムラインの「いまここ」を更新 |
-| `alternatives_computed` | 代替手段の一覧 | 地図に経路と到達範囲を描画 |
-| `break_even_computed` | 分岐点の時刻 | 分岐点の表示を更新 |
-| `judgment_ready` | Judgment | 結論を確定表示 |
-| `error` | エラー内容 | 再試行の案内 |
+| `observation_parsed` | `{ observation: Observation }` | 「掲示を読み取りました」 |
+| `signal_detected` | `{ signal: DetectedSignal }` | 根拠リストに追加 |
+| `phase_estimated` | `{ estimate: Estimate }` | タイムラインの「いまここ」を更新 |
+| `alternatives_computed` | `{ options: RouteOption[] }` | 地図に経路と到達範囲を描画 |
+| `break_even_computed` | `{ breakEven: BreakEven \| null }` | 分岐点の表示を更新 |
+| `judgment_ready` | `{ judgment: Judgment }` | 結論を確定表示 |
+| `error` | `{ message: string, retryable: boolean }` | 再試行の案内 |
 
 ### 4.4 Judgment（判断結果）
 
@@ -130,12 +147,87 @@
 |---|---|
 | `action` | `wait` / `switch` / `hold`（判断保留、分岐点のみ提示） |
 | `headline` | 結論の一文（利用者の言語） |
-| `breakEven` | 分岐点の時刻と、その意味の説明 |
-| `estimate` | 段階、残り時間（p50, p80）、確信度 |
-| `options` | 代替手段ごとの経路、到着時刻、運賃、徒歩時間 |
-| `recommendedOptionId` | 推奨する代替手段 |
-| `evidence` | 使った兆候・知見の ID と説明 |
+| `breakEven` | 分岐点の時刻 `time` と意味の説明 `explanation`。null を許す |
+| `estimate` | Estimate。項目は下表に示す |
+| `options` | RouteOption の配列。`id` を重複させない |
+| `recommendedOptionId` | 推奨する代替手段の `id`。null を許すが、`action` が `switch` なら必須 |
+| `evidence` | `{ kind, id, description }` の配列。`kind` は `signal` / `knowledge` / `weather` / `computation` |
 | `disclaimer` | 推定である旨（必須） |
+
+`recommendedOptionId` は `options` にある `id` を指す。参照と重複は `checkJudgmentRefs` で検査する。スキーマに refine を付けないのは、Claude のツール定義に変換するためである。
+
+Estimate の項目は次のとおり。
+
+| フィールド | 内容 |
+|---|---|
+| `eventType` | 事象種別。特定できなければ null とし、分岐点だけで判断を返す |
+| `phaseId` | 段階の id。null を許す |
+| `elapsedMinutes` | 段階の経過分。null を許す |
+| `remaining` | 再開までの残り時間 `{ p50, p80 }`。null を許す |
+| `confidence` | `low` / `medium` / `high` |
+
+RouteOption の項目は次のとおり。
+
+| フィールド | 内容 |
+|---|---|
+| `id` | 代替手段の id |
+| `kind` | `wait` / `transfer` / `taxi` / `walk` |
+| `label` | 表示名 |
+| `legs` | RouteLeg の配列 |
+| `arrivalTime` | 到着時刻 |
+| `fareYen` | 運賃の円。null を許す |
+| `walkMinutes` | 徒歩の分 |
+| `isTransferService` | 振替輸送を使うか |
+
+RouteLeg は `mode`、`from`、`to`、`minutes` を持ち、`line` は省略できる。`mode` は `walk` / `ride` / `wait` / `taxi` のいずれかである。
+
+### 4.5 Scenario（リプレイ用シナリオ）
+
+書式は `scenarios/_template.yaml` を正とする。
+
+- 任意の `weather.readings` を足せる。大雨のリプレイで `get_weather` が返す観測値である
+- `weather.readings` の各要素は `offset_minutes`、`rainfall_10min_mm`、`warnings` を持つ
+- `expectations` の各要素は、`action`・`phase`・`evidence_includes`・`break_even_shown` の少なくとも一つを持つ
+- `user.constraints.deadline` は `HH:MM` で書く。`resolveDeadline` が `start_time` 以降の日本時間に変換する
+- ファイルごとに次を検査する
+  - timeline の id が重複しない
+  - timeline の `offset_minutes` が昇順に並ぶ。同じ値は許す
+  - `weather.readings` の `offset_minutes` が狭義の昇順に並ぶ
+  - `expectations.after` は timeline の id を指す
+- 知見との参照を次のとおり検査する
+  - `event_type` は知見の id を指す
+  - `expectations.phase` はその知見の段階を指す
+  - `expectations.evidence_includes` はその知見の兆候を指す
+
+### 4.6 RawInput（未解釈の入力）
+
+利用者が持ち込んだ未解釈の入力。`type` で 4 種に分かれる。
+
+| type | 項目 |
+|---|---|
+| `photo` | `imageBase64` と `mediaType`。形式は JPEG・PNG・WebP・GIF |
+| `text` | 貼り付けた文章 `text` |
+| `selection` | 選んだ事象種別 `eventType` と兆候の `signalIds` |
+| `scenario` | `scenarioId`、`observationId`、`kind`、`text` |
+
+`scenario` 型はリプレイで timeline の 1 件を流し込む。`scenarioId` は `weather.readings` を引くシナリオを特定する。
+
+### 4.7 JudgeRequest（判断の依頼）
+
+`POST /judge` の入力。
+
+| フィールド | 内容 |
+|---|---|
+| `observations` | 解釈済みの Observation の配列。画面が前回までの結果を返送する |
+| `newInput` | 今回持ち込まれた RawInput。無ければ null |
+| `origin`, `destination` | 現在地と行き先の Place |
+| `constraints` | `deadline`、`knowsAlternatives`、`mobilityNotes`。`deadline` と `mobilityNotes` は null を許す |
+| `language` | `ja` / `en` |
+| `now` | 判断の基準時刻。リプレイではシナリオ時刻を入れる |
+
+### 4.8 Place（地点）
+
+M0 では駅名 `{ kind: "station", name }` と座標 `{ kind: "coord", lon, lat }` の 2 種とする。地名による指定は、ジオコーダを調査してから決める。
 
 ## 5. ツール仕様（apps/agent/src/tools）
 
@@ -159,7 +251,7 @@
 
 ## 7. 検証
 
-このプロジェクトには、統計的な評価に使えるほどの正解データはない（復旧時間の過去データは存在せず、シナリオは架空）。検証は次の3層で行う。
+このプロジェクトには、統計的な評価に使えるほどの正解データはない（復旧時間の過去データは存在せず、シナリオは架空）。検証は次の3層で行う。知見とシナリオの書式は 7.4 で検査する。
 
 ### 7.1 計算の単体テスト（packages/core）
 
@@ -178,6 +270,19 @@
 ### 7.3 開発者による確認
 
 判断が現場の感覚に合っているかは、最終的に開発者が画面を見て確認する。気になった点は `docs/progress.md` に記録し、知見ナレッジまたはシナリオの期待値に反映する。
+
+### 7.4 YAML の内容検証
+
+`pnpm validate` は `knowledge/` と `scenarios/` の YAML を検証する。エラーが 1 件でもあれば exit 1 で終わる。
+
+- 対象は直下の `.yaml` とし、`_` で始まるファイルは除く
+- 拡張子 `.yml` はエラーとする
+- YAML 1.2 として読み、構文エラーと重複キーをエラーとする
+- 値に `TODO` が残っていればエラーとする
+- スキーマと 4.1・4.5 の検査を行い、エラーを行番号付きで示す
+- 知見の id とシナリオの id は、それぞれ複数のファイルで重複させない
+
+雛形の整合も同じコマンドで検査する。2 つの `_template.yaml` のキー構造をスキーマと突き合わせ、値は見ない。スキーマに無いキーと、雛形に無い必須キーをエラーとする。`pnpm guard` もこの検証を実行する。
 
 ## 8. セキュリティとプライバシー
 
