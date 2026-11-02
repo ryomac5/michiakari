@@ -1,22 +1,30 @@
-import { resolve } from "node:path";
+import { REPO_ROOT, resolveContentDir } from "../src/loaders.ts";
 import {
   checkTemplateConformance,
   formatContentError,
   validateContent,
 } from "../src/validate-content.ts";
 
-// リポジトリルートの knowledge/ と scenarios/ を検証する
+// knowledge/ と scenarios/ を検証する。既定はリポジトリルート、CONTENT_DIR で切り替える
 
-const rootDir = resolve(import.meta.dirname, "../../..");
+const rootDir = resolveContentDir();
+const isDefaultRoot = rootDir === REPO_ROOT;
+if (!isDefaultRoot) console.log(`読み込み元: ${rootDir}`);
 
 const content = validateContent(rootDir);
 console.log(`検証したファイル: ${content.checkedFiles.length} 件`);
 for (const file of content.checkedFiles) console.log(`  - ${file}`);
 
-const templates = checkTemplateConformance(rootDir);
+// 雛形はリポジトリルートでのみ必須
+const templates = checkTemplateConformance(rootDir, { allowMissing: !isDefaultRoot });
 console.log("雛形の整合:");
 for (const t of templates) {
-  console.log(`  ${t.file}: ${t.errors.length === 0 ? "スキーマとキー構造が一致" : "不一致"}`);
+  const status = t.skipped
+    ? "雛形なし (CONTENT_DIR 指定のため省略)"
+    : t.errors.length === 0
+      ? "スキーマとキー構造が一致"
+      : "不一致";
+  console.log(`  ${t.file}: ${status}`);
 }
 
 const errors = [

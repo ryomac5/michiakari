@@ -1,0 +1,126 @@
+# 開発用のダミー。開発者の知見ではない。本番の判断には使わない
+# すべて架空。文面は自作。雨量の値は架空の観測値
+
+id: heavy_rain_evening
+title:
+  ja: 夕方の大雨で見合わせ、雨が弱まって再開に向かう
+  en: Evening heavy rain suspends service, then eases toward resumption
+event_type: heavy_rain
+operator: JR西日本
+line: JR宝塚線
+blocked_section:
+  from_station: 宝塚
+  to_station: 三田
+start_time: "2026-11-05T18:00:00+09:00"
+
+# 帰宅途中。時間の制約は無く、代替経路は知っている
+user:
+  current_station: 宝塚
+  destination: 三田
+  constraints:
+    deadline: null
+    knows_alternatives: true
+    mobility_notes: null
+  language: ja
+
+timeline:
+  - id: obs_1
+    offset_minutes: 0
+    kind: announcement
+    text:
+      ja: JR宝塚線は、大雨の影響で宝塚駅〜三田駅間の上下線で運転を見合わせています。雨の状況により、再開の見込みは立っていません。
+      en: The JR Takarazuka Line is suspended in both directions between Takarazuka and Sanda due to heavy rain. No estimated resumption time is available.
+  - id: obs_2
+    offset_minutes: 20
+    kind: weather
+    text:
+      ja: 雨雲レーダーでは、宝塚市から三田市にかけて強い雨雲がかかり続けています。大雨警報が続いています。
+      en: Rain radar shows strong rain clouds lingering from Takarazuka to Sanda. The heavy rain warning remains in effect.
+  - id: obs_3
+    offset_minutes: 50
+    kind: station_broadcast
+    text:
+      ja: お客様にお知らせします。雨は弱まってきましたが、運転再開の見込みはまだ立っておりません。
+      en: Attention passengers. The rain has started to ease, but there is still no estimated resumption time.
+  - id: obs_4
+    offset_minutes: 75
+    kind: announcement
+    text:
+      ja: 雨が弱まったため、宝塚駅〜三田駅間で線路の点検を行っています。点検が終わり次第、運転を再開します。
+      en: As the rain has eased, track inspection is under way between Takarazuka and Sanda. Service will resume once inspection is complete.
+  - id: obs_5
+    offset_minutes: 95
+    kind: signage
+    text:
+      ja: JR宝塚線 宝塚〜三田 線路点検中。19時50分頃 運転再開見込み。
+      en: "JR Takarazuka Line, Takarazuka to Sanda: track inspection in progress. Expected to resume around 19:50."
+  - id: obs_6
+    offset_minutes: 110
+    kind: announcement
+    text:
+      ja: JR宝塚線は、点検が終わり19時50分に運転を再開しました。列車に遅れが出ています。
+      en: The JR Takarazuka Line resumed at 19:50 after inspection. Trains are running with delays.
+
+expectations:
+  - after: obs_1
+    action: hold
+    phase: suspended
+    evidence_includes: [hr_suspension_announced]
+    break_even_shown: true
+    note: 雨が強いあいだは再開に向かわない。代替経路も雨の影響を受けやすいので、分岐点を示して保留する。
+  - after: obs_3
+    phase: rain_easing
+    evidence_includes: [hr_rain_easing]
+    note: 10分雨量がピークから下がっている。再開に向かい始めたが、点検が残ることを伝える。
+  - after: obs_4
+    action: wait
+    phase: track_inspection
+    evidence_includes: [hr_inspection_announced]
+    note: 規制が解除され点検に入った。代替経路は遠回りなので待つ。
+
+ground_truth:
+  resume_offset_minutes: 110
+  notes: 点検で異常は見つからず、19時50分に運転を再開した。待った人は20時過ぎに三田に着いた。
+
+# 10分ごとの架空の観測値。リプレイで get_weather が返す
+weather:
+  readings:
+    - offset_minutes: 0
+      rainfall_10min_mm: 6
+      warnings: [大雨警報]
+    - offset_minutes: 10
+      rainfall_10min_mm: 9
+      warnings: [大雨警報]
+    - offset_minutes: 20
+      rainfall_10min_mm: 12
+      warnings: [大雨警報]
+    - offset_minutes: 30
+      rainfall_10min_mm: 11
+      warnings: [大雨警報]
+    - offset_minutes: 40
+      rainfall_10min_mm: 8
+      warnings: [大雨警報]
+    - offset_minutes: 50
+      rainfall_10min_mm: 5
+      warnings: [大雨警報]
+    - offset_minutes: 60
+      rainfall_10min_mm: 3
+      warnings: [大雨警報]
+    - offset_minutes: 70
+      rainfall_10min_mm: 1.5
+      warnings: [大雨注意報]
+    - offset_minutes: 80
+      rainfall_10min_mm: 1
+      warnings: [大雨注意報]
+    - offset_minutes: 90
+      rainfall_10min_mm: 0.5
+      warnings: [大雨注意報]
+    - offset_minutes: 100
+      rainfall_10min_mm: 0
+      warnings: []
+    - offset_minutes: 110
+      rainfall_10min_mm: 0
+      warnings: []
+    - offset_minutes: 120
+      rainfall_10min_mm: 0
+      warnings: []

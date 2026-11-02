@@ -1,0 +1,127 @@
+# 開発用のダミー。開発者の知見ではない。本番の判断には使わない
+# 所要時間は報道や利用者の体感程度の目安。例文はすべて自作
+
+id: person_accident
+name:
+  ja: 人身事故
+  en: Person struck by train
+summary:
+  ja: 列車と人が接触し、救護と警察による現場確認のあいだ運転を見合わせる事象。現場対応が終わると再開見込みが発表され、安全確認を経て運転を再開する。見込み時刻は延長されることがある。
+  en: A train strikes a person, and service is suspended while rescue and police work on site. Once on-site work ends, an estimated resumption time is announced and service resumes after safety checks. The estimate is sometimes extended.
+
+identification:
+  phrases:
+    - 人身事故のため
+    - 人身事故の影響で
+    - お客様と列車が接触
+    - 救護活動を行っています
+
+phases:
+  - id: initial
+    name:
+      ja: 発生直後
+      en: Just occurred
+    description: 事故の発生が伝えられ、列車が駅や駅間で止まっている。現場の状況はまだ利用者に伝えられていない。
+    signals:
+      - id: pa_occurred_announced
+        observable_from: [announcement, signage, station_broadcast]
+        description: 人身事故で運転を見合わせている旨と、見込みが立っていない旨の発表
+        example_phrases:
+          - 人身事故のため、運転を見合わせています
+          - 運転再開の見込みは立っていません
+      - id: pa_trains_held
+        observable_from: [train_movement]
+        description: 列車がドアを開けたまま駅に止まり、発車の案内が無い
+        example_phrases:
+          - この列車はしばらく停車します
+    duration_minutes: { p50: 10, p80: 20 }
+    exit_signals: [pa_onsite_work_announced, pa_resume_estimate_announced]
+    guidance:
+      ja: 見込みの幅が大きい段階。断言せず、分岐点と代替手段を示す。
+      en: Uncertainty is high at this stage. Do not commit to an estimate; show the break-even time and alternatives.
+
+  - id: on_site_response
+    name:
+      ja: 現場対応
+      en: On-site response
+    description: 救護と警察による確認が現場で行われている。振替輸送が始まることが多い。
+    signals:
+      - id: pa_onsite_work_announced
+        observable_from: [announcement, station_broadcast]
+        description: 救護や警察による現場確認を行っている旨の発表や放送
+        example_phrases:
+          - ただいま現場で救護活動を行っております
+          - 警察による現場確認が続いております
+      - id: pa_transfer_service_started
+        observable_from: [announcement, signage, station_broadcast]
+        description: 振替輸送の実施を伝える案内
+        example_phrases:
+          - 他社線で振替輸送を行っています
+          - 振替輸送をご利用ください
+    duration_minutes: { p50: 30, p80: 50 }
+    exit_signals: [pa_resume_estimate_announced]
+    guidance:
+      ja: 再開見込みの発表を待つ間に、振替経路と分岐点を示す。終電や約束がある人には早めの判断を促す。
+      en: While waiting for an estimated resumption time, show transfer routes and the break-even time. Encourage early decisions for those with a last train or appointment.
+
+  - id: resume_estimate
+    name:
+      ja: 運転再開の見込み発表
+      en: Resumption estimate announced
+    description: 現場対応の終わりが見え、再開見込み時刻が発表されている。見込みが後ろへずれることがある。
+    signals:
+      - id: pa_resume_estimate_announced
+        observable_from: [announcement, signage, station_broadcast]
+        description: 再開見込み時刻を示す発表
+        example_phrases:
+          - 運転再開は23時00分頃を見込んでいます
+          - 22時50分頃に運転を再開する見込みです
+      - id: pa_estimate_extended
+        observable_from: [announcement, signage, station_broadcast]
+        description: 一度発表した再開見込み時刻を後ろへ変更する発表
+        example_phrases:
+          - 運転再開の見込み時刻を23時20分頃に変更します
+          - 再開見込みが遅れております
+    duration_minutes: { p50: 15, p80: 30 }
+    exit_signals: [pa_preparing_resume]
+    guidance:
+      ja: 見込み時刻を分岐点と比べる。見込みが延長されたら、分岐点を越えたかを確かめて判断を更新する。
+      en: Compare the estimate with the break-even time. If the estimate is extended, check whether the break-even time has passed and update the judgment.
+
+  - id: preparing_resume
+    name:
+      ja: 再開準備
+      en: Preparing to resume
+    description: 現場対応が終わり、安全確認のうえ運転再開に向かっている。
+    signals:
+      - id: pa_preparing_resume
+        observable_from: [announcement, station_broadcast]
+        description: まもなく運転を再開する旨の発表や放送
+        example_phrases:
+          - まもなく運転を再開します
+          - 安全を確認でき次第、運転を再開します
+      - id: pa_resumed
+        observable_from: [announcement, signage, train_movement]
+        description: 運転を再開した旨の発表、または止まっていた列車が動き出す
+        example_phrases:
+          - 運転を再開しました
+          - 列車に遅れが出ています
+    duration_minutes: { p50: 10, p80: 20 }
+    exit_signals: [pa_resumed]
+    guidance:
+      ja: 再開は近いが、ダイヤの乱れが残ることを伝える。すでに移動を始めた人には、そのまま進むよう示す。
+      en: Resumption is near, but delays will remain. Tell those already on an alternative route to continue.
+
+after_resume:
+  first_train_wait_minutes: { p50: 10, p80: 25 }
+  notes: 再開直後は列車の間隔が空き、混雑しやすい。止まっていた列車が順に動くため、乗れる列車が来るまで時間がかかる。
+
+caveats:
+  - 再開見込み時刻は延長されることがある。一度延びた見込みは、さらに延びることもある
+  - 振替輸送の開始は、見合わせが長引く見通しを示すことが多い
+  - 事故の場所が駅間か駅構内かで、現場対応の長さが変わる
+  - 再開後もしばらくは遅れや運休が続き、目的地への到着はさらに遅れる
+
+external_factors:
+  weather: false
+  notes: 天候は判断材料にしない。悪天候で現場対応が長引くことはある。

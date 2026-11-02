@@ -25,6 +25,8 @@ export type ContentValidationResult = {
 export type TemplateConformance = {
   file: string;
   errors: string[];
+  // 雛形が無く、allowMissing により検査を省いたとき true
+  skipped?: boolean;
 };
 
 const KNOWLEDGE_DIR = "knowledge";
@@ -149,7 +151,11 @@ function checkScenarioRefs(
 }
 
 // 雛形とスキーマのキー構造を突き合わせる。値は見ない
-export function checkTemplateConformance(rootDir: string): TemplateConformance[] {
+// allowMissing は雛形を置かない CONTENT_DIR 用。雛形が無くても失敗にしない
+export function checkTemplateConformance(
+  rootDir: string,
+  { allowMissing = false }: { allowMissing?: boolean } = {},
+): TemplateConformance[] {
   const targets = [
     { file: `${KNOWLEDGE_DIR}/_template.yaml`, schema: KnowledgeSchema },
     { file: `${SCENARIO_DIR}/_template.yaml`, schema: ScenarioSchema },
@@ -157,7 +163,11 @@ export function checkTemplateConformance(rootDir: string): TemplateConformance[]
 
   return targets.map(({ file, schema }) => {
     const path = join(rootDir, file);
-    if (!existsSync(path)) return { file, errors: ["雛形がありません"] };
+    if (!existsSync(path)) {
+      return allowMissing
+        ? { file, errors: [], skipped: true }
+        : { file, errors: ["雛形がありません"] };
+    }
 
     const parsed = parseYamlFile(path);
     if (parsed.errors.length > 0) return { file, errors: parsed.errors.map((e) => e.message) };

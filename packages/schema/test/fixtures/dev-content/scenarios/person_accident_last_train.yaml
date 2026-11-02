@@ -1,0 +1,89 @@
+# 開発用のダミー。開発者の知見ではない。本番の判断には使わない
+# すべて架空。文面は自作。デモ台本の主役シナリオ
+
+id: person_accident_last_train
+title:
+  ja: 人身事故で見合わせ、京都駅で最終の乗り継ぎに間に合わせたい夜
+  en: Suspension after a person-strike accident, racing to a last connection at Kyoto
+event_type: person_accident
+operator: JR西日本
+line: JR京都線
+blocked_section:
+  from_station: 高槻
+  to_station: 山崎
+start_time: "2026-11-05T22:10:00+09:00"
+
+# 京都駅から乗る最終の乗り継ぎが 0時10分。代替経路は知らない
+user:
+  current_station: 大阪
+  destination: 京都
+  constraints:
+    deadline: "00:10"
+    knows_alternatives: false
+    mobility_notes: null
+  language: ja
+
+timeline:
+  - id: obs_1
+    offset_minutes: 0
+    kind: announcement
+    text:
+      ja: JR京都線は、高槻駅〜山崎駅間で発生した人身事故の影響で、大阪駅〜京都駅間の上下線で運転を見合わせています。運転再開の見込みは立っていません。
+      en: The JR Kyoto Line is suspended in both directions between Osaka and Kyoto due to a person-strike accident between Takatsuki and Yamazaki. No estimated resumption time is available.
+  - id: obs_2
+    offset_minutes: 8
+    kind: station_broadcast
+    text:
+      ja: お客様にお知らせします。ただいま現場で救護活動と警察による確認を行っております。阪急線、京阪線、Osaka Metroで振替輸送を行っています。
+      en: Attention passengers. Rescue and police work is under way at the site. Transfer service is available on Hankyu, Keihan, and Osaka Metro lines.
+  - id: obs_3
+    offset_minutes: 22
+    kind: announcement
+    text:
+      ja: JR京都線の運転再開は、22時50分頃を見込んでいます。
+      en: The JR Kyoto Line is expected to resume at around 22:50.
+  - id: obs_4
+    offset_minutes: 35
+    kind: announcement
+    text:
+      ja: JR京都線の運転再開の見込み時刻を、23時20分頃に変更します。現場での対応が続いています。
+      en: The estimated resumption time for the JR Kyoto Line has been changed to around 23:20. Work at the site is continuing.
+  - id: obs_5
+    offset_minutes: 55
+    kind: station_broadcast
+    text:
+      ja: 現在も現場で安全確認を行っております。運転再開は23時40分頃の見込みです。お急ぎのお客様は振替輸送をご利用ください。
+      en: Safety checks are still under way at the site. Service is now expected to resume at around 23:40. Passengers in a hurry, please use the transfer service.
+  - id: obs_6
+    offset_minutes: 85
+    kind: announcement
+    text:
+      ja: JR京都線は、まもなく運転を再開します。運転再開後もしばらくの間、列車に遅れや運休が出る見込みです。
+      en: The JR Kyoto Line will resume shortly. Delays and cancellations are expected for some time after resumption.
+
+expectations:
+  - after: obs_1
+    action: hold
+    phase: initial
+    evidence_includes: [pa_occurred_announced]
+    break_even_shown: true
+    note: 発生直後で見込みの幅が大きい。断言せず、分岐点と振替経路を示して保留する。
+  - after: obs_3
+    action: wait
+    phase: resume_estimate
+    evidence_includes: [pa_resume_estimate_announced]
+    break_even_shown: true
+    note: 見込みどおりなら振替より早く京都に着き、乗り継ぎにも間に合う。分岐点を示して待つ。
+  - after: obs_4
+    action: switch
+    phase: resume_estimate
+    evidence_includes: [pa_estimate_extended]
+    note: 見込みが延びて分岐点を越えた。さらに延びる余地もあるので、振替へ切り替える。
+  - after: obs_6
+    phase: preparing_resume
+    evidence_includes: [pa_preparing_resume]
+    note: 再開は近いが、再開後の遅れが残ることを伝える。
+
+ground_truth:
+  resume_offset_minutes: 90
+  notes: 運転再開は23時40分。待ち続けた人は京都駅着が0時を過ぎ、最終の乗り継ぎに間に合わない。22時45分頃に振替へ切り替えた人は間に合う。
