@@ -13,12 +13,12 @@ blocked_section:
   to_station: 山崎
 start_time: "2026-11-05T22:10:00+09:00"
 
-# 京都駅から乗る最終の乗り継ぎが 0時10分。代替経路は知らない
+# 京都駅から乗る最終の乗り継ぎが 0時25分。代替経路は知らない
 user:
   current_station: 大阪
   destination: 京都
   constraints:
-    deadline: "00:10"
+    deadline: "00:25"
     knows_alternatives: false
     mobility_notes: null
   language: ja
@@ -46,14 +46,14 @@ timeline:
     offset_minutes: 35
     kind: announcement
     text:
-      ja: JR京都線の運転再開の見込み時刻を、23時20分頃に変更します。現場での対応が続いています。
-      en: The estimated resumption time for the JR Kyoto Line has been changed to around 23:20. Work at the site is continuing.
+      ja: JR京都線の運転再開の見込み時刻を、23時40分頃に変更します。現場での対応が続いています。
+      en: The estimated resumption time for the JR Kyoto Line has been changed to around 23:40. Work at the site is continuing.
   - id: obs_5
     offset_minutes: 55
     kind: station_broadcast
     text:
-      ja: 現在も現場で安全確認を行っております。運転再開は23時40分頃の見込みです。お急ぎのお客様は振替輸送をご利用ください。
-      en: Safety checks are still under way at the site. Service is now expected to resume at around 23:40. Passengers in a hurry, please use the transfer service.
+      ja: 現在も現場で安全確認を行っております。運転再開は引き続き23時40分頃の見込みです。お急ぎのお客様は振替輸送をご利用ください。
+      en: Safety checks are still under way at the site. Service is still expected to resume at around 23:40. Passengers in a hurry, please use the transfer service.
   - id: obs_6
     offset_minutes: 85
     kind: announcement
@@ -78,7 +78,7 @@ expectations:
     action: switch
     phase: resume_estimate
     evidence_includes: [pa_estimate_extended]
-    note: 見込みが延びて分岐点を越えた。さらに延びる余地もあるので、振替へ切り替える。
+    note: 見込みが延びて分岐点を越えた。待つと乗り継ぎに間に合わず、いま振替へ移れば間に合う。さらに延びる余地もあるので、振替へ切り替える。
   - after: obs_6
     phase: preparing_resume
     evidence_includes: [pa_preparing_resume]
@@ -86,4 +86,4 @@ expectations:
 
 ground_truth:
   resume_offset_minutes: 90
-  notes: 運転再開は23時40分。待ち続けた人は京都駅着が0時を過ぎ、最終の乗り継ぎに間に合わない。22時45分頃に振替へ切り替えた人は間に合う。
+  notes: 運転再開は23時40分。待ち続けた人は京都駅着が0時30分を過ぎ、最終の乗り継ぎに間に合わない。22時45分頃に阪急京都線の振替へ切り替えた人は0時20分前に京都駅に着き、間に合う。
