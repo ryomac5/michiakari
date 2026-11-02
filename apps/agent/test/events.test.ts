@@ -1,4 +1,5 @@
-import type { JudgmentEvent } from "@repo/schema";
+import { parseIsoToMs } from "@repo/core";
+import type { JudgmentEvent, JudgmentEventOf } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.ts";
 import {
@@ -18,11 +19,15 @@ const scenarios = [...deps.content.scenarios.values()];
 const ORDER: JudgmentEvent["type"][] = [
   "observation_parsed",
   "signal_detected",
+  "weather_checked",
   "phase_estimated",
   "alternatives_computed",
   "break_even_computed",
   "judgment_ready",
 ];
+
+// 観測によって流れないことがある種類
+const OPTIONAL_TYPES: JudgmentEvent["type"][] = ["signal_detected", "weather_checked"];
 
 // 同じ種類の連続をまとめた並び。途中経過の progress は除く
 function collapseTypes(events: JudgmentEvent[]): string[] {
@@ -38,7 +43,7 @@ describe("判断イベントの列", () => {
       const steps = await replayScenario(createTestApp(deps), scenario);
       for (const { entry, events } of steps) {
         const types = collapseTypes(events);
-        const expected = ORDER.filter((t) => t !== "signal_detected" || types.includes(t));
+        const expected = ORDER.filter((t) => !OPTIONAL_TYPES.includes(t) || types.includes(t));
         expect(types, entry.id).toEqual(expected);
         expect(events.map((e) => e.seq)).toEqual(events.map((_, i) => i));
         const now = buildScenarioRequest(scenario, entry, []).now;
@@ -91,7 +96,91 @@ describe("判断イベントの列", () => {
       newInput: null,
     };
     const events = await postJudge(createTestApp(deps), request);
-    expect(collapseTypes(events)).toEqual(ORDER.slice(1));
+    const types = collapseTypes(events);
+    expect(types).toEqual(
+      ORDER.slice(1).filter((t) => !OPTIONAL_TYPES.includes(t) || types.includes(t)),
+    );
+  });
+});
+
+function pickWeatherChecked(events: JudgmentEvent[]): JudgmentEventOf<"weather_checked">[] {
+  return events.flatMap((e) => (e.type === "weather_checked" ? [e] : []));
+}
+
+// 知見が気象を使う事象かどうか。シナリオ ID は埋め込まず、知見の external_factors で分ける
+function usesWeather(scenario: (typeof scenarios)[number]): boolean {
+  return deps.content.knowledge.get(scenario.event_type)?.external_factors.weather === true;
+}
+
+describe("weather_checked", () => {
+  const weatherScenarios = scenarios.filter((s) => usesWeather(s) && s.weather);
+  const otherScenarios = scenarios.filter((s) => !usesWeather(s));
+
+  it("気象を使う事象と使わない事象のダミーがそろっている", () => {
+    expect(weatherScenarios.length).toBeGreaterThan(0);
+    expect(otherScenarios.length).toBeGreaterThan(0);
+  });
+
+  for (const scenario of weatherScenarios) {
+    it(`${scenario.id}: 各観測で 1 回だけ流れ、現在時刻より先の雨量を含まない`, async () => {
+      const steps = await replayScenario(createTestApp(deps), scenario);
+      for (const { entry, events } of steps) {
+        const checked = pickWeatherChecked(events);
+        expect(checked, entry.id).toHaveLength(1);
+        const event = checked[0];
+        if (!event) throw new Error("weather_checked がありません");
+        const now = buildScenarioRequest(scenario, entry, []).now;
+        const last = event.readings.at(-1);
+        expect(last, entry.id).toBeDefined();
+        expect(parseIsoToMs(last?.time ?? now), entry.id).toBeLessThanOrEqual(parseIsoToMs(now));
+        expect(event.source).toBe("scenario");
+        expect(event.summary.length).toBeGreaterThan(0);
+        // 段階の推定より前に届く
+        const indexOf = (type: JudgmentEvent["type"]) => events.findIndex((e) => e.type === type);
+        expect(indexOf("weather_checked")).toBeLessThan(indexOf("phase_estimated"));
+      }
+    });
+  }
+
+  for (const scenario of otherScenarios) {
+    it(`${scenario.id}: 気象を使わない事象では流れない`, async () => {
+      const steps = await replayScenario(createTestApp(deps), scenario);
+      for (const { entry, events } of steps) {
+        expect(pickWeatherChecked(events), entry.id).toHaveLength(0);
+      }
+    });
+  }
+
+  // シナリオを使わず文章で入れると、気象庁の取得に進む
+  function buildTextRequest() {
+    const scenario = weatherScenarios[0];
+    const entry = scenario?.timeline[0];
+    if (!scenario || !entry) throw new Error("気象を使うシナリオがありません");
+    const request = buildScenarioRequest(scenario, entry, []);
+    return { ...request, newInput: { type: "text" as const, text: entry.text.ja } };
+  }
+
+  it("気象庁の取得に失敗したら流さない", async () => {
+    const events = await postJudge(createTestApp(deps), buildTextRequest());
+    expect(events.some((e) => e.type === "judgment_ready")).toBe(true);
+    expect(pickWeatherChecked(events)).toHaveLength(0);
+  });
+
+  it("気象庁から取れたら出典を jma として流す", async () => {
+    const request = buildTextRequest();
+    const readings = [-20, -10, 0].map((offset, i) => ({
+      time: new Date(parseIsoToMs(request.now) + offset * 60_000).toISOString(),
+      rainfall10minMm: [4, 2, 1][i] ?? null,
+      warnings: [],
+    }));
+    const jmaDeps = createTestDeps({
+      fetchRain: async () => ({ stationName: "テスト観測所", readings }),
+    });
+    const events = await postJudge(createTestApp(jmaDeps), request);
+    const checked = pickWeatherChecked(events);
+    expect(checked).toHaveLength(1);
+    expect(checked[0]).toMatchObject({ source: "jma", trend: "falling", warnings: [] });
+    expect(checked[0]?.readings.map((r) => r.rainfall10minMm)).toEqual([4, 2, 1]);
   });
 });
 

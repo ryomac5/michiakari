@@ -7,6 +7,7 @@ import type { JudgmentEvent } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { claudeSettings, headlineLimits, models, reasonLimits } from "../src/config.ts";
 import type { Interpretation } from "../src/interpret/claude-interpret.ts";
+import type { JudgeDeps } from "../src/judge/run-judge.ts";
 import type { LlmClient } from "../src/llm-client.ts";
 import { buildClaudeTools } from "../src/tools/definitions.ts";
 import { buildScenarioRequest, createTestApp, createTestDeps, postJudge } from "./helpers.ts";
@@ -115,12 +116,16 @@ function createScriptedLlm(options: { interpretation?: Reply; judgment: Reply[] 
   return { llm, calls };
 }
 
-async function runWith(script: ReturnType<typeof createScriptedLlm>) {
+async function runWith(
+  script: ReturnType<typeof createScriptedLlm>,
+  overrides: Partial<JudgeDeps> = {},
+) {
   const warnings: string[] = [];
   const deps = createTestDeps({
     mode: "claude",
     llm: script.llm,
     logWarning: (m) => warnings.push(m),
+    ...overrides,
   });
   const events = await postJudge(createTestApp(deps), request);
   const ready = events.find((e) => e.type === "judgment_ready");
@@ -345,5 +350,50 @@ describe("claude モード", () => {
     expect(warnings.some((w) => w.includes("解釈"))).toBe(true);
     expect(collapseTypes(events)[0]).toBe("observation_parsed");
     expect(judgment?.headline).toBe(validDecision.headline);
+  });
+
+  it("get_weather が気象庁から取れたら、weather_checked を 1 回だけ段階の推定より前に流す", async () => {
+    const [lookup, ...rest] = buildToolSequence();
+    if (!lookup) throw new Error("台本がありません");
+    const script = createScriptedLlm({
+      judgment: [
+        lookup,
+        replyWithTool("get_weather", {}),
+        replyWithTool("get_weather", {}),
+        ...rest,
+        replyWithTool("emit_judgment", validDecision),
+      ],
+    });
+    const now = Date.parse(request.now);
+    const readings = [-10, 0].map((offset, i) => ({
+      time: new Date(now + offset * 60_000).toISOString(),
+      rainfall10minMm: [3, 7][i] ?? null,
+      warnings: [],
+    }));
+    const { events, judgment } = await runWith(script, {
+      fetchRain: async () => ({ stationName: "テスト観測所", readings }),
+    });
+    expect(judgment?.headline).toBe(validDecision.headline);
+    expect(countType(events, "weather_checked")).toBe(1);
+    const checked = events.find((e) => e.type === "weather_checked");
+    expect(checked).toMatchObject({ source: "jma", trend: "rising" });
+    const indexOf = (type: JudgmentEvent["type"]) => events.findIndex((e) => e.type === type);
+    expect(indexOf("weather_checked")).toBeLessThan(indexOf("phase_estimated"));
+  });
+
+  it("get_weather が気象庁から取れなければ weather_checked を流さない", async () => {
+    const [lookup, ...rest] = buildToolSequence();
+    if (!lookup) throw new Error("台本がありません");
+    const script = createScriptedLlm({
+      judgment: [
+        lookup,
+        replyWithTool("get_weather", {}),
+        ...rest,
+        replyWithTool("emit_judgment", validDecision),
+      ],
+    });
+    const { events, judgment } = await runWith(script);
+    expect(judgment?.headline).toBe(validDecision.headline);
+    expect(countType(events, "weather_checked")).toBe(0);
   });
 });

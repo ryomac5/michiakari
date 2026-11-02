@@ -5,6 +5,7 @@ import {
   buildBreakEvenSentence,
   buildDecisionText,
   buildPassedSentence,
+  buildWeatherSummary,
   type DecisionReason,
   formatLabelInSentence,
 } from "../src/judge/templates.ts";
@@ -174,5 +175,31 @@ describe("分岐点の説明文", () => {
         expect(sentence).not.toMatch(/.\b(Via|Transfer service)\b/);
       }
     }
+  });
+});
+
+describe("weather_checked の要約", () => {
+  it("日本語は雨量・傾向・警報を一続きで書く", () => {
+    const text = buildWeatherSummary({
+      latestMm: 5,
+      trend: "falling",
+      warnings: ["大雨警報"],
+      language: "ja",
+    });
+    expect(text).toBe("直近の10分雨量は5mmで、弱まっています。大雨警報が出ています。");
+  });
+
+  it("傾向が分からなければ傾向を書かず、英語では警報名を訳さずに伝える", () => {
+    expect(
+      buildWeatherSummary({ latestMm: 2, trend: "unknown", warnings: [], language: "ja" }),
+    ).toBe("直近の10分雨量は2mmです。");
+    const en = buildWeatherSummary({
+      latestMm: 2,
+      trend: "rising",
+      warnings: ["大雨警報"],
+      language: "en",
+    });
+    expect(en).toBe("Latest 10-min rainfall: 2 mm, increasing. A weather warning is in effect.");
+    expect(/[ぁ-んァ-ヶ一-龥]/.test(en)).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { getJstMinuteOfDay } from "@repo/core";
-import type { Lang, ProgressStage, RouteOption } from "@repo/schema";
+import type { Lang, ProgressStage, RouteOption, WeatherTrend } from "@repo/schema";
 
 // 利用者向けの定型文（ja / en）。数値は呼び出し側がツールの結果から渡す
 
@@ -228,4 +228,35 @@ const PROGRESS_MESSAGES: Record<ProgressStage, { ja: string; en: string }> = {
 // 各段階の開始を知らせる短文
 export function buildProgressMessage(stage: ProgressStage, language: Lang): string {
   return PROGRESS_MESSAGES[stage][language];
+}
+
+const TREND_PHRASES: Record<WeatherTrend, { ja: string; en: string } | null> = {
+  rising: { ja: "強まっています", en: "increasing" },
+  falling: { ja: "弱まっています", en: "easing" },
+  steady: { ja: "横ばいです", en: "holding steady" },
+  unknown: null,
+};
+
+// weather_checked の要約。「直近の10分雨量は5mmで、弱まっています。大雨警報が出ています。」
+export function buildWeatherSummary(input: {
+  latestMm: number | null;
+  trend: WeatherTrend;
+  warnings: readonly string[];
+  language: Lang;
+}): string {
+  const { latestMm, trend, warnings, language } = input;
+  const ja = language === "ja";
+  const phrase = TREND_PHRASES[trend]?.[language] ?? null;
+  const rain =
+    latestMm === null
+      ? ja
+        ? "直近の10分雨量は欠測です。"
+        : "The latest 10-min rainfall is missing."
+      : ja
+        ? `直近の10分雨量は${latestMm}mm${phrase ? `で、${phrase}` : "です"}。`
+        : `Latest 10-min rainfall: ${latestMm} mm${phrase ? `, ${phrase}` : ""}.`;
+  if (warnings.length === 0) return rain;
+  if (ja) return `${rain}${warnings.join("・")}が出ています。`;
+  const hasWarning = warnings.some((w) => w.includes("警報"));
+  return `${rain} ${hasWarning ? "A weather warning is in effect." : "A weather advisory is in effect."}`;
 }
