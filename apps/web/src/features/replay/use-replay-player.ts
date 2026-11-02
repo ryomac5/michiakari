@@ -11,6 +11,7 @@ import {
 } from "@/features/judgment/state";
 import { streamJudgment } from "@/features/judgment/stream";
 import { advanceReplayClock, computeEventGapMs } from "./clock";
+import { buildReplayDecision, type ReplayDecisionRecord } from "./outcome";
 import { buildReplayRequest, type ReplayScenario } from "./scenario";
 
 // シナリオの観測を時刻順に判断エージェントへ流し、判断の変化を再生する
@@ -24,6 +25,8 @@ export type ReplayHistoryEntry = {
   phaseId: string | null;
   evidenceIds: string[];
   breakEvenShown: boolean;
+  // 結末の比較に使う、この判断の値
+  decision: ReplayDecisionRecord;
 };
 
 export type ReplayStatus = "idle" | "playing" | "paused" | "judging" | "error" | "ended";
@@ -45,13 +48,18 @@ export type ReplayPlayer = {
   changeSpeed: (speed: number) => void;
 };
 
-function buildHistoryEntry(entry: TimelineEntry, judgment: Judgment): ReplayHistoryEntry {
+function buildHistoryEntry(
+  entry: TimelineEntry,
+  judgment: Judgment,
+  observedAt: string,
+): ReplayHistoryEntry {
   return {
     observationId: entry.id,
     action: judgment.action,
     phaseId: judgment.estimate.phaseId,
     evidenceIds: judgment.evidence.map((e) => e.id),
     breakEvenShown: judgment.breakEven !== null,
+    decision: buildReplayDecision(judgment, observedAt),
   };
 }
 
@@ -144,7 +152,7 @@ export function useReplayPlayer(
         setObservations(observationsRef.current);
         setHistory((prev) => [
           ...prev.filter((h) => h.observationId !== entry.id),
-          buildHistoryEntry(entry, confirmed),
+          buildHistoryEntry(entry, confirmed, request.now),
         ]);
         setNextIndex(index + 1);
       } else {

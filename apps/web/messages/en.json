@@ -238,7 +238,38 @@
     "unknownPhase": "Phase not identified",
     "history": "Announcements so far",
     "trip": "{origin} → {destination}",
-    "bar": "Playback controls"
+    "bar": "Playback controls",
+    "outcome": {
+      "title": "How it turned out",
+      "resumed": "Service actually resumed at {time}",
+      "followed": "Followed the advice",
+      "waited": "Kept waiting",
+      "switchedAt": "Switched at {time}",
+      "neverSwitched": "Advice stayed “wait”",
+      "waitedNote": "Boarded after resumption",
+      "arrival": "Arrival",
+      "onTime": "Made it",
+      "late": "{minutes} min late",
+      "diff": "{minutes} min apart",
+      "summary": {
+        "followedEarlierMadeIt": "Following the advice got you there {minutes} min earlier, in time for {deadline}.",
+        "followedEarlier": "Following the advice got you there {minutes} min earlier.",
+        "waitedEarlier": "This time, waiting got you there {minutes} min earlier.",
+        "aboutSame": "Following the advice or waiting made only {minutes} min of difference.",
+        "waitWon": "Waiting, as advised, got you there {minutes} min earlier than switching.",
+        "switchWouldWin": "This time the advice to wait was wrong. Switching at the start would have got you there {minutes} min earlier.",
+        "neverSwitched": "The advice stayed “wait”, so you arrived with those who waited."
+      },
+      "deadline": {
+        "both": "Both made it by {deadline}.",
+        "followedOnly": "Only those who followed the advice made it by {deadline}.",
+        "waitedOnly": "Only those who kept waiting made it by {deadline}.",
+        "neither": "Neither made it by {deadline}.",
+        "sameOnTime": "You made it by {deadline}.",
+        "sameLate": "You did not make it by {deadline}."
+      },
+      "method": "Arrival times are rough figures from the estimated travel times in each piece of advice and the time service actually resumed in the scenario."
+    }
   },
   "map": {
     "title": "Map",

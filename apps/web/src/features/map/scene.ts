@@ -1,4 +1,5 @@
 import {
+  computeDistanceMeters,
   type GeoIndex,
   type IsochroneGeometry,
   isPointInGeometry,
@@ -359,17 +360,47 @@ export function listReachableStations(
   );
 }
 
+// この距離以内にある同じ名前の駅は、ラベルを 1 つにまとめる
+export const STATION_LABEL_MERGE_METERS = 500;
+
+// 同じ名前の駅を、互いに近いものどうしで連結してまとめる
+function groupNearbySameName(nodes: readonly StationNode[], mergeMeters: number): StationNode[][] {
+  const byName = new Map<string, StationNode[]>();
+  for (const node of nodes) byName.set(node.name, [...(byName.get(node.name) ?? []), node]);
+
+  const groups: StationNode[][] = [];
+  for (const sameName of byName.values()) {
+    const parent = sameName.map((_, i) => i);
+    const findRoot = (i: number): number => {
+      while (parent[i] !== i) i = parent[i] as number;
+      return i;
+    };
+    for (let i = 0; i < sameName.length; i++) {
+      for (let j = i + 1; j < sameName.length; j++) {
+        const a = sameName[i] as StationNode;
+        const b = sameName[j] as StationNode;
+        if (computeDistanceMeters(a.lonLat, b.lonLat) <= mergeMeters) {
+          parent[findRoot(j)] = findRoot(i);
+        }
+      }
+    }
+    const clusters = new Map<number, StationNode[]>();
+    sameName.forEach((node, i) => {
+      const root = findRoot(i);
+      clusters.set(root, [...(clusters.get(root) ?? []), node]);
+    });
+    groups.push(...clusters.values());
+  }
+  return groups;
+}
+
 // 駅名ラベル。同じ名前で近い駅（路線違い）は 1 つにまとめ、乗降客数の多い駅を優先する
 export function buildStationLabels(
   nodes: readonly StationNode[],
   emphasizedIds: ReadonlySet<string>,
+  mergeMeters = STATION_LABEL_MERGE_METERS,
 ): MapScene["stationLabels"] {
-  const groups = new Map<string, StationNode[]>();
-  for (const node of nodes) {
-    const key = `${node.name}@${node.lonLat[0].toFixed(2)},${node.lonLat[1].toFixed(2)}`;
-    groups.set(key, [...(groups.get(key) ?? []), node]);
-  }
-  const features = [...groups.values()].map((group) => {
+  const features = groupNearbySameName(nodes, mergeMeters).map((group) => {
     const top = [...group].sort(
       (a, b) => (b.passengers ?? 0) - (a.passengers ?? 0),
     )[0] as StationNode;
