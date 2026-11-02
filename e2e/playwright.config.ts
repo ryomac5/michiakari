@@ -17,6 +17,7 @@ export default defineConfig({
   webServer: [
     {
       command: "pnpm --filter @repo/web dev",
+      env: { NEXT_PUBLIC_JUDGE_MOCK: "1" },
       url: webUrl,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

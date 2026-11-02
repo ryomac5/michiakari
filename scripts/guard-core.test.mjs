@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
@@ -16,6 +24,7 @@ import {
   parseManifest,
   RECORD_FILE,
   readManifest,
+  runValidate,
   writeManifest,
 } from "./lib/guard-core.mjs";
 
@@ -310,5 +319,31 @@ describe("ブランチ差分", () => {
     git("commit", "-q", "-am", "main edits knowledge");
     git("checkout", "-q", "feature");
     assert.equal(checkBranchDiff(rootDir).status, "pass");
+  });
+});
+
+describe("validate の起動", () => {
+  let rootDir;
+  beforeEach(() => {
+    rootDir = createModel();
+  });
+  afterEach(() => {
+    rmSync(rootDir, { recursive: true, force: true });
+  });
+
+  test("CONTENT_DIR を子プロセスに引き継がない", () => {
+    const script =
+      "require('node:fs').writeFileSync('seen.txt', JSON.stringify([process.env.CONTENT_DIR ?? null, process.env.KEEP ?? null]))";
+    writeFile(
+      rootDir,
+      "package.json",
+      JSON.stringify({
+        packageManager: JSON.parse(readFileSync("package.json", "utf8")).packageManager,
+        scripts: { validate: `node -e "${script}"` },
+      }),
+    );
+    const env = { ...process.env, CONTENT_DIR: "dummy/dir", KEEP: "yes" };
+    assert.equal(runValidate(rootDir, { stdio: "ignore", env }), 0);
+    assert.deepEqual(JSON.parse(readFileSync(join(rootDir, "seen.txt"), "utf8")), [null, "yes"]);
   });
 });

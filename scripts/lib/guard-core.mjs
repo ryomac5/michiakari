@@ -142,7 +142,9 @@ export const checkBranchDiff = (rootDir, { baseRef = "main", dirs = PROTECTED_DI
 };
 
 // pnpm validate を実行し、終了コードを返す
-export const runValidate = (rootDir, { stdio = "inherit" } = {}) => {
-  const result = spawnSync("pnpm", ["validate"], { cwd: rootDir, stdio });
+// CONTENT_DIR は引き継がない（本物の knowledge/ と scenarios/ を検証するため）
+export const runValidate = (rootDir, { stdio = "inherit", env = process.env } = {}) => {
+  const { CONTENT_DIR: _omitted, ...childEnv } = env;
+  const result = spawnSync("pnpm", ["validate"], { cwd: rootDir, stdio, env: childEnv });
   return result.status ?? 1;
 };

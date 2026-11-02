@@ -1,7 +1,9 @@
-import { resolve } from "node:path";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { REPO_ROOT, resolveContentDir } from "../src/loaders.ts";
+import { findRepoRoot, resolveContentDir } from "../src/loaders.ts";
 import {
   checkTemplateConformance,
   formatContentError,
@@ -34,10 +36,30 @@ describe("開発用のダミー内容", () => {
   });
 });
 
+describe("findRepoRoot", () => {
+  it("サブディレクトリから pnpm-workspace.yaml のある場所を返す", () => {
+    const root = findRepoRoot();
+    expect(existsSync(join(root, "pnpm-workspace.yaml"))).toBe(true);
+    expect(findRepoRoot(DEV_CONTENT_DIR)).toBe(root);
+    expect(findRepoRoot(join(root, "apps", "web"))).toBe(root);
+  });
+
+  it("見つからなければ例外を投げる", () => {
+    const outside = mkdtempSync(join(tmpdir(), "no-repo-"));
+    try {
+      expect(() => findRepoRoot(outside)).toThrow("リポジトリルートが見つかりません");
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("resolveContentDir", () => {
+  const repoRoot = findRepoRoot();
+
   it("CONTENT_DIR が無ければリポジトリルートを返す", () => {
-    expect(resolveContentDir({})).toBe(REPO_ROOT);
-    expect(resolveContentDir({ CONTENT_DIR: " " })).toBe(REPO_ROOT);
+    expect(resolveContentDir({})).toBe(repoRoot);
+    expect(resolveContentDir({ CONTENT_DIR: " " })).toBe(repoRoot);
   });
 
   it("相対パスはリポジトリルート基準で解決する", () => {
@@ -48,5 +70,9 @@ describe("resolveContentDir", () => {
 
   it("絶対パスはそのまま使う", () => {
     expect(resolveContentDir({ CONTENT_DIR: DEV_CONTENT_DIR })).toBe(DEV_CONTENT_DIR);
+  });
+
+  it("process.env をそのまま渡せる", () => {
+    expect(resolveContentDir(process.env)).toBeTypeOf("string");
   });
 });

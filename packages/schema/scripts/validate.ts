@@ -1,4 +1,4 @@
-import { REPO_ROOT, resolveContentDir } from "../src/loaders.ts";
+import { findRepoRoot, resolveContentDir } from "../src/loaders.ts";
 import {
   checkTemplateConformance,
   formatContentError,
@@ -7,8 +7,9 @@ import {
 
 // knowledge/ と scenarios/ を検証する。既定はリポジトリルート、CONTENT_DIR で切り替える
 
-const rootDir = resolveContentDir();
-const isDefaultRoot = rootDir === REPO_ROOT;
+const repoRoot = findRepoRoot();
+const rootDir = resolveContentDir(process.env, repoRoot);
+const isDefaultRoot = rootDir === repoRoot;
 if (!isDefaultRoot) console.log(`読み込み元: ${rootDir}`);
 
 const content = validateContent(rootDir);

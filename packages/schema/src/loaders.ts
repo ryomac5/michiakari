@@ -1,6 +1,5 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 import { type Document, isNode, LineCounter, parseDocument, visit } from "yaml";
 import { z } from "zod";
 import { type Knowledge, KnowledgeSchema } from "./knowledge.ts";
@@ -8,13 +7,26 @@ import { type Scenario, ScenarioSchema } from "./scenario.ts";
 
 // knowledge/ と scenarios/ の YAML を読む。fs を使うので Node 専用
 
-export const REPO_ROOT = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
+// start から親へたどり、pnpm-workspace.yaml があるディレクトリを返す
+// import.meta.url に依存しない（Turbopack がバンドル時に import と誤認するため）
+export function findRepoRoot(start: string = process.cwd()): string {
+  let dir = resolve(start);
+  while (!existsSync(join(dir, "pnpm-workspace.yaml"))) {
+    const parent = dirname(dir);
+    if (parent === dir) throw new Error(`リポジトリルートが見つかりません: ${start}`);
+    dir = parent;
+  }
+  return dir;
+}
 
 // knowledge/ と scenarios/ を含むディレクトリ。CONTENT_DIR が無ければリポジトリルート
 // 相対パスは cwd ではなくリポジトリルート基準で解決する（pnpm --filter で cwd が変わるため）
-export function resolveContentDir(env: { CONTENT_DIR?: string } = process.env): string {
+export function resolveContentDir(
+  env: Record<string, string | undefined> = process.env,
+  repoRoot: string = findRepoRoot(),
+): string {
   const value = env.CONTENT_DIR?.trim();
-  return value ? resolve(REPO_ROOT, value) : REPO_ROOT;
+  return value ? resolve(repoRoot, value) : repoRoot;
 }
 
 export type ContentError = {
