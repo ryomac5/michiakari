@@ -146,6 +146,8 @@ export function reduceJudgmentState(state: JudgmentState, event: JudgmentEvent):
         error: { message: event.message, retryable: event.retryable },
         steps: failActiveSteps(state.steps),
       };
+    case "progress":
+      return base;
   }
 }
 
