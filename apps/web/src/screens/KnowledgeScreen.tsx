@@ -16,6 +16,7 @@ import {
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
+import { AppHeader } from "@/components/AppHeader";
 import { testIds } from "@/features/judgment/testids";
 import {
   buildEventAnchor,
@@ -47,65 +48,68 @@ export function KnowledgeScreen({
   const anyDummy = documents.some((d) => d.dummy);
 
   return (
-    <main
-      id="main"
-      data-testid={testIds.knowledge.screen}
-      className="mx-auto flex max-w-2xl flex-col gap-6 px-4 pt-6 pb-10 lg:max-w-6xl"
-    >
-      <div id={topAnchor} className="flex flex-col gap-3">
-        <h1 className="flex items-center gap-2 text-3xl leading-tight font-extrabold">
-          <BookOpen className="size-8 shrink-0" aria-hidden />
-          {t("title")}
-        </h1>
-        <p className="leading-relaxed text-muted">{t("lead")}</p>
-        <p
-          data-testid={testIds.knowledge.notice}
-          className="flex items-start gap-2 rounded-2xl border-2 border-border bg-surface p-4 font-bold"
-        >
-          <ShieldCheck className="mt-0.5 size-5 shrink-0" aria-hidden />
-          {t("notice")}
-        </p>
-        {anyDummy && (
+    <>
+      <AppHeader />
+      <main
+        id="main"
+        data-testid={testIds.knowledge.screen}
+        className="mx-auto flex max-w-2xl flex-col gap-6 px-4 pt-[96px] pb-12 lg:max-w-6xl"
+      >
+        <div id={topAnchor} className="flex flex-col gap-3">
+          <h1 className="flex items-center gap-2 text-[26px] leading-tight font-semibold">
+            <BookOpen className="size-7 shrink-0 text-muted" strokeWidth={1.75} aria-hidden />
+            {t("title")}
+          </h1>
+          <p className="leading-relaxed text-muted">{t("lead")}</p>
           <p
-            data-testid={testIds.knowledge.dummyNotice}
-            className="flex items-start gap-2 rounded-2xl border-2 border-hold-border bg-hold-surface p-4 font-bold text-hold"
+            data-testid={testIds.knowledge.notice}
+            className="flex items-start gap-2 rounded-2xl border border-border bg-surface p-4 font-medium"
           >
-            <FlaskConical className="mt-0.5 size-5 shrink-0" aria-hidden />
-            {t("dummy")}
+            <ShieldCheck className="mt-0.5 size-5 shrink-0" aria-hidden />
+            {t("notice")}
           </p>
+          {anyDummy && (
+            <p
+              data-testid={testIds.knowledge.dummyNotice}
+              className="flex items-start gap-2 rounded-2xl border border-hold-border bg-hold-surface p-4 font-medium text-hold"
+            >
+              <FlaskConical className="mt-0.5 size-5 shrink-0" aria-hidden />
+              {t("dummy")}
+            </p>
+          )}
+        </div>
+
+        {documents.length === 0 && <p className="text-muted">{t("empty")}</p>}
+
+        {documents.length > 1 && (
+          <nav aria-labelledby="knowledge-contents" className="flex flex-col gap-2">
+            <h2 id="knowledge-contents" className="text-lg font-semibold">
+              {t("contents")}
+            </h2>
+            <ul className="flex flex-wrap gap-2">
+              {documents.map(({ knowledge }) => (
+                <li key={knowledge.id}>
+                  <a
+                    href={`#${buildEventAnchor(knowledge.id)}`}
+                    className="inline-flex min-h-11 items-center rounded-xl border border-border px-3 font-medium hover:bg-surface-raised"
+                  >
+                    {pickLocalized(knowledge.name, locale)}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
         )}
-      </div>
 
-      {documents.length === 0 && <p className="text-muted">{t("empty")}</p>}
-
-      {documents.length > 1 && (
-        <nav aria-labelledby="knowledge-contents" className="flex flex-col gap-2">
-          <h2 id="knowledge-contents" className="text-lg font-extrabold">
-            {t("contents")}
-          </h2>
-          <ul className="flex flex-wrap gap-2">
-            {documents.map(({ knowledge }) => (
-              <li key={knowledge.id}>
-                <a
-                  href={`#${buildEventAnchor(knowledge.id)}`}
-                  className="inline-flex min-h-11 items-center rounded-xl border-2 border-border px-3 font-bold hover:bg-surface-raised"
-                >
-                  {pickLocalized(knowledge.name, locale)}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      )}
-
-      {documents.map((doc) => (
-        <KnowledgeEvent
-          key={doc.knowledge.id}
-          document={doc}
-          scenarios={scenarios.filter((s) => s.eventType === doc.knowledge.id)}
-        />
-      ))}
-    </main>
+        {documents.map((doc) => (
+          <KnowledgeEvent
+            key={doc.knowledge.id}
+            document={doc}
+            scenarios={scenarios.filter((s) => s.eventType === doc.knowledge.id)}
+          />
+        ))}
+      </main>
+    </>
   );
 }
 
@@ -127,7 +131,7 @@ function KnowledgeEvent({
       data-dummy={document.dummy}
       aria-labelledby={`${buildEventAnchor(knowledge.id)}-title`}
       className={cn(
-        "flex flex-col gap-4 border-t-2 border-border pt-6 target:rounded-3xl",
+        "flex flex-col gap-4 border-t-2 border-border pt-6 target:rounded-[20px]",
         targetHighlight,
       )}
     >
@@ -135,7 +139,7 @@ function KnowledgeEvent({
         <div className="flex flex-col gap-3">
           <h2
             id={`${buildEventAnchor(knowledge.id)}-title`}
-            className="text-2xl leading-tight font-extrabold"
+            className="text-[22px] leading-tight font-semibold"
           >
             {pickLocalized(knowledge.name, locale)}
           </h2>
@@ -149,7 +153,7 @@ function KnowledgeEvent({
               key={scenario.id}
               href={`/replay?scenario=${scenario.id}`}
               data-testid={testIds.knowledge.replayLink(scenario.id)}
-              className="flex min-h-11 items-center gap-2 rounded-xl border-2 border-border px-3 py-2 font-bold hover:bg-surface-raised"
+              className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-3 py-2 font-medium hover:bg-surface-raised"
             >
               <Play className="size-4 shrink-0" aria-hidden />
               <span className="min-w-0">
@@ -181,7 +185,7 @@ function KnowledgeEvent({
 
       <a
         href={`#${topAnchor}`}
-        className="inline-flex min-h-11 items-center gap-1.5 self-start rounded-xl px-2 font-bold text-muted hover:bg-surface-raised"
+        className="inline-flex min-h-11 items-center gap-1.5 self-start rounded-xl px-2 font-medium text-muted hover:bg-surface-raised"
       >
         <ArrowUp className="size-4" aria-hidden />
         {t("backToTop")}
@@ -209,8 +213,8 @@ function Row({
       <div className="order-2 min-w-0 lg:order-1">
         {yaml && (
           <>
-            <details className="group rounded-2xl border-2 border-border bg-surface lg:hidden">
-              <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-4 text-sm font-bold text-muted">
+            <details className="group rounded-2xl border border-border bg-surface lg:hidden">
+              <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-4 text-sm font-medium text-muted">
                 <FileCode className="size-4 shrink-0" aria-hidden />
                 {t("yamlToggle")}
               </summary>
@@ -218,7 +222,7 @@ function Row({
             </details>
             <div
               data-testid={testIds.knowledge.yaml(id)}
-              className="hidden rounded-2xl border-2 border-border bg-surface lg:sticky lg:top-4 lg:block"
+              className="hidden rounded-2xl border border-border bg-surface lg:sticky lg:top-24 lg:block"
             >
               <YamlBlock yaml={yaml} fileName={fileName} />
             </div>
@@ -235,7 +239,7 @@ function YamlBlock({ yaml, fileName }: { yaml: YamlExcerpt; fileName: string }) 
 
   return (
     <figure className="flex flex-col">
-      <figcaption className="flex flex-wrap items-center justify-between gap-x-3 border-b border-border px-4 py-2 text-xs font-bold text-muted">
+      <figcaption className="flex flex-wrap items-center justify-between gap-x-3 border-b border-border px-4 py-2 text-xs font-medium text-muted">
         <span>{t("yaml")}</span>
         <span className="font-mono">
           {fileName}:{yaml.startLine}–{yaml.endLine}
@@ -256,7 +260,7 @@ function PhaseFlow({ knowledge }: { knowledge: Knowledge }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="font-extrabold">{t("phasesTitle")}</h3>
+      <h3 className="font-semibold">{t("phasesTitle")}</h3>
       <ol className="flex flex-col gap-1">
         {knowledge.phases.map((phase, i) => {
           const { p50, p80 } = phase.duration_minutes;
@@ -267,7 +271,7 @@ function PhaseFlow({ knowledge }: { knowledge: Knowledge }) {
                 className="flex min-h-11 flex-col justify-center gap-1 rounded-xl px-2 py-1.5 hover:bg-surface-raised"
               >
                 <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <span className="font-bold">
+                  <span className="font-medium">
                     {i + 1}. {pickLocalized(phase.name, locale)}
                   </span>
                   <span className="text-sm text-muted tabular-nums">
@@ -312,34 +316,34 @@ function PhaseCard({
       data-testid={testIds.knowledge.phase(phase.id)}
       aria-labelledby={`${buildPhaseAnchor(knowledge.id, phase.id)}-title`}
       className={cn(
-        "flex flex-col gap-4 rounded-3xl border-2 border-border bg-surface p-4 sm:p-5",
+        "flex flex-col gap-4 rounded-[20px] border border-border bg-surface p-4 sm:p-5",
         targetHighlight,
       )}
     >
       <div className="flex flex-col gap-1">
-        <p className="text-sm font-bold text-muted">
+        <p className="text-sm font-medium text-muted">
           {index + 1} / {knowledge.phases.length} · <code className="font-mono">{phase.id}</code>
         </p>
         <h3
           id={`${buildPhaseAnchor(knowledge.id, phase.id)}-title`}
-          className="text-xl leading-tight font-extrabold"
+          className="text-[18px] leading-tight font-semibold"
         >
           {pickLocalized(phase.name, locale)}
         </h3>
       </div>
 
       <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-[auto_1fr]">
-        <dt className="text-sm font-bold text-muted">{t("durationLabel")}</dt>
+        <dt className="text-sm font-medium text-muted">{t("durationLabel")}</dt>
         <dd className="tabular-nums">
-          <span className="font-bold">{t("duration", { p50, p80 })}</span>
+          <span className="font-medium">{t("duration", { p50, p80 })}</span>
           <span className="block text-sm text-muted">{t("durationDetail", { p50, p80 })}</span>
         </dd>
-        <dt className="text-sm font-bold text-muted">{t("description")}</dt>
+        <dt className="text-sm font-medium text-muted">{t("description")}</dt>
         <dd>{phase.description}</dd>
       </dl>
 
       <div className="flex flex-col gap-2">
-        <h4 className="flex items-center gap-1.5 font-extrabold">
+        <h4 className="flex items-center gap-1.5 font-semibold">
           <Radio className="size-4 shrink-0" aria-hidden />
           {t("signals")}
         </h4>
@@ -353,7 +357,7 @@ function PhaseCard({
       <ExitSignals knowledge={knowledge} phase={phase} />
 
       <div className="flex flex-col gap-1 rounded-2xl bg-surface-raised p-3">
-        <h4 className="flex items-center gap-1.5 text-sm font-extrabold">
+        <h4 className="flex items-center gap-1.5 text-sm font-semibold">
           <Users className="size-4 shrink-0" aria-hidden />
           {t("guidance")}
         </h4>
@@ -370,12 +374,12 @@ function SignalItem({ signal }: { signal: KnowledgeSignal }) {
     <li
       id={buildSignalAnchor(signal.id)}
       data-testid={testIds.knowledge.signal(signal.id)}
-      className={cn("flex flex-col gap-2 rounded-2xl border-2 border-border p-3", targetHighlight)}
+      className={cn("flex flex-col gap-2 rounded-2xl border border-border p-3", targetHighlight)}
     >
-      <code className="font-mono text-sm font-bold break-all">{signal.id}</code>
+      <code className="font-mono text-sm font-medium break-all">{signal.id}</code>
       <p>{signal.description}</p>
       <div className="flex flex-wrap items-center gap-1.5 text-sm">
-        <span className="font-bold text-muted">{t("observableFrom")}:</span>
+        <span className="font-medium text-muted">{t("observableFrom")}:</span>
         {signal.observable_from.map((kind) => (
           <span key={kind} className="rounded-md bg-surface-raised px-1.5 py-0.5">
             {t(`observable.${kind}`)}
@@ -384,13 +388,13 @@ function SignalItem({ signal }: { signal: KnowledgeSignal }) {
       </div>
       {signal.example_phrases.length > 0 && (
         <div className="flex flex-col gap-1">
-          <p className="flex items-center gap-1.5 text-sm font-bold text-muted">
+          <p className="flex items-center gap-1.5 text-sm font-medium text-muted">
             <MessageSquareQuote className="size-4 shrink-0" aria-hidden />
             {t("examples")}
           </p>
           <ul className="flex flex-col gap-1">
             {signal.example_phrases.map((phrase) => (
-              <li key={phrase} className="border-l-4 border-border pl-2 text-sm">
+              <li key={phrase} className="border-l-2 border-border pl-2 text-sm">
                 「{phrase}」
               </li>
             ))}
@@ -408,7 +412,7 @@ function ExitSignals({ knowledge, phase }: { knowledge: Knowledge; phase: Knowle
 
   return (
     <div className="flex flex-col gap-2">
-      <h4 className="flex items-center gap-1.5 font-extrabold">
+      <h4 className="flex items-center gap-1.5 font-semibold">
         <ArrowDown className="size-4 shrink-0" aria-hidden />
         {t("exitSignals")}
       </h4>
@@ -428,7 +432,7 @@ function ExitSignals({ knowledge, phase }: { knowledge: Knowledge; phase: Knowle
                   >
                     <CornerDownRight className="size-4 shrink-0" aria-hidden />
                     <span className="flex min-w-0 flex-col">
-                      <code className="font-mono text-sm font-bold break-all">{id}</code>
+                      <code className="font-mono text-sm font-medium break-all">{id}</code>
                       {owner && (
                         <span className="text-sm text-muted">
                           {t("exitInPhase", { phase: pickLocalized(owner.name, locale) })}
@@ -452,16 +456,16 @@ function AfterResume({ knowledge }: { knowledge: Knowledge }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-col gap-2 rounded-3xl border-2 border-border bg-surface p-4 sm:p-5">
-        <h3 className="text-lg font-extrabold">{t("afterResume")}</h3>
-        <p className="font-bold tabular-nums">{t("firstTrainWait", wait)}</p>
+      <section className="flex flex-col gap-2 rounded-[20px] border border-border bg-surface p-4 sm:p-5">
+        <h3 className="text-lg font-semibold">{t("afterResume")}</h3>
+        <p className="font-medium tabular-nums">{t("firstTrainWait", wait)}</p>
         <p>{notes}</p>
       </section>
       <section
         data-testid={testIds.knowledge.caveats(knowledge.id)}
-        className="flex flex-col gap-2 rounded-3xl border-2 border-switch-border bg-switch-surface p-4 sm:p-5"
+        className="flex flex-col gap-2 rounded-[20px] border border-switch-border bg-switch-surface p-4 sm:p-5"
       >
-        <h3 className="flex items-center gap-2 text-lg font-extrabold text-switch">
+        <h3 className="flex items-center gap-2 text-lg font-semibold text-switch">
           <TriangleAlert className="size-5 shrink-0" aria-hidden />
           {t("caveats")}
         </h3>
@@ -471,8 +475,8 @@ function AfterResume({ knowledge }: { knowledge: Knowledge }) {
           ))}
         </ul>
       </section>
-      <section className="flex flex-col gap-2 rounded-3xl border-2 border-border bg-surface p-4 sm:p-5">
-        <h3 className="text-lg font-extrabold">{t("externalFactors")}</h3>
+      <section className="flex flex-col gap-2 rounded-[20px] border border-border bg-surface p-4 sm:p-5">
+        <h3 className="text-lg font-semibold">{t("externalFactors")}</h3>
         <p>{knowledge.external_factors.notes}</p>
       </section>
     </div>

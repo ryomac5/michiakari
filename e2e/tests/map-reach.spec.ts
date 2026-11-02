@@ -46,10 +46,9 @@ test("主役シナリオの出発駅の到達範囲を、事前計算があれ�
   await waitForJudged(page, first.id);
 
   const map = page.getByTestId(testIds.judgment.map);
-  await map.evaluate((el) => el.scrollIntoView({ block: "center" }));
   await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   await expect(map).toHaveAttribute("data-reach-source", polygon ? "valhalla" : "circle");
-  // 凡例の「概算」は円で描いたときだけ出る
+  // シートの中の地図の見方の「概算」は円で描いたときだけ出る
   await expect(page.getByTestId(mapTestIds.reachApprox)).toHaveCount(polygon ? 0 : 1);
 
   // 出典は徒歩経路の文言を含み、見える行はスマホ幅で 1 行に収まる

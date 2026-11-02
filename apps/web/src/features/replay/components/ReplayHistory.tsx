@@ -27,12 +27,12 @@ export function ReplayHistory({
     <section
       data-testid={testIds.replay.history}
       aria-labelledby="replay-history-title"
-      className="flex flex-col gap-3"
+      className="flex flex-col gap-2"
     >
-      <h2 id="replay-history-title" className="px-1 text-lg font-extrabold">
+      <h2 id="replay-history-title" className="text-[13px] font-medium text-muted">
         {t("replay.history")}
       </h2>
-      <ol className="flex flex-col gap-2">
+      <ol className="flex flex-col gap-1.5">
         {[...entries].reverse().map((entry) => {
           const judged = history.find((h) => h.observationId === entry.id);
           const style = judged ? actionStyles[judged.action] : null;
@@ -46,9 +46,9 @@ export function ReplayHistory({
               data-phase-id={judged?.phaseId ?? ""}
               data-evidence-ids={judged?.evidenceIds.join(" ") ?? ""}
               data-break-even-shown={judged ? String(judged.breakEvenShown) : ""}
-              className="flex flex-col gap-1.5 rounded-2xl border-2 border-border bg-surface p-3"
+              className="flex flex-col gap-1 rounded-2xl bg-foreground/[0.03] px-3 py-2.5"
             >
-              <div className="flex items-center gap-2 text-sm font-bold text-muted">
+              <div className="flex items-center gap-2 text-[12px] text-muted">
                 <span className="tabular-nums">
                   {formatClockTime(resolveScenarioTime(startTime, entry.offset_minutes), locale)}
                 </span>
@@ -56,7 +56,7 @@ export function ReplayHistory({
                 {judged && style && Icon && (
                   <span
                     className={cn(
-                      "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5",
+                      "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold",
                       style.surface,
                       style.text,
                     )}
@@ -66,7 +66,7 @@ export function ReplayHistory({
                   </span>
                 )}
               </div>
-              <p className="text-sm leading-relaxed">{pickScenarioText(entry.text, locale)}</p>
+              <p className="text-[13px] leading-relaxed">{pickScenarioText(entry.text, locale)}</p>
             </li>
           );
         })}

@@ -70,6 +70,24 @@ export async function waitForJudged(
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible();
 }
 
+// 地図の上のシートを指定の段まで開く。取っ手を上下キーで操作する。PC 幅では取っ手が無いので何もしない
+export type SheetSnap = "collapsed" | "half" | "full";
+const sheetSnaps: SheetSnap[] = ["collapsed", "half", "full"];
+
+export async function openSheet(page: Page, snap: SheetSnap): Promise<void> {
+  const sheet = page.getByTestId(testIds.judgment.sheet);
+  const handle = page.getByTestId(testIds.judgment.sheetHandle);
+  if (!(await handle.isVisible())) return;
+  for (let i = 0; i < sheetSnaps.length; i++) {
+    const current = (await sheet.getAttribute("data-snap")) as SheetSnap;
+    if (current === snap) break;
+    const up = sheetSnaps.indexOf(snap) > sheetSnaps.indexOf(current);
+    await handle.press(up ? "ArrowUp" : "ArrowDown");
+  }
+  await expect(sheet).toHaveAttribute("data-snap", snap);
+  await waitForFiniteAnimations(page);
+}
+
 // 表示の切り替えアニメーションが終わるのを待つ。回り続けるものは対象外
 // 待つ間に要素が消えて取り消されたアニメーションは、終わったものとして扱う
 export async function waitForFiniteAnimations(page: Page): Promise<void> {

@@ -37,11 +37,11 @@ describe("メッセージファイル", () => {
 });
 
 describe("resolveLocale / resolveTheme", () => {
-  it("未知の値は既定（日本語・ダーク）に倒す", () => {
+  it("未知の値は既定（日本語・ライト）に倒す", () => {
     expect(resolveLocale("en")).toBe("en");
     expect(resolveLocale("fr")).toBe("ja");
     expect(resolveLocale(undefined)).toBe("ja");
-    expect(resolveTheme("light")).toBe("light");
-    expect(resolveTheme(undefined)).toBe("dark");
+    expect(resolveTheme("dark")).toBe("dark");
+    expect(resolveTheme(undefined)).toBe("light");
   });
 });

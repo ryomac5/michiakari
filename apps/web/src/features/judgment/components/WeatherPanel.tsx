@@ -66,35 +66,35 @@ export function WeatherPanel({ weather, stale }: { weather: WeatherCheck; stale:
       data-warning={warning}
       data-stale={stale}
       aria-labelledby="weather-title"
-      className={cn(
-        "flex flex-col gap-2 rounded-3xl border-2 border-border bg-surface px-4 py-3 sm:p-5",
-        stale && "opacity-70",
-      )}
+      className={cn("flex flex-col gap-2.5", stale && "opacity-60")}
     >
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <h2
           id="weather-title"
-          className="flex items-center gap-1.5 text-sm leading-tight font-extrabold text-muted"
+          className="flex items-center gap-1.5 text-[13px] leading-tight font-medium text-muted"
         >
-          <CloudRain className="size-4 shrink-0" aria-hidden />
+          <CloudRain className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
           {t("title")}
           {stale && (
-            <span className="flex items-center gap-1 font-bold">
-              <LoaderCircle className="size-4 animate-spin" aria-hidden />
+            <span className="flex items-center gap-1">
+              <LoaderCircle className="size-3.5 animate-spin" aria-hidden />
               {t("stale")}
             </span>
           )}
         </h2>
         <p
           data-testid={testIds.judgment.weatherTrend}
-          className="flex items-center gap-1 rounded-full border-2 border-border px-2.5 py-0.5 text-sm font-extrabold"
+          className="flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-0.5 text-[12px] font-semibold"
         >
-          <TrendIcon className="size-4 shrink-0" aria-hidden />
+          <TrendIcon className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />
           {t(`trend.${weather.trend}`)}
         </p>
       </div>
 
-      <ul data-testid={testIds.judgment.weatherWarnings} className="flex flex-wrap gap-1.5 text-sm">
+      <ul
+        data-testid={testIds.judgment.weatherWarnings}
+        className="flex flex-wrap gap-1.5 text-[12px]"
+      >
         {weather.warnings.length > 0 ? (
           weather.warnings.map((name) => {
             const isWarning = hasWeatherWarning([name]);
@@ -102,13 +102,13 @@ export function WeatherPanel({ weather, stale }: { weather: WeatherCheck; stale:
               <li
                 key={name}
                 className={cn(
-                  "flex items-center gap-1 rounded-md border-2 px-2 py-0.5 font-bold",
+                  "flex items-center gap-1 rounded-lg px-2 py-0.5 font-medium",
                   isWarning
-                    ? "border-switch-border bg-switch-surface text-switch"
-                    : "border-border text-foreground",
+                    ? "bg-switch-surface text-switch"
+                    : "bg-foreground/[0.06] text-foreground",
                 )}
               >
-                {isWarning && <TriangleAlert className="size-4 shrink-0" aria-hidden />}
+                {isWarning && <TriangleAlert className="size-3.5 shrink-0" aria-hidden />}
                 {t("issued", { name: formatWarningName(name, locale) })}
               </li>
             );
@@ -140,7 +140,7 @@ export function WeatherPanel({ weather, stale }: { weather: WeatherCheck; stale:
               y1={PLOT_HEIGHT}
               y2={PLOT_HEIGHT}
               stroke="var(--border)"
-              strokeWidth={2}
+              strokeWidth={1}
               vectorEffect="non-scaling-stroke"
             />
             {chart.bars.map((bar) =>
@@ -178,7 +178,7 @@ export function WeatherPanel({ weather, stale }: { weather: WeatherCheck; stale:
           {latest && latest.mm !== null && (
             <span
               aria-hidden
-              className="absolute -translate-x-1/2 text-xs font-extrabold whitespace-nowrap tabular-nums"
+              className="absolute -translate-x-1/2 text-[11px] font-semibold whitespace-nowrap tabular-nums"
               style={{
                 left: `${((latest.x + latest.width / 2) * 100).toFixed(3)}%`,
                 bottom: Math.max(latest.height * PLOT_HEIGHT, 1.5) + 2,
@@ -187,13 +187,13 @@ export function WeatherPanel({ weather, stale }: { weather: WeatherCheck; stale:
               {t("mm", { mm: formatMm(latest.mm) })}
             </span>
           )}
-          <span aria-hidden className="absolute top-0 left-0 text-xs text-muted tabular-nums">
+          <span aria-hidden className="absolute top-0 left-0 text-[11px] text-muted tabular-nums">
             {t("scaleMax", { mm: chart.scaleMaxMm })}
           </span>
         </div>
         <div
           aria-hidden
-          className="flex items-center justify-between gap-2 text-xs text-muted tabular-nums"
+          className="flex items-center justify-between gap-2 text-[11px] text-muted tabular-nums"
         >
           <span>{first ? formatClockTime(first.time, locale) : ""}</span>
           {chart.missingCount > 0 && (
@@ -206,10 +206,10 @@ export function WeatherPanel({ weather, stale }: { weather: WeatherCheck; stale:
         </div>
       </div>
 
-      <p data-testid={testIds.judgment.weatherSummary} className="leading-snug font-bold">
+      <p data-testid={testIds.judgment.weatherSummary} className="text-[15px] leading-relaxed">
         {weather.summary}
       </p>
-      <p className="text-xs text-muted">
+      <p className="text-[11px] text-muted">
         {t("source")}
         {weather.source === "scenario" && (
           <>

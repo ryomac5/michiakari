@@ -13,7 +13,12 @@
     "name": "MatsuKaeru",
     "tagline": "Wait, or switch?",
     "skipToContent": "Skip to content",
-    "knowledge": "Knowledge base"
+    "knowledge": "Knowledge base",
+    "menu": {
+      "label": "Menu",
+      "darkMode": "Dark mode",
+      "mock": "Fictional demo data"
+    }
   },
   "disclaimer": {
     "short": "Estimate only. Follow official notices."
@@ -98,7 +103,15 @@
         "options": "{count, plural, one {# option} other {# options}}",
         "breakEven": "{time}",
         "breakEvenNone": "No decision point"
-      }
+      },
+      "short": {
+        "reading": "Read",
+        "signals": "Signs",
+        "phase": "Phase",
+        "options": "Options",
+        "breakEven": "Break-even"
+      },
+      "logTitle": "How it was reasoned"
     },
     "action": {
       "wait": "Wait",
@@ -107,12 +120,11 @@
     },
     "conclusion": {
       "label": "Advice",
-      "recommended": "<name>Suggested: {label}</name>, arriving {time}",
+      "recommended": "Suggested: {label}, arriving {time}",
       "remaining": "Resumes in {p50}–{p80} min",
       "confidence": "Confidence: {level}",
       "live": "Advice: {action}. {headline}",
-      "arrival": "Arrive {time}",
-      "expandReason": "Show the full reason"
+      "arrival": "Arrive {time}"
     },
     "confidence": {
       "low": "low",
@@ -191,7 +203,8 @@
         "ride": "Ride",
         "wait": "Wait",
         "taxi": "Taxi"
-      }
+      },
+      "walkShort": "{minutes} min walk"
     },
     "evidence": {
       "title": "Why we think so",
@@ -213,7 +226,10 @@
     "addInfo": {
       "title": "Add information",
       "lead": "Seen a new notice or announcement? Add it to update the advice."
-    }
+    },
+    "sheet": "Judgment details",
+    "status": "{line} suspended",
+    "statusOnly": "Suspended"
   },
   "replay": {
     "heading": "Replay",
@@ -289,7 +305,10 @@
         "sameLate": "You did not make it by {deadline}."
       },
       "method": "Arrival times are rough figures from the estimated travel times in each piece of advice and the time service actually resumed in the scenario."
-    }
+    },
+    "announcements": "Announcements",
+    "scenario": "Scenario",
+    "changedFrom": "Changed from {action}"
   },
   "map": {
     "title": "Map",
@@ -363,6 +382,15 @@
       "station_broadcast": "Station broadcast",
       "weather": "Weather",
       "train_movement": "Train movement"
+    }
+  },
+  "sheet": {
+    "handle": "Expand or collapse details",
+    "hint": "Use the up and down arrow keys to resize.",
+    "state": {
+      "collapsed": "Showing the summary.",
+      "half": "Half open.",
+      "full": "Fully open."
     }
   }
 }

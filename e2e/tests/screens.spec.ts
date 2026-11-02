@@ -7,6 +7,7 @@ import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
   loadReplayKnowledge,
   loadReplayScenarios,
+  openSheet,
   splitScenariosByWeather,
   waitForFiniteAnimations,
   waitForJudged,
@@ -96,26 +97,32 @@ async function checkScreen(page: Page, label: string) {
   await expectTapTargets(page, label);
 }
 
-// スマートフォンの最初の画面に、結論カードと分岐点（時間軸を含む）と注意書きが収まっていること
+// スマートフォンの閉じたシートに、結論の種類・見出し・分岐点（時間軸を含む）・注意書きが見えていること
 async function expectFirstViewport(page: Page, variant: Variant, label: string) {
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(page.getByTestId(testIds.judgment.sheet), label).toHaveAttribute(
+    "data-snap",
+    "collapsed",
+  );
+  await waitForFiniteAnimations(page);
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   const breakEven = page.getByTestId(testIds.judgment.breakEven);
-  const timeline = page.getByTestId(testIds.judgment.breakEvenTimeline);
+  const resume = page.getByTestId(testIds.judgment.breakEvenResume);
   const disclaimer = page.getByTestId(testIds.judgment.disclaimer);
   for (const [name, locator] of [
     ["結論", conclusion],
     ["分岐点", breakEven],
-    ["分岐点の時間軸", timeline],
+    ["再開見込み", resume],
     ["注意書き", disclaimer],
   ] as const) {
     const box = await locator.boundingBox();
     expect(box, `${label}: ${name}が見つからない`).not.toBeNull();
+    expect(box?.y ?? -1, `${label}: ${name}が画面の上にはみ出している`).toBeGreaterThanOrEqual(0);
     expect(
       (box?.y ?? 0) + (box?.height ?? 0),
-      `${label}: ${name}が最初の画面に収まらない`,
+      `${label}: ${name}が閉じたシートに収まらない`,
     ).toBeLessThanOrEqual(variant.height);
   }
+  await expect(conclusion, label).toHaveAttribute("data-action", /^(wait|switch|hold)$/);
   const lines = await page
     .getByTestId(testIds.judgment.conclusionHeadline)
     .evaluate((el) =>
@@ -199,6 +206,18 @@ for (const variant of variants) {
       await checkScreen(page, "判断");
       if (variant.width === mobile.width) await expectFirstViewport(page, variant, "判断");
 
+      if (variant.width === mobile.width) {
+        await openSheet(page, "half");
+        await capture(page, variant, "07b-judgment-half");
+        await openSheet(page, "full");
+        await capture(page, variant, "07c-judgment-full");
+        await checkScreen(page, "判断（全部開いた状態）");
+        await openSheet(page, "collapsed");
+      }
+      await page.getByTestId(testIds.app.menuButton).click();
+      await expect(page.getByTestId(testIds.app.menu)).toBeVisible();
+      await capture(page, variant, "08b-menu");
+      await checkScreen(page, "メニュー");
       await page.getByTestId(testIds.app.aboutLink).click();
       await expect(page.getByTestId(testIds.about.screen)).toBeVisible({ timeout: 30_000 });
       await capture(page, variant, "09-about", true);
@@ -236,9 +255,12 @@ for (const variant of variants) {
         timeout: 30_000,
       });
       await capture(page, variant, "12-replay");
-      await capture(page, variant, "13-replay-full", true);
       await checkScreen(page, "リプレイ");
-      if (variant.width === mobile.width) await expectFirstViewport(page, variant, "リプレイ");
+      if (variant.width === mobile.width) {
+        await expectFirstViewport(page, variant, "リプレイ");
+        await openSheet(page, "half");
+        await capture(page, variant, "13-replay-half");
+      }
     });
 
     test("リプレイ（気象を使う事象）", async ({ page }) => {
@@ -258,15 +280,13 @@ for (const variant of variants) {
         timeout: 30_000,
       });
       await capture(page, variant, "16-replay-weather");
-      await page.getByTestId(testIds.judgment.weather).scrollIntoViewIfNeeded();
-      await waitForFiniteAnimations(page);
-      await page.screenshot({
-        path: `${screenshotRoot}${variant.name}/17-replay-weather-chart.png`,
-      });
-      await capture(page, variant, "18-replay-weather-full", true);
       await checkScreen(page, "リプレイ（気象）");
-      if (variant.width === mobile.width)
+      if (variant.width === mobile.width) {
         await expectFirstViewport(page, variant, "リプレイ（気象）");
+        await openSheet(page, "half");
+        await expect(page.getByTestId(testIds.judgment.weather)).toBeInViewport();
+      }
+      await capture(page, variant, "17-replay-weather-chart");
     });
   });
 }

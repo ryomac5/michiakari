@@ -80,7 +80,6 @@ function SubmitButton({
   const t = useTranslations("situation");
   return (
     <Button
-      size="lg"
       data-testid={testIds.situation.submit(kind)}
       disabled={disabled || busy}
       onClick={onClick}
@@ -108,7 +107,7 @@ function PhotoPanel({ busy, onSubmit }: { busy: boolean; onSubmit: (input: RawIn
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-muted">{t("hint")}</p>
+      <p className="text-[13px] text-muted">{t("hint")}</p>
       <input
         ref={fileRef}
         data-testid={testIds.situation.photoInput}
@@ -148,9 +147,9 @@ function PhotoPanel({ busy, onSubmit }: { busy: boolean; onSubmit: (input: RawIn
           size="lg"
           data-testid={testIds.situation.photoButton}
           onClick={() => fileRef.current?.click()}
-          className="h-28 w-full flex-col border-dashed"
+          className="h-28 w-full flex-col border-dashed text-[14px] font-medium"
         >
-          <Camera aria-hidden className="size-8!" />
+          <Camera aria-hidden strokeWidth={1.5} className="size-7!" />
           {t("button")}
         </Button>
       )}
@@ -158,7 +157,7 @@ function PhotoPanel({ busy, onSubmit }: { busy: boolean; onSubmit: (input: RawIn
         <p
           data-testid={testIds.situation.inputError}
           role="alert"
-          className="font-bold text-danger"
+          className="text-[13px] text-danger"
         >
           {t("unsupported")}
         </p>
@@ -182,7 +181,7 @@ function PastePanel({ busy, onSubmit }: { busy: boolean; onSubmit: (input: RawIn
 
   return (
     <div className="flex flex-col gap-4">
-      <label htmlFor={id} className="font-bold">
+      <label htmlFor={id} className="text-[13px] font-medium text-muted">
         {t("label")}
       </label>
       <Textarea
@@ -229,12 +228,11 @@ function SelectPanel({
   if (!selectedEvent) {
     return (
       <fieldset className="flex flex-col gap-3">
-        <legend className="mb-3 font-bold">{t("eventLabel")}</legend>
+        <legend className="mb-2 text-[13px] font-medium text-muted">{t("eventLabel")}</legend>
         {catalog.map((event) => (
           <Button
             key={event.id}
-            variant="outline"
-            size="lg"
+            variant="secondary"
             data-testid={testIds.situation.eventTypeOption(event.id)}
             onClick={() => {
               setEventType(event.id);
@@ -261,7 +259,7 @@ function SelectPanel({
         {t("back")}
       </Button>
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-3 font-bold">
+        <legend className="mb-2 text-[13px] font-medium text-muted">
           {pickLocalized(selectedEvent.name, locale)} — {t("signalLabel")}
         </legend>
         {signals.map((signal) => {
@@ -270,8 +268,8 @@ function SelectPanel({
             <label
               key={signal.id}
               className={cn(
-                "flex cursor-pointer items-start gap-3 rounded-xl border-2 px-4 py-3 has-focus-visible:outline-3 has-focus-visible:outline-focus",
-                checked ? "border-foreground bg-surface-raised" : "border-border bg-surface",
+                "flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2.5 ring-1 ring-inset has-focus-visible:outline-3 has-focus-visible:outline-focus",
+                checked ? "bg-foreground/[0.06] ring-foreground" : "ring-border",
               )}
             >
               <input
@@ -283,17 +281,17 @@ function SelectPanel({
               />
               <span
                 className={cn(
-                  "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md border-2",
+                  "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border-2",
                   checked ? "border-foreground bg-foreground text-background" : "border-muted",
                 )}
                 aria-hidden
               >
-                {checked && <Check className="size-4" />}
+                {checked && <Check className="size-3.5" strokeWidth={3} />}
               </span>
               <span className="flex flex-col gap-1">
-                <span className="font-bold">{signal.description}</span>
+                <span className="text-[14px] font-medium">{signal.description}</span>
                 {signal.example_phrases[0] && (
-                  <span className="text-sm text-muted">「{signal.example_phrases[0]}」</span>
+                  <span className="text-[12px] text-muted">「{signal.example_phrases[0]}」</span>
                 )}
               </span>
             </label>

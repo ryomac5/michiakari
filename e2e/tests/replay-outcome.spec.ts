@@ -175,8 +175,8 @@ for (const scenario of scenarios) {
         locale === "ja" ? "推定であり、公式発表を優先してください" : "Estimate only",
       );
 
-      // 390x844 の最初の画面に結末のカードが収まる
-      await page.evaluate(() => window.scrollTo(0, 0));
+      // 終わるとシートが半分まで開き、390x844 の画面に結末のカードが収まる
+      await expect(page.getByTestId(testIds.judgment.sheet)).toHaveAttribute("data-snap", "half");
       await waitForFiniteAnimations(page);
       const box = await card.boundingBox();
       expect(box, "結末のカードの位置").not.toBeNull();

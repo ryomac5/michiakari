@@ -2,8 +2,10 @@
 
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { AppHeader } from "@/components/AppHeader";
 import { useJudgmentSession } from "@/features/judgment/session";
 import { testIds } from "@/features/judgment/testids";
+import { BackdropMap } from "@/features/map/BackdropMap";
 import { ReplayPlayer } from "@/features/replay/components/ReplayPlayer";
 import { ScenarioList } from "@/features/replay/components/ScenarioList";
 import type { ReplayScenario } from "@/features/replay/scenario";
@@ -40,18 +42,24 @@ export function ReplayScreen({
   }
 
   return (
-    <main
-      id="main"
-      data-testid={testIds.replay.screen}
-      data-state="select"
-      className="mx-auto flex max-w-2xl flex-col gap-6 px-4 pt-6 pb-10"
-    >
-      <div className="flex flex-col gap-3">
-        <h1 className="text-3xl leading-tight font-extrabold">{t("heading")}</h1>
-        <p className="leading-relaxed text-muted">{t("lead")}</p>
-      </div>
-      <ScenarioList scenarios={scenarios} catalog={catalog} onSelect={setSelectedId} />
-      <p className="border-t border-border pt-4 text-sm text-muted">{t("fictional")}</p>
-    </main>
+    <>
+      <BackdropMap />
+      <AppHeader />
+      <main
+        id="main"
+        data-testid={testIds.replay.screen}
+        data-state="select"
+        className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pt-[96px] pb-12"
+      >
+        <section className="glass-strong flex flex-col gap-4 rounded-[24px] p-5">
+          <div className="flex flex-col gap-1.5">
+            <h1 className="text-[26px] leading-tight font-bold tracking-tight">{t("heading")}</h1>
+            <p className="text-[14px] leading-relaxed text-muted">{t("lead")}</p>
+          </div>
+          <ScenarioList scenarios={scenarios} catalog={catalog} onSelect={setSelectedId} />
+          <p className="text-[12px] text-muted">{t("fictional")}</p>
+        </section>
+      </main>
+    </>
   );
 }

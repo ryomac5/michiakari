@@ -7,6 +7,7 @@ import {
   loadReplayKnowledge,
   loadReplayScenarios,
   openReplay,
+  openSheet,
   splitScenariosByWeather,
   waitForFiniteAnimations,
   waitForJudged,
@@ -35,9 +36,8 @@ async function readChart(page: Page) {
   return { count, bars, missing };
 }
 
-// 390x844 の最初の画面に結論と分岐点が収まっていること
+// 閉じたシートに結論と分岐点が収まっていること
 async function expectConclusionInFirstViewport(page: Page, label: string) {
-  await page.evaluate(() => window.scrollTo(0, 0));
   await waitForFiniteAnimations(page);
   for (const id of [testIds.judgment.conclusion, testIds.judgment.breakEven]) {
     const box = await page.getByTestId(id).boundingBox();
@@ -96,13 +96,14 @@ for (const scenario of weatherScenarios) {
           (await page.getByTestId(testIds.replay.screen).getAttribute("data-state")) === "ended";
         if (!ended) await expectConclusionInFirstViewport(page, label);
 
-        // 待つ判断に変わった観測で、グラフを画面に入れて撮る
+        // 待つ判断に変わった観測で、シートを半分まで開いてグラフを撮る
         if (entry.id === shotAfter) {
-          await panel.scrollIntoViewIfNeeded();
-          await waitForFiniteAnimations(page);
+          await openSheet(page, "half");
+          await expect(panel).toBeInViewport();
           await page.screenshot({
             path: `${screenshotDir}replay-weather-${scenario.id}-${locale}-390x844.png`,
           });
+          await openSheet(page, "collapsed");
         }
       }
 

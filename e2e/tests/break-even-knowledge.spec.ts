@@ -6,6 +6,7 @@ import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
   loadReplayScenarios,
   openReplay,
+  openSheet,
   waitForFiniteAnimations,
   waitForJudged,
 } from "../support/replay.ts";
@@ -28,7 +29,6 @@ test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
 test.setTimeout(180_000);
 
 async function captureTop(page: Page, name: string): Promise<void> {
-  await page.evaluate(() => window.scrollTo(0, 0));
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}${name}-390x844.png` });
 }
@@ -56,6 +56,12 @@ test("待つ判断では再開見込みが分岐点より前、切り替える�
 
   await stepUntil(page, waitExpectation.after);
   await expect(conclusion).toHaveAttribute("data-action", "wait");
+  // 閉じたシートでは再開見込みを 1 行で示し、半分開くと時間軸の全体が見える
+  await expect(page.getByTestId(testIds.judgment.breakEvenResume)).toHaveAttribute(
+    "data-relation",
+    "before",
+  );
+  await openSheet(page, "half");
   await expect(timeline).toBeInViewport();
   await expect(timeline).toHaveAttribute("data-relation", "before");
   await captureTop(page, `timeline-${waitExpectation.after}`);
@@ -83,6 +89,7 @@ test("根拠の兆候から知見の該当箇所へ飛び、そこからリプ�
 
   await openReplay(page, scenario.id);
   await stepUntil(page, switchExpectation.after);
+  await openSheet(page, "full");
   await page.getByTestId(testIds.judgment.evidenceToggle).click();
   const link = page.getByTestId(testIds.judgment.signalLink(signalId));
   await expect(link).toHaveAttribute("href", `/knowledge#signal-${signalId}`);
@@ -110,6 +117,7 @@ test("根拠の兆候から知見の該当箇所へ飛び、そこからリプ�
 test("知見の閲覧画面に、段階・兆候・次の段階へのつながりが出る", async ({ page }) => {
   if (!scenario) throw new Error("シナリオがありません");
   await page.goto("/");
+  await page.getByTestId(testIds.app.menuButton).click();
   await page.getByTestId(testIds.app.knowledgeLink).click();
   const event = page.getByTestId(testIds.knowledge.event(scenario.event_type));
   await expect(event).toBeVisible({ timeout: 60_000 });

@@ -15,6 +15,8 @@ export const testIds = {
     language: (locale: string) => `app-language-${locale}`,
     themeToggle: "app-theme-toggle",
     mockBadge: "app-mock-badge",
+    menuButton: "app-menu-button",
+    menu: "app-menu",
   },
   start: {
     screen: "start-screen",
@@ -49,9 +51,16 @@ export const testIds = {
   judgment: {
     screen: "judgment-screen",
     tripSummary: "judgment-trip-summary",
+    // 上部の帯の「JR京都線 見合わせ」
+    statusChip: "judgment-status-chip",
+    // 地図の上のシート（PC 幅では右のパネル）。data-snap に collapsed / half / full を出す
+    sheet: "judgment-sheet",
+    sheetHandle: "judgment-sheet-handle",
     reasoning: "judgment-reasoning",
     reasoningStep: (id: string) => `judgment-reasoning-step-${id}`,
     reasoningProgress: (id: string) => `judgment-reasoning-progress-${id}`,
+    // 判断が出たあとに全部開いた状態で見せる推論の過程
+    reasoningLog: "judgment-reasoning-log",
     conclusion: "judgment-conclusion",
     conclusionHeadline: "judgment-conclusion-headline",
     conclusionReason: "judgment-conclusion-reason",
@@ -61,6 +70,10 @@ export const testIds = {
     breakEven: "judgment-break-even",
     breakEvenTime: "judgment-break-even-time",
     breakEvenCountdown: "judgment-break-even-countdown",
+    // 閉じたシートの「おおよその再開 23:43〜23:58 は分岐点より後」。data-relation を出す
+    breakEvenResume: "judgment-break-even-resume",
+    // 「21:40 までに再開しなければ…」の文
+    breakEvenSentence: "judgment-break-even-sentence",
     // 分岐点の時間軸。data-relation に before / straddle / after を出す
     breakEvenTimeline: "judgment-break-even-timeline",
     map: "judgment-map",

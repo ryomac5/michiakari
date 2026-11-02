@@ -3,19 +3,21 @@ import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-xl font-bold whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-45 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 rounded-xl font-semibold whitespace-nowrap transition-[background-color,opacity] disabled:pointer-events-none disabled:opacity-40 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:opacity-90",
-        outline: "border-2 border-border bg-transparent text-foreground hover:bg-surface-raised",
-        secondary: "bg-surface-raised text-foreground hover:bg-border",
-        ghost: "bg-transparent text-foreground hover:bg-surface-raised",
+        // 無効のときも重く見えないよう、薄い面と淡い文字にする
+        default:
+          "bg-primary text-primary-foreground hover:opacity-90 disabled:bg-foreground/[0.07] disabled:text-foreground/35 disabled:opacity-100",
+        outline: "border border-border bg-transparent text-foreground hover:bg-foreground/5",
+        secondary: "bg-foreground/[0.06] text-foreground hover:bg-foreground/10",
+        ghost: "bg-transparent text-foreground hover:bg-foreground/5",
       },
       size: {
-        default: "h-12 px-5 text-base [&_svg]:size-5",
-        lg: "h-14 px-6 text-lg [&_svg]:size-6",
-        sm: "h-11 px-3 text-sm [&_svg]:size-4",
+        default: "h-12 px-5 text-[15px] [&_svg]:size-[18px]",
+        lg: "h-13 px-6 text-[16px] [&_svg]:size-5",
+        sm: "h-11 px-3 text-[13px] [&_svg]:size-4",
         icon: "size-11 [&_svg]:size-5",
       },
     },

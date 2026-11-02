@@ -15,6 +15,7 @@ import { findReachAreas, type ReachArea } from "./reach";
 import {
   buildBlockedSectionPath,
   buildCirclePolygon,
+  buildKeyStations,
   buildMapScene,
   buildReachFeatures,
   buildStationLabels,
@@ -29,6 +30,7 @@ import {
   resolvePlacePosition,
   resolveRouteLegs,
   resolveStationByName,
+  translateLineName,
 } from "./scene";
 
 const geo = createMapGeo(network as unknown as NetworkData);
@@ -418,6 +420,22 @@ describe("buildStationLabels", () => {
   });
 });
 
+describe("buildKeyStations", () => {
+  const osaka: Position = [135.4959, 34.7025];
+  const kyoto: Position = [135.7588, 34.9858];
+  it("出発・行き先の近くの乗換駅と、近すぎる名前は出さない", () => {
+    const labels = buildKeyStations([
+      { position: osaka, name: "大阪", role: "origin" },
+      { position: kyoto, name: "京都", role: "destination" },
+      { position: [135.4985, 34.705], name: "梅田", role: "transfer" },
+      { position: [135.5, 34.73], name: "西中島南方", role: "transfer" },
+      { position: [135.5005, 34.7305], name: "南方", role: "transfer" },
+      { position: null, name: "どこか", role: "blocked-end" },
+    ]);
+    expect(labels.features.map((f) => f.properties.name)).toEqual(["大阪", "京都", "西中島南方"]);
+  });
+});
+
 describe("computeFitBounds", () => {
   it("全点を含む矩形を返し、点が無ければ null", () => {
     expect(
@@ -515,6 +533,52 @@ describe("buildMapScene", () => {
     expect(scene.route.features.map((f) => f.properties.mode)).toEqual(["walk", "ride", "walk"]);
     expect(scene.blocked.features).toHaveLength(1);
     expect(scene.transferLineIds).toEqual(["hankyu.神戸線"]);
+  });
+
+  it("推奨経路は最も長い乗車区間にだけ路線名を付け、止まっている区間と並走する乗車区間は横へずらす", () => {
+    const scene = buildMapScene(geo, input, labels);
+    expect(scene.route.features.map((f) => f.properties.label)).toEqual(["", "阪急神戸線", ""]);
+    const offsets = scene.route.features.map((f) => f.properties.offset);
+    expect(offsets[0]).toBe(0);
+    expect(Math.abs(offsets[1] ?? 0)).toBe(1);
+  });
+
+  it("止まっている区間と並走する代替経路は出さず、並走しない乗車区間だけを出す", () => {
+    const scene = buildMapScene(geo, input, labels);
+    // 待つ経路は止まっている JR 神戸線そのものなので出さない
+    expect(scene.alternatives.features).toEqual([]);
+    const noBlocked = buildMapScene(geo, { ...input, blockedSection: null }, labels);
+    expect(noBlocked.alternatives.features.map((f) => f.properties.optionId)).toEqual([
+      "wait_resume",
+    ]);
+    expect(noBlocked.alternatives.features.every((f) => f.properties.mode === "ride")).toBe(true);
+  });
+
+  it("英語では路線名と駅名を英語にし、英語名の無い通称や駅名は出さない", () => {
+    const scene = buildMapScene(geo, input, { ...labels, english: true });
+    expect(scene.route.features.map((f) => f.properties.label)).toEqual([
+      "",
+      "Hankyu Kobe Line",
+      "",
+    ]);
+    expect(scene.keyStations.features.map((f) => f.properties.name).slice(0, 2)).toEqual([
+      "Osaka",
+      "Sannomiya",
+    ]);
+    expect(translateLineName(geo.index, "阪急京都線")).toBe("Hankyu Kyoto Line");
+    expect(translateLineName(geo.index, "JR神戸線")).toBeNull();
+    expect(translateLineName(geo.index, "JR Kobe Line")).toBe("JR Kobe Line");
+  });
+
+  it("名前を出す駅は出発・行き先・止まっている区間の端だけで、出発と行き先を先に置く", () => {
+    const scene = buildMapScene(geo, input, labels);
+    const roles = scene.keyStations.features.map((f) => f.properties.role);
+    expect(roles.slice(0, 2)).toEqual(["origin", "destination"]);
+    expect(scene.keyStations.features.map((f) => f.properties.name).slice(0, 2)).toEqual([
+      "大阪",
+      "三ノ宮",
+    ]);
+    expect(new Set(roles)).toEqual(new Set(["origin", "destination"]));
   });
 
   it("座標で与えた現在地はそのまま使う", () => {

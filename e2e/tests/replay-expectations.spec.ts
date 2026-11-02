@@ -7,6 +7,7 @@ import type { Expectation, Scenario } from "../../packages/schema/src/scenario.t
 import {
   loadReplayScenarios,
   openReplay,
+  openSheet,
   waitForFiniteAnimations,
   waitForJudged,
 } from "../support/replay.ts";
@@ -82,12 +83,10 @@ async function checkExpectation(page: Page, expectation: Expectation): Promise<v
   }
 }
 
-// 画面の上端と、ページ全体（-full）を撮る
+// いまのシートの段のまま撮る
 async function captureReplay(page: Page, name: string): Promise<void> {
-  await page.evaluate(() => window.scrollTo(0, 0));
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}${name}-390x844.png` });
-  await page.screenshot({ path: `${screenshotDir}${name}-390x844-full.png`, fullPage: true });
 }
 
 // 判断が確定するたびに、表示中の観測 id を記録する
@@ -155,8 +154,11 @@ for (const scenario of scenarios) {
           /^(wait|switch|hold)$/,
         );
 
-        // 根拠は既定で閉じているので、最初の判断の後に開いておく
-        if (index === 0) await page.getByTestId(testIds.judgment.evidenceToggle).click();
+        // 根拠は既定で閉じているので、最初の判断の後にシートを全部開いてから根拠を開いておく
+        if (index === 0) {
+          await openSheet(page, "full");
+          await page.getByTestId(testIds.judgment.evidenceToggle).click();
+        }
 
         for (const expectation of findExpectations(scenario, entry.id)) {
           await checkExpectation(page, expectation);

@@ -78,30 +78,30 @@ export function StationSearch({
 
   if (selectedLabel !== null) {
     return (
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-bold text-muted">{label}</span>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[12px] font-medium text-muted">{label}</span>
         <div
           data-testid={testIds.selected}
-          className="flex items-center gap-3 rounded-2xl border-2 border-foreground/80 bg-surface py-2 pr-2 pl-4"
+          className="flex min-h-12 items-center gap-3 rounded-xl bg-foreground/[0.05] py-1 pr-1 pl-3"
         >
-          <MapPin className="size-6 shrink-0 text-brand" aria-hidden />
+          <MapPin className="size-[18px] shrink-0 text-muted" strokeWidth={1.75} aria-hidden />
           <div className="min-w-0 flex-1">
-            <p className="text-xl leading-tight font-extrabold break-words">{selectedLabel}</p>
-            {selectedDetail && <p className="text-sm text-muted">{selectedDetail}</p>}
+            <p className="text-[17px] leading-tight font-semibold break-words">{selectedLabel}</p>
+            {selectedDetail && <p className="text-[12px] text-muted">{selectedDetail}</p>}
           </div>
           <button
             type="button"
             data-testid={testIds.clear}
             aria-label={`${label}: ${t("clear")}`}
+            title={t("clear")}
             onClick={() => {
               setQuery("");
               setActiveIndex(-1);
               onClear();
             }}
-            className="inline-flex h-11 shrink-0 items-center gap-1 rounded-xl px-3 text-sm font-bold text-muted hover:bg-surface-raised"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-foreground/5"
           >
-            <X className="size-4" aria-hidden />
-            {t("clear")}
+            <X className="size-[18px]" strokeWidth={1.75} aria-hidden />
           </button>
         </div>
       </div>
@@ -109,13 +109,14 @@ export function StationSearch({
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <label htmlFor={inputId} className="text-sm font-bold text-muted">
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={inputId} className="text-[12px] font-medium text-muted">
         {label}
       </label>
       <div className="relative">
         <Search
-          className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted"
+          className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-muted"
+          strokeWidth={1.75}
           aria-hidden
         />
         <Input
@@ -136,11 +137,11 @@ export function StationSearch({
             setActiveIndex(-1);
           }}
           onKeyDown={handleKeyDown}
-          className="pr-12 pl-12"
+          className="pr-10 pl-10"
         />
         {status === "loading" && (
           <LoaderCircle
-            className="absolute top-1/2 right-4 size-5 -translate-y-1/2 animate-spin text-muted"
+            className="absolute top-1/2 right-3 size-[18px] -translate-y-1/2 animate-spin text-muted"
             aria-hidden
           />
         )}
@@ -155,7 +156,7 @@ export function StationSearch({
           role="listbox"
           aria-label={label}
           aria-busy={status === "loading"}
-          className="flex flex-col gap-1.5"
+          className="flex flex-col overflow-hidden rounded-xl bg-surface ring-1 ring-border"
         >
           {results.map((station, i) => (
             // biome-ignore lint/a11y/useKeyWithClickEvents: キー操作は combobox の入力欄が受け持つ
@@ -168,19 +169,21 @@ export function StationSearch({
               data-testid={testIds.option(station.id)}
               onClick={() => onSelect(station)}
               className={cn(
-                "flex min-h-14 cursor-pointer flex-col justify-center gap-0.5 rounded-xl border-2 border-transparent bg-surface px-4 py-2 hover:bg-surface-raised",
-                i === activeIndex && "border-focus bg-surface-raised",
+                "flex min-h-12 cursor-pointer flex-col justify-center gap-0.5 border-b border-border px-3 py-2 last:border-b-0 hover:bg-surface-raised",
+                i === activeIndex && "bg-surface-raised outline-2 -outline-offset-2 outline-focus",
               )}
             >
               <span className="flex flex-wrap items-baseline gap-x-2">
-                <span className="text-lg font-bold">{pickStationName(station, locale)}</span>
+                <span className="text-[15px] font-semibold">
+                  {pickStationName(station, locale)}
+                </span>
                 {locale === "en" && station.nameEn && (
-                  <span lang="ja" className="text-sm text-muted">
+                  <span lang="ja" className="text-[12px] text-muted">
                     {station.name}
                   </span>
                 )}
               </span>
-              <span className="truncate text-sm text-muted">
+              <span className="truncate text-[12px] text-muted">
                 {describeStationLines(station, locale)}
               </span>
             </div>
@@ -195,8 +198,9 @@ export function StationSearch({
               data-testid={testIds.option("free_text")}
               onClick={() => onFreeText?.(trimmed)}
               className={cn(
-                "flex min-h-14 cursor-pointer items-center rounded-xl border-2 border-dashed border-border px-4 py-2 font-bold hover:bg-surface-raised",
-                activeIndex === results.length && "border-focus",
+                "flex min-h-12 cursor-pointer items-center px-3 py-2 text-[15px] font-medium hover:bg-surface-raised",
+                activeIndex === results.length &&
+                  "bg-surface-raised outline-2 -outline-offset-2 outline-focus",
               )}
             >
               {t("useFreeText", { text: trimmed })}
@@ -205,10 +209,10 @@ export function StationSearch({
         </div>
       )}
       {trimmed !== "" && status === "ready" && results.length === 0 && !onFreeText && (
-        <p className="px-4 py-2 text-muted">{t("noResults")}</p>
+        <p className="px-3 py-2 text-[14px] text-muted">{t("noResults")}</p>
       )}
       {trimmed !== "" && status === "error" && (
-        <p role="alert" className="flex items-center gap-2 px-4 py-2 font-bold text-danger">
+        <p role="alert" className="flex items-center gap-2 px-3 py-2 text-[14px] text-danger">
           <CircleAlert className="size-4 shrink-0" aria-hidden />
           {t("searchFailed")}
         </p>

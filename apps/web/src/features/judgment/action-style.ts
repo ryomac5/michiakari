@@ -16,6 +16,7 @@ export type ActionStyle = {
   text: string;
   surface: string;
   border: string;
+  ring: string;
 };
 
 export const actionStyles: Record<Action, ActionStyle> = {
@@ -24,18 +25,21 @@ export const actionStyles: Record<Action, ActionStyle> = {
     text: "text-wait",
     surface: "bg-wait-surface",
     border: "border-wait-border",
+    ring: "ring-wait-border/45",
   },
   switch: {
     icon: Repeat2,
     text: "text-switch",
     surface: "bg-switch-surface",
     border: "border-switch-border",
+    ring: "ring-switch-border/45",
   },
   hold: {
     icon: PauseCircle,
     text: "text-hold",
     surface: "bg-hold-surface",
     border: "border-hold-border",
+    ring: "ring-hold-border/45",
   },
 };
 

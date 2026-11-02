@@ -15,7 +15,7 @@ export function resolveLocale(value: string | undefined): Lang {
   return parsed.success ? parsed.data : defaultLocale;
 }
 
-// cookie の値をテーマに解決する。既定はダーク
+// cookie の値をテーマに解決する。既定はライト
 export function resolveTheme(value: string | undefined): Theme {
-  return value === "light" ? "light" : "dark";
+  return value === "dark" ? "dark" : "light";
 }

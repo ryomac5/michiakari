@@ -1,24 +1,29 @@
 "use client";
 
-import { MessageSquarePlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { AppHeader } from "@/components/AppHeader";
+import { MapSheet } from "@/components/MapSheet";
+import { SheetSection, useMapChrome } from "@/components/SheetSection";
 import { selectTimelineBasis } from "@/features/judgment/break-even-timeline";
-import { BreakEvenPanel } from "@/features/judgment/components/BreakEvenPanel";
+import { BreakEvenDetail, BreakEvenSummary } from "@/features/judgment/components/BreakEvenPanel";
 import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
-import { ConclusionCard } from "@/features/judgment/components/ConclusionCard";
+import { ConclusionCard, ConclusionDetail } from "@/features/judgment/components/ConclusionCard";
 import { Disclaimer } from "@/features/judgment/components/Disclaimer";
 import { EvidenceSection } from "@/features/judgment/components/EvidenceSection";
 import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { OptionList } from "@/features/judgment/components/OptionList";
-import { ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
-import { TripSummary } from "@/features/judgment/components/TripSummary";
+import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
+import { StatusChip, TripSummary } from "@/features/judgment/components/TripSummary";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { testIds } from "@/features/judgment/testids";
-import { MapPanel } from "@/features/map/MapPanel";
+import { MapLegend } from "@/features/map/MapLegend";
+import { MapPanel, selectRouteTone } from "@/features/map/MapPanel";
+import type { ReachSource } from "@/features/map/scene";
+import { useLineLabel } from "@/features/map/use-line-label";
 import { SituationInput } from "@/features/situation/SituationInput";
 
 export function JudgmentScreen() {
@@ -26,6 +31,11 @@ export function JudgmentScreen() {
   const router = useRouter();
   const { origin, destination, observations, state, catalog, submitInput, retry } =
     useJudgmentSession();
+  const chrome = useMapChrome();
+  const [reachSource, setReachSource] = useState<ReachSource | null>(null);
+  const known = [...observations, ...state.observations];
+  const blockedLine = known.findLast((o) => o.line !== null)?.line ?? null;
+  const lineLabel = useLineLabel(blockedLine);
 
   // 判断をまだ求めていなければ開始画面へ戻す
   const hasStarted = state.status !== "idle";
@@ -37,99 +47,126 @@ export function JudgmentScreen() {
 
   const display = selectJudgmentDisplay(state);
   const streaming = state.status === "streaming";
-  const blockedSection =
-    [...observations, ...state.observations].findLast((o) => o.section !== null)?.section ?? null;
+  const blockedSection = known.findLast((o) => o.section !== null)?.section ?? null;
   const disclaimerExtra =
     display.judgment?.disclaimer ?? state.previousJudgment?.disclaimer ?? null;
+  const options = display.options ?? [];
+  const tone = selectRouteTone(options, display.recommendedOptionId);
+  const breakEvenProps = {
+    breakEven: display.breakEven,
+    known: display.breakEvenKnown,
+    stale: display.breakEvenStale,
+    timeline: selectTimelineBasis(display.settled, catalog, null),
+  };
 
   return (
-    <main
-      id="main"
-      data-testid={testIds.judgment.screen}
-      data-status={state.status}
-      className="mx-auto flex max-w-2xl flex-col gap-5 px-4 pt-2 pb-10"
-    >
-      <h1 className="sr-only">{t("heading")}</h1>
-      {/* 390x844 の最初の画面に結論と分岐点が収まるよう、ここまでは詰めて並べる */}
-      <div className="flex flex-col gap-3">
+    <div data-testid={testIds.judgment.screen} data-status={state.status} className="h-dvh">
+      <AppHeader variant="map">
         <TripSummary
           origin={origin}
           destination={destination}
           testId={testIds.judgment.tripSummary}
         />
-
-        <ConclusionAnnouncer
-          judgment={state.status === "ready" ? (display.judgment ?? null) : null}
-        />
-        <div className="flex flex-col gap-2">
-          {streaming && <ReasoningProgress state={state} catalog={catalog} />}
-          {state.status === "error" && state.error && (
-            <JudgmentError
-              message={state.error.message}
-              retryable={state.error.retryable}
-              onRetry={retry}
-            />
-          )}
-          {state.status === "ready" && display.judgment && (
-            <ConclusionCard judgment={display.judgment} />
-          )}
-          <Disclaimer />
-        </div>
-
-        <BreakEvenPanel
-          breakEven={display.breakEven}
-          known={display.breakEvenKnown}
-          stale={display.breakEvenStale}
-          timeline={selectTimelineBasis(display.settled, catalog, null)}
-        />
-      </div>
-
-      {/* 気象を使った判断のときだけ。最初の画面の結論と分岐点を押し下げないよう、その下に置く */}
-      {display.weather && <WeatherPanel weather={display.weather} stale={display.weatherStale} />}
+        {blockedLine && <StatusChip line={lineLabel} testId={testIds.judgment.statusChip} />}
+      </AppHeader>
 
       <MapPanel
         origin={origin}
         destination={destination}
-        options={display.options ?? []}
+        options={options}
         recommendedOptionId={display.recommendedOptionId}
         blockedSection={blockedSection}
+        blockedLine={blockedLine}
+        insets={chrome.insets}
+        onReachSourceChange={setReachSource}
       />
 
-      <OptionList
-        options={display.options}
-        recommendedOptionId={display.recommendedOptionId}
-        stale={display.optionsStale}
-        pending={streaming}
-      />
-
-      <EvidenceSection
-        estimate={display.estimate}
-        signals={state.signals}
-        evidence={display.evidence}
-        catalog={catalog}
-        disclaimer={disclaimerExtra}
-      />
-
-      <section
-        data-testid={testIds.judgment.addInfo}
-        aria-labelledby="add-info-title"
-        className="flex flex-col gap-3 rounded-3xl border-2 border-border bg-surface p-4 sm:p-5"
-      >
-        <h2 id="add-info-title" className="flex items-center gap-2 text-lg font-extrabold">
-          <MessageSquarePlus className="size-5" aria-hidden />
-          {t("addInfo.title")}
-        </h2>
-        <p className="text-muted">{t("addInfo.lead")}</p>
-        <SituationInput
-          catalog={catalog}
-          busy={streaming}
-          onSubmit={(input) => {
-            submitInput(input);
-            const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-            window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
-          }}
+      <main id="main">
+        <h1 className="sr-only">{t("heading")}</h1>
+        <ConclusionAnnouncer
+          judgment={state.status === "ready" ? (display.judgment ?? null) : null}
         />
-      </section>
-    </main>
+        <MapSheet
+          label={t("sheet")}
+          snap={chrome.snap}
+          onSnapChange={chrome.setSnap}
+          onCollapsedHeightChange={chrome.setCollapsedHeight}
+          summary={
+            <div className="flex flex-col gap-3">
+              {streaming && <ReasoningProgress state={state} catalog={catalog} />}
+              {state.status === "error" && state.error && (
+                <JudgmentError
+                  message={state.error.message}
+                  retryable={state.error.retryable}
+                  onRetry={retry}
+                />
+              )}
+              {state.status === "ready" && display.judgment && (
+                <ConclusionCard judgment={display.judgment} />
+              )}
+              {!streaming && <BreakEvenSummary {...breakEvenProps} />}
+              <Disclaimer />
+            </div>
+          }
+        >
+          {/* 気象を使った判断のときだけ、半分の状態の先頭に雨量の推移を出す */}
+          {display.weather && (
+            <SheetSection>
+              <WeatherPanel weather={display.weather} stale={display.weatherStale} />
+            </SheetSection>
+          )}
+          {display.judgment && (
+            <SheetSection className="empty:hidden">
+              <ConclusionDetail judgment={display.judgment} />
+            </SheetSection>
+          )}
+          {display.breakEven && (
+            <SheetSection>
+              <BreakEvenDetail {...breakEvenProps} />
+            </SheetSection>
+          )}
+          <SheetSection>
+            <OptionList
+              options={display.options}
+              recommendedOptionId={display.recommendedOptionId}
+              stale={display.optionsStale}
+              pending={streaming}
+            />
+          </SheetSection>
+          <SheetSection>
+            <MapLegend tone={tone} reachSource={reachSource} />
+          </SheetSection>
+          {state.status === "ready" && (
+            <SheetSection>
+              <ReasoningLog state={state} catalog={catalog} />
+            </SheetSection>
+          )}
+          <SheetSection>
+            <EvidenceSection
+              estimate={display.estimate}
+              signals={state.signals}
+              evidence={display.evidence}
+              catalog={catalog}
+              disclaimer={disclaimerExtra}
+            />
+          </SheetSection>
+          <SheetSection
+            testId={testIds.judgment.addInfo}
+            title={t("addInfo.title")}
+            className="pb-2"
+          >
+            <p className="text-[13px] text-muted">{t("addInfo.lead")}</p>
+            <SituationInput
+              catalog={catalog}
+              busy={streaming}
+              onSubmit={(input) => {
+                submitInput(input);
+                chrome.setSnap("collapsed");
+              }}
+            />
+          </SheetSection>
+        </MapSheet>
+      </main>
+    </div>
   );
 }

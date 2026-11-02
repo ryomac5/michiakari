@@ -1,28 +1,33 @@
 "use client";
 
 import { type Action, resolveDeadline } from "@repo/schema";
-import { ArrowRight, Play } from "lucide-react";
+import { ArrowLeft, History, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { AppHeader } from "@/components/AppHeader";
+import { MapSheet, sheetTopInset } from "@/components/MapSheet";
+import { SheetSection, useMapChrome } from "@/components/SheetSection";
 import { Button } from "@/components/ui/button";
-import { actionStyles } from "@/features/judgment/action-style";
 import { selectTimelineBasis } from "@/features/judgment/break-even-timeline";
-import { BreakEvenPanel } from "@/features/judgment/components/BreakEvenPanel";
+import { BreakEvenDetail, BreakEvenSummary } from "@/features/judgment/components/BreakEvenPanel";
 import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
-import { ConclusionCard } from "@/features/judgment/components/ConclusionCard";
+import { ConclusionCard, ConclusionDetail } from "@/features/judgment/components/ConclusionCard";
 import { Disclaimer } from "@/features/judgment/components/Disclaimer";
 import { EvidenceSection } from "@/features/judgment/components/EvidenceSection";
 import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { OptionList } from "@/features/judgment/components/OptionList";
-import { ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
+import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
+import { StatusChip, TripChip } from "@/features/judgment/components/TripSummary";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { testIds } from "@/features/judgment/testids";
 import { formatClockTime } from "@/features/judgment/time";
 import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
-import { MapPanel } from "@/features/map/MapPanel";
+import { MapLegend } from "@/features/map/MapLegend";
+import { MapPanel, selectRouteTone } from "@/features/map/MapPanel";
+import type { ReachSource } from "@/features/map/scene";
+import { useLineLabel } from "@/features/map/use-line-label";
 import { pickStationName, type StationNames } from "@/features/stations/describe";
-import { cn } from "@/lib/utils";
 import { computeReplayProgress } from "../clock";
 import { selectReplayOutcome } from "../outcome";
 import {
@@ -37,6 +42,11 @@ import { PhaseStrip } from "./PhaseStrip";
 import { ReplayBar } from "./ReplayBar";
 import { ReplayHistory } from "./ReplayHistory";
 import { ReplayOutcomeCard } from "./ReplayOutcomeCard";
+
+// 上部の帯の下に再生バー（56px）と余白を重ねるぶん、シートの上端を下げる
+const replayTopInset = sheetTopInset + 64;
+// 地図を寄せるときは、せり出す発表のぶんも空ける
+const announcementInset = 64;
 
 // 1 本のシナリオを再生する。判断の表示は判断画面と同じ部品を使う
 export function ReplayPlayer({
@@ -57,6 +67,9 @@ export function ReplayPlayer({
   const player = useReplayPlayer(scenario, locale, initialSpeed);
   const { state, history, latestEntry } = player;
   const { origin, destination } = useMemo(() => buildScenarioPlaces(scenario), [scenario]);
+  const chrome = useMapChrome(replayTopInset);
+  const { setSnap } = chrome;
+  const [reachSource, setReachSource] = useState<ReachSource | null>(null);
 
   const nowIso = resolveScenarioTime(scenario.start_time, player.clockMinutes);
   const now = useMemo(() => new Date(nowIso), [nowIso]);
@@ -67,8 +80,11 @@ export function ReplayPlayer({
   const observations = [...player.observations, ...state.observations];
   const lastWithSection = observations.findLast((o) => o.section !== null);
   const blockedLine = observations.findLast((o) => o.line !== null)?.line ?? scenario.line;
+  const lineLabel = useLineLabel(blockedLine);
   const disclaimerExtra =
     display.judgment?.disclaimer ?? state.previousJudgment?.disclaimer ?? null;
+  const options = display.options ?? [];
+  const tone = selectRouteTone(options, display.recommendedOptionId);
 
   // 表示中の判断と、その一つ前の判断の行動
   const current = state.status === "ready" ? history.at(-1) : undefined;
@@ -91,152 +107,208 @@ export function ReplayPlayer({
     [player.status, scenario, history, catalog],
   );
 
+  // 終わったら結末を見せるためにシートを半分まで開く
+  const ended = outcome !== null;
+  useEffect(() => {
+    if (ended) setSnap("half");
+  }, [ended, setSnap]);
+
+  const names = {
+    from: pickStationName({ name: origin.name, nameEn: stationNames[origin.name] ?? null }, locale),
+    to: pickStationName(
+      { name: destination.name, nameEn: stationNames[destination.name] ?? null },
+      locale,
+    ),
+  };
+  const breakEvenProps = {
+    breakEven: display.breakEven,
+    known: display.breakEvenKnown,
+    stale: display.breakEvenStale,
+    now,
+    timeline: selectTimelineBasis(display.settled, catalog, deadline),
+  };
+
   return (
     <div
       data-testid={testIds.replay.screen}
       data-scenario-id={scenario.id}
       data-state={player.status}
+      className="h-dvh"
     >
-      <ReplayBar
-        title={pickScenarioText(scenario.title, locale)}
-        subtitle={`${t("replay.trip", {
-          origin: pickStationName(
-            { name: origin.name, nameEn: stationNames[origin.name] ?? null },
-            locale,
-          ),
-          destination: pickStationName(
-            { name: destination.name, nameEn: stationNames[destination.name] ?? null },
-            locale,
-          ),
-        })} · ${scenario.line}`}
-        status={player.status}
-        clockLabel={formatClockTime(nowIso, locale)}
-        progress={computeReplayProgress(scenario.timeline, player.clockMinutes)}
-        enteredCount={player.enteredCount}
-        total={scenario.timeline.length}
-        speed={player.speed}
-        onTogglePlay={player.togglePlay}
-        onNext={player.stepNext}
-        onRestart={player.restart}
-        onChangeSpeed={player.changeSpeed}
-        onBack={onBack}
+      <AppHeader
+        variant="map"
+        leading={
+          <button
+            type="button"
+            data-testid={testIds.replay.backButton}
+            aria-label={t("replay.back")}
+            title={t("replay.back")}
+            onClick={onBack}
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-foreground/5"
+          >
+            <ArrowLeft className="size-5" strokeWidth={1.75} aria-hidden />
+          </button>
+        }
+        below={
+          <>
+            <ReplayBar
+              status={player.status}
+              clockLabel={formatClockTime(nowIso, locale)}
+              progress={computeReplayProgress(scenario.timeline, player.clockMinutes)}
+              enteredCount={player.enteredCount}
+              total={scenario.timeline.length}
+              speed={player.speed}
+              onTogglePlay={player.togglePlay}
+              onNext={player.stepNext}
+              onRestart={player.restart}
+              onChangeSpeed={player.changeSpeed}
+            />
+            {latestEntry && (
+              <AnnouncementCard
+                key={latestEntry.id}
+                concealed={chrome.snap === "full"}
+                entry={latestEntry}
+                timeLabel={formatClockTime(
+                  resolveScenarioTime(scenario.start_time, latestEntry.offset_minutes),
+                  locale,
+                )}
+              />
+            )}
+          </>
+        }
+      >
+        <TripChip from={names.from} to={names.to} />
+        <StatusChip line={lineLabel} />
+      </AppHeader>
+
+      <MapPanel
+        origin={origin}
+        destination={destination}
+        options={options}
+        recommendedOptionId={display.recommendedOptionId}
+        blockedSection={started ? (lastWithSection?.section ?? null) : null}
+        blockedLine={blockedLine}
+        insets={{ ...chrome.insets, top: chrome.insets.top + announcementInset }}
+        onReachSourceChange={setReachSource}
       />
 
-      <main id="main" className="mx-auto flex max-w-2xl flex-col gap-5 px-4 pt-2 pb-10">
+      <main id="main">
         <h1 className="sr-only">{t("replay.heading")}</h1>
         <ConclusionAnnouncer
           judgment={state.status === "ready" ? (display.judgment ?? null) : null}
         />
-        {/* 390x844 の最初の画面に発表・結論・分岐点が収まるよう、ここまでは詰めて並べる */}
-        <div className="flex flex-col gap-2.5">
-          {outcome && <ReplayOutcomeCard outcome={outcome} deadlineClock={deadlineClock} />}
-          {latestEntry && (
-            <AnnouncementCard
-              key={latestEntry.id}
-              entry={latestEntry}
-              timeLabel={formatClockTime(
-                resolveScenarioTime(scenario.start_time, latestEntry.offset_minutes),
-                locale,
+        <MapSheet
+          label={t("judgment.sheet")}
+          snap={chrome.snap}
+          onSnapChange={setSnap}
+          onCollapsedHeightChange={chrome.setCollapsedHeight}
+          topInset={replayTopInset}
+          summary={
+            <div className="flex flex-col gap-3">
+              {outcome && (
+                <div className="border-b border-border pb-3">
+                  <ReplayOutcomeCard outcome={outcome} deadlineClock={deadlineClock} />
+                </div>
               )}
-            />
-          )}
-
-          <div
-            data-testid={testIds.replay.judgment}
-            data-status={state.status}
-            data-observation-id={current?.observationId ?? ""}
-            data-pending-observation-id={pendingId}
-            data-action={current?.action ?? ""}
-            data-phase-id={current?.phaseId ?? ""}
-            data-evidence-ids={current?.evidenceIds.join(" ") ?? ""}
-            data-break-even-shown={current ? String(current.breakEvenShown) : ""}
-            data-changed={changed}
-            className="flex flex-col gap-2"
-          >
-            {!started && <ReadyCard scenario={scenario} onStart={player.togglePlay} />}
-            {streaming && <ReasoningProgress state={state} catalog={catalog} />}
-            {state.status === "error" && state.error && (
-              <JudgmentError
-                message={state.error.message}
-                retryable={state.error.retryable}
-                onRetry={player.retry}
-              />
-            )}
-            {state.status === "ready" && display.judgment && current && (
               <div
-                key={current.observationId}
-                className={cn(
-                  "flex flex-col rounded-3xl",
-                  changed && "mt-3",
-                  changed && current.action === "switch" && "animate-switch-flash",
-                )}
+                data-testid={testIds.replay.judgment}
+                data-status={state.status}
+                data-observation-id={current?.observationId ?? ""}
+                data-pending-observation-id={pendingId}
+                data-action={current?.action ?? ""}
+                data-phase-id={current?.phaseId ?? ""}
+                data-evidence-ids={current?.evidenceIds.join(" ") ?? ""}
+                data-break-even-shown={current ? String(current.breakEvenShown) : ""}
+                data-changed={changed}
+                className="flex flex-col gap-3"
               >
-                <ConclusionCard
-                  judgment={display.judgment}
-                  badge={
-                    changed && previousAction ? (
-                      <ChangeBadge from={previousAction} to={current.action} />
-                    ) : undefined
-                  }
-                />
+                {!started && <ReadyCard scenario={scenario} onStart={player.togglePlay} />}
+                {streaming && <ReasoningProgress state={state} catalog={catalog} />}
+                {state.status === "error" && state.error && (
+                  <JudgmentError
+                    message={state.error.message}
+                    retryable={state.error.retryable}
+                    onRetry={player.retry}
+                  />
+                )}
+                {state.status === "ready" && display.judgment && current && (
+                  <ConclusionCard
+                    judgment={display.judgment}
+                    badge={
+                      changed && previousAction ? (
+                        <ChangeBadge from={previousAction} to={current.action} />
+                      ) : undefined
+                    }
+                  />
+                )}
+                {started && !streaming && <BreakEvenSummary {...breakEvenProps} />}
+                {started && <Disclaimer />}
               </div>
-            )}
-            {started && <Disclaimer />}
-          </div>
-
-          {started && (
-            <div data-observation-id={current?.observationId ?? ""}>
-              <BreakEvenPanel
-                breakEven={display.breakEven}
-                known={display.breakEvenKnown}
-                stale={display.breakEvenStale}
-                now={now}
-                timeline={selectTimelineBasis(display.settled, catalog, deadline)}
-              />
             </div>
+          }
+        >
+          {started && (
+            <>
+              {/* 気象を使った判断のときだけ、半分の状態の先頭に雨量の推移を出す */}
+              {display.weather && (
+                <SheetSection>
+                  <WeatherPanel weather={display.weather} stale={display.weatherStale} />
+                </SheetSection>
+              )}
+              {display.judgment && (
+                <SheetSection className="empty:hidden">
+                  <ConclusionDetail judgment={display.judgment} />
+                </SheetSection>
+              )}
+              {display.breakEven && (
+                <SheetSection>
+                  <BreakEvenDetail {...breakEvenProps} />
+                </SheetSection>
+              )}
+              <SheetSection>
+                <PhaseStrip estimate={display.estimate} catalog={catalog} />
+              </SheetSection>
+              <SheetSection>
+                <OptionList
+                  options={display.options}
+                  recommendedOptionId={display.recommendedOptionId}
+                  stale={display.optionsStale}
+                  pending={streaming}
+                />
+              </SheetSection>
+              <SheetSection>
+                <MapLegend tone={tone} reachSource={reachSource} />
+              </SheetSection>
+              {state.status === "ready" && (
+                <SheetSection>
+                  <ReasoningLog state={state} catalog={catalog} />
+                </SheetSection>
+              )}
+              <SheetSection>
+                <EvidenceSection
+                  estimate={display.estimate}
+                  signals={state.signals}
+                  evidence={display.evidence}
+                  catalog={catalog}
+                  disclaimer={disclaimerExtra}
+                />
+              </SheetSection>
+              <SheetSection>
+                <ReplayHistory
+                  startTime={scenario.start_time}
+                  entries={scenario.timeline.slice(0, player.enteredCount)}
+                  history={history}
+                />
+              </SheetSection>
+            </>
           )}
-        </div>
-
-        {started && (
-          <>
-            {/* 気象を使った判断のときだけ。最初の画面の結論と分岐点を押し下げないよう、その下に置く */}
-            {display.weather && (
-              <WeatherPanel weather={display.weather} stale={display.weatherStale} />
-            )}
-
-            <PhaseStrip estimate={display.estimate} catalog={catalog} />
-
-            <MapPanel
-              origin={origin}
-              destination={destination}
-              options={display.options ?? []}
-              recommendedOptionId={display.recommendedOptionId}
-              blockedSection={lastWithSection?.section ?? null}
-              blockedLine={blockedLine}
-            />
-
-            <OptionList
-              options={display.options}
-              recommendedOptionId={display.recommendedOptionId}
-              stale={display.optionsStale}
-              pending={streaming}
-            />
-
-            <EvidenceSection
-              estimate={display.estimate}
-              signals={state.signals}
-              evidence={display.evidence}
-              catalog={catalog}
-              disclaimer={disclaimerExtra}
-            />
-
-            <ReplayHistory
-              startTime={scenario.start_time}
-              entries={scenario.timeline.slice(0, player.enteredCount)}
-              history={history}
-            />
-          </>
-        )}
+          <SheetSection title={t("replay.scenario")}>
+            <p data-testid={testIds.replay.title} className="text-[15px] font-medium">
+              {pickScenarioText(scenario.title, locale)}
+            </p>
+            <p className="text-[12px] text-muted">{t("replay.fictional")}</p>
+          </SheetSection>
+        </MapSheet>
       </main>
     </div>
   );
@@ -248,29 +320,29 @@ function ReadyCard({ scenario, onStart }: { scenario: ReplayScenario; onStart: (
   const deadline = scenario.user.constraints.deadline;
 
   return (
-    <section className="flex flex-col gap-5 rounded-3xl border-2 border-border bg-surface p-5">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-extrabold">{t("ready.title")}</h2>
-        <p className="text-lg leading-snug font-bold">{pickScenarioText(scenario.title, locale)}</p>
-        <p className="text-muted">
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <p className="text-[13px] text-muted">{t("ready.title")}</p>
+        <h2 className="line-clamp-2 text-[19px] leading-snug font-semibold text-balance">
+          {pickScenarioText(scenario.title, locale)}
+        </h2>
+        <p className="text-[13px] text-muted tabular-nums">
           {formatClockTime(scenario.start_time, locale)} ·{" "}
           {deadline ? t("deadline", { time: deadline }) : t("noDeadline")}
         </p>
-        <p className="text-muted">{t("ready.lead")}</p>
       </div>
-      <Button size="lg" onClick={onStart} className="w-full">
-        <Play aria-hidden />
+      <Button onClick={onStart} className="w-full">
+        <Play className="fill-current" aria-hidden />
         {t("ready.start")}
       </Button>
-      <p className="text-sm text-muted">{t("fictional")}</p>
+      <p className="text-[12px] text-muted">{t("fictional")}</p>
     </section>
   );
 }
 
-// 判断が変わったことを結論の上に短く示す
+// 判断が変わったことをピルの横に短く示す。演出は加えない
 function ChangeBadge({ from, to }: { from: Action; to: Action }) {
   const t = useTranslations();
-  const style = actionStyles[to];
 
   return (
     <p
@@ -278,17 +350,12 @@ function ChangeBadge({ from, to }: { from: Action; to: Action }) {
       data-from={from}
       data-to={to}
       role="status"
-      className={cn(
-        "flex w-fit animate-rise-in flex-wrap items-center gap-x-2 rounded-full border-2 bg-background px-3 py-1 text-xs font-extrabold shadow-md",
-        style.border,
-        style.text,
-      )}
+      className="flex min-w-0 animate-fade-in items-center gap-1 text-[12px] text-muted"
     >
-      {t("replay.changed")}
-      <span className="flex items-center gap-1 font-bold">
-        {t(`judgment.action.${from}`)}
-        <ArrowRight className="size-4" aria-hidden />
-        {t(`judgment.action.${to}`)}
+      <History className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
+      <span className="sr-only">{t("replay.changed")}: </span>
+      <span className="truncate">
+        {t("replay.changedFrom", { action: t(`judgment.action.${from}`) })}
       </span>
     </p>
   );
