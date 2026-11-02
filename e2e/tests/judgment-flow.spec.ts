@@ -101,6 +101,8 @@ test("駅を選び、貼り付けで状況を入れると、推論過程が順�
   await expect(map).toBeVisible();
   await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   await expect(map).toHaveAttribute("data-blocked", "true");
+  // 大阪には Valhalla の到達範囲があるので、円ではなく多角形で描く
+  await expect(map).toHaveAttribute("data-reach-source", "valhalla");
   await expect(map).toHaveAttribute("data-recommended-option", "wait_resume");
   await expect(page.getByTestId(mapTestIds.legend)).toBeVisible();
   await expect(page.getByTestId(mapTestIds.attribution)).toContainText("国土地理院");

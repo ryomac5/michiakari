@@ -4,6 +4,7 @@ import {
   createGeoIndex,
   getTransferWalkMinutes,
   type IsochroneFeature,
+  isPointInGeometry,
   type LonLat,
   type NetworkData,
   type StationNode,
@@ -19,31 +20,14 @@ function findStation(name: string, lineId: string): StationNode {
   return station;
 }
 
-// 射線法による点と環の内外判定
-function isInsideRing([x, y]: LonLat, ring: readonly LonLat[]): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i] as LonLat;
-    const [xj, yj] = ring[j] as LonLat;
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
-}
-
 const toPolygons = (feature: IsochroneFeature): LonLat[][][] =>
   feature.geometry.type === "Polygon"
     ? [feature.geometry.coordinates]
     : feature.geometry.coordinates;
 
 // 外周の内側で、穴の外側にあるか
-function isInsideFeature(point: LonLat, feature: IsochroneFeature): boolean {
-  return toPolygons(feature).some(
-    ([outer, ...holes]) =>
-      outer !== undefined &&
-      isInsideRing(point, outer) &&
-      !holes.some((h) => isInsideRing(point, h)),
-  );
-}
+const isInsideFeature = (point: LonLat, feature: IsochroneFeature): boolean =>
+  isPointInGeometry(point, feature.geometry);
 
 describe("乗換の徒歩分", () => {
   it("JR大阪と地下鉄梅田は Valhalla の経路で 3〜15 分", () => {

@@ -15,7 +15,8 @@ export type MapLabels = {
     route: string;
     transfer: string;
   };
-  attribution: string[];
+  // 地図の隅の出典。short は画面幅 390px でも 1 行に収まる短い表記、full は読み上げ用の全文
+  attribution: { short: string; full: string[]; link: string };
   gestures: { windows: string; mac: string; mobile: string };
 };
 
@@ -34,11 +35,15 @@ const ja: MapLabels = {
     route: "推奨経路。点線は徒歩",
     transfer: "振替輸送の対象路線",
   },
-  attribution: [
-    "地図: 国土地理院 / © OpenStreetMap contributors",
-    // 地図の高さを食わないよう、鉄道と乗降客数の 2 行を 1 行にまとめる。全文は「このアプリについて」
-    "鉄道・駅の乗降客数: 「国土数値情報」（国土交通省）を加工して作成",
-  ],
+  attribution: {
+    short: "国土地理院 / © OpenStreetMap contributors / 国土数値情報",
+    full: [
+      "地図: 国土地理院 / © OpenStreetMap contributors",
+      "徒歩経路・到達範囲: © OpenStreetMap contributors のデータから Valhalla で計算",
+      "鉄道・駅の乗降客数: 「国土数値情報」（国土交通省）を加工して作成",
+    ],
+    link: "出典",
+  },
   gestures: {
     windows: "Ctrl キーを押しながらスクロールで拡大・縮小",
     mac: "⌘ キーを押しながらスクロールで拡大・縮小",
@@ -61,10 +66,15 @@ const en: MapLabels = {
     route: "Recommended route. Dotted is walking",
     transfer: "Lines accepting transfer tickets",
   },
-  attribution: [
-    "Map: Geospatial Information Authority of Japan / © OpenStreetMap contributors",
-    "Railway and ridership data: processed from National Land Numerical Information, MLIT Japan",
-  ],
+  attribution: {
+    short: "GSI Japan / © OpenStreetMap contributors / MLIT",
+    full: [
+      "Map: Geospatial Information Authority of Japan / © OpenStreetMap contributors",
+      "Walking routes and ranges: computed with Valhalla from © OpenStreetMap contributors data",
+      "Railway and ridership data: processed from National Land Numerical Information, MLIT Japan",
+    ],
+    link: "Sources",
+  },
   gestures: {
     windows: "Hold Ctrl and scroll to zoom the map",
     mac: "Hold ⌘ and scroll to zoom the map",

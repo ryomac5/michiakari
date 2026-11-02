@@ -1,7 +1,13 @@
 import type { RouteOption } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { headlineLimits, reasonLimits } from "../src/config.ts";
-import { buildDecisionText, type DecisionReason } from "../src/judge/templates.ts";
+import {
+  buildBreakEvenSentence,
+  buildDecisionText,
+  buildPassedSentence,
+  type DecisionReason,
+  formatLabelInSentence,
+} from "../src/judge/templates.ts";
 
 // 決定論モードの見出しが短く、理由が見出しと分かれ、比較の形で書かれることを確かめる
 
@@ -129,5 +135,44 @@ describe("buildDecisionText", () => {
       ...OUTLOOK,
     });
     expect(text.reason).toBe("待つと期限の23時50分に間に合わず、タクシーなら間に合うためです。");
+  });
+});
+
+describe("分岐点の説明文", () => {
+  const time = "2026-11-05T22:44:00+09:00";
+
+  it("英語では、文頭用の経路ラベルを文の途中に合う小文字の名詞句にする", () => {
+    expect(buildBreakEvenSentence(time, "Via Hankyu Kyoto Line", "en")).toBe(
+      "If service has not resumed by 22:44, the route via Hankyu Kyoto Line gets you there sooner.",
+    );
+    expect(buildPassedSentence(time, "Transfer service via Hankyu Kobe Line", "en")).toBe(
+      "The break-even time of 22:44 has passed. Even if service resumed now, the transfer service via Hankyu Kobe Line would be faster.",
+    );
+  });
+
+  it("タクシーと徒歩は冠詞や動名詞で文に収める", () => {
+    expect(buildBreakEvenSentence(time, "Taxi", "en")).toBe(
+      "If service has not resumed by 22:44, a taxi gets you there sooner.",
+    );
+    expect(formatLabelInSentence("Walk", "en")).toBe("walking");
+  });
+
+  it("定型でない英語のラベルと、日本語のラベルはそのまま使う", () => {
+    expect(formatLabelInSentence("Hankyu Kyoto Line", "en")).toBe("Hankyu Kyoto Line");
+    expect(formatLabelInSentence("Via", "en")).toBe("Via");
+    expect(buildBreakEvenSentence(time, "阪急京都線経由", "ja")).toBe(
+      "22時44分までに再開しなければ、阪急京都線経由のほうが早く着きます。",
+    );
+  });
+
+  it("英語の説明文は、文頭以外に大文字の Via や Transfer を含まない", () => {
+    for (const label of ["Via Hankyu Kyoto Line", "Transfer service via JR Kobe Line"]) {
+      for (const sentence of [
+        buildBreakEvenSentence(time, label, "en"),
+        buildPassedSentence(time, label, "en"),
+      ]) {
+        expect(sentence).not.toMatch(/.\b(Via|Transfer service)\b/);
+      }
+    }
   });
 });

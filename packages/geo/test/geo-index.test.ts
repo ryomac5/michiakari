@@ -40,6 +40,21 @@ describe("findStationsByName", () => {
     expect(geo.findStationsByName("三宮").some((s) => s.name === "三ノ宮")).toBe(true);
   });
 
+  it.each(["サンノミヤ", "さんのみや", "三ノ宮", "三宮", "三ノ宮駅"])(
+    "%s で三ノ宮が見つかる",
+    (query) => {
+      expect(geo.findStationsByName(query).some((s) => s.name === "三ノ宮")).toBe(true);
+    },
+  );
+
+  it.each(["霞ヶ丘", "霞ケ丘", "霞が丘"])("%s で霞ヶ丘が見つかる", (query) => {
+    expect(geo.findStationsByName(query).some((s) => s.name === "霞ヶ丘")).toBe(true);
+  });
+
+  it.each(["泉ヶ丘", "泉ケ丘", "泉が丘"])("%s で泉ケ丘が見つかる", (query) => {
+    expect(geo.findStationsByName(query).some((s) => s.name === "泉ケ丘")).toBe(true);
+  });
+
   it("完全一致を部分一致より先に返す", () => {
     expect(geo.findStationsByName("大阪")[0]?.name).toBe("大阪");
   });
@@ -52,6 +67,31 @@ describe("findStationsByName", () => {
 describe("normalizeSearchText", () => {
   it("カタカナをひらがなにし、駅を除く", () => {
     expect(normalizeSearchText("ユニバーサルシティ駅")).toBe("ゆにばーさるしてぃ");
+  });
+
+  it("仮名の読みの「ノ」「ケ」は残す", () => {
+    expect(normalizeSearchText("サンノミヤ")).toBe("さんのみや");
+    expect(normalizeSearchText("さんのみや")).toBe("さんのみや");
+    expect(normalizeSearchText("カスミケセキ")).toBe("かすみけせき");
+    expect(normalizeSearchText("ノ")).toBe("の");
+  });
+
+  it("漢字に挟まれた「ノ」「の」は地名の表記揺れとして除く", () => {
+    expect(normalizeSearchText("三ノ宮")).toBe(normalizeSearchText("三宮"));
+    expect(normalizeSearchText("三の宮")).toBe(normalizeSearchText("三宮"));
+  });
+
+  it("漢字に挟まれた「ケ」「ヶ」「が」は同じ表記とみなす", () => {
+    const expected = normalizeSearchText("霞ヶ関");
+    expect(normalizeSearchText("霞ケ関")).toBe(expected);
+    expect(normalizeSearchText("霞が関")).toBe(expected);
+    expect(normalizeSearchText("霞ガ関")).toBe(expected);
+    expect(normalizeSearchText("霞ヵ関")).toBe(expected);
+  });
+
+  it("漢字に挟まれていない仮名はそのまま", () => {
+    expect(normalizeSearchText("ユニバーサル・シティ")).toBe("ゆにばーさる・してぃ");
+    expect(normalizeSearchText("ケ丘")).toBe("け丘");
   });
 });
 

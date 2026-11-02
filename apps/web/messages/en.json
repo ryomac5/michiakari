@@ -261,6 +261,7 @@
     "attribution": {
       "title": "Sources",
       "map": "Map: Geospatial Information Authority of Japan / © OpenStreetMap contributors",
+      "walk": "Walking routes and ranges: computed with Valhalla from © OpenStreetMap contributors data",
       "rail": "Railway data: processed from National Land Numerical Information (Railway), MLIT Japan",
       "ridership": "Station ridership: processed from National Land Numerical Information (Passengers by Station), MLIT Japan",
       "weather": "Weather data: Japan Meteorological Agency"

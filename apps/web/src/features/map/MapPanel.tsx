@@ -3,6 +3,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Place, RouteOption, Section } from "@repo/schema";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { testIds } from "@/features/judgment/testids";
@@ -20,6 +21,7 @@ import {
   transferHaloLayerId,
 } from "./layers";
 import { MapLegend } from "./MapLegend";
+import { fetchReachAreas, type ReachArea } from "./reach";
 import { buildMapScene, buildStationPoints, type MapScene } from "./scene";
 import { mapTestIds } from "./testids";
 
@@ -106,6 +108,30 @@ function applyMapPalette(map: MapLibreMap, palette: MapPalette): void {
   }
 }
 
+// 毎回新しい配列を返すと地図の組み立てが描画のたびに走るので、空は 1 つを使い回す
+const noReachAreas: readonly ReachArea[] = [];
+
+// 現在地の駅の到達範囲を取ってくる。駅でない現在地や取得の失敗は空（円の概算）にする
+// 取得が済むまでは null を返し、円から多角形への描き替えでちらつかないようにする
+function useReachAreas(origin: Place): readonly ReachArea[] | null {
+  const stationName = origin.kind === "station" ? origin.name : null;
+  const [reach, setReach] = useState<{ stationName: string; areas: ReachArea[] } | null>(null);
+
+  useEffect(() => {
+    if (stationName === null) return;
+    const controller = new AbortController();
+    fetchReachAreas(stationName, controller.signal)
+      .then((areas) => setReach({ stationName, areas }))
+      .catch(() => {
+        if (!controller.signal.aborted) setReach({ stationName, areas: [] });
+      });
+    return () => controller.abort();
+  }, [stationName]);
+
+  if (stationName === null) return noReachAreas;
+  return reach?.stationName === stationName ? reach.areas : null;
+}
+
 // 実距離の路線図に、止まっている区間・徒歩の到達範囲・動いている駅・推奨経路を重ねる
 export function MapPanel(props: MapPanelProps) {
   const t = useTranslations("map");
@@ -187,16 +213,35 @@ export function MapPanel(props: MapPanelProps) {
   }, [geo]);
 
   const { origin, destination, options, recommendedOptionId, blockedSection, blockedLine } = props;
+  const reachAreas = useReachAreas(origin);
   const scene = useMemo(
     () =>
-      geo
+      geo && reachAreas
         ? buildMapScene(
             geo,
-            { origin, destination, options, recommendedOptionId, blockedSection, blockedLine },
+            {
+              origin,
+              destination,
+              options,
+              recommendedOptionId,
+              blockedSection,
+              blockedLine,
+              reachAreas,
+            },
             labels,
           )
         : null,
-    [geo, origin, destination, options, recommendedOptionId, blockedSection, blockedLine, labels],
+    [
+      geo,
+      reachAreas,
+      origin,
+      destination,
+      options,
+      recommendedOptionId,
+      blockedSection,
+      blockedLine,
+      labels,
+    ],
   );
 
   // 判断の状態が変わるたびにレイヤーを差し替え、選択肢の範囲へ寄せる
@@ -228,6 +273,7 @@ export function MapPanel(props: MapPanelProps) {
       data-state={status}
       data-recommended-option={recommendedOptionId ?? ""}
       data-blocked={scene ? scene.blocked.features.length > 0 : false}
+      data-reach-source={scene?.reachSource ?? ""}
       aria-label={t("title")}
       className="flex flex-col gap-3"
     >
@@ -243,14 +289,30 @@ export function MapPanel(props: MapPanelProps) {
         )}
         <div
           data-testid={mapTestIds.attribution}
-          className="pointer-events-none absolute right-0 bottom-0 left-0 bg-background/75 px-2.5 py-0.5 text-[10px] leading-snug text-muted"
+          className="pointer-events-none absolute right-0 bottom-0 left-0 flex items-end text-[10px] leading-snug text-muted"
         >
-          {labels.attribution.map((line) => (
-            <p key={line}>{line}</p>
-          ))}
+          <p
+            aria-hidden
+            data-testid={mapTestIds.attributionLine}
+            className="min-w-0 flex-1 truncate bg-background/75 py-0.5 pl-2.5 tracking-tight"
+          >
+            {labels.attribution.short}
+          </p>
+          <ul className="sr-only">
+            {labels.attribution.full.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          {/* 文字は小さいまま、押せる高さは 44px にする */}
+          <Link
+            href="/about"
+            className="pointer-events-auto flex h-11 shrink-0 items-end font-bold underline underline-offset-2"
+          >
+            <span className="bg-background/75 py-0.5 pr-2.5 pl-2">{labels.attribution.link}</span>
+          </Link>
         </div>
       </div>
-      <MapLegend palette={palette} labels={labels} />
+      <MapLegend palette={palette} labels={labels} reachSource={scene?.reachSource ?? null} />
     </section>
   );
 }

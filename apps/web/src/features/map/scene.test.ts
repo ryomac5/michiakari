@@ -1,14 +1,22 @@
-import { computeDistanceMeters, type NetworkData } from "@repo/geo";
+import {
+  computeDistanceMeters,
+  createGeoIndex,
+  isPointInGeometry,
+  type NetworkData,
+} from "@repo/geo";
 import network from "@repo/geo/data/network.json";
+import { loadIsochrones } from "@repo/geo/node";
 import type { RouteOption } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { buildPersonAccidentEvents } from "@/features/judgment/fixtures/person-accident";
 import { buildTestRequest } from "@/features/judgment/test-helpers";
 import { createMapGeo } from "./geo-data";
+import { findReachAreas, type ReachArea } from "./reach";
 import {
   buildBlockedSectionPath,
   buildCirclePolygon,
   buildMapScene,
+  buildReachFeatures,
   buildStationLabels,
   computeFitBounds,
   computeWalkReachMeters,
@@ -252,12 +260,103 @@ describe("到達範囲", () => {
 
   it("範囲内の駅のうち、止まっている路線の駅を除く", () => {
     const osaka = geo.index.getStation("jr-west.東海道線.大阪")?.lonLat as Position;
-    const reachable = listReachableStations(geo.nodes, osaka, 1000, ["jr-west.東海道線"]);
+    const circle = { type: "Polygon" as const, coordinates: [buildCirclePolygon(osaka, 1000)] };
+    const reachable = listReachableStations(geo.nodes, circle, ["jr-west.東海道線"]);
     const ids = reachable.map((n) => n.stationId);
     expect(ids).toContain("hankyu.神戸線.大阪梅田");
     expect(ids).toContain("osaka-metro.御堂筋線.梅田");
     expect(ids).not.toContain("jr-west.東海道線.大阪");
     expect(ids).not.toContain("jr-west.東海道線.三ノ宮");
+  });
+
+  it("駅の抽出は距離ではなく多角形の内外で決める", () => {
+    const osaka = geo.index.getStation("jr-west.東海道線.大阪")?.lonLat as Position;
+    // 大阪駅から東へ延びる細長い帯。帯の外にある近くの駅は入らない
+    const [lon, lat] = osaka;
+    const strip = {
+      type: "Polygon" as const,
+      coordinates: [
+        [
+          [lon - 0.001, lat - 0.0005],
+          [lon + 0.02, lat - 0.0005],
+          [lon + 0.02, lat + 0.0005],
+          [lon - 0.001, lat + 0.0005],
+          [lon - 0.001, lat - 0.0005],
+        ] as Position[],
+      ],
+    };
+    const reachable = listReachableStations(geo.nodes, strip, []);
+    expect(reachable.map((n) => n.stationId)).toContain("jr-west.東海道線.大阪");
+    for (const n of reachable) expect(isPointInGeometry(n.lonLat, strip)).toBe(true);
+    const nearButOutside = geo.nodes.filter(
+      (n) => computeDistanceMeters(osaka, n.lonLat) <= 1000 && !isPointInGeometry(n.lonLat, strip),
+    );
+    expect(nearButOutside.length).toBeGreaterThan(0);
+    const ids = new Set(reachable.map((n) => n.stationId));
+    for (const n of nearButOutside) expect(ids.has(n.stationId)).toBe(false);
+  });
+});
+
+describe("buildReachFeatures", () => {
+  const center: Position = [135.5, 34.7];
+  const square = (size: number): ReachArea["geometry"] => ({
+    type: "Polygon",
+    coordinates: [
+      [
+        [135.5 - size, 34.7 - size],
+        [135.5 + size, 34.7 - size],
+        [135.5 + size, 34.7 + size],
+        [135.5 - size, 34.7 + size],
+        [135.5 - size, 34.7 - size],
+      ],
+    ],
+  });
+
+  it("10 分と 20 分がそろえば事前計算の範囲を広い順に使う", () => {
+    const areas = [
+      { minutes: 10, geometry: square(0.005) },
+      { minutes: 20, geometry: square(0.01) },
+    ];
+    const reach = buildReachFeatures(center, areas);
+    expect(reach.source).toBe("valhalla");
+    expect(reach.features.map((f) => f.properties.minutes)).toEqual([20, 10]);
+    expect(reach.features[0]?.geometry).toEqual(square(0.01));
+  });
+
+  it("範囲が無いか片方だけなら円で概算する", () => {
+    for (const areas of [[], [{ minutes: 10, geometry: square(0.005) }]]) {
+      const reach = buildReachFeatures(center, areas);
+      expect(reach.source).toBe("circle");
+      expect(reach.features.map((f) => f.properties.minutes)).toEqual([20, 10]);
+      expect(reach.features[1]?.geometry).toEqual({
+        type: "Polygon",
+        coordinates: [buildCirclePolygon(center, computeWalkReachMeters(10))],
+      });
+    }
+  });
+});
+
+describe("findReachAreas", () => {
+  const reachIndex = createGeoIndex(network as unknown as NetworkData, {
+    isochrones: loadIsochrones(),
+  });
+
+  it("大阪は 10 分と 20 分の範囲を返し、駅はその内側にある", () => {
+    const result = findReachAreas(reachIndex, "大阪");
+    expect(result.areas.map((a) => a.minutes)).toEqual([10, 20]);
+    const station = reachIndex.getStation(result.stationId as string);
+    expect(station?.name).toBe("大阪");
+    for (const area of result.areas) {
+      expect(isPointInGeometry(station?.lonLat as Position, area.geometry)).toBe(true);
+    }
+  });
+
+  it("範囲の無い駅と、引けない駅名は空を返す", () => {
+    expect(findReachAreas(geo.index, "大阪")).toEqual({
+      stationId: expect.any(String),
+      areas: [],
+    });
+    expect(findReachAreas(reachIndex, "存在しない駅")).toEqual({ stationId: null, areas: [] });
   });
 });
 
@@ -309,12 +408,29 @@ describe("buildMapScene", () => {
     expect(scene.blockedLineIds).toEqual(["jr-west.東海道線"]);
     expect(scene.blocked.features[0]?.properties.label).toBe("運転見合わせ 大阪–三ノ宮");
     expect(scene.reach.features.map((f) => f.properties.minutes)).toEqual([20, 10]);
+    expect(scene.reachSource).toBe("circle");
     expect(scene.route.features.map((f) => f.properties.mode)).toEqual(["walk", "ride", "walk"]);
     expect(scene.transferLineIds).toEqual(["hankyu.神戸線"]);
     expect(scene.places.features.map((f) => f.properties.role)).toEqual(["origin", "destination"]);
     expect(
       scene.reachableStations.features.some((f) => f.properties.stationId.startsWith("hankyu.")),
     ).toBe(true);
+  });
+
+  it("到達範囲があれば多角形で描き、動いている駅は 20 分の範囲の内側だけにする", () => {
+    const reachIndex = createGeoIndex(network as unknown as NetworkData, {
+      isochrones: loadIsochrones(),
+    });
+    const { areas } = findReachAreas(reachIndex, "大阪");
+    const scene = buildMapScene(geo, { ...input, reachAreas: areas }, labels);
+    expect(scene.reachSource).toBe("valhalla");
+    const widest = areas.find((a) => a.minutes === 20)?.geometry as ReachArea["geometry"];
+    expect(scene.reach.features[0]?.geometry).toEqual(widest);
+    expect(scene.reachableStations.features.length).toBeGreaterThan(0);
+    for (const f of scene.reachableStations.features) {
+      expect(isPointInGeometry(f.geometry.coordinates, widest)).toBe(true);
+      expect(f.properties.stationId.startsWith("jr-west.東海道線.")).toBe(false);
+    }
   });
 
   it("フィットする範囲は現在地・行き先・区間を含み、関西全域より狭い", () => {

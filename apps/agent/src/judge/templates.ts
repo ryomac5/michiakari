@@ -19,17 +19,36 @@ export function buildDisclaimer(language: Lang): string {
     : "This judgment is an estimate based on public information and past patterns. Always prioritize official announcements from the station or railway operator.";
 }
 
+// 英語の経路ラベル（文頭用の「Via ◯◯」など）を、文の途中で主語になる名詞句にする
+// 定型のラベルだけを言い換え、それ以外（固有名詞で始まるものなど）はそのまま使う
+const EN_LABEL_IN_SENTENCE: readonly [RegExp, string][] = [
+  [/^Transfer service via /, "the transfer service via "],
+  [/^Via /, "the route via "],
+  [/^Taxi$/, "a taxi"],
+  [/^Walk$/, "walking"],
+];
+
+export function formatLabelInSentence(label: string, language: Lang): string {
+  if (language === "ja") return label;
+  for (const [pattern, replacement] of EN_LABEL_IN_SENTENCE) {
+    if (pattern.test(label)) return label.replace(pattern, replacement);
+  }
+  return label;
+}
+
 // 「◯時◯分までに再開しなければ、◯◯のほうが早く着きます」
 export function buildBreakEvenSentence(time: string, label: string, language: Lang): string {
+  const route = formatLabelInSentence(label, language);
   return language === "ja"
-    ? `${formatClock(time, language)}までに再開しなければ、${label}のほうが早く着きます。`
-    : `If service has not resumed by ${formatClock(time, language)}, ${label} gets you there sooner.`;
+    ? `${formatClock(time, language)}までに再開しなければ、${route}のほうが早く着きます。`
+    : `If service has not resumed by ${formatClock(time, language)}, ${route} gets you there sooner.`;
 }
 
 export function buildPassedSentence(time: string, label: string, language: Lang): string {
+  const route = formatLabelInSentence(label, language);
   return language === "ja"
-    ? `分岐点の${formatClock(time, language)}を過ぎました。いま再開しても${label}のほうが早く着きます。`
-    : `The break-even time of ${formatClock(time, language)} has passed. Even if service resumed now, ${label} would be faster.`;
+    ? `分岐点の${formatClock(time, language)}を過ぎました。いま再開しても${route}のほうが早く着きます。`
+    : `The break-even time of ${formatClock(time, language)} has passed. Even if service resumed now, ${route} would be faster.`;
 }
 
 export function buildNoAlternativeSentence(language: Lang): string {

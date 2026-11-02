@@ -5,5 +5,7 @@
 export const mapTestIds = {
   canvas: "judgment-map-canvas",
   legend: "judgment-map-legend",
+  reachApprox: "judgment-map-reach-approx",
   attribution: "judgment-map-attribution",
+  attributionLine: "judgment-map-attribution-line",
 } as const;

@@ -7,6 +7,7 @@ export {
   type NearestStation,
   type TransferOption,
 } from "./geo-index.ts";
+export { isPointInGeometry, isPointInRing } from "./geometry.ts";
 export {
   buildNetworkGraph,
   type GraphLink,
