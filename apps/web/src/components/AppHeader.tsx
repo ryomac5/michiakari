@@ -91,8 +91,11 @@ export function AppHeader({
         <p
           data-testid={testIds.app.mockBadge}
           className={cn(
-            "glass fixed top-[max(76px,calc(env(safe-area-inset-top)+64px))] left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium whitespace-nowrap text-hold",
-            variant === "map" && "lg:left-4 lg:translate-x-0",
+            "glass fixed left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium whitespace-nowrap text-hold",
+            // 地図の画面は帯の下、ほかの画面は本文に重ならないよう下端に置く
+            variant === "map"
+              ? "top-[max(76px,calc(env(safe-area-inset-top)+64px))] lg:left-4 lg:translate-x-0"
+              : "bottom-[max(28px,calc(env(safe-area-inset-bottom)+20px))]",
           )}
         >
           <FlaskConical className="size-3.5" aria-hidden />

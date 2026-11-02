@@ -192,7 +192,7 @@ export function StartScreen() {
           </p>
         </div>
 
-        <div className="mt-auto flex flex-col gap-1 pt-6 pb-4 text-[12px] text-muted">
+        <div className="mt-auto flex flex-col gap-1 pt-6 pb-12 text-[12px] text-muted">
           <p className="flex items-center gap-1.5 font-medium text-foreground/80">
             <Info className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
             {t("disclaimer.short")}
