@@ -27,10 +27,20 @@
 ### 2.1 apps/web
 
 - Next.js（App Router）、スマートフォン優先
-- 地図: MapLibre GL JS（背景: 地理院タイル または 自前 PMTiles）、重ね合わせ: deck.gl
+- 地図: MapLibre GL JS。背景は地理院タイルの淡色地図とする。路線・駅・経路・到達範囲は GeoJSON のレイヤーで重ねる
 - 判断の受信: SSE。イベントごとに画面の該当部分を更新する
-- 多言語: 日本語・英語（next-intl などを利用）。エージェント出力も利用者の言語で返す
+- 多言語: 日本語・英語（next-intl）。エージェント出力も利用者の言語で返す
 - リプレイモード: `scenarios/` のシナリオを時刻順に入力として流し、判断の変化を再生する
+
+リプレイは `/replay` で動く。要点は次のとおり。
+
+- 画面のサーバー側が `CONTENT_DIR` からシナリオを読む。検証に通ったものだけを使い、`expectations` は画面に渡さない
+- timeline の 1 件を `scenario` 型の RawInput にし、解釈済みの観測の列と合わせて `POST /judge` に送る
+- 時計はシナリオの 1 分を実時間 1 秒で進める。判断の生成中は止め、`judgment_ready` を受けてから次の観測へ進む
+- 速さは 1x・2x・4x から選ぶ。`?speed=` で 600 倍まで上げられ、`?scenario=` で最初に開くシナリオを指定できる。どちらもテストと録画のためである
+- 4x 以下では、推論の過程を目で追えるようイベントの間を 320 ミリ秒空ける
+- 判断が確定しなければ再生を止め、同じ観測を入れ直せるようにする
+- 観測ごとの行動・段階・根拠を履歴に残し、判断が変わったことを示す
 
 ### 2.2 apps/agent
 
@@ -41,6 +51,17 @@
   - 理由: 公開 Web サービスにファイル操作・コマンド実行のツールは不要で危険。イベントの粒度を完全に制御したい
 - モデル: 判断 `claude-opus-5-5`、入力の解釈 `claude-haiku-5-5`（設定ファイル1か所で管理）
 - 状態: 判断のたびに、これまでの観測の列をすべて入力として受け取る（サーバーに保存しない）
+- モード: `claude` と `deterministic` の 2 つ。環境変数 `JUDGE_MODE` で指定し、無ければ `ANTHROPIC_API_KEY` があるときだけ `claude` にする
+  - `claude`: Haiku で解釈し、Opus のツール実行ループで判断する。選択式の入力は Claude を通さない
+  - `deterministic`: 文字列照合で解釈し、規則で判断する。写真は読めないので error を返す
+- フォールバック: claude モードの失敗は決定論モードで仕上げる
+  - 解釈が失敗したら、文字列照合で解釈し直す
+  - 判断ループが失敗したら、済んだツールの結果を残して残りを決定論で進める。失敗とは拒否、`max_tokens`、ツール呼び出し 12 回の超過、反復の上限、検証の再失敗、例外である
+  - 拒否された呼び出しは、まずサーバー側のフォールバックで別モデルに回す
+- 切断時の中断: 利用者が切断したら AbortController で Claude の呼び出しと判断ループを止め、何も送らずに終える
+- 頻度制限: 接続元ごとの固定窓で、プロセス内のメモリで数える
+  - 上限は 1 分あたり 20 件とし、`RATE_LIMIT_PER_MINUTE` で変えられる。超えたら 429 と error イベントを返す
+  - 単位は既定で接続元アドレスとする。`TRUST_PROXY=true` のときだけ `X-Forwarded-For` の先頭を使う
 
 ### 2.3 packages/schema
 
@@ -58,7 +79,8 @@
 ### 2.5 packages/geo
 
 - 路線・駅・事業者（国土数値情報から整形）
-- 駅間の徒歩時間行列、徒歩10分・20分の到達範囲（Valhalla で事前計算）
+- 徒歩時間は直線距離の 1.3 倍を分速 80m で割って概算する。計算は packages/core の walk が担い、パラメータは `packages/core/params/walk.ts` に置く
+- 徒歩10分・20分の到達範囲も同じ概算の円で描く。Valhalla による徒歩時間と到達範囲の事前計算は将来の拡張とする
 - 路線上の距離からの乗車時間の概算（関西にはオープンな時刻表データがないため。後述）
 
 経路探索は packages/geo の routing が担う。ネットワーク上のダイクストラで探し、止まっている区間の辺を除く。前の候補の主な路線を除いて探し直し、多様な候補を最大 3 本返す。
@@ -71,8 +93,10 @@
 2. 事業者名を正規化する（例: 旧泉北高速鉄道 → 南海 泉北線）
 3. 駅の線データから代表点を求める
 4. 駅別乗降客数を結合する
-5. Valhalla で駅間の徒歩時間と到達範囲を計算する
-6. 路線・駅を PMTiles に変換する（tippecanoe）
+5. 線路のグラフから隣接駅と駅間距離を求め、乗換候補を結ぶ
+6. 路線・駅を GeoJSON、ネットワークを JSON で `packages/geo/data/` に書き出す
+
+画面は GeoJSON を静的に読み込んで配信する。PMTiles は tippecanoe が開発環境に無いため作らない。手順の詳細は `packages/data/README.md` を正とする。
 
 ## 3. 判断の流れ
 
@@ -142,6 +166,13 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `break_even_computed` | `{ breakEven: BreakEven \| null }` | 分岐点の表示を更新 |
 | `judgment_ready` | `{ judgment: Judgment }` | 結論を確定表示 |
 | `error` | `{ message: string, retryable: boolean }` | 再試行の案内 |
+| `progress` | `{ message: string, stage?: ProgressStage }` | 推論の過程の該当する段に一文を出す |
+
+`progress` は判断の途中経過である。両モードで各段階の開始を知らせ、claude モードでは Claude の text ブロックと進捗メモも流す。進捗メモは `thinking.display: "updates"` で得る。
+
+- `stage` は `interpret` / `knowledge` / `weather` / `phase` / `alternatives` / `break_even` / `judgment` のいずれか
+- Claude の進捗メモは `stage` を持たない。画面は進行中の段に付ける
+- 画面は知らない種類のイベントを読み飛ばす
 
 ### 4.4 Judgment（判断結果）
 

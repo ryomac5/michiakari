@@ -68,14 +68,18 @@ docs/             設計文書、作業記録
 ```bash
 pnpm install
 pnpm dev                 # web と agent を同時起動
+pnpm dev:demo            # agent だけをダミーの知見・シナリオで起動。API キーが無ければ決定論モード
+pnpm build               # 全パッケージをビルド
 pnpm test                # 全パッケージの単体テスト
-pnpm test:e2e            # シナリオの振る舞いテスト（Playwright）
+pnpm test:e2e            # シナリオの振る舞いテスト（Playwright）。決定論モードの agent とダミー内容で動く
+pnpm --filter e2e record # デモ動画を録画。出力は e2e/recordings/（git 管理外）
 pnpm lint && pnpm typecheck
 pnpm format              # Biome で整形
 pnpm validate            # knowledge/ と scenarios/ の YAML と雛形の整合を検証
+pnpm validate:dev        # ダミーの知見・シナリオで同じ検証を行う
 pnpm guard               # knowledge/ と scenarios/ を承認記録との照合、ブランチ差分、シンボリックリンク、内容検証で確認
 pnpm guard:approve       # 開発者専用。ALLOW_PROTECTED_EDIT=1 と TTY での確認が必要
-pnpm data:build          # 前処理（路線・駅・徒歩時間・タイル）
+pnpm data:build          # 前処理（国土数値情報から路線・駅・駅間距離の GeoJSON と JSON を生成）
 ```
 
 コマンドを追加・変更したら、この節を更新する。
