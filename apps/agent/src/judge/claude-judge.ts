@@ -11,20 +11,23 @@ import type { LlmClient } from "../llm-client.ts";
 import { buildKnowledgeBlock, type Prompts } from "../prompts/load-prompts.ts";
 import { buildClaudeTools } from "../tools/definitions.ts";
 import { DecisionSchema } from "../tools/emit-judgment.ts";
-import { assembleJudgment, collectAllowedClockMinutes, validateJudgment } from "./assemble.ts";
+import { assembleJudgment } from "./assemble.ts";
 import type { JudgeSession, ToolOutcome } from "./session.ts";
 
 // Opus による判断ループ。ツールの実行は自前で行い、イベントはセッションが送る
-// 失敗（拒否・上限超過・検証の再失敗）は null を返し、呼び出し側が決定論モードで仕上げる
+// 失敗（拒否・上限超過・検証の再失敗）は failed を返し、呼び出し側が決定論モードで仕上げる
+// 利用者が切断したら aborted を返し、呼び出し側は何も送らずに終える
 
 export type ClaudeJudgeDeps = {
   llm: LlmClient;
   prompts: Prompts;
+  signal?: AbortSignal;
 };
 
 export type ClaudeJudgeOutcome =
   | { status: "done"; judgment: Judgment }
-  | { status: "failed"; reason: string };
+  | { status: "failed"; reason: string }
+  | { status: "aborted" };
 
 // 利用者の入力は観測データとしてシステムプロンプトと分けて渡す
 function buildUserMessage(session: JudgeSession): string {
@@ -51,7 +54,7 @@ function buildBaseParams(session: JudgeSession, deps: ClaudeJudgeDeps) {
     fallbacks: "default",
     betas: [claudeSettings.fallbackBeta, claudeSettings.thinkingUpdatesBeta],
     // ツール呼び出しの合間の短い進捗メモを受け取り、progress イベントで流す
-    thinking: { type: "adaptive", display: "updates" },
+    thinking: { type: "adaptive", display: claudeSettings.thinkingDisplay },
     output_config: { effort: claudeSettings.judgmentEffort },
     system: [
       { type: "text", text: deps.prompts.judgmentSystem },
@@ -67,10 +70,19 @@ function buildBaseParams(session: JudgeSession, deps: ClaudeJudgeDeps) {
 
 const MAX_PROGRESS_NOTE_LENGTH = 200;
 
-// Claude の説明文と進捗メモを短文にそろえる
-function collectProgressNotes(content: BetaMessage["content"]): string[] {
+// Claude の説明文を短文にそろえる。思考のブロックは進捗メモ（display: updates）のときだけ使う
+function collectProgressNotes(
+  content: BetaMessage["content"],
+  includeThinkingUpdates: boolean,
+): string[] {
   return content
-    .flatMap((b) => (b.type === "text" ? [b.text] : b.type === "thinking" ? [b.thinking] : []))
+    .flatMap((b) =>
+      b.type === "text"
+        ? [b.text]
+        : b.type === "thinking" && includeThinkingUpdates
+          ? [b.thinking]
+          : [],
+    )
     .map((t) => t.trim().replace(/\s+/g, " "))
     .filter((t) => t.length > 0)
     .map((t) =>
@@ -116,15 +128,10 @@ function handleEmitJudgment(
     };
   }
   const results = { estimate, alternatives, breakEven };
-  const checked = validateJudgment({
-    judgment: assembleJudgment(results, decision.data, session.ctx.request.language),
-    evidenceRefs: session.collectEvidenceRefs(),
-    allowedClockMinutes: collectAllowedClockMinutes(
-      results,
-      session.ctx.observations,
-      session.ctx.request.now,
-    ),
-  });
+  const checked = session.checkJudgment(
+    assembleJudgment(results, decision.data, session.ctx.request.language),
+    results,
+  );
   if (checked.judgment)
     return { judgment: checked.judgment, outcome: { isError: false, content: { ok: true } } };
   return {
@@ -148,15 +155,24 @@ export async function runClaudeJudgment(
   let toolCalls = 0;
   let validationFailures = 0;
   let nudged = false;
+  const includeThinkingUpdates = base.thinking.display === "updates";
 
-  for (;;) {
-    const response = await deps.llm.createMessage({ ...base, messages });
+  for (let iteration = 0; ; iteration++) {
+    if (deps.signal?.aborted) return { status: "aborted" };
+    if (iteration >= claudeSettings.maxLoopIterations) {
+      return { status: "failed", reason: "判断ループの反復回数の上限を超えました" };
+    }
+    const response = await deps.llm.createMessage(
+      { ...base, messages },
+      deps.signal ? { signal: deps.signal } : undefined,
+    );
+    if (deps.signal?.aborted) return { status: "aborted" };
     if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") {
       return { status: "failed", reason: `stop_reason: ${response.stop_reason}` };
     }
     // 思考のブロックも含めて、応答をそのまま履歴に戻す
     messages.push({ role: "assistant", content: response.content });
-    for (const note of collectProgressNotes(response.content)) {
+    for (const note of collectProgressNotes(response.content, includeThinkingUpdates)) {
       await session.emitProgress(undefined, note);
     }
 

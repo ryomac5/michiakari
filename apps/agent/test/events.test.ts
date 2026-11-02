@@ -154,6 +154,22 @@ describe("入口の検証と上限", () => {
     expect(parseSseEvents(await res.text())[0]).toMatchObject({ type: "error", retryable: true });
   });
 
+  it("X-Forwarded-For は trustProxy のときだけ頻度制限の単位に使う", async () => {
+    const send = (app: ReturnType<typeof createApp>, ip: string) =>
+      app.request("/judge", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": ip },
+        body: JSON.stringify(valid),
+      });
+    const options = { judge: deps, corsOrigins: ["http://localhost:3000"], rateLimitPerWindow: 1 };
+    const trusted = createApp({ ...options, trustProxy: true });
+    expect((await send(trusted, "203.0.113.1")).status).toBe(200);
+    expect((await send(trusted, "203.0.113.2")).status).toBe(200);
+    const untrusted = createApp(options);
+    expect((await send(untrusted, "203.0.113.1")).status).toBe(200);
+    expect((await send(untrusted, "203.0.113.2")).status).toBe(429);
+  });
+
   it("CORS は許可したオリジンにだけ応える", async () => {
     const app = createTestApp(deps);
     const allowed = await app.request("/health", { headers: { origin: "http://localhost:3000" } });

@@ -1,4 +1,4 @@
-import { findShortestPhasePath } from "@repo/core";
+import { findPhasePaths } from "@repo/core";
 import { IdSchema } from "@repo/schema";
 import { z } from "zod";
 import type { ToolContext, ToolState } from "./types.ts";
@@ -34,10 +34,12 @@ export function runLookupKnowledge(
     isError: false,
     content: {
       knowledge,
-      // 省ける段階を含む最短の段階の並び。段階が分岐する知見で使う
-      shortestPhasePathFromFirst: findShortestPhasePath(knowledge, 0).map(
-        (i) => knowledge.phases[i]?.id,
-      ),
+      // 段階が分岐する知見で、所要時間の p50 の合計が最短・最長になる段階の並び
+      phasePathsFromFirst: (() => {
+        const { shortest, longest } = findPhasePaths(knowledge, 0);
+        const toIds = (path: number[]) => path.map((i) => knowledge.phases[i]?.id);
+        return { shortest: toIds(shortest), longest: toIds(longest) };
+      })(),
     },
   };
 }

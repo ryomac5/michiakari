@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ObservationSchema, RawInputSchema } from "../src/index.ts";
+import { MAX_INPUT_TEXT_LENGTH, ObservationSchema, RawInputSchema } from "../src/index.ts";
 import { validObservation } from "./fixtures/api.ts";
 
 describe("RawInputSchema", () => {
@@ -71,5 +71,37 @@ describe("ObservationSchema", () => {
   it("必須項目の欠落を拒否する", () => {
     const { detectedSignals: _d, ...rest } = validObservation;
     expect(ObservationSchema.safeParse(rest).success).toBe(false);
+  });
+});
+
+describe("文章の上限", () => {
+  const atLimit = "あ".repeat(MAX_INPUT_TEXT_LENGTH);
+  const overLimit = "あ".repeat(MAX_INPUT_TEXT_LENGTH + 1);
+
+  it("貼り付けた文章とシナリオの文章は上限まで受け入れ、超えたら拒否する", () => {
+    expect(RawInputSchema.safeParse({ type: "text", text: atLimit }).success).toBe(true);
+    expect(RawInputSchema.safeParse({ type: "text", text: overLimit }).success).toBe(false);
+    const scenario = {
+      type: "scenario",
+      scenarioId: "s",
+      observationId: "o",
+      kind: "announcement",
+    };
+    expect(RawInputSchema.safeParse({ ...scenario, text: { ja: atLimit, en: "x" } }).success).toBe(
+      true,
+    );
+    expect(RawInputSchema.safeParse({ ...scenario, text: { ja: overLimit } }).success).toBe(false);
+    expect(
+      RawInputSchema.safeParse({ ...scenario, text: { ja: "x", en: overLimit } }).success,
+    ).toBe(false);
+  });
+
+  it("観測の原文は上限を超えたら拒否する", () => {
+    expect(ObservationSchema.safeParse({ ...validObservation, rawText: atLimit }).success).toBe(
+      true,
+    );
+    expect(ObservationSchema.safeParse({ ...validObservation, rawText: overLimit }).success).toBe(
+      false,
+    );
   });
 });
