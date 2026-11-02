@@ -14,7 +14,7 @@ import { formatClockTime, formatIsoWithOffset } from "../time";
 
 const eventType = "person_accident";
 
-// モックで使う知見の抜粋。knowledge/ に同じ id があればそちらが優先される
+// モックで使う知見の抜粋。モックの間は knowledge/ に同じ id があってもこちらを優先する
 export const personAccidentCatalog: KnowledgeCatalog = [
   {
     id: eventType,

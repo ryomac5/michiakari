@@ -5,6 +5,7 @@ import type {
   Judgment,
   JudgmentEvent,
   Observation,
+  ProgressStage,
   RouteOption,
 } from "@repo/schema";
 
@@ -27,6 +28,8 @@ export type JudgmentState = {
   breakEven: BreakEven | null;
   judgment: Judgment | null;
   error: { message: string; retryable: boolean } | null;
+  // 各段の最新の進捗メモ（progress イベント）
+  progress: Partial<Record<ReasoningStepId, string>>;
   lastSeq: number;
   // 更新中・失敗時に表示し続ける前回の判断
   previousJudgment: Judgment | null;
@@ -48,9 +51,34 @@ export function createJudgmentState(): JudgmentState {
     breakEven: null,
     judgment: null,
     error: null,
+    progress: {},
     lastSeq: -1,
     previousJudgment: null,
   };
+}
+
+// 進捗の段階を推論の段に対応させる
+const progressStageSteps: Record<ProgressStage, ReasoningStepId> = {
+  interpret: "reading",
+  knowledge: "signals",
+  weather: "phase",
+  phase: "phase",
+  alternatives: "options",
+  break_even: "breakEven",
+  judgment: "breakEven",
+};
+
+// 段階の無い進捗メモは、進行中の段（無ければ最後に見えている段）に付ける
+function selectProgressStep(
+  steps: Record<ReasoningStepId, StepStatus>,
+  stage: ProgressStage | undefined,
+): ReasoningStepId {
+  if (stage) return progressStageSteps[stage];
+  return (
+    reasoningSteps.find((id) => steps[id] === "active") ??
+    reasoningSteps.findLast((id) => steps[id] !== "pending") ??
+    "reading"
+  );
 }
 
 // 新しい判断の要求を始める。前回の判断は previousJudgment に退避する
@@ -146,8 +174,17 @@ export function reduceJudgmentState(state: JudgmentState, event: JudgmentEvent):
         error: { message: event.message, retryable: event.retryable },
         steps: failActiveSteps(state.steps),
       };
-    case "progress":
-      return base;
+    case "progress": {
+      const step = selectProgressStep(state.steps, event.stage);
+      return {
+        ...base,
+        progress: { ...state.progress, [step]: event.message },
+        steps: state.steps[step] === "pending" ? { ...state.steps, [step]: "active" } : state.steps,
+      };
+    }
+    default:
+      // 知らない種類のイベントは状態を変えない
+      return state;
   }
 }
 

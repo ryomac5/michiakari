@@ -49,6 +49,7 @@ export function ReasoningProgress({
             id={id}
             status={state.steps[id]}
             detail={<StepDetail id={id} state={state} catalog={catalog} />}
+            progress={state.progress[id] ?? null}
           />
         ))}
       </ol>
@@ -66,10 +67,13 @@ function ReasoningStep({
   id,
   status,
   detail,
+  progress,
 }: {
   id: ReasoningStepId;
   status: StepStatus;
   detail: ReactNode;
+  // その段の最新の進捗メモ。claude モードでは Claude の思考メモが流れる
+  progress: string | null;
 }) {
   const t = useTranslations("judgment.reasoning");
   if (status === "pending") return null;
@@ -96,6 +100,18 @@ function ReasoningStep({
           <span className="sr-only">（{t(`status.${status}`)}）</span>
         </p>
         <p className="truncate text-muted">{detail}</p>
+        {progress && (
+          <p
+            key={progress}
+            data-testid={testIds.judgment.reasoningProgress(id)}
+            className={cn(
+              "animate-step-in text-sm leading-snug",
+              status === "active" ? "text-foreground" : "text-muted",
+            )}
+          >
+            {progress}
+          </p>
+        )}
       </div>
     </li>
   );

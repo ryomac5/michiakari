@@ -148,3 +148,48 @@ describe("mergeObservations", () => {
     expect(mergeObservations([a, b], [a2])).toEqual([b, a2]);
   });
 });
+
+describe("progress イベント", () => {
+  const at = "2026-11-05T22:40:00+09:00";
+
+  it("段階に対応する段へ最新の進捗メモを付け、その段を進行中にする", () => {
+    let state = startJudgmentRun(createJudgmentState());
+    state = reduceJudgmentState(state, {
+      type: "progress",
+      seq: 0,
+      at,
+      stage: "alternatives",
+      message: "代替手段を調べています",
+    });
+    expect(state.progress.options).toBe("代替手段を調べています");
+    expect(state.steps.options).toBe("active");
+    state = reduceJudgmentState(state, {
+      type: "progress",
+      seq: 1,
+      at,
+      stage: "alternatives",
+      message: "阪急線を比べています",
+    });
+    expect(state.progress.options).toBe("阪急線を比べています");
+  });
+
+  it("段階の無い進捗メモは進行中の段に付く", () => {
+    const state = reduceJudgmentState(startJudgmentRun(createJudgmentState()), {
+      type: "progress",
+      seq: 0,
+      at,
+      message: "掲示の文言を確かめています",
+    });
+    expect(state.progress.reading).toBe("掲示の文言を確かめています");
+  });
+
+  it("新しい判断を始めると進捗メモは消える", () => {
+    const state = reduceJudgmentState(startJudgmentRun(createJudgmentState()), {
+      type: "progress",
+      seq: 0,
+      at,
+      message: "x",
+    });
+    expect(startJudgmentRun(state).progress).toEqual({});
+  });
+});

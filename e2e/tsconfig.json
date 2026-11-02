@@ -3,5 +3,12 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["playwright.config.ts", "tests"]
+  "include": [
+    "playwright.config.ts",
+    "playwright.record.config.ts",
+    "servers.ts",
+    "support",
+    "tests",
+    "record"
+  ]
 }

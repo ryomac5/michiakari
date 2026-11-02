@@ -1,10 +1,11 @@
 "use client";
 
-import { ArrowRight, Info, LoaderCircle, LocateFixed } from "lucide-react";
+import { ArrowRight, Info, LoaderCircle, LocateFixed, PlayCircle } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useJudgmentSession } from "@/features/judgment/session";
 import { testIds } from "@/features/judgment/testids";
 import { StationSearch } from "@/features/stations/components/StationSearch";
@@ -118,6 +119,18 @@ export function StartScreen() {
         {t("start.next")}
         <ArrowRight aria-hidden />
       </Button>
+
+      <div className="flex flex-col gap-2">
+        <Link
+          href="/replay"
+          data-testid={testIds.start.replayLink}
+          className={buttonVariants({ variant: "outline", className: "w-full" })}
+        >
+          <PlayCircle aria-hidden />
+          {t("start.replayLink")}
+        </Link>
+        <p className="text-sm text-muted">{t("start.replayNote")}</p>
+      </div>
 
       <div className="flex flex-col gap-1 border-t border-border pt-4 text-sm text-muted">
         <p className="flex items-start gap-2">

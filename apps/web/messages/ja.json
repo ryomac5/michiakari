@@ -30,7 +30,9 @@
     "noResults": "一致する駅がありません",
     "clear": "選び直す",
     "next": "状況を伝える",
-    "stationListNote": "駅の一覧は仮のデータです。"
+    "stationListNote": "駅の一覧は仮のデータです。",
+    "replayLink": "デモを見る",
+    "replayNote": "架空のシナリオで、発表が更新されるたびに判断が変わる様子を再生します。"
   },
   "situation": {
     "heading": "いまの状況を教えてください",
@@ -163,6 +165,50 @@
       "title": "情報を追加",
       "lead": "新しい掲示や発表があれば入力してください。判断を更新します。"
     }
+  },
+  "replay": {
+    "heading": "リプレイ",
+    "lead": "架空のシナリオを選ぶと、発表や掲示を時刻順に入力し、判断・段階・地図の変化を再生します。",
+    "fictional": "すべて架空のシナリオです。実在の事故や公式発表ではありません。",
+    "empty": "再生できるシナリオがありません。",
+    "observationCount": "発表 {count}件",
+    "deadline": "{time}までに着きたい",
+    "noDeadline": "時間の制約なし",
+    "back": "シナリオを選び直す",
+    "play": "再生",
+    "pause": "一時停止",
+    "replay": "もう一度",
+    "next": "次の発表へ",
+    "restart": "最初に戻す",
+    "speed": "再生速度",
+    "clock": "シナリオ内の時刻",
+    "progress": "{count}/{total}",
+    "status": {
+      "idle": "停止中",
+      "playing": "再生中",
+      "paused": "一時停止中",
+      "judging": "判断しています",
+      "error": "判断を取得できませんでした",
+      "ended": "再生が終わりました"
+    },
+    "kinds": {
+      "announcement": "新しい発表",
+      "signage": "新しい掲示",
+      "station_broadcast": "駅の放送",
+      "weather": "気象の情報",
+      "train_movement": "列車の動き"
+    },
+    "ready": {
+      "title": "再生の準備ができました",
+      "lead": "再生すると、最初の発表から順に判断します。",
+      "start": "再生をはじめる"
+    },
+    "changed": "判断が変わりました",
+    "phases": "段階",
+    "here": "いまここ",
+    "unknownPhase": "段階を特定できていません",
+    "history": "これまでの発表",
+    "trip": "{origin} → {destination}"
   },
   "map": {
     "title": "地図",

@@ -15,14 +15,18 @@ export function BreakEvenPanel({
   breakEven,
   known,
   stale,
+  now: nowOverride,
 }: {
   breakEven: BreakEven | null;
   known: boolean;
   stale: boolean;
+  // リプレイではシナリオ内の時刻で残り時間を数える。省略時は端末の時計
+  now?: Date | null;
 }) {
   const t = useTranslations("judgment.breakEven");
   const locale = useLocale();
-  const now = useNow();
+  const deviceNow = useNow();
+  const now = nowOverride === undefined ? deviceNow : nowOverride;
   const countdown = breakEven && now ? computeCountdown(breakEven.time, now) : null;
   const soon =
     countdown !== null && !countdown.passed && countdown.totalSeconds <= soonThresholdSeconds;
