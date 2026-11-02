@@ -1,0 +1,51 @@
+# リプレイ用シナリオの雛形（すべて架空）
+
+id: TODO_scenario_id
+title:
+  ja: TODO
+  en: TODO
+event_type: TODO              # knowledge の id
+operator: TODO                # 例: JR西日本
+line: TODO                    # 例: JR京都線
+blocked_section:
+  from_station: TODO
+  to_station: TODO
+start_time: "TODO"            # 例: "2026-11-05T22:40:00+09:00"
+
+# 利用者の状況
+user:
+  current_station: TODO
+  destination: TODO
+  constraints:
+    deadline: null            # 例: "23:45"（終電・約束）
+    knows_alternatives: false
+    mobility_notes: null      # 例: 大きな荷物
+  language: ja
+
+# 時刻順の観測。offset_minutes は start_time からの経過分
+timeline:
+  - id: obs_1
+    offset_minutes: 0
+    kind: announcement        # announcement / signage / station_broadcast / weather
+    text:
+      ja: TODO
+      en: TODO
+  - id: obs_2
+    offset_minutes: 15
+    kind: announcement
+    text: { ja: TODO, en: TODO }
+
+# 期待する振る舞い（数か所だけ。点数ではなく回帰テストに使う）
+expectations:
+  - after: obs_1              # この観測を入力した後の判断について
+    action: hold              # wait / switch / hold（省略可）
+    phase: TODO               # knowledge の段階 id（省略可）
+    evidence_includes:        # 根拠に含まれるべき兆候 id（省略可）
+      - TODO
+    break_even_shown: true    # 分岐点が表示されるべきか（省略可）
+    note: TODO                # なぜそう振る舞うべきか（開発者のメモ）
+
+# 架空の結末
+ground_truth:
+  resume_offset_minutes: null
+  notes: TODO
