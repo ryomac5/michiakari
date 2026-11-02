@@ -1,0 +1,118 @@
+# 開発用のダミー。開発者の知見ではない。本番の判断には使わない
+# 所要時間は報道や利用者の体感程度の目安。例文はすべて自作。規制の基準値は書かない
+
+id: heavy_rain
+name:
+  ja: 大雨
+  en: Heavy rain
+summary:
+  ja: 強い雨が続き、安全のため速度を落とした運転や運転見合わせになる事象。雨が弱まって規制が解除されると、線路の点検を経て運転を再開する。雨がやんでも点検に時間がかかる。
+  en: Persistent heavy rain leads to reduced-speed operation or suspension for safety. Once the rain eases and restrictions are lifted, service resumes after track inspection. Inspection takes time even after the rain stops.
+
+identification:
+  phrases:
+    - 大雨のため
+    - 大雨の影響で
+    - 雨量が規制に達したため
+    - 線路の点検を行っています
+
+phases:
+  - id: rain_intensifying
+    name:
+      ja: 雨が強まる
+      en: Rain intensifying
+    description: 雨が強まり、速度を落とした運転や遅れが出始めている。警報が出ることがある。
+    signals:
+      - id: hr_rain_warning
+        observable_from: [weather]
+        description: 10分雨量が増え続け、大雨警報が出ている
+        example_phrases:
+          - 大雨警報が発表されました
+      - id: hr_slowdown_announced
+        observable_from: [announcement, station_broadcast, train_movement]
+        description: 雨のため速度を落として運転している旨の案内、または列車が遅れて到着する
+        example_phrases:
+          - 大雨のため、速度を落として運転しています
+          - 列車が遅れて到着します
+    duration_minutes: { p50: 20, p80: 40 }
+    exit_signals: [hr_suspension_announced]
+    guidance:
+      ja: 見合わせに進む可能性を伝える。急ぐ人には、雨の影響を受けにくい経路を早めに示す。
+      en: Warn that a suspension may follow. For those in a hurry, suggest routes less affected by rain early.
+
+  - id: suspended
+    name:
+      ja: 運転見合わせ
+      en: Suspended
+    description: 雨による規制で運転を見合わせている。雨が強いあいだは再開に向かわない。
+    signals:
+      - id: hr_suspension_announced
+        observable_from: [announcement, signage, station_broadcast]
+        description: 大雨のため運転を見合わせている旨の発表
+        example_phrases:
+          - 大雨のため、運転を見合わせています
+          - 雨の状況により、再開の見込みは立っていません
+      - id: hr_rain_continuing
+        observable_from: [weather]
+        description: 強い雨雲がかかり続け、警報が続いている
+        example_phrases:
+          - 強い雨雲が同じ場所にかかり続けています
+    duration_minutes: { p50: 60, p80: 120 }
+    exit_signals: [hr_rain_easing]
+    guidance:
+      ja: 雨が弱まるまでは再開に向かわないことを伝える。雨量の推移を根拠に示し、近くの路線も止まりやすい点を添える。
+      en: Explain that resumption will not begin until the rain eases. Show the rainfall trend as evidence and note that nearby lines are also likely to stop.
+
+  - id: rain_easing
+    name:
+      ja: 雨が弱まり規制解除を待つ
+      en: Rain easing, awaiting lift
+    description: 雨のピークが過ぎ、10分雨量が下がってきている。規制解除の発表を待っている。
+    signals:
+      - id: hr_rain_easing
+        observable_from: [weather, station_broadcast]
+        description: 10分雨量が下がり続け、雨雲が抜けつつある。雨が弱まった旨の放送
+        example_phrases:
+          - 雨は弱まってきましたが、再開の見込みは立っていません
+    duration_minutes: { p50: 20, p80: 40 }
+    exit_signals: [hr_inspection_announced]
+    guidance:
+      ja: 再開に向かい始めたことを伝える。ただし点検が残るため、すぐには動かないことを添える。
+      en: Indicate that things are moving toward resumption, but note that track inspection still remains.
+
+  - id: track_inspection
+    name:
+      ja: 線路点検
+      en: Track inspection
+    description: 規制が解除され、線路や設備に異常がないかを点検している。点検が終われば再開する。
+    signals:
+      - id: hr_inspection_announced
+        observable_from: [announcement, signage, station_broadcast, train_movement]
+        description: 規制解除と線路点検の開始を伝える発表、または点検の列車が低速で走る
+        example_phrases:
+          - 雨が弱まったため、線路の点検を行っています
+          - 点検が終わり次第、運転を再開します
+      - id: hr_resumed
+        observable_from: [announcement, signage, train_movement]
+        description: 点検を終えて運転を再開した旨の発表、または列車が動き出す
+        example_phrases:
+          - 点検が終わり、運転を再開しました
+    duration_minutes: { p50: 30, p80: 60 }
+    exit_signals: [hr_resumed]
+    guidance:
+      ja: 再開が近いことを伝え、待つ判断を後押しする。点検で異常が見つかると長引くことも添える。
+      en: Indicate that resumption is near and support waiting. Note that it may take longer if inspection finds a problem.
+
+after_resume:
+  first_train_wait_minutes: { p50: 15, p80: 30 }
+  notes: 再開直後は徐行区間が残り、遅れが続きやすい。止まっていた列車が順に動くため、乗れる列車まで時間がかかる。
+
+caveats:
+  - 雨がやんでも、線路の点検が終わるまで再開しない
+  - 点検で倒木や土砂の流入が見つかると、再開は大幅に遅れる
+  - 同じ雨雲の下にある近くの路線も止まりやすく、振替先も動いていないことがある
+  - 雨雲が抜けたあとに再び強い雨が来ると、規制がやり直しになる
+
+external_factors:
+  weather: true
+  notes: 10分雨量の推移と大雨警報・注意報を判断材料に使う。雨のピークを過ぎたか、雨雲が抜けつつあるかを見る。規制の基準値は扱わない。

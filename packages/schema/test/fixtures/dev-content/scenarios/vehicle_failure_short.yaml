@@ -1,0 +1,72 @@
+# 開発用のダミー。開発者の知見ではない。本番の判断には使わない
+# すべて架空。文面は自作
+
+id: vehicle_failure_short
+title:
+  ja: 朝の車両故障、現場の処置で短時間に再開する
+  en: Morning train malfunction fixed on the spot, quick resumption
+event_type: vehicle_failure
+operator: 阪急電鉄
+line: 阪急神戸線
+blocked_section:
+  from_station: 岡本
+  to_station: 御影
+start_time: "2026-11-06T08:15:00+09:00"
+
+# 通勤途中。9時までに着きたい。代替経路は知っている
+user:
+  current_station: 西宮北口
+  destination: 神戸三宮
+  constraints:
+    deadline: "09:00"
+    knows_alternatives: true
+    mobility_notes: null
+  language: ja
+
+timeline:
+  - id: obs_1
+    offset_minutes: 0
+    kind: announcement
+    text:
+      ja: 阪急神戸線は、岡本駅〜御影駅間を走行中の列車で車両の不具合が発生したため、西宮北口駅〜神戸三宮駅間で運転を見合わせています。現在、車両の点検を行っています。
+      en: The Hankyu Kobe Line is suspended between Nishinomiya-Kitaguchi and Kobe-Sannomiya due to a malfunction on a train between Okamoto and Mikage. The train is being inspected.
+  - id: obs_2
+    offset_minutes: 7
+    kind: station_broadcast
+    text:
+      ja: お客様にお知らせします。ただいま運転士が車両の点検と処置を行っております。しばらくお待ちください。
+      en: Attention passengers. The driver is inspecting and fixing the train. Please wait a moment.
+  - id: obs_3
+    offset_minutes: 15
+    kind: announcement
+    text:
+      ja: 車両の点検が終わりました。安全を確認したうえで、8時35分頃に運転を再開する見込みです。
+      en: Inspection of the train is complete. After safety checks, service is expected to resume at around 8:35.
+  - id: obs_4
+    offset_minutes: 21
+    kind: announcement
+    text:
+      ja: 阪急神戸線は、8時36分に運転を再開しました。列車に遅れが出ています。
+      en: The Hankyu Kobe Line resumed at 8:36. Trains are running with delays.
+
+expectations:
+  - after: obs_1
+    action: hold
+    phase: initial
+    evidence_includes: [vf_failure_announced]
+    break_even_shown: true
+    note: 短く終わるか長引くかはまだ分からない。分岐点を示して様子を見る。
+  - after: obs_2
+    action: wait
+    phase: onsite_repair
+    evidence_includes: [vf_repair_in_progress]
+    note: 救援の文言が無く、現場で処置している。短く終わる側なので待つ。
+  - after: obs_3
+    action: wait
+    phase: resuming
+    evidence_includes: [vf_recovered_announced]
+    note: 点検終了と再開見込みが出た。徒歩で他社線へ移るより早いので待つ。
+
+ground_truth:
+  resume_offset_minutes: 21
+  notes: 8時36分に運転を再開した。待った人は9時前に神戸三宮に着いた。徒歩で他社線へ移った人より早かった。

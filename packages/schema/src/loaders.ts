@@ -1,11 +1,21 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { type Document, isNode, LineCounter, parseDocument, visit } from "yaml";
 import { z } from "zod";
 import { type Knowledge, KnowledgeSchema } from "./knowledge.ts";
 import { type Scenario, ScenarioSchema } from "./scenario.ts";
 
 // knowledge/ と scenarios/ の YAML を読む。fs を使うので Node 専用
+
+export const REPO_ROOT = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
+
+// knowledge/ と scenarios/ を含むディレクトリ。CONTENT_DIR が無ければリポジトリルート
+// 相対パスは cwd ではなくリポジトリルート基準で解決する（pnpm --filter で cwd が変わるため）
+export function resolveContentDir(env: { CONTENT_DIR?: string } = process.env): string {
+  const value = env.CONTENT_DIR?.trim();
+  return value ? resolve(REPO_ROOT, value) : REPO_ROOT;
+}
 
 export type ContentError = {
   file: string;
