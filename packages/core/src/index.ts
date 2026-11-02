@@ -41,7 +41,12 @@ export {
   sampleRemainingDuration,
 } from "./duration-model.ts";
 export { createMulberry32, type Random } from "./random.ts";
-export { computeQuantile, estimateRemaining, findPhaseIndex } from "./remaining.ts";
+export {
+  computeQuantile,
+  estimateRemaining,
+  findPhaseIndex,
+  getFirstTrainWait,
+} from "./remaining.ts";
 export { checkNightSurcharge, computeTaxiFare, type TaxiFare } from "./taxi.ts";
 export {
   addMinutesToIso,

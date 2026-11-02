@@ -65,3 +65,9 @@ export const zeroMedianKnowledge = buildKnowledge([{ id: "only", duration: { p50
   p50: 0,
   p80: 0,
 });
+
+// 分岐点の例。段階 {10,20}、初列車待ち {10,15}
+export const resumeExampleKnowledge = buildKnowledge(
+  [{ id: "only", duration: { p50: 10, p80: 20 } }],
+  { p50: 10, p80: 15 },
+);

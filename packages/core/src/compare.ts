@@ -19,6 +19,7 @@ export type ComparisonRow = {
   deadline: DeadlineCheck | null;
 };
 
+// computeBreakEven と同じ入力に期限を足す
 export type CompareOptionsInput = BreakEvenInput & {
   deadline: string | null;
   // 待つ場合の行に付ける ID。既定は "wait"
@@ -43,7 +44,11 @@ function buildRow(
 }
 
 // 待つ場合（p50・p80）と各代替手段を到着の早い順に並べる。同着は入力順（待つ場合が先）
+// 待つ場合の到着は 現在 + 残り（初列車待ちを含む）+ 再開後の乗車時間。分岐点と同じ入力を受ける
 export function compareOptions(input: CompareOptionsInput): ComparisonRow[] {
+  if (!Number.isFinite(input.firstTrainWaitMinutes) || input.firstTrainWaitMinutes < 0) {
+    throw new RangeError(`初列車待ちは 0 以上の有限値: ${input.firstTrainWaitMinutes}`);
+  }
   const waitId = input.waitOptionId ?? "wait";
   const rows: ComparisonRow[] = [];
   if (input.remaining !== null) {

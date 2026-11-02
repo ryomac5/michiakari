@@ -13,10 +13,12 @@ export type BreakEvenInput = {
   remaining: DurationDist | null;
   // 再開後に乗ってから目的地に着くまでの分
   waitRouteMinutesAfterResume: number;
+  // 運転再開から実際に乗れる列車が来るまでの分（after_resume.first_train_wait_minutes の p50）
+  firstTrainWaitMinutes: number;
   alternatives: readonly AlternativeArrival[];
 };
 
-// 再開見込みと境目の差。margin は 境目 − 再開見込み（分）。正なら待つほうが早い見込み
+// 運転再開の見込み時刻と境目の差。margin は 境目 − 再開見込み（分）。正なら待つほうが早い見込み
 export type ResumeOutlook = {
   resumeP50: string;
   resumeP80: string;
@@ -28,6 +30,7 @@ export type BreakEvenResult =
   | {
       // future: 境目はまだ先。passed: いま再開しても代替手段のほうが早い
       kind: "future" | "passed";
+      // 運転再開の期限
       time: string;
       minutesFromNow: number;
       bestAlternativeId: string;
@@ -73,26 +76,42 @@ export function computeWaitArrival(
   return formatJstIso(ms);
 }
 
-function buildResumeOutlook(nowMs: number, breakEvenMs: number, remaining: DurationDist) {
-  const resumeP50Ms = nowMs + remaining.p50 * MS_PER_MINUTE;
-  const resumeP80Ms = nowMs + remaining.p80 * MS_PER_MINUTE;
+// 再開見込み = 現在 + 残り（乗れるまで）− 初列車待ち。現在より前にはしない
+function buildResumeOutlook(
+  nowMs: number,
+  breakEvenMs: number,
+  remaining: DurationDist,
+  firstTrainWaitMinutes: number,
+): ResumeOutlook {
+  const toResumeMs = (minutes: number) =>
+    Math.max(nowMs + (minutes - firstTrainWaitMinutes) * MS_PER_MINUTE, nowMs);
+  const resumeP50Ms = toResumeMs(remaining.p50);
+  const resumeP80Ms = toResumeMs(remaining.p80);
+  // 差は乗れる時刻どうしで測る。現在で打ち切る前の 境目 − 再開見込み と同じ値
+  const boardingDeadlineMs = breakEvenMs + firstTrainWaitMinutes * MS_PER_MINUTE;
   return {
     resumeP50: formatJstIso(resumeP50Ms),
     resumeP80: formatJstIso(resumeP80Ms),
-    marginP50Minutes: Math.round((breakEvenMs - resumeP50Ms) / MS_PER_MINUTE),
-    marginP80Minutes: Math.round((breakEvenMs - resumeP80Ms) / MS_PER_MINUTE),
+    marginP50Minutes: Math.round(
+      (boardingDeadlineMs - nowMs - remaining.p50 * MS_PER_MINUTE) / MS_PER_MINUTE,
+    ),
+    marginP80Minutes: Math.round(
+      (boardingDeadlineMs - nowMs - remaining.p80 * MS_PER_MINUTE) / MS_PER_MINUTE,
+    ),
   };
 }
 
-// 最良の代替手段の到着時刻から再開後の乗車時間を引き、境目の再開時刻を返す
+// 境目 = 最良の代替手段の到着 − 再開後の乗車時間 − 初列車待ち（運転再開の期限）
 export function computeBreakEven(input: BreakEvenInput): BreakEvenResult {
   assertNonNegativeMinutes(input.waitRouteMinutesAfterResume, "再開後の乗車時間");
+  assertNonNegativeMinutes(input.firstTrainWaitMinutes, "初列車待ち");
   const nowMs = parseIsoToMs(input.now);
   const best = selectBestAlternative(input.alternatives);
   if (best === null) return { kind: "no_alternative" };
 
   const breakEvenMs =
-    parseIsoToMs(best.arrivalTime) - input.waitRouteMinutesAfterResume * MS_PER_MINUTE;
+    parseIsoToMs(best.arrivalTime) -
+    (input.waitRouteMinutesAfterResume + input.firstTrainWaitMinutes) * MS_PER_MINUTE;
   return {
     kind: breakEvenMs > nowMs ? "future" : "passed",
     time: formatJstIso(breakEvenMs),
@@ -100,7 +119,9 @@ export function computeBreakEven(input: BreakEvenInput): BreakEvenResult {
     bestAlternativeId: best.id,
     bestAlternativeArrival: formatJstIso(parseIsoToMs(best.arrivalTime)),
     resumeOutlook:
-      input.remaining === null ? null : buildResumeOutlook(nowMs, breakEvenMs, input.remaining),
+      input.remaining === null
+        ? null
+        : buildResumeOutlook(nowMs, breakEvenMs, input.remaining, input.firstTrainWaitMinutes),
   };
 }
 

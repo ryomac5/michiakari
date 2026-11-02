@@ -35,6 +35,7 @@ describe("computeTaxiFare（日中）", () => {
 });
 
 describe("computeTaxiFare（深夜早朝割増）", () => {
+  // 割増時の初乗 1000 m・加算 193 m は公示の距離短縮方式から計算した推定値（割増後の距離そのものは未確認）
   it.each([
     [0, 600],
     [1.0, 600],
@@ -75,7 +76,7 @@ describe("checkNightSurcharge", () => {
 });
 
 describe("距離制運賃の部品", () => {
-  it("距離短縮方式は距離を 1.2 で割り 1 m 単位に四捨五入する", () => {
+  it("距離短縮方式は距離を 1.2 で割り 1 m 単位に四捨五入する（1000 m・193 m は推定値）", () => {
     const night = applyDistanceShortening(OSAKA_CITY_TAXI_FARE, 0.2);
     expect(night.initialDistanceMeters).toBe(1000);
     expect(night.additionalDistanceMeters).toBe(193);

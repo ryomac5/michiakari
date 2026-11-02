@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { computeBreakEven } from "../src/break-even.ts";
 import { compareOptions } from "../src/compare.ts";
 
 const NOW = "2026-11-05T22:00:00+09:00";
@@ -14,6 +15,7 @@ describe("compareOptions", () => {
       now: NOW,
       remaining: { p50: 20, p80: 45 },
       waitRouteMinutesAfterResume: 30,
+      firstTrainWaitMinutes: 5,
       alternatives,
       deadline: "2026-11-05T23:00:00+09:00",
     });
@@ -54,6 +56,7 @@ describe("compareOptions", () => {
       now: NOW,
       remaining: { p50: 20, p80: 45 },
       waitRouteMinutesAfterResume: 30,
+      firstTrainWaitMinutes: 5,
       alternatives,
       deadline: null,
     });
@@ -65,6 +68,7 @@ describe("compareOptions", () => {
       now: NOW,
       remaining: null,
       waitRouteMinutesAfterResume: 30,
+      firstTrainWaitMinutes: 5,
       alternatives,
       deadline: null,
     });
@@ -76,6 +80,7 @@ describe("compareOptions", () => {
       now: NOW,
       remaining: { p50: 0, p80: 0 },
       waitRouteMinutesAfterResume: 0,
+      firstTrainWaitMinutes: 0,
       alternatives: [],
       deadline: null,
     });
@@ -90,6 +95,7 @@ describe("compareOptions", () => {
       now: NOW,
       remaining: { p50: 10, p80: 10 },
       waitRouteMinutesAfterResume: 30,
+      firstTrainWaitMinutes: 5,
       alternatives: [
         { id: "second", arrivalTime: "2026-11-05T22:40:00+09:00" },
         { id: "third", arrivalTime: "2026-11-05T13:40:00Z" },
@@ -110,6 +116,7 @@ describe("compareOptions", () => {
       now: NOW,
       remaining: { p50: 5, p80: 10 },
       waitRouteMinutesAfterResume: 10,
+      firstTrainWaitMinutes: 5,
       alternatives: [],
       deadline: null,
       waitOptionId: "wait_resume",
@@ -122,6 +129,7 @@ describe("compareOptions", () => {
       now: "2026-11-05T23:50:00+09:00",
       remaining: { p50: 15, p80: 40 },
       waitRouteMinutesAfterResume: 20,
+      firstTrainWaitMinutes: 5,
       alternatives: [{ id: "alt", arrivalTime: "2026-11-06T00:40:00+09:00" }],
       deadline: "2026-11-06T00:30:00+09:00",
     });
@@ -130,5 +138,36 @@ describe("compareOptions", () => {
       ["alt", "2026-11-06T00:40:00+09:00", false],
       ["wait", "2026-11-06T00:50:00+09:00", false],
     ]);
+  });
+
+  it("待つ場合の p50 が分岐点より前に再開する見込みなら、最良の代替より早く着く", () => {
+    const input = {
+      now: NOW,
+      remaining: { p50: 20, p80: 45 },
+      waitRouteMinutesAfterResume: 10,
+      firstTrainWaitMinutes: 5,
+      alternatives,
+      deadline: null,
+    };
+    const breakEven = computeBreakEven(input);
+    const rows = compareOptions(input);
+    if (breakEven.kind === "no_alternative" || breakEven.resumeOutlook === null) {
+      throw new Error("見込みがあるはず");
+    }
+    expect(breakEven.resumeOutlook.marginP50Minutes).toBeGreaterThan(0);
+    expect(rows[0]?.scenario).toBe("wait_p50");
+  });
+
+  it("初列車待ちが負なら例外", () => {
+    expect(() =>
+      compareOptions({
+        now: NOW,
+        remaining: { p50: 20, p80: 45 },
+        waitRouteMinutesAfterResume: 10,
+        firstTrainWaitMinutes: -1,
+        alternatives,
+        deadline: null,
+      }),
+    ).toThrow(RangeError);
   });
 });
