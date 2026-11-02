@@ -17,6 +17,10 @@ export const RouteLegSchema = z.object({
   to: z.string(),
   minutes: NonNegativeIntSchema,
   line: z.string().optional(),
+  // 地図に経路を描くための構造化情報。駅 ID と路線 ID は packages/geo のもの
+  fromStationId: z.string().optional(),
+  toStationId: z.string().optional(),
+  lineId: z.string().optional(),
 });
 export type RouteLeg = z.infer<typeof RouteLegSchema>;
 

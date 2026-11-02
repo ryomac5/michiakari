@@ -1,6 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { WALK_DETOUR_FACTOR, WALK_SPEED_M_PER_MIN } from "../params/walk.ts";
-import { computeHaversineMeters, estimateWalkMinutes, type LonLat } from "../src/walk.ts";
+import {
+  computeHaversineMeters,
+  computeWalkMinutesFromMeters,
+  estimateWalkMinutes,
+  type LonLat,
+} from "../src/walk.ts";
+
+describe("computeWalkMinutesFromMeters", () => {
+  it("距離 ÷ 歩く速さを切り上げる", () => {
+    expect(computeWalkMinutesFromMeters(0)).toBe(0);
+    expect(computeWalkMinutesFromMeters(WALK_SPEED_M_PER_MIN)).toBe(1);
+    expect(computeWalkMinutesFromMeters(WALK_SPEED_M_PER_MIN + 1)).toBe(2);
+  });
+
+  it("負または有限でない距離は例外", () => {
+    expect(() => computeWalkMinutesFromMeters(-1)).toThrow(RangeError);
+    expect(() => computeWalkMinutesFromMeters(Number.POSITIVE_INFINITY)).toThrow(RangeError);
+  });
+});
 
 const origin: LonLat = [135.5, 34.7];
 

@@ -28,5 +28,13 @@ export function computeHaversineMeters(from: LonLat, to: LonLat): number {
 // 徒歩時間（分、切り上げ）= 直線距離 × 迂回係数 ÷ 歩く速さ
 export function estimateWalkMinutes(from: LonLat, to: LonLat): number {
   const meters = computeHaversineMeters(from, to) * WALK_DETOUR_FACTOR;
+  return computeWalkMinutesFromMeters(meters);
+}
+
+// 徒歩時間（分、切り上げ）= 歩く距離 ÷ 歩く速さ
+export function computeWalkMinutesFromMeters(meters: number): number {
+  if (!Number.isFinite(meters) || meters < 0) {
+    throw new RangeError(`距離は 0 以上の有限値: ${meters}`);
+  }
   return Math.ceil(meters / WALK_SPEED_M_PER_MIN);
 }

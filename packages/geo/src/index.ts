@@ -13,5 +13,17 @@ export {
   type RideLink,
   type TransferLink,
 } from "./graph.ts";
+export {
+  type BlockedSection,
+  createRouter,
+  type FindAlternativeRoutesInput,
+  formatLineName,
+  type RouteConstraints,
+  type Router,
+  type TaxiOptionInput,
+  type WaitOptionInput,
+  type WaitRoute,
+  type WaitRouteInput,
+} from "./routing.ts";
 export { normalizeSearchText } from "./text.ts";
 export * from "./types.ts";

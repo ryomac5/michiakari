@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { checkJudgmentRefs, type Judgment, JudgmentSchema } from "../src/index.ts";
+import { checkJudgmentRefs, type Judgment, JudgmentSchema, RouteLegSchema } from "../src/index.ts";
 import { validJudgment } from "./fixtures/api.ts";
 
 function cloneJudgment(): Judgment {
@@ -98,5 +98,26 @@ describe("checkJudgmentRefs", () => {
     j.action = "wait";
     j.recommendedOptionId = null;
     expect(checkJudgmentRefs(j)).toEqual([]);
+  });
+});
+
+describe("RouteLegSchema", () => {
+  it("駅 ID と路線 ID を省略できる", () => {
+    const leg = { mode: "walk", from: "甲", to: "乙", minutes: 3 };
+    expect(RouteLegSchema.safeParse(leg).success).toBe(true);
+  });
+
+  it("駅 ID と路線 ID を持てる", () => {
+    const leg = {
+      mode: "ride",
+      from: "甲",
+      to: "乙",
+      minutes: 10,
+      line: "架空線",
+      fromStationId: "op.line.甲",
+      toStationId: "op.line.乙",
+      lineId: "op.line",
+    };
+    expect(RouteLegSchema.parse(leg)).toEqual(leg);
   });
 });
