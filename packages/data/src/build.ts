@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GeoMeta, NetworkData } from "@repo/geo";
@@ -26,6 +28,7 @@ import {
   writeGeoData,
 } from "./output.ts";
 import { findTransfers } from "./transfers.ts";
+import { carryOverWalkResults } from "./walk-merge.ts";
 
 // pnpm data:build の本体。取得 → DuckDB で切り出し・正規化 → 並びと距離 → 書き出し
 
@@ -68,6 +71,17 @@ async function loadConfigTables(connection: Awaited<ReturnType<typeof openDuckDB
   );
 }
 
+// 前回の出力。pnpm data:walk の結果を引き継ぐために読む
+async function readPreviousGeoData(): Promise<{ network: NetworkData; meta: GeoMeta } | null> {
+  const networkPath = join(OUT_DIR, "network.json");
+  const metaPath = join(OUT_DIR, "meta.json");
+  if (!existsSync(networkPath) || !existsSync(metaPath)) return null;
+  return {
+    network: JSON.parse(await readFile(networkPath, "utf8")) as NetworkData,
+    meta: JSON.parse(await readFile(metaPath, "utf8")) as GeoMeta,
+  };
+}
+
 async function main() {
   const railwayZip = await downloadArchive(RAILWAY_SOURCE, CACHE_DIR);
   const passengerZip = await downloadArchive(PASSENGER_SOURCE, CACHE_DIR);
@@ -105,8 +119,8 @@ async function main() {
   }
   const transfers = findTransfers(nodes);
   const generatedAt = new Date().toISOString();
-  const network: NetworkData = { version: 1, generatedAt, nodes, lines, edges, transfers };
-  const meta: GeoMeta = {
+  const built: NetworkData = { version: 1, generatedAt, nodes, lines, edges, transfers };
+  const builtMeta: GeoMeta = {
     generatedAt,
     attribution: [...ATTRIBUTION_LINES],
     sources: [RAILWAY_SOURCE, PASSENGER_SOURCE].map((s) => ({
@@ -120,7 +134,7 @@ async function main() {
       "対象エリアは packages/data/config/area.geojson のポリゴン。範囲内に駅がある路線を抽出した",
       "新幹線と鋼索鉄道、観光用の路線は除いた",
       "駅の代表点は駅の線データの中点。駅間距離は線路に沿った代表点間の距離の概算",
-      "乗換の徒歩距離は代表点どうしの直線距離で、実際の徒歩経路ではない",
+      "乗換の walkMeters は代表点どうしの直線距離。徒歩経路は pnpm data:walk が walkMinutes と walkMetersRoute に足す",
       "乗降客数は2024年の値。ない駅は2023年、2022年の順にさかのぼった",
     ],
     counts: {
@@ -130,6 +144,16 @@ async function main() {
       transfers: transfers.length,
     },
   };
+
+  const { network, meta } = carryOverWalkResults(await readPreviousGeoData(), {
+    network: built,
+    meta: builtMeta,
+  });
+  if (meta.walk) {
+    console.log(
+      `徒歩経路を引き継いだ乗換 ${meta.walk.counts.transfersRouted} / ${transfers.length}。駅が変わったら pnpm data:walk で作り直す`,
+    );
+  }
 
   await writeGeoData(OUT_DIR, {
     lineFeatures: buildLineFeatures(lines, geometries),

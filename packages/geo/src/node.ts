@@ -1,7 +1,7 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createGeoIndex, type GeoIndex } from "./geo-index.ts";
 import { createRouter, type Router } from "./routing.ts";
-import type { GeoMeta, NetworkData } from "./types.ts";
+import type { GeoMeta, IsochroneCollection, NetworkData } from "./types.ts";
 
 // Node 用の読み込み。ブラウザでは data/ の JSON を取得して createGeoIndex に渡す
 
@@ -17,8 +17,15 @@ export function loadGeoMeta(): GeoMeta {
   return JSON.parse(readFileSync(new URL("meta.json", DATA_DIR), "utf8")) as GeoMeta;
 }
 
+// 到達範囲は pnpm data:walk の生成物。無ければ null
+export function loadIsochrones(): IsochroneCollection | null {
+  const file = new URL("isochrones.geojson", DATA_DIR);
+  if (!existsSync(file)) return null;
+  return JSON.parse(readFileSync(file, "utf8")) as IsochroneCollection;
+}
+
 export function loadGeoIndex(): GeoIndex {
-  return createGeoIndex(loadNetworkData());
+  return createGeoIndex(loadNetworkData(), { isochrones: loadIsochrones() });
 }
 
 export function loadRouter(): Router {

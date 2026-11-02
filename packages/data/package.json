@@ -9,7 +9,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "data:build": "node src/build.ts"
+    "data:build": "node src/build.ts",
+    "data:osm": "node src/osm-download.ts",
+    "data:walk": "node src/walk.ts"
   },
   "devDependencies": {
     "@duckdb/node-api": "2.0.0-r.1",
@@ -18,6 +20,7 @@
     "vitest": "5.0.5"
   },
   "dependencies": {
+    "@repo/core": "workspace:*",
     "@repo/geo": "workspace:*"
   }
 }

@@ -1,7 +1,17 @@
 import { computeDistanceMeters } from "./distance.ts";
 import { buildNetworkGraph, type NetworkGraph } from "./graph.ts";
 import { normalizeSearchText } from "./text.ts";
-import type { LineInfo, LonLat, NetworkData, StationNode, TransferEdge } from "./types.ts";
+import type {
+  IsochroneCollection,
+  IsochroneFeature,
+  IsochroneMinutes,
+  LineInfo,
+  LonLat,
+  NetworkData,
+  StationNode,
+  TransferEdge,
+} from "./types.ts";
+import { getTransferWalkMinutes } from "./walk.ts";
 
 // 路線・駅の参照。データは引数で受け取り、Node でもブラウザでも使える
 
@@ -18,9 +28,16 @@ export type LineBetween = {
   distanceKm: number;
 };
 
+// walkMeters は直線距離。walkMinutes は Valhalla の経路があればその分、無ければ概算
 export type TransferOption = {
   station: StationNode;
   walkMeters: number;
+  walkMinutes: number;
+};
+
+export type GeoIndexOptions = {
+  // 主要駅の到達範囲。無ければ getIsochrone は常に null を返す
+  isochrones?: IsochroneCollection | null;
 };
 
 export type GeoIndex = {
@@ -33,6 +50,7 @@ export type GeoIndex = {
   listTransfers: (stationId: string) => TransferOption[];
   listLinesBetween: (fromStationId: string, toStationId: string) => LineBetween[];
   buildNetworkGraph: () => NetworkGraph;
+  getIsochrone: (stationId: string, minutes: IsochroneMinutes) => IsochroneFeature | null;
 };
 
 const SAME_PLACE_WALK_METERS = 300;
@@ -86,10 +104,23 @@ function computeLineDistanceKm(
   return undefined;
 }
 
-export function createGeoIndex(network: NetworkData): GeoIndex {
+function indexIsochrones(
+  isochrones: IsochroneCollection | null | undefined,
+): Map<string, IsochroneFeature> {
+  const byKey = new Map<string, IsochroneFeature>();
+  for (const feature of isochrones?.features ?? []) {
+    for (const id of feature.properties.stationIds) {
+      byKey.set(`${id}\u0000${feature.properties.minutes}`, feature);
+    }
+  }
+  return byKey;
+}
+
+export function createGeoIndex(network: NetworkData, options: GeoIndexOptions = {}): GeoIndex {
   const stationById = new Map(network.nodes.map((n) => [n.stationId, n]));
   const lineById = new Map(network.lines.map((l) => [l.lineId, l]));
   const transfersByStation = indexTransfers(network.transfers);
+  const isochroneByKey = indexIsochrones(options.isochrones);
   const searchEntries: SearchEntry[] = network.nodes.map((station) => ({
     station,
     keys: [station.name, station.reading]
@@ -105,7 +136,9 @@ export function createGeoIndex(network: NetworkData): GeoIndex {
   const listTransfers = (stationId: string): TransferOption[] =>
     (transfersByStation.get(stationId) ?? []).flatMap((t) => {
       const other = stationById.get(t.from === stationId ? t.to : t.from);
-      return other ? [{ station: other, walkMeters: t.walkMeters }] : [];
+      return other
+        ? [{ station: other, walkMeters: t.walkMeters, walkMinutes: getTransferWalkMinutes(t) }]
+        : [];
     });
 
   const listSamePlace = (stationId: string): StationNode[] => {
@@ -178,5 +211,8 @@ export function createGeoIndex(network: NetworkData): GeoIndex {
     },
 
     buildNetworkGraph: () => buildNetworkGraph(network),
+
+    getIsochrone: (stationId, minutes) =>
+      isochroneByKey.get(`${stationId}\u0000${minutes}`) ?? null,
   };
 }

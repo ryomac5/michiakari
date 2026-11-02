@@ -152,6 +152,9 @@ importers:
 
   packages/data:
     dependencies:
+      '@repo/core':
+        specifier: workspace:*
+        version: link:../core
       '@repo/geo':
         specifier: workspace:*
         version: link:../geo

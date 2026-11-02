@@ -8,7 +8,6 @@ import {
   computeTaxiFare,
   computeTaxiMinutes,
   computeWaitMinutes,
-  computeWalkMinutesFromMeters,
   diffMinutes,
   estimateTaxiRoadKm,
   estimateWalkMinutes,
@@ -289,7 +288,7 @@ function searchShortestSteps(graph: NetworkGraph, options: SearchOptions): Step[
 
     for (const link of graph.get(stationId) ?? []) {
       if (link.kind === "transfer") {
-        const minutes = computeWalkMinutesFromMeters(link.walkMeters);
+        const minutes = link.walkMinutes;
         relax(toStateKey(link.to, phase === 0 ? 0 : 2), {
           cost: label.cost + minutes * options.walkCostFactor,
           minutes: label.minutes + minutes,

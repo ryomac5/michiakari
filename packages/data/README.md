@@ -46,7 +46,7 @@ pnpm data:build
 駅 ID は `事業者キー.路線名.駅名` の形で、URL で意味を持つ記号は `_` に置き換える。
 乗換の辺は、別路線の駅で直線300m以内のものと、名前が関連し1km以内のものを結ぶ。
 名前の関連は、同名か、一方が他方を含む場合とする。
-徒歩距離は代表点どうしの直線距離である。
+乗換の `walkMeters` は代表点どうしの直線距離である。
 
 ## 出典表示
 
@@ -58,6 +58,54 @@ pnpm data:build
 ```
 
 元データは CC BY 4.0 で、加工・再配布ができる。
+
+## 徒歩経路と到達範囲
+
+乗換の徒歩時間と主要駅の到達範囲は、ローカルの Valhalla で事前に計算する。
+公開環境では Valhalla を動かさない。
+`pnpm data:build` とは別のコマンドで、Valhalla が無くても `data:build` は動く。
+
+```bash
+pnpm data:osm      # Geofabrik の関西抽出を .cache/valhalla/ に取得する
+docker compose -f infra/valhalla/compose.yaml up -d
+pnpm data:walk     # 乗換の経路と到達範囲を求め、packages/geo/data/ に書く
+```
+
+Valhalla の起動は `infra/valhalla/README.md` を見る。
+`data:walk` は次を書き出す。
+
+| ファイル | 内容 |
+|---|---|
+| `network.json` | 乗換の辺に `walkMinutes` と `walkMetersRoute` を足す。直線距離の `walkMeters` は残す |
+| `isochrones.geojson` | 主要駅の徒歩10分・20分の到達範囲。properties は `stationName`、`minutes`、`stationIds` |
+| `meta.json` | `walk` に OSM の日付、Valhalla の版、歩く速さ、件数を記録する |
+
+- 歩く速さは packages/core と同じ 80m/分にそろえ、Valhalla には 4.8km/h を渡す
+- `walkMinutes` は Valhalla の所要秒を分に切り上げた値である
+- 到達範囲は乗降客数の合計が多い上位300か所で求める
+- 200m 以内の駅と 500m 以内の同名の駅は 1 か所にまとめる
+- 到達範囲は 10m の許容誤差で単純化し、座標を小数5桁に丸める
+- `data:build` で作り直しても、両端の駅と直線距離が同じ乗換は前回の経路を引き継ぐ
+- `isochrones.geojson` は `data:build` では消さない
+
+### 所要時間
+
+2026年11月2日に Apple Silicon の Mac と Docker Desktop で測った。
+
+| 処理 | 所要時間 |
+|---|---|
+| `pnpm data:osm` の取得（約 355MB） | 約14分。回線による |
+| Valhalla のタイルの生成 | 約20分。初回だけ |
+| `pnpm data:walk`（乗換 508 件、到達範囲 300 か所） | 約30秒 |
+
+### 出典
+
+徒歩経路と到達範囲は OpenStreetMap のデータから Valhalla で計算した。
+計算結果は ODbL に従い、画面には次の文言を表示する。
+
+```
+徒歩経路・到達範囲: © OpenStreetMap contributors のデータから Valhalla で計算
+```
 
 ## PMTiles を作らない理由
 
