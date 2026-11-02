@@ -48,6 +48,8 @@ export function buildLineFeatures(
           lineId: line.lineId,
           operator: line.operator,
           lineName: line.lineName,
+          nameEn: line.nameEn,
+          operatorEn: line.operatorEn,
           lineType: line.lineType,
           color: line.color,
         },
@@ -63,6 +65,7 @@ export function buildStationFeatures(nodes: readonly StationNode[]): Feature[] {
     properties: {
       stationId: n.stationId,
       name: n.name,
+      ...(n.nameEn ? { nameEn: n.nameEn } : {}),
       operator: n.operator,
       lineId: n.lineId,
       passengers: n.passengers,

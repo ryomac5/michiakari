@@ -25,6 +25,9 @@ export type LineInfo = {
   operator: string;
   operatorKey: string;
   lineName: string;
+  // 英語の利用者向けの路線名と事業者名。表にない路線は持たない
+  nameEn?: string;
+  operatorEn?: string;
   aliases: string[];
   lineType: LineType;
   color: string;
@@ -35,6 +38,8 @@ export type LineInfo = {
 export type StationNode = {
   stationId: string;
   name: string;
+  // 主要駅だけ持つ英語名。読みのない駅は持たない
+  nameEn?: string;
   // 主要駅だけ持つ読み（ひらがな）
   reading?: string;
   operator: string;

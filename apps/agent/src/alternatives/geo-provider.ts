@@ -2,6 +2,8 @@ import { addMinutesToIso, computeWaitArrival, estimateWalkMinutes, type LonLat }
 import {
   type BlockedSection,
   formatLineName,
+  formatRouteLabel,
+  formatStationName,
   type GeoIndex,
   type LineInfo as GeoLineInfo,
   normalizeSearchText,
@@ -159,21 +161,41 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
     };
   }
 
-  // packages/geo の表示名は日本語なので、英語の利用者には付け直す
-  function translateLabel(option: RouteOption, language: Lang): RouteOption {
+  // packages/geo の表示名は日本語なので、英語の利用者には英語名に付け直す。英語名がなければ日本語名のまま
+  function localizeStationName(stationId: string | undefined, fallback: string): string {
+    const station = stationId ? geo.getStation(stationId) : undefined;
+    return station ? formatStationName(station, "en") : fallback;
+  }
+
+  function localizeLineName(leg: RouteLeg): string | undefined {
+    const line = leg.lineId ? geo.getLine(leg.lineId) : undefined;
+    return line ? formatLineName(line, "en") : leg.line;
+  }
+
+  function localizeLeg(leg: RouteLeg): RouteLeg {
+    const line = localizeLineName(leg);
+    return {
+      ...leg,
+      from: localizeStationName(leg.fromStationId, leg.from),
+      to: localizeStationName(leg.toStationId, leg.to),
+      ...(line !== undefined ? { line } : {}),
+    };
+  }
+
+  // ラベルに使われた路線の区間を探し、その路線の英語名でラベルを作り直す
+  function localizeLabel(option: RouteOption): string {
+    if (option.kind === "taxi" || option.kind === "walk") {
+      return formatRouteLabel({ ...option, line: null }, "en");
+    }
+    const labelOf = (line: string) => formatRouteLabel({ ...option, line });
+    const main = option.legs.find((l) => l.line !== undefined && labelOf(l.line) === option.label);
+    if (!main) return option.label;
+    return formatRouteLabel({ ...option, line: localizeLineName(main) ?? null }, "en");
+  }
+
+  function localizeOption(option: RouteOption, language: Lang): RouteOption {
     if (language === "ja") return option;
-    const line = option.label.replace(/(の運転再開を待つ|で振替|経由)$/, "");
-    const label =
-      option.kind === "wait"
-        ? `Wait for ${line} to resume`
-        : option.kind === "taxi"
-          ? "Taxi"
-          : option.kind === "walk"
-            ? "Walk"
-            : option.isTransferService
-              ? `Transfer service via ${line}`
-              : `Via ${line}`;
-    return { ...option, label };
+    return { ...option, label: localizeLabel(option), legs: option.legs.map(localizeLeg) };
   }
 
   // 経路を引けないときの待つ選択肢。到着ではなく、乗れる見込みの時刻を示す
@@ -248,11 +270,12 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
     });
 
     const options = [
-      waitOption ?? buildUnroutedWaitOption(query, origin.station.name),
+      waitOption ??
+        buildUnroutedWaitOption(query, formatStationName(origin.station, query.language)),
       ...alternatives,
       taxi,
     ].map((o) =>
-      translateLabel(attachAccessWalks(o, origin, destination, query.language), query.language),
+      localizeOption(attachAccessWalks(o, origin, destination, query.language), query.language),
     );
 
     return {
