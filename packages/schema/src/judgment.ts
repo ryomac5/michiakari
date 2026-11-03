@@ -8,6 +8,7 @@ import {
   NonNegativeIntSchema,
 } from "./common.ts";
 import { findDuplicateIds } from "./internal.ts";
+import { TypicalFlowSchema } from "./typical-flow.ts";
 
 // emit_judgment の出力。Claude のツール定義に変換するため refine で ID 参照を検査しない
 
@@ -70,6 +71,8 @@ export const JudgmentSchema = z.object({
   recommendedOptionId: IdSchema.nullable(),
   evidence: z.array(EvidenceSchema),
   disclaimer: z.string().min(1),
+  // 事象のよくある流れ。サーバーが知見から詰める。原因が分からないときは入れない
+  typicalFlow: TypicalFlowSchema.optional(),
 });
 export type Judgment = z.infer<typeof JudgmentSchema>;
 

@@ -1,0 +1,103 @@
+# 開発用のダミー。開発者の知見ではない。本番の判断には使わない
+# 所要時間は利用者の体感程度の目安。例文はすべて自作。社内の手順や規程の値は書かない
+
+id: in_car_response
+name:
+  ja: 車内対応
+  en: Onboard assistance
+summary:
+  ja: 車内で非常通報装置が扱われ、列車が止まる事象。車掌がお客様と話して様子を確かめ、近くの駅の係員と対応する。対応が終わればそのまま発車し、短く終わることが多い。
+  en: Someone uses the emergency intercom and the train stops. The conductor talks with the passenger and works with staff at a nearby station. Once that is done the train simply departs, and it is usually over quickly.
+
+identification:
+  phrases:
+    - 非常通報装置が扱われた
+    - 非常ボタンが押された
+    - 車内でお客様対応
+    - お客様対応のため
+
+phases:
+  - id: stopped_for_check
+    name:
+      ja: 停車して確認
+      en: Stopped to check
+    description: 非常通報装置が扱われて列車が止まった。車掌がお客様と話して、何が起きたかを確かめている。
+    signals:
+      - id: icr_alarm_announced
+        observable_from: [announcement, station_broadcast]
+        description: 非常通報装置が扱われたため停車している旨の放送
+        example_phrases:
+          - 車内で非常通報装置が扱われたため、停車しております
+          - ただいま車内の状況を確かめております
+      - id: icr_conductor_moving
+        observable_from: [train_movement]
+        description: 車掌が車内を通って、通報のあった車両へ向かう
+        example_phrases:
+          - 車掌が前の車両へ向かっています
+    duration_minutes: { p50: 2, p80: 5 }
+    exit_signals: [icr_staff_responding]
+    guidance:
+      ja: 短く終わることが多いと伝え、慌てずに待つよう示す。車外に出ないよう添える。
+      en: Explain that this usually ends quickly and encourage waiting calmly. Advise staying on board.
+
+  - id: station_response
+    name:
+      ja: 駅の係員と対応
+      en: Station staff assisting
+    description: 近くの駅に止まり、駅の係員がお客様の対応をしている。
+    signals:
+      - id: icr_staff_responding
+        observable_from: [announcement, station_broadcast, train_movement]
+        description: 駅の係員がお客様の対応をしている旨の放送、またはホームで係員が車両に向かう
+        example_phrases:
+          - 駅の係員がお客様の対応をしております
+          - ホームで係員が対応しています
+    duration_minutes: { p50: 1, p80: 3 }
+    exit_signals: [icr_response_finished]
+    guidance:
+      ja: まもなく発車に向かうことを伝え、待つ判断を後押しする。
+      en: Indicate that departure is close and support waiting.
+
+  - id: departing
+    name:
+      ja: 発車の準備
+      en: Preparing to depart
+    description: 対応が終わり、安全を確かめて発車する。
+    signals:
+      - id: icr_response_finished
+        observable_from: [announcement, station_broadcast]
+        description: お客様の対応が終わり、まもなく発車する旨の放送
+        example_phrases:
+          - お客様の対応が終わりました
+          - まもなく発車いたします
+      - id: icr_resumed
+        observable_from: [announcement, signage, train_movement]
+        description: 運転を再開した旨の発表、または止まっていた列車が動き出す
+        example_phrases:
+          - 運転を再開しました
+          - 列車が動き出しました
+    duration_minutes: { p50: 1, p80: 2 }
+    exit_signals: [icr_resumed]
+    guidance:
+      ja: すぐに動き出すことを伝える。乗ったまま待つよう示す。
+      en: Indicate that the train is about to move. Advise staying on board.
+
+after_resume:
+  first_train_wait_minutes: { p50: 2, p80: 5 }
+  notes: 止まっていた列車がそのまま動く。後ろの列車も少しずつ遅れるが、ダイヤはすぐに戻る。
+
+caveats:
+  - 急に具合の悪くなったお客様を救急隊へ引き継ぐときは、長引くことがある
+  - 車外に出た人がいると、線路の確認が要るため長引く
+  - 止まった列車の後ろを走る列車も、少しずつ遅れる
+
+external_factors:
+  weather: false
+  notes: 天候は判断材料にしない。
+
+# 見込みの立てやすさ。ダミーの書き方
+predictability:
+  level: high
+  basis:
+    ja: 車掌がお客様と話して様子を確かめ、駅の係員が対応すると、そのまま発車する。流れがほぼ決まっていて、短く終わることが多い。
+    en: The conductor checks with the passenger, station staff help, and the train departs. The flow is largely fixed and it is usually over quickly.

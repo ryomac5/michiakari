@@ -6,9 +6,11 @@ import type {
   Observation,
   RouteOption,
   Scenario,
+  TypicalFlow,
 } from "@repo/schema";
 import type { AlternativesProvider } from "../alternatives/provider.ts";
 import type { ContentStore } from "../content.ts";
+import type { FlowOutlook } from "../domain/typical-flow.ts";
 import type { RainReading, RainSummary } from "../domain/weather.ts";
 
 // ツールの実行に必要な文脈と、ツールの結果
@@ -43,6 +45,12 @@ export type EstimateToolResult = {
   // 現在時刻 + 残り時間。再開して乗れる見込みの時刻
   boardableP50: string | null;
   boardableP80: string | null;
+  // 事象のよくある流れ。事象が分からなければ null
+  typicalFlow: TypicalFlow | null;
+  // 見込みが立てやすい事象なら、短く終わるか長くかかるか。結論の言葉に使う
+  flowOutlook: FlowOutlook | null;
+  // 結論の理由の頭に置く一文。flowOutlook が null なら null
+  flowSentence: string | null;
 };
 
 export type AlternativesToolResult = {

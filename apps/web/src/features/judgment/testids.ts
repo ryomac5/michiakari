@@ -108,6 +108,9 @@ export const testIds = {
     option: (id: string) => `judgment-option-${id}`,
     evidence: "judgment-evidence",
     evidenceToggle: "judgment-evidence-toggle",
+    // よくある流れ。data-event-type・data-phase-id・data-predictability・data-expanded を出す
+    flow: "judgment-flow",
+    flowPhase: (id: string) => `judgment-flow-phase-${id}`,
     phaseTimeline: "judgment-phase-timeline",
     phase: (id: string) => `judgment-phase-${id}`,
     signal: (id: string) => `judgment-signal-${id}`,
@@ -162,6 +165,8 @@ export const testIds = {
   },
   about: {
     screen: "about-screen",
+    // 作った理由
+    why: "about-why",
     attribution: "about-attribution",
     knowledgeLink: "about-knowledge-link",
   },

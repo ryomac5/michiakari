@@ -1,5 +1,6 @@
 import {
   addMinutesToIso,
+  describeTypicalFlow,
   diffMinutes,
   estimateBranchAwareRemaining,
   estimateStatedRemaining,
@@ -14,6 +15,7 @@ import {
   findLatestStatedResume,
   findOnsetTime,
 } from "../domain/phase.ts";
+import { buildFlowSentence, classifyFlowOutlook } from "../domain/typical-flow.ts";
 import type { EstimateToolResult, ToolContext } from "./types.ts";
 
 export const EstimatePhaseInputSchema = z.object({
@@ -23,7 +25,7 @@ export const EstimatePhaseInputSchema = z.object({
 export const estimatePhaseDefinition = {
   name: "estimate_phase_and_remaining",
   description:
-    "観測された兆候と知見の exit_signals から現在の段階と段階の経過時間を決め、再開して乗れるまでの残り時間（p50, p80 分）をコードで計算する。発表された再開見込み時刻があれば優先する。",
+    "観測された兆候と知見の exit_signals から現在の段階と段階の経過時間を決め、再開して乗れるまでの残り時間（p50, p80 分）をコードで計算する。発表された再開見込み時刻があれば優先する。事象のよくある流れ（typicalFlow）、見込みの立てやすさから見た短い・長いの区別（flowOutlook）、結論の理由に使える一文（flowSentence）も返す。",
   inputSchema: EstimatePhaseInputSchema,
 } as const;
 
@@ -47,6 +49,9 @@ function buildUnknownEstimate(): EstimateToolResult {
     firstTrainWait: null,
     boardableP50: null,
     boardableP80: null,
+    typicalFlow: null,
+    flowOutlook: null,
+    flowSentence: null,
   };
 }
 
@@ -80,6 +85,9 @@ export function runEstimatePhase(
         : fromKnowledge.remaining;
   const phase = knowledge.phases[detection.phaseIndex];
   const language = ctx.request.language;
+  const typicalFlow = describeTypicalFlow(knowledge);
+  const flowOutlook = classifyFlowOutlook(typicalFlow);
+  const eventName = knowledge.name[language] ?? knowledge.name.ja;
 
   return {
     estimate: {
@@ -99,5 +107,10 @@ export function runEstimatePhase(
     firstTrainWait,
     boardableP50: addMinutesToIso(now, remaining.p50),
     boardableP80: addMinutesToIso(now, remaining.p80),
+    typicalFlow,
+    flowOutlook,
+    flowSentence: flowOutlook
+      ? buildFlowSentence(typicalFlow, eventName, flowOutlook, language)
+      : null,
   };
 }

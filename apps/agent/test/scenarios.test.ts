@@ -15,8 +15,8 @@ function findJudgment(events: JudgmentEvent[]) {
 }
 
 describe("決定論モードのシナリオ", () => {
-  it("ダミーのシナリオが 3 件読める", () => {
-    expect(scenarios).toHaveLength(3);
+  it("ダミーのシナリオが 4 件読める", () => {
+    expect(scenarios).toHaveLength(4);
   });
 
   for (const scenario of scenarios) {

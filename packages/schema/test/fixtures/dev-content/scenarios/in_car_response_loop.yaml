@@ -1,0 +1,76 @@
+# 開発用のダミー。開発者の知見ではない。本番の判断には使わない
+# すべて架空。文面は自作。非常通報装置で止まっても、慌てず待てば数分で動く
+# 人身事故のシナリオと並べ、同じ「止まった」でも行動が逆になることを見せる
+
+id: in_car_response_loop
+title:
+  ja: 夕方の環状線、非常ボタンで停車しても数分で動き出す
+  en: Evening Osaka Loop Line stops for an emergency intercom call and moves again in minutes
+event_type: in_car_response
+operator: JR西日本
+line: JR大阪環状線
+blocked_section:
+  from_station: 京橋
+  to_station: 鶴橋
+start_time: "2026-11-09T18:20:00+09:00"
+
+# 帰宅途中。京橋のホームで天王寺方面の列車を待っている。時間の制約は無い
+user:
+  current_station: 京橋
+  destination: 天王寺
+  constraints:
+    deadline: null
+    knows_alternatives: true
+    mobility_notes: null
+  language: ja
+
+timeline:
+  - id: obs_1
+    offset_minutes: 0
+    kind: station_broadcast
+    text:
+      ja: お客様にお知らせします。大阪環状線は、京橋駅〜鶴橋駅間を走る列車の車内で非常通報装置が扱われたため、停車しております。ただいま車内の状況を確かめております。
+      en: Attention passengers. On the Osaka Loop Line, a train between Kyobashi and Tsuruhashi has stopped because the emergency intercom was used. Staff are checking the situation on board.
+  - id: obs_2
+    offset_minutes: 2
+    kind: station_broadcast
+    text:
+      ja: 停車中の列車では、駅の係員がお客様の対応をしております。もうしばらくお待ちください。
+      en: Station staff are assisting a passenger on the stopped train. Please wait a little longer.
+  - id: obs_3
+    offset_minutes: 5
+    kind: station_broadcast
+    text:
+      ja: お客様の対応が終わりました。停車中の列車は、まもなく発車いたします。
+      en: The passenger has been assisted. The stopped train will depart shortly.
+  - id: obs_4
+    offset_minutes: 7
+    kind: announcement
+    text:
+      ja: 大阪環状線は、18時27分に運転を再開しました。
+      en: The Osaka Loop Line resumed service at 18:27.
+
+expectations:
+  - after: obs_1
+    action: wait
+    phase: stopped_for_check
+    evidence_includes: [icr_alarm_announced]
+    note: 車内対応は短く終わることが多い。止まった直後でも慌てず待つ。
+  - after: obs_2
+    action: wait
+    phase: station_response
+    evidence_includes: [icr_staff_responding]
+    note: 駅の係員が対応している。まもなく発車に向かうので待つ。
+  - after: obs_3
+    action: wait
+    phase: departing
+    evidence_includes: [icr_response_finished]
+    note: 対応が終わり、まもなく発車する。そのまま待つ。
+  - after: obs_4
+    action: wait
+    evidence_includes: [icr_resumed]
+    note: 運転を再開した。次の列車を待つ。
+
+ground_truth:
+  resume_offset_minutes: 7
+  notes: 18時27分に運転を再開した。待った人は18時45分ごろ天王寺に着いた。地下鉄へ回った人も着いたのは同じころだった。

@@ -10,7 +10,11 @@ import { SheetSection, useMapChrome } from "@/components/SheetSection";
 import { selectTimelineBasis } from "@/features/judgment/break-even-timeline";
 import { BreakEvenDetail, BreakEvenSummary } from "@/features/judgment/components/BreakEvenPanel";
 import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
-import { ConclusionCard, ConclusionDetail } from "@/features/judgment/components/ConclusionCard";
+import {
+  ConclusionCard,
+  ConclusionDetail,
+  selectCardReason,
+} from "@/features/judgment/components/ConclusionCard";
 import { Disclaimer } from "@/features/judgment/components/Disclaimer";
 import { EvidenceSection } from "@/features/judgment/components/EvidenceSection";
 import { JudgmentError } from "@/features/judgment/components/JudgmentError";
@@ -18,6 +22,7 @@ import { NextCheckSection, PremiseSection } from "@/features/judgment/components
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
 import { StatusChip, TripSummary } from "@/features/judgment/components/TripSummary";
+import { TypicalFlowSection } from "@/features/judgment/components/TypicalFlow";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { type OriginLine, type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
@@ -91,6 +96,7 @@ export function JudgmentScreen() {
   const disclaimerExtra =
     display.judgment?.disclaimer ?? state.previousJudgment?.disclaimer ?? null;
   const options = display.options ?? noOptions;
+  const typicalFlow = display.settled?.judgment.typicalFlow ?? null;
   const tone = selectRouteTone(options, display.recommendedOptionId);
   const breakEvenProps = {
     breakEven: display.breakEven,
@@ -147,7 +153,12 @@ export function JudgmentScreen() {
               {state.status === "ready" && display.judgment && (
                 <ConclusionCard judgment={display.judgment} />
               )}
-              {!streaming && <BreakEvenSummary {...breakEvenProps} />}
+              {!streaming && (
+                <BreakEvenSummary
+                  {...breakEvenProps}
+                  hideMeaning={selectCardReason(display.judgment) !== null}
+                />
+              )}
               <Disclaimer />
             </div>
           }
@@ -161,6 +172,16 @@ export function JudgmentScreen() {
           {display.judgment && (
             <SheetSection className="empty:hidden">
               <ConclusionDetail judgment={display.judgment} />
+            </SheetSection>
+          )}
+          {typicalFlow && (
+            <SheetSection>
+              <TypicalFlowSection
+                flow={typicalFlow}
+                estimate={display.estimate}
+                expanded={chrome.desktop || chrome.snap === "full"}
+                testIds={{ section: testIds.judgment.flow, phase: testIds.judgment.flowPhase }}
+              />
             </SheetSection>
           )}
           {state.status === "ready" && display.estimate && (
@@ -206,6 +227,7 @@ export function JudgmentScreen() {
               evidence={display.evidence}
               catalog={catalog}
               disclaimer={disclaimerExtra}
+              showPhases={typicalFlow === null}
             />
           </SheetSection>
           <SheetSection

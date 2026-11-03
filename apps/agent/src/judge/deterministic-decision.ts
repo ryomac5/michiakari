@@ -2,10 +2,15 @@ import { computeLateShare } from "@repo/core";
 import type { Action, Knowledge } from "@repo/schema";
 import { decisionParams } from "../config.ts";
 import type { Decision } from "../tools/emit-judgment.ts";
-import type { BreakEvenToolResult, WeatherToolResult } from "../tools/types.ts";
+import type { BreakEvenToolResult, EstimateToolResult, WeatherToolResult } from "../tools/types.ts";
 import type { JudgmentToolResults } from "./assemble.ts";
 import { buildComputedBreakEven, type JudgeSession } from "./session.ts";
-import { buildDecisionText, buildNoAlternativeSentence, type DecisionReason } from "./templates.ts";
+import {
+  buildDecisionText,
+  buildNoAlternativeSentence,
+  type DecisionReason,
+  type DecisionTextInput,
+} from "./templates.ts";
 
 // 決定論モードの判断規則。API キーが無いときと Claude の失敗時に使う
 
@@ -67,10 +72,13 @@ export function applyDecisionRules(input: RuleInput): RuleOutcome {
     return { action: "hold", reason: "rain_continuing", recommendedOptionId: null };
   }
   // 見込みの幅が大きい段階では、分岐点が迫って見込みが後に寄っているときだけ切り替えを言い切る
+  // 短く終わり見込みの立てやすい事象は、止まった直後でも保留せず、下の比較で待つか切り替えるかを決める
   if (estimate.estimate.confidence === "low") {
     const late = decideSwitchInsteadOfHold(r);
     if (late) return { action: "switch", reason: late, ...switchTo };
-    return { action: "hold", reason: "low_confidence", recommendedOptionId: null };
+    if (estimate.flowOutlook !== "short") {
+      return { action: "hold", reason: "low_confidence", recommendedOptionId: null };
+    }
   }
   // 見込み時刻が延長されたあとは、さらに延びる余地を見て p80 で比べる
   if (estimate.statedExtended && r.resumeOutlook && r.resumeOutlook.marginP80Minutes < 0) {
@@ -90,6 +98,16 @@ export function applyDecisionRules(input: RuleInput): RuleOutcome {
     action: "wait",
     reason: "resume_before_break_even",
     recommendedOptionId: input.alternatives.waitOptionId,
+  };
+}
+
+// 流れの一文は、知見から見積もっているときだけ理由に置く。発表の見込みや再開の後は発表を優先する
+function buildFlowText(estimate: EstimateToolResult): DecisionTextInput["flow"] {
+  if (!estimate.flowOutlook || !estimate.flowSentence) return null;
+  return {
+    outlook: estimate.flowOutlook,
+    sentence: estimate.flowSentence,
+    inReason: estimate.remainingBasis === "knowledge",
   };
 }
 
@@ -120,6 +138,7 @@ export function decideDeterministically(
     marginP50Minutes: hasBreakEven ? (r.resumeOutlook?.marginP50Minutes ?? null) : null,
     deadline: results.breakEven.deadline,
     bestOption,
+    flow: buildFlowText(results.estimate),
   });
   return {
     action: outcome.action,

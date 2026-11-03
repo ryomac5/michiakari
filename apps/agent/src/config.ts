@@ -78,6 +78,8 @@ export const decisionParams = {
   holdDecisionWindowMinutes: 10,
   // 上の時間内で、再開見込みの幅のうち分岐点より後の割合がこれ以上なら切り替える
   lateShareToSwitch: 0.7,
+  // 見込みが立てやすく、再開まで p80 でもこの分数に収まる事象は「短く終わる」とみなし、慌てず待つと言い切る
+  shortFlowMaxMinutes: 15,
 } as const;
 
 // 結論の一言（headline）の長さ。target は書き方の目安、max を超えたら検証エラーにする

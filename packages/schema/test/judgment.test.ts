@@ -37,6 +37,23 @@ describe("JudgmentSchema", () => {
     expect(JudgmentSchema.safeParse({ ...validJudgment, reason: "" }).success).toBe(false);
   });
 
+  it("typicalFlow は任意で、あれば受け入れ、段階が空なら拒否する", () => {
+    const typicalFlow = {
+      eventType: "person_accident",
+      phases: [{ id: "initial", name: { ja: "発生直後" }, duration: { p50: 10, p80: 20 } }],
+      untilResume: { p50: 60, p80: 110 },
+      firstTrainWait: { p50: 10, p80: 25 },
+      predictability: { level: "high", source: "knowledge", basis: { ja: "架空" } },
+      typicalFloorMinutes: 60,
+    } as const;
+    expect(JudgmentSchema.safeParse({ ...validJudgment, typicalFlow }).success).toBe(true);
+    expect(JudgmentSchema.safeParse(validJudgment).success).toBe(true);
+    expect(
+      JudgmentSchema.safeParse({ ...validJudgment, typicalFlow: { ...typicalFlow, phases: [] } })
+        .success,
+    ).toBe(false);
+  });
+
   it("disclaimer が空なら拒否する", () => {
     expect(JudgmentSchema.safeParse({ ...validJudgment, disclaimer: "" }).success).toBe(false);
   });
