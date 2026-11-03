@@ -37,16 +37,25 @@ describe("describeTypicalFlow", () => {
     expect(TypicalFlowSchema.parse(flow)).toEqual(flow);
   });
 
-  it("再開の見込みは既存の残り時間の計算を経過 0 分で呼んだ値と一致する", () => {
+  // 下限を当てるようにしたので、比べる側も発生直後（経過 0 分）として下限を当てる
+  it("再開の見込みは既存の残り時間の計算を段階と発生の経過 0 分で呼んだ値と一致する", () => {
     const knowledge = loadDevKnowledge("person_accident");
     const noWait: Knowledge = {
       ...knowledge,
       after_resume: { ...knowledge.after_resume, first_train_wait_minutes: { p50: 0, p80: 0 } },
     };
     const first = knowledge.phases[0]?.id ?? "";
-    const expected = estimateBranchAwareRemaining(noWait, first, 0).remaining;
+    const expected = estimateBranchAwareRemaining(noWait, first, 0, {
+      elapsedSinceOnsetMinutes: 0,
+    }).remaining;
     expect(describeTypicalFlow(knowledge).untilResume).toEqual(expected);
     expect(estimateUntilResume(knowledge)).toEqual(expected);
+  });
+
+  it("ダミーの人身事故は、発生直後の再開の p50 と p80 が下限の 60 分以上になる", () => {
+    const untilResume = estimateUntilResume(loadDevKnowledge("person_accident"));
+    expect(untilResume.p50).toBeGreaterThanOrEqual(60);
+    expect(untilResume.p80).toBeGreaterThanOrEqual(60);
   });
 
   it("段階の列と初列車待ちを知見のとおりに返す", () => {

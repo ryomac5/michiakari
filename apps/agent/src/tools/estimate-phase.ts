@@ -1,5 +1,6 @@
 import {
   addMinutesToIso,
+  diffMinutes,
   estimateBranchAwareRemaining,
   estimateStatedRemaining,
   getFirstTrainWait,
@@ -7,7 +8,12 @@ import {
 } from "@repo/core";
 import type { Estimate } from "@repo/schema";
 import { z } from "zod";
-import { decideEstimateConfidence, detectPhase, findLatestStatedResume } from "../domain/phase.ts";
+import {
+  decideEstimateConfidence,
+  detectPhase,
+  findLatestStatedResume,
+  findOnsetTime,
+} from "../domain/phase.ts";
 import type { EstimateToolResult, ToolContext } from "./types.ts";
 
 export const EstimatePhaseInputSchema = z.object({
@@ -56,10 +62,13 @@ export function runEstimatePhase(
   const stated = findLatestStatedResume(ctx.observations);
   const statedIsFuture = stated !== null && parseIsoToMs(stated.time) > parseIsoToMs(now);
   const firstTrainWait = getFirstTrainWait(knowledge);
+  // 知見の下限は発生からの分。発生は最初の観測の時刻とみなす
+  const onsetAt = findOnsetTime(ctx.observations, now);
   const fromKnowledge = estimateBranchAwareRemaining(
     knowledge,
     detection.phaseId,
     detection.elapsedMinutes,
+    { elapsedSinceOnsetMinutes: Math.max(0, Math.floor(diffMinutes(onsetAt, now))) },
   );
   // 再開済みなら、乗れる列車が来るまでの待ちだけが残る
   const basis = detection.resumed ? "resumed" : stated && statedIsFuture ? "stated" : "knowledge";

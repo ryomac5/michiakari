@@ -80,6 +80,14 @@ export function detectPhase(
   };
 }
 
+// 発生時刻は観測から分からないので、最初の観測の時刻を発生とみなす。観測が無ければ現在
+export function findOnsetTime(observations: readonly Observation[], now: string): string {
+  return observations.reduce(
+    (earliest, o) => (Date.parse(o.observedAt) < Date.parse(earliest) ? o.observedAt : earliest),
+    now,
+  );
+}
+
 function checkResumed(knowledge: Knowledge, observations: readonly Observation[]): boolean {
   const last = knowledge.phases.at(-1);
   if (!last) return false;
