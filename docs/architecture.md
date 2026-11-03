@@ -58,6 +58,8 @@
   - `deterministic`: 文字列照合で解釈し、規則で判断する。写真は読めないので error を返す
   - 原因が分からないときと確信度が低いときは保留する。ただし分岐点までの残りが `holdDecisionWindowMinutes` 以内なら言い切る
   - その場合、再開見込みの幅のうち分岐点より後の割合が `lateShareToSwitch` 以上なら切り替える。閾値は agent の config に置く
+  - 見込みが立てやすく、再開までの p80 が `shortFlowMaxMinutes` 以内の事象は「短く終わる」とみなす。確信度が低くても保留せず、比較で決める
+  - 見込みが立てやすい事象で、知見から見積もっているときは、理由の頭に流れの一文を置く。claude モードもプロンプトで同じ方針にする
 - フォールバック: claude モードの失敗は決定論モードで仕上げる
   - 解釈が失敗したら、文字列照合で解釈し直す
   - 判断ループが失敗したら、済んだツールの結果を残して残りを決定論で進める。失敗とは拒否、`max_tokens`、ツール呼び出し 12 回の超過、反復の上限、検証の再失敗、例外である
@@ -225,6 +227,7 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `recommendedOptionId` | 推奨する代替手段の `id`。null を許すが、`action` が `switch` なら必須 |
 | `evidence` | `{ kind, id, description }` の配列。`kind` は `signal` / `knowledge` / `weather` / `computation` |
 | `disclaimer` | 推定である旨（必須） |
+| `typicalFlow` | 事象のよくある流れ。`TypicalFlowSchema` の形で、省略できる。agent が知見から詰め、原因が分からなければ入れない |
 
 `recommendedOptionId` は `options` にある `id` を指す。参照と重複は `checkJudgmentRefs` で検査する。スキーマに refine を付けないのは、Claude のツール定義に変換するためである。
 
@@ -307,7 +310,7 @@ M0 では駅名 `{ kind: "station", name }` と座標 `{ kind: "coord", lon, lat
 |---|---|---|---|
 | `lookup_knowledge` | 事象種別 | 段階、兆候、所要時間の目安、利用者への提示方針 | YAML 読み込み |
 | `get_weather` | 区間の座標、時間幅 | 10分ごとの雨量、警報の発表状況 | 気象庁 |
-| `estimate_phase_and_remaining` | 事象種別、観測の列 | 段階 ID、段階の経過時間、残り時間分布 | packages/core |
+| `estimate_phase_and_remaining` | 事象種別、観測の列 | 段階 ID、段階の経過時間、残り時間分布、よくある流れと流れの一文 | packages/core |
 | `find_alternatives` | 現在地、行き先、止まっている区間、時刻、制約 | 代替手段の一覧（徒歩・乗車・待ち・運賃） | packages/geo + core |
 | `compute_break_even` | 待つ場合の条件、代替手段の到着時刻 | 分岐点の時刻 | packages/core |
 
