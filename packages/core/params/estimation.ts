@@ -15,3 +15,8 @@ export const MIN_MEDIAN_MINUTES = 0.5;
 // 出典: 仮の値。開発者の確認待ち
 export const PREDICTABILITY_HIGH_MAX_RATIO = 1.3;
 export const PREDICTABILITY_MEDIUM_MAX_RATIO = 1.6;
+
+// 見込みが立てやすく、再開まで p80 でもこの分数に収まる事象は「短く終わる」とみなす
+// agent は慌てず待つと言い切り、画面は次に確かめることを発車の放送に変える
+// 出典: 開発者の推定（仮）
+export const SHORT_FLOW_MAX_MINUTES = 15;

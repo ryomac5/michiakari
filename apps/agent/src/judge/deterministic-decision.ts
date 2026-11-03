@@ -27,9 +27,13 @@ export type RuleInput = JudgmentToolResults & {
 
 // 保留の代わりに切り替えを言い切るか。原因が分からないときと確信度が低いときの保留の前に確かめる
 // 分岐点までまだ時間があれば、次の発表を待てるので保留を保つ
-function decideSwitchInsteadOfHold(r: BreakEvenToolResult["result"]): DecisionReason | null {
+// 見込みの立てやすい事象は、時間の窓を待たずに確かめる（ignoreWindow）
+function decideSwitchInsteadOfHold(
+  r: BreakEvenToolResult["result"],
+  ignoreWindow = false,
+): DecisionReason | null {
   if (r.kind !== "future" || r.resumeOutlook === null) return null;
-  if (r.minutesFromNow > decisionParams.holdDecisionWindowMinutes) return null;
+  if (!ignoreWindow && r.minutesFromNow > decisionParams.holdDecisionWindowMinutes) return null;
   // p50 が分岐点より後なら、p80 まで含めて見込みの幅のすべてが分岐点より後
   if (r.resumeOutlook.marginP50Minutes < 0) return "resume_after_break_even";
   if (computeLateShare(r.resumeOutlook) >= decisionParams.lateShareToSwitch) {
@@ -70,6 +74,12 @@ export function applyDecisionRules(input: RuleInput): RuleOutcome {
   // 気象が原因の事象で雨が続くあいだは、代替経路も同じ雨の影響を受けやすい
   if (input.knowledge?.external_factors.weather && input.weather?.summary.rainContinuing === true) {
     return { action: "hold", reason: "rain_continuing", recommendedOptionId: null };
+  }
+  // 見込みの立てやすい事象は、発生直後から言い切る。知見から見積もった再開の見込みが分岐点より後なら、時間の窓を待たずに切り替える
+  // 発表された見込みがあるときは、下の規則で発表の時刻と比べる
+  if (estimate.flowOutlook !== null && estimate.remainingBasis === "knowledge") {
+    const late = decideSwitchInsteadOfHold(r, true);
+    if (late) return { action: "switch", reason: late, ...switchTo };
   }
   // 見込みの幅が大きい段階では、分岐点が迫って見込みが後に寄っているときだけ切り替えを言い切る
   // 短く終わり見込みの立てやすい事象は、止まった直後でも保留せず、下の比較で待つか切り替えるかを決める

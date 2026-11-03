@@ -17,9 +17,16 @@ import { expect, test } from "../support/test.ts";
 
 const screenshotDir = fileURLToPath(new URL("../screenshots/", import.meta.url));
 const scenarios = loadReplayScenarios();
-// 主役のシナリオ: 期待値に switch を含む最初のもの
-const scenario = scenarios.find((s) => s.expectations.some((e) => e.action === "switch"));
-const switchIndex = scenario?.expectations.findIndex((e) => e.action === "switch") ?? -1;
+// wait のあとに来る最初の switch の位置。発生直後から switch の段は、wait との比較に使えないので飛ばす
+function findSwitchAfterWait(expectations: { action?: string }[]): number {
+  const waitIndex = expectations.findIndex((e) => e.action === "wait");
+  if (waitIndex < 0) return -1;
+  return expectations.findIndex((e, i) => i > waitIndex && e.action === "switch");
+}
+
+// 主役のシナリオ: 期待値が wait から switch へ変わる最初のもの
+const scenario = scenarios.find((s) => findSwitchAfterWait(s.expectations) >= 0);
+const switchIndex = scenario ? findSwitchAfterWait(scenario.expectations) : -1;
 const switchExpectation = scenario?.expectations[switchIndex];
 // switch の直前にある wait の期待値
 const waitExpectation = scenario?.expectations

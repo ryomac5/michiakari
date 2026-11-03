@@ -1,6 +1,7 @@
+import { SHORT_FLOW_MAX_MINUTES } from "@repo/core";
 import type { JudgeRequest, Judgment, JudgmentEvent, Lang, TypicalFlow } from "@repo/schema";
 import { describe, expect, it } from "vitest";
-import { decisionParams } from "../src/config.ts";
+import { decideEstimateConfidence, type PhaseDetection } from "../src/domain/phase.ts";
 import {
   buildFlowSentence,
   classifyFlowOutlook,
@@ -67,7 +68,8 @@ describe("判断のよくある流れ", () => {
 
   it("入口で車内対応を選ぶと、止まった直後でも待つと言い切り、安心させる言葉を使う", async () => {
     const judgment = findJudgment(await postJudge(app, buildSelectionRequest("in_car_response")));
-    expect(judgment.estimate.confidence).toBe("low");
+    // 見込みが立てやすく原因を選んで特定できているので、確信度は低にならない
+    expect(judgment.estimate.confidence).toBe("medium");
     expect(judgment.action).toBe("wait");
     expect(judgment.headline).toBe("慌てず、このまま待ちましょう");
     expect(judgment.reason).toMatch(/^車内対応は5〜10分ほどで終わることが多いです。/);
@@ -81,6 +83,74 @@ describe("判断のよくある流れ", () => {
     expect(judgment.action).toBe("wait");
     expect(judgment.headline).toBe("No need to rush. Stay and wait.");
     expect(judgment.reason).toContain("Onboard assistance: usually over in about 5–10 min.");
+  });
+});
+
+describe("見込みの立てやすい事象の言い切りと確信度", () => {
+  async function replayPersonAccident() {
+    const scenario = deps.content.scenarios.get("person_accident_last_train");
+    if (!scenario) throw new Error("ダミーのシナリオがありません");
+    return replayScenario(app, scenario);
+  }
+
+  it("人身事故の obs_1 は、分岐点まで時間があっても切り替えになる", async () => {
+    const steps = await replayPersonAccident();
+    const judgment = findJudgment(steps.find((s) => s.entry.id === "obs_1")?.events ?? []);
+    expect(judgment.action).toBe("switch");
+    expect(judgment.headline).toMatch(/^いま.+に切り替えてください$/);
+    expect(judgment.reason).toMatch(/^人身事故は、再開まで1時間ほどかかるのがふつうです。/);
+    expect(judgment.estimate.confidence).toBe("medium");
+  });
+
+  it("見込みが high で原因が特定できた判断は、確信度が低にならない", async () => {
+    const personSteps = await replayPersonAccident();
+    const scenario = deps.content.scenarios.get("in_car_response_loop");
+    if (!scenario) throw new Error("ダミーのシナリオがありません");
+    const inCarSteps = await replayScenario(app, scenario);
+    const judgments = [...personSteps, ...inCarSteps].map((s) => findJudgment(s.events));
+    for (const judgment of judgments) {
+      expect(judgment.typicalFlow?.predictability.level).toBe("high");
+      expect(judgment.estimate.confidence, judgment.headline).not.toBe("low");
+    }
+    for (const eventType of ["person_accident", "in_car_response"]) {
+      const selected = findJudgment(await postJudge(app, buildSelectionRequest(eventType)));
+      expect(selected.estimate.confidence, eventType).not.toBe("low");
+    }
+  });
+
+  it("確信度の下限は、見込みが high で原因が特定できたときだけ当てる", () => {
+    const detection: PhaseDetection = {
+      phaseIndex: 0,
+      phaseId: "initial",
+      phaseStartedAt: "2026-11-05T22:10:00+09:00",
+      elapsedMinutes: 0,
+      hasSignals: true,
+      resumed: false,
+    };
+    const base = { detection, stated: null, statedIsFuture: false };
+    expect(decideEstimateConfidence({ ...base, predictability: "high", identified: true })).toBe(
+      "medium",
+    );
+    expect(decideEstimateConfidence({ ...base, predictability: "medium", identified: true })).toBe(
+      "low",
+    );
+    expect(decideEstimateConfidence({ ...base, predictability: "high", identified: false })).toBe(
+      "low",
+    );
+  });
+
+  it("発表された見込みがある段では、知見の下限を当てず、発表の時刻で待つ", async () => {
+    const steps = await replayPersonAccident();
+    const judgment = findJudgment(steps.find((s) => s.entry.id === "obs_3")?.events ?? []);
+    const flow = judgment.typicalFlow;
+    if (!flow?.typicalFloorMinutes) throw new Error("下限のある流れが要ります");
+    expect(judgment.action).toBe("wait");
+    // 発生から 22 分の段。発表どおりの再開は発生から 40 分ほどで、下限の 60 分より前になる
+    const elapsedSinceOnset = 22;
+    const remaining = judgment.estimate.remaining;
+    if (!remaining) throw new Error("残り時間が要ります");
+    const resumeFromOnset = elapsedSinceOnset + remaining.p50 - flow.firstTrainWait.p50;
+    expect(resumeFromOnset).toBeLessThan(flow.typicalFloorMinutes);
   });
 });
 
@@ -161,7 +231,7 @@ describe("よくある流れの言葉", () => {
   const high = { level: "high", source: "knowledge", basis: null } as const;
 
   it("見込みが立てやすく p80 が短ければ short、長ければ long、立てにくければ null", () => {
-    const short = decisionParams.shortFlowMaxMinutes;
+    const short = SHORT_FLOW_MAX_MINUTES;
     expect(
       classifyFlowOutlook({
         ...base,

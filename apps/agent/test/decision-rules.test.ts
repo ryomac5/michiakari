@@ -1,4 +1,4 @@
-import type { BreakEvenResult } from "@repo/core";
+import type { BreakEvenResult, FlowOutlook } from "@repo/core";
 import type { Confidence } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { decisionParams, reasonLimits } from "../src/config.ts";
@@ -32,6 +32,8 @@ function buildInput(input: {
   eventType: string | null;
   confidence: Confidence;
   result: BreakEvenResult;
+  flowOutlook?: FlowOutlook | null;
+  remainingBasis?: "knowledge" | "stated";
 }): RuleInput {
   return {
     estimate: {
@@ -47,13 +49,13 @@ function buildInput(input: {
       phaseStartedAt: null,
       statedResumeTime: null,
       statedExtended: false,
-      remainingBasis: input.eventType ? "knowledge" : null,
+      remainingBasis: input.eventType ? (input.remainingBasis ?? "knowledge") : null,
       skippedPhaseIds: [],
       firstTrainWait: null,
       boardableP50: null,
       boardableP80: null,
       typicalFlow: null,
-      flowOutlook: null,
+      flowOutlook: input.flowOutlook ?? null,
       flowSentence: null,
     },
     alternatives: {
@@ -124,6 +126,40 @@ describe("保留より先に切り替えを返す規則", () => {
       const outcome = applyDecisionRules(buildInput({ eventType, confidence: "low", result }));
       expect(outcome.action).toBe("hold");
     }
+  });
+
+  it("見込みの立てやすい事象は、分岐点まで時間があっても、見込みが後なら切り替える", () => {
+    const result = buildResult({
+      minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
+      marginP50Minutes: -24,
+      marginP80Minutes: -82,
+    });
+    for (const confidence of ["low", "medium"] as const) {
+      const outcome = applyDecisionRules(
+        buildInput({ eventType: "person_accident", confidence, result, flowOutlook: "long" }),
+      );
+      expect(outcome).toEqual({
+        action: "switch",
+        reason: "resume_after_break_even",
+        recommendedOptionId: "alt_1",
+      });
+    }
+  });
+
+  it("見込みの立てやすい事象でも、発表の見込みがあれば発表の時刻で比べる", () => {
+    // 発表の見込みが分岐点をわずかに過ぎるだけなら、乗り換えるほどの差がないので待つ
+    const result = buildResult({ minutesFromNow: 36, marginP50Minutes: -3, marginP80Minutes: -18 });
+    const outcome = applyDecisionRules(
+      buildInput({
+        eventType: "person_accident",
+        confidence: "high",
+        result,
+        flowOutlook: "long",
+        remainingBasis: "stated",
+      }),
+    );
+    expect(outcome.action).toBe("wait");
+    expect(outcome.reason).toBe("resume_before_break_even");
   });
 
   it("原因が分からず見込みが無いときは、これまでどおり保留する", () => {

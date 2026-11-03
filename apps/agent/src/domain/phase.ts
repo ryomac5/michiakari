@@ -1,5 +1,6 @@
 import { diffMinutes } from "@repo/core";
-import type { Confidence, Knowledge, Observation } from "@repo/schema";
+import type { Confidence, Knowledge, Observation, PredictabilityLevel } from "@repo/schema";
+import { confidenceParams } from "../config.ts";
 
 // 観測の列から事象種別と段階を決める。残り時間の計算は core が受け持つ
 
@@ -115,7 +116,19 @@ export function findLatestStatedResume(observations: readonly Observation[]): St
   return { time: last, extended };
 }
 
-export function decideEstimateConfidence(input: {
+// 原因が観測から特定できたか。事象の兆候を観測したか、事象を確信度高で読み取った
+export function checkEventIdentified(
+  eventType: string,
+  detection: PhaseDetection,
+  observations: readonly Observation[],
+): boolean {
+  if (detection.hasSignals) return true;
+  return observations.some((o) =>
+    o.eventTypeCandidates.some((c) => c.eventType === eventType && c.confidence === "high"),
+  );
+}
+
+function decideBaseConfidence(input: {
   detection: PhaseDetection;
   stated: StatedResume | null;
   statedIsFuture: boolean;
@@ -125,4 +138,19 @@ export function decideEstimateConfidence(input: {
     return "low";
   }
   return "medium";
+}
+
+// 見込みが立てやすい事象で原因が特定できていれば、発生直後でも確信度を下限より下げない
+export function decideEstimateConfidence(input: {
+  detection: PhaseDetection;
+  stated: StatedResume | null;
+  statedIsFuture: boolean;
+  predictability: PredictabilityLevel | null;
+  identified: boolean;
+}): Confidence {
+  const base = decideBaseConfidence(input);
+  const floor = confidenceParams.floorWhenPredictable;
+  const predictable = input.predictability === confidenceParams.predictableLevel;
+  if (!predictable || !input.identified) return base;
+  return CONFIDENCE_SCORE[base] < CONFIDENCE_SCORE[floor] ? floor : base;
 }

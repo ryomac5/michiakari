@@ -10,6 +10,7 @@ import {
 import type { Estimate } from "@repo/schema";
 import { z } from "zod";
 import {
+  checkEventIdentified,
   decideEstimateConfidence,
   detectPhase,
   findLatestStatedResume,
@@ -95,7 +96,13 @@ export function runEstimatePhase(
       phaseId: detection.phaseId,
       elapsedMinutes: detection.elapsedMinutes,
       remaining,
-      confidence: decideEstimateConfidence({ detection, stated, statedIsFuture }),
+      confidence: decideEstimateConfidence({
+        detection,
+        stated,
+        statedIsFuture,
+        predictability: typicalFlow.predictability.level,
+        identified: checkEventIdentified(knowledge.id, detection, ctx.observations),
+      }),
     },
     phaseName: phase ? (phase.name[language] ?? phase.name.ja) : null,
     phaseGuidance: phase ? (phase.guidance[language] ?? phase.guidance.ja) : null,

@@ -78,8 +78,14 @@ export const decisionParams = {
   holdDecisionWindowMinutes: 10,
   // 上の時間内で、再開見込みの幅のうち分岐点より後の割合がこれ以上なら切り替える
   lateShareToSwitch: 0.7,
-  // 見込みが立てやすく、再開まで p80 でもこの分数に収まる事象は「短く終わる」とみなし、慌てず待つと言い切る
-  shortFlowMaxMinutes: 15,
+} as const;
+
+// 判断の確信度の決め方。出典: 開発者の推定（仮）
+export const confidenceParams = {
+  // 知見の見込みの立てやすさがこの水準で、原因が観測から特定できていれば、確信度を下限より下げない
+  predictableLevel: "high",
+  // そのときの確信度の下限。発表の見込みがまだ無くても、流れが読めるので言い切れる
+  floorWhenPredictable: "medium",
 } as const;
 
 // 結論の一言（headline）の長さ。target は書き方の目安、max を超えたら検証エラーにする
