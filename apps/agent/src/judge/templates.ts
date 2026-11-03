@@ -1,5 +1,7 @@
 import { getJstMinuteOfDay } from "@repo/core";
 import type { Lang, ProgressStage, RouteOption, WeatherTrend } from "@repo/schema";
+import { reasonLimits } from "../config.ts";
+import type { FlowOutlook } from "../domain/typical-flow.ts";
 
 // 利用者向けの定型文（ja / en）。数値は呼び出し側がツールの結果から渡す
 
@@ -82,6 +84,8 @@ export type DecisionTextInput = {
   marginP50Minutes: number | null;
   deadline: string | null;
   bestOption: Pick<RouteOption, "kind" | "label" | "isTransferService"> | null;
+  // 見込みが立てやすい事象のよくある流れ。inReason は理由の頭に流れの一文を置くか
+  flow?: { outlook: FlowOutlook; sentence: string; inReason: boolean } | null;
 };
 
 // 見出しは結論だけの短い一言。理由は比較の形で reason に分ける
@@ -212,7 +216,15 @@ function buildDecisionHeadline(input: DecisionTextInput): string {
   const ja = input.language === "ja";
   const target = nameSwitchTarget(input.bestOption, input.language);
   const switchHeadline = ja ? `いま${target}に切り替えてください` : `Switch to ${target} now.`;
-  const waitHeadline = ja ? "運転再開を待ってください" : "Wait for service to resume.";
+  // 短く終わり見込みの立てやすい事象では、待つ見出しを安心させる言い方にする
+  const waitHeadline =
+    input.flow?.outlook === "short"
+      ? ja
+        ? "慌てず、このまま待ちましょう"
+        : "No need to rush. Stay and wait."
+      : ja
+        ? "運転再開を待ってください"
+        : "Wait for service to resume.";
   const be = input.breakEvenTime ? formatClock(input.breakEvenTime, input.language) : null;
   const holdHeadline = be
     ? ja
@@ -235,15 +247,42 @@ function buildDecisionHeadline(input: DecisionTextInput): string {
       return switchHeadline;
     case "resume_before_break_even": {
       const minutes = input.breakEvenMinutesFromNow;
+      if (input.flow?.outlook === "short") return waitHeadline;
       if (minutes === null || minutes <= 0) return waitHeadline;
       return ja ? `あと${minutes}分は待てます` : `You can wait ${minutes} more minutes.`;
     }
   }
 }
 
+// 流れの一文に続ける比較。流れの一文が見込みを言うので、比較は短くする
+function buildFlowFollowUp(input: DecisionTextInput, outlook: FlowOutlook): string {
+  const ja = input.language === "ja";
+  const be = input.breakEvenTime ? formatClock(input.breakEvenTime, input.language) : null;
+  const target = nameSwitchTarget(input.bestOption, input.language);
+  if (outlook === "short" && input.reason === "resume_before_break_even") {
+    return ja ? "このまま待つほうが早く着きます。" : "Staying put gets you there sooner.";
+  }
+  if ((input.reason === "low_confidence" || input.reason === "unknown_event") && be) {
+    return ja
+      ? `${be}を過ぎると${target}のほうが早く着きます。`
+      : `After ${be}, ${target} gets you there sooner.`;
+  }
+  return buildDecisionReason(input);
+}
+
+// 見込みが立てやすい事象では、理由の頭に流れの一文を置く。上限を超えるなら流れの一文を外す
+function composeReason(input: DecisionTextInput): string {
+  const base = buildDecisionReason(input);
+  const flow = input.flow;
+  if (!flow?.inReason) return base;
+  const glue = input.language === "ja" ? "" : " ";
+  const combined = `${flow.sentence}${glue}${buildFlowFollowUp(input, flow.outlook)}`;
+  return [...combined].length <= reasonLimits[input.language].max ? combined : base;
+}
+
 // 決定論モードの見出しと理由
 export function buildDecisionText(input: DecisionTextInput): DecisionText {
-  return { headline: buildDecisionHeadline(input), reason: buildDecisionReason(input) };
+  return { headline: buildDecisionHeadline(input), reason: composeReason(input) };
 }
 
 const PROGRESS_MESSAGES: Record<ProgressStage, { ja: string; en: string }> = {

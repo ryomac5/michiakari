@@ -31,6 +31,7 @@ export function assembleJudgment(
   language: Lang,
 ): Judgment {
   const r = results.breakEven.result;
+  const typicalFlow = results.estimate.typicalFlow;
   return {
     action: decision.action,
     headline: decision.headline,
@@ -48,6 +49,7 @@ export function assembleJudgment(
       description: e.description,
     })),
     disclaimer: buildDisclaimer(language),
+    ...(typicalFlow ? { typicalFlow } : {}),
   };
 }
 
@@ -145,6 +147,10 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
     estimate.firstTrainWait?.p50,
     estimate.firstTrainWait?.p80,
     results.alternatives.waitRouteMinutesAfterResume,
+    // よくある流れの再開までの見込みと目安の下限。結論の文で事象の流れを伝えるのに使う
+    estimate.typicalFlow?.untilResume.p50,
+    estimate.typicalFlow?.untilResume.p80,
+    estimate.typicalFlow?.typicalFloorMinutes,
     ...results.alternatives.options.flatMap((o) => [
       o.walkMinutes,
       Math.round(diffMinutes(now, o.arrivalTime)),

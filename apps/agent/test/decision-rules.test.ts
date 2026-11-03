@@ -52,6 +52,9 @@ function buildInput(input: {
       firstTrainWait: null,
       boardableP50: null,
       boardableP80: null,
+      typicalFlow: null,
+      flowOutlook: null,
+      flowSentence: null,
     },
     alternatives: {
       options: [],

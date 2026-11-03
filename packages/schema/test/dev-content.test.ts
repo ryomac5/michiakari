@@ -15,14 +15,16 @@ import {
 const DEV_CONTENT_DIR = resolve(fileURLToPath(new URL("./fixtures/dev-content", import.meta.url)));
 
 describe("開発用のダミー内容", () => {
-  it("知見 3 件とシナリオ 3 件がすべて検証を通る", () => {
+  it("知見 4 件とシナリオ 4 件がすべて検証を通る", () => {
     const result = validateContent(DEV_CONTENT_DIR);
     expect(result.errors.map(formatContentError)).toEqual([]);
     expect(result.checkedFiles).toEqual([
       "knowledge/heavy_rain.yaml",
+      "knowledge/in_car_response.yaml",
       "knowledge/person_accident.yaml",
       "knowledge/vehicle_failure.yaml",
       "scenarios/heavy_rain_evening.yaml",
+      "scenarios/in_car_response_loop.yaml",
       "scenarios/person_accident_last_train.yaml",
       "scenarios/vehicle_failure_short.yaml",
     ]);
