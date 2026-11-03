@@ -95,6 +95,7 @@ export const testIds = {
     retryButton: "judgment-retry-button",
     breakEven: "judgment-break-even",
     breakEvenTime: "judgment-break-even-time",
+    breakEvenMeaning: "judgment-break-even-meaning",
     breakEvenCountdown: "judgment-break-even-countdown",
     // 閉じたシートの「おおよその再開 23:43〜23:58 は分岐点より後」。data-relation を出す
     breakEvenResume: "judgment-break-even-resume",

@@ -11,8 +11,8 @@ import {
   waitForJudged,
 } from "../support/replay.ts";
 
-// 現在地のまわりの地図。大阪駅では乗り換え候補の駅を吹き出しで出し、「全体を見る」で経路の全体に切り替える
-// 手で整えた範囲は大阪駅だけ。ほかの駅では全体の表示のままにする
+// 現在地のまわりの地図。乗り換え候補の駅を吹き出しで出し、「全体を見る」で経路の全体に切り替える
+// 大阪駅は手で整えた範囲を使い、ほかの駅は駅データから候補を自動で選ぶ
 
 const screenshotDir = fileURLToPath(new URL("../screenshots/", import.meta.url));
 const scenarios = loadReplayScenarios();
@@ -126,7 +126,9 @@ test("「全体を見る」で経路の全体に切り替え、もう一度押�
   expect(await stations(page).count()).toBeGreaterThanOrEqual(3);
 });
 
-test("手で整えた範囲の外の駅では、全体の表示のままにする", async ({ page }) => {
+test("手で整えた範囲の外の駅でも、駅データから選んだ乗り換え候補を吹き出しで出す", async ({
+  page,
+}) => {
   if (!elsewhere) throw new Error("大阪駅以外のシナリオがありません");
   const first = elsewhere.timeline[0];
   if (!first) throw new Error("観測がありません");
@@ -135,8 +137,16 @@ test("手で整えた範囲の外の駅では、全体の表示のままにす�
   await waitForJudged(page, first.id);
   const map = page.getByTestId(testIds.judgment.map);
   await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+  await expect(map).toHaveAttribute("data-view", "focus");
+  await expect(map).toHaveAttribute("data-focus-area", /^auto:/);
+  await expect(page.getByTestId(mapTestIds.here)).toBeVisible();
+  const count = await stations(page).count();
+  expect(count).toBeGreaterThanOrEqual(1);
+  expect(count).toBeLessThanOrEqual(4);
+  for (const station of await stations(page).all()) {
+    await expect(station).toHaveAttribute("data-walk-minutes", /^\d+$/);
+  }
+  // 「全体を見る」で全体に切り替えられる
+  await page.getByTestId(mapTestIds.viewToggle).click();
   await expect(map).toHaveAttribute("data-view", "overview");
-  await expect(map).toHaveAttribute("data-focus-area", "");
-  await expect(page.getByTestId(mapTestIds.viewToggle)).toHaveCount(0);
-  await expect(stations(page)).toHaveCount(0);
 });

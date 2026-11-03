@@ -101,6 +101,12 @@ export function BreakEvenSummary(props: BreakEvenProps) {
           </p>
         )}
       </div>
+      {/* 分岐点の意味を一文で添える。数値は持たず、時刻は上の行が示す */}
+      {breakEven && state === "open" && (
+        <p data-testid={testIds.judgment.breakEvenMeaning} className="text-[13px] text-muted">
+          {t("meaning")}
+        </p>
+      )}
       {breakEven && timeline && now && <ResumeCaption basis={timeline} now={now} />}
       {state === "soon" && (
         <p role="status" className="text-[13px] font-semibold text-switch">

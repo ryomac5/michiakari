@@ -76,8 +76,8 @@ const interpretation: Interpretation = {
 
 const validDecision = {
   action: "hold",
-  headline: "判断を保留します",
-  reason: "見込みの幅が大きく、まだどちらとも言えません。",
+  headline: "いまは待ち、動かなければ切り替え",
+  reason: "見込みの幅が大きく、分岐点を過ぎると代替手段のほうが早く着きます。",
   breakEvenExplanation: "分岐点までに再開しなければ代替手段のほうが早く着きます",
   recommendedOptionId: null,
   evidence: [{ kind: "knowledge", id: knowledge.id, description: "知見の要約" }],
@@ -225,7 +225,7 @@ describe("claude モード", () => {
     const longDecision = {
       ...validDecision,
       headline:
-        "まだ見込みの幅が大きい段階なので、断言せずに判断を保留し、分岐点を目安にしてください",
+        "まだ見込みの幅が大きい段階なので、断言せずにいまは待ち、分岐点を目安にしてください",
     };
     const script = createScriptedLlm({
       judgment: [
@@ -281,7 +281,7 @@ describe("claude モード", () => {
     for (const n of [reasonLimits.ja.target, reasonLimits.ja.max, reasonLimits.en.max]) {
       expect(reason).toContain(String(n));
     }
-    expect(reason).toContain("どちらとも言えません");
+    expect(reason).toContain("もっと確かに言えます");
     expect(tool?.input_schema.required).toContain("reason");
     expect(tool?.description).toContain(String(reasonLimits.ja.max));
   });

@@ -29,7 +29,7 @@ const ja: MapLabels = {
   destination: "行き先",
   blocked: "運転見合わせ",
   loading: "地図を読み込んでいます",
-  error: "地図を表示できませんでした",
+  error: "地図はもう一度開くと表示されます",
   legend: {
     title: "地図の見方",
     blocked: "止まっている区間",

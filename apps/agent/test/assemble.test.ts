@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { headlineLimits, reasonLimits } from "../src/config.ts";
 import {
   assembleJudgment,
+  checkDecisiveWording,
   checkHeadlineLength,
   checkReasonLength,
   extractTextNumbers,
@@ -227,6 +228,42 @@ describe("checkHeadlineLength", () => {
     const { judgment: valid, errors } = session.checkJudgment(judgment, results);
     expect(valid).toBeNull();
     expect(errors.some((e) => e.startsWith("headline が長すぎます"))).toBe(true);
+  });
+});
+
+describe("checkDecisiveWording", () => {
+  it("判断しない旨の言い回しを指摘し、行動の言葉は通す", () => {
+    for (const text of ["まだ判断できません", "判断を保留します", "原因は分かりません"]) {
+      expect(checkDecisiveWording("headline", text, "ja")).toHaveLength(1);
+    }
+    for (const text of ["Too early to decide.", "Can't judge yet", "Holding off for now."]) {
+      expect(checkDecisiveWording("headline", text, "en")).toHaveLength(1);
+    }
+    expect(checkDecisiveWording("headline", "21時05分まで待って、だめなら切り替え", "ja")).toEqual(
+      [],
+    );
+    expect(
+      checkDecisiveWording("headline", "Wait until 21:05, then switch if still stopped.", "en"),
+    ).toEqual([]);
+  });
+
+  it("判断の検証でも指摘する", async () => {
+    const { session, results, signalId } = await prepareSession();
+    const judgment = assembleJudgment(
+      results,
+      {
+        action: "hold",
+        headline: "まだ判断できません",
+        reason: "理由",
+        breakEvenExplanation: "説明",
+        recommendedOptionId: null,
+        evidence: [{ kind: "signal", id: signalId, description: "根拠" }],
+      },
+      "ja",
+    );
+    const { judgment: valid, errors } = session.checkJudgment(judgment, results);
+    expect(valid).toBeNull();
+    expect(errors.some((e) => e.includes("判断しない旨"))).toBe(true);
   });
 });
 

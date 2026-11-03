@@ -44,10 +44,15 @@ describe("listEntryDirections", () => {
     expect(candidates.map((c) => c.choice.name)).toEqual(
       expect.arrayContaining(["本町", "梅田", "新大阪"]),
     );
-    // 呼び名に出した直通先の千里中央は候補に入れ、最後に回す
-    expect(candidates.at(-1)?.choice.name).toBe("千里中央");
-    expect(candidates.at(-1)?.sameOperator).toBe(false);
-    expect(candidates.slice(0, -1).every((c) => c.sameOperator)).toBe(true);
+    // 隣の本町は行き先としてはまれなので最後に回す
+    expect(candidates.at(-1)?.choice.name).toBe("本町");
+    expect(candidates[0]?.choice.name).not.toBe("本町");
+    // 呼び名に出した直通先の千里中央は候補に入れ、地下鉄の主な駅の後ろに回す
+    const names = candidates.map((c) => c.choice.name);
+    const senri = names.indexOf("千里中央");
+    expect(senri).toBe(names.length - 2);
+    expect(candidates.at(senri)?.sameOperator).toBe(false);
+    expect(candidates.slice(0, senri).every((c) => c.sameOperator)).toBe(true);
   });
 
   it("呼び名に出した終点は、乗降客数が少なくても候補に入れる", () => {

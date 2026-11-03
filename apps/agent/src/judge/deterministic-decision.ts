@@ -23,7 +23,15 @@ export type RuleInput = JudgmentToolResults & {
 export function applyDecisionRules(input: RuleInput): RuleOutcome {
   const { estimate, breakEven } = input;
   const r = breakEven.result;
+  // 原因が分からなくても、分岐点を過ぎていれば代替手段のほうが早い。事象は決め打ちしない
   if (estimate.estimate.eventType === null) {
+    if (r.kind === "passed") {
+      return {
+        action: "switch",
+        reason: "break_even_passed",
+        recommendedOptionId: r.bestAlternativeId,
+      };
+    }
     return { action: "hold", reason: "unknown_event", recommendedOptionId: null };
   }
   if (r.kind === "no_route" || r.kind === "no_alternative") {

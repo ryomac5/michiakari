@@ -176,6 +176,17 @@ function findBoardingLeg(option: RouteOption) {
     | undefined;
 }
 
+// 選択肢が最初に乗る駅の ID。自動で選ぶ候補に先に入れる
+export function listBoardingStationIds(options: readonly RouteOption[]): Set<string> {
+  return new Set(
+    options.flatMap((o) => {
+      if (o.kind === "wait" || o.kind === "taxi") return [];
+      const id = findBoardingLeg(o)?.fromStationId;
+      return id ? [id] : [];
+    }),
+  );
+}
+
 // 選択肢の最初の徒歩区間が、現在地からこの駅へ向かうなら、その分数
 function findOptionWalkMinutes(
   options: readonly RouteOption[],

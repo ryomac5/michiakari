@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 
 // 入口の地図: 関西 → エリア → 駅の順に寄り、戻る操作で 1 段ずつ引ける
 // 駅を選んだら路線・方面・行き先・いまどこ・様子を同じ画面のシートで 1 問ずつ聞き、最後の一手で判断の画面へ移る
@@ -15,6 +16,9 @@ const toKobe = `${kobeLine}>jr-west.東海道線.神戸`;
 const toKyoto = `${kyotoLine}>jr-west.東海道線.篠原`;
 const midosujiNorth = `${midosuji}>osaka-metro.御堂筋線.江坂`;
 const midosujiSouth = `${midosuji}>osaka-metro.御堂筋線.中百舌鳥`;
+// 利用者に「分からない」と返す言い回し。結論と理由には出さない
+const nonDecisive =
+  /まだ判断できません|判断できません|分かりません|わかりません|情報が足りません|材料が不足|見込みが立ちません|unknown|can't|not enough information/i;
 
 // mock は判断の途中経過を固定の架空データで返す。agent に送る要求を確かめるときは mock を外す
 async function openEntry(page: Page, mock = true): Promise<void> {
@@ -108,6 +112,9 @@ test("心斎橋の御堂筋線を選ぶと方面を聞き、行き先の候補�
   await expectStage(page, "destination");
   const candidates = page.locator("[data-testid^='start-destination-candidate-']");
   await expect(candidates.first()).toHaveAttribute("data-operator", "Osaka Metro");
+  // 隣の本町は行き先としてはまれなので、先頭に出さず最後に回す
+  await expect(candidates.first()).not.toHaveAttribute("data-testid", /-本町$/);
+  await expect(candidates.last()).toHaveAttribute("data-testid", /-本町$/);
   // 候補は方面の先の駅だけ。JR の駅や逆の方面の駅は出さない
   await expect(page.getByTestId(testIds.start.destinationCandidate("梅田"))).toBeVisible();
   await expect(page.getByTestId(testIds.start.destinationCandidate("大阪"))).toHaveCount(0);
@@ -146,19 +153,45 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   await expect(conclusion).toBeVisible({ timeout: 30_000 });
-  // 原因が分からないので断言せず、確信度を下げて返す
+  // 原因を聞き取れなくても、いまは待ち、分岐点を過ぎたら切り替える形で言い切る
   await expect(conclusion).toHaveAttribute("data-action", "hold");
   await expect(conclusion).toContainText("低");
+  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toContainText(
+    /\d{1,2}時\d{2}分まで待って/,
+  );
+  await expect(conclusion).not.toContainText(nonDecisive);
+  // 分岐点の意味を一文で添える
+  await expect(page.getByTestId(testIds.judgment.breakEvenMeaning)).toContainText(
+    "この時刻までに動かなければ",
+  );
+
+  // 地図は止まっている御堂筋線と、乗り換えられる駅を語る
+  const map = page.getByTestId(testIds.judgment.map);
+  await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+  await expect(map).toHaveAttribute("data-view", "focus");
+  await expect(map).toHaveAttribute("data-focus-area", /^auto:/);
+  await expect(map).toHaveAttribute("data-blocked", "true");
+  const bubbles = page.locator(`[data-testid^="judgment-map-station-"]`);
+  expect(await bubbles.count()).toBeGreaterThanOrEqual(1);
+  expect(await bubbles.count()).toBeLessThanOrEqual(4);
+  await expect(bubbles.first()).toBeVisible();
+  await expect(page.getByTestId(mapTestIds.blockedTag)).toBeVisible();
+  await expect(page.getByTestId(mapTestIds.here)).toContainText("本町");
   await expect(page.getByTestId(testIds.judgment.disclaimer)).toBeVisible();
   await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("御堂筋線");
 
   const nextCheck = page.getByTestId(testIds.judgment.nextCheck);
   await expect(nextCheck).toContainText("再開見込み");
   await expect(nextCheck).toContainText("原因");
+  expect(await nextCheck.locator("li").count()).toBeLessThanOrEqual(3);
   const premise = page.getByTestId(testIds.judgment.premise);
   await expect(premise).toContainText("方面の主な駅");
   await expect(premise).toContainText("電車の中なので、本町駅にいるとして考えています");
-  await expect(premise).toContainText("止まった時刻が分からない");
+  await expect(premise).toContainText("止まった時刻は、いまとして数えています");
+  await expect(premise).toContainText("分岐点を動く目安");
+  for (const part of [premise, nextCheck, page.getByTestId(testIds.judgment.conclusionReason)]) {
+    await expect(part).not.toContainText(nonDecisive);
+  }
 
   // 次に確かめることから、様子の入れ直しへ移れる
   await page.getByTestId(testIds.judgment.nextCheckAction).click();

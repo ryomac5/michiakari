@@ -164,13 +164,18 @@ const compareStops = (a: DirectionStop, b: DirectionStop) =>
 
 // 行き先の候補。同じ事業者の駅を先に、乗降客数の多い主な駅から並べる
 // 方面の呼び名に出した駅（終点の京都河原町や直通先の千里中央など）は必ず入れる
+// 隣の駅は行き先としてはまれなので、候補に入っても最後に回す
 export function listDirectionCandidates(direction: EntryDirection, limit = 5): DirectionStop[] {
   const landmarks = direction.landmarks.slice(0, limit);
   const rest = [...direction.stops]
     .filter((s) => !landmarks.includes(s))
     .sort(compareStops)
     .slice(0, limit - landmarks.length);
-  return [...rest, ...landmarks].sort(compareStops);
+  const adjacent = direction.stops[0];
+  const isAdjacent = (s: DirectionStop) => Number(s === adjacent && direction.stops.length > 1);
+  return [...rest, ...landmarks].sort(
+    (a, b) => isAdjacent(a) - isAdjacent(b) || compareStops(a, b),
+  );
 }
 
 // 地図の札に出す駅。候補の順に、現在地と先に選んだ札から離れた駅だけを残す
