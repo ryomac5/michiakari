@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 // page 内で動かす関数（evaluate）のために DOM の型を読む
 import { fileURLToPath } from "node:url";
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
   loadReplayKnowledge,
@@ -12,6 +12,7 @@ import {
   waitForFiniteAnimations,
   waitForJudged,
 } from "../support/replay.ts";
+import { expect, test } from "../support/test.ts";
 
 // 雨量の推移のグラフ（デモ台本 1:50〜2:05）
 // 気象を使う事象かどうかは知見の external_factors.weather で決め、シナリオ ID は書かない

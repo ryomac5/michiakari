@@ -276,7 +276,8 @@ export function EntryMap(props: EntryMapProps) {
         });
         instance.touchZoomRotate.disableRotation();
         const loaded = instance;
-        loaded.on("load", () => {
+        // 下地のタイルを待たず、スタイルが読めたら路線を足して準備できたとする
+        loaded.once("style.load", () => {
           addLayers(loaded, geo, paletteRef.current);
           setMap(loaded);
         });

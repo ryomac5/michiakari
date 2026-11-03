@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { webServers, webUrl } from "./servers.ts";
+import { buildWebServers, stubExternal, webUrl } from "./servers.ts";
 
 export default defineConfig({
   testDir: "./tests",
@@ -12,5 +12,5 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: webServers,
+  webServer: buildWebServers({ stubExternal }),
 });

@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 // page 内で動かす関数（evaluate）のために DOM の型を読む
 import { fileURLToPath } from "node:url";
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import {
@@ -10,6 +10,7 @@ import {
   waitForFiniteAnimations,
   waitForJudged,
 } from "../support/replay.ts";
+import { expect, test } from "../support/test.ts";
 
 // 現在地のまわりの地図。乗り換え候補の駅を吹き出しで出し、「全体を見る」で経路の全体に切り替える
 // 大阪駅は手で整えた範囲を使い、ほかの駅は駅データから候補を自動で選ぶ

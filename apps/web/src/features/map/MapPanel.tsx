@@ -28,6 +28,7 @@ import {
   sourceIds,
 } from "./layers";
 import { fetchReachAreas, type ReachArea } from "./reach";
+import { waitForOwnLayersDrawn } from "./ready";
 import { BlockedTag, HereMarker, StationBubble } from "./StationBubble";
 import {
   type BlockedDirection,
@@ -481,7 +482,8 @@ export function MapPanel(props: MapPanelProps) {
         });
         instance.touchZoomRotate.disableRotation();
         const loaded = instance;
-        loaded.on("load", () => {
+        // 下地のタイルを待たず、スタイルが読めたら自前のレイヤーを足す
+        loaded.once("style.load", () => {
           addDataLayers(loaded, geo, paletteRef.current, toneRef.current);
           setMap(loaded);
         });
@@ -664,8 +666,9 @@ export function MapPanel(props: MapPanelProps) {
       fittedRef.current = fitKey;
     }
     setStatus((s) => (s === "ready" ? "updating" : s));
-    map.once("idle", () => setStatus("ready"));
+    const stopWaiting = waitForOwnLayersDrawn(map, () => setStatus("ready"));
     map.triggerRepaint();
+    return stopWaiting;
   }, [map, scene, guide, reachLabels, view, fitView, top, right, bottom, left, narrow]);
 
   // 全体を見るときの出発と行き先のピン

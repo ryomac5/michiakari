@@ -1,6 +1,7 @@
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
+import { expect, test } from "../support/test.ts";
 
 // 入口の地図: 関西 → エリア → 駅の順に寄り、戻る操作で 1 段ずつ引ける
 // 駅を選んだら路線・方面・行き先・いまどこ・様子を同じ画面のシートで 1 問ずつ聞き、最後の一手で判断の画面へ移る
