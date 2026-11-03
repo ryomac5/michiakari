@@ -12,8 +12,8 @@ import { testIds } from "../testids";
 // 入口で方面だけ・電車の中・分からないで進んだときの前提と、次に確かめること
 // 確信度が高くないときだけ、次に確かめることを出す。兆候の文言は知見の抜粋から引く
 
-// 次に確かめる兆候の数の上限
-const signalLimit = 2;
+// 次に確かめることの数の上限。兆候と定型の項目を合わせて数える
+const checkLimit = 3;
 
 function usePremises(): string[] {
   const t = useTranslations("judgment.premise");
@@ -37,13 +37,18 @@ function usePremises(): string[] {
 }
 
 // 今の段階の次の段階に出る兆候。知見の説明は日本語だけなので、英語の画面では出さない
-function listNextSignals(catalog: KnowledgeCatalog, estimate: Estimate, locale: string): string[] {
+function listNextSignals(
+  catalog: KnowledgeCatalog,
+  estimate: Estimate,
+  locale: string,
+  limit: number,
+): string[] {
   if (locale === "en") return [];
   const event = findCatalogEvent(catalog, estimate.eventType);
   if (!event) return [];
   const index = event.phases.findIndex((p) => p.id === estimate.phaseId);
   const next = event.phases[index + 1];
-  return (next?.signals ?? []).slice(0, signalLimit).map((s) => s.description);
+  return (next?.signals ?? []).slice(0, Math.max(0, limit)).map((s) => s.description);
 }
 
 export function PremiseSection() {
@@ -76,12 +81,12 @@ export function NextCheckSection({
   const t = useTranslations("judgment.nextCheck");
   const locale = useLocale();
   if (estimate.confidence === "high") return null;
-  const signals = listNextSignals(catalog, estimate, locale);
   const items = [
     ...(estimate.eventType === null ? [t("cause")] : []),
     t("resume"),
     ...(estimate.eventType === null ? [t("transfer")] : []),
-  ];
+  ].slice(0, checkLimit);
+  const signals = listNextSignals(catalog, estimate, locale, checkLimit - items.length);
   return (
     <SheetSection testId={testIds.judgment.nextCheck} title={t("title")}>
       <ul className="flex flex-col gap-2">
