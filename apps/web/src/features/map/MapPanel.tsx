@@ -80,8 +80,8 @@ const fitDurationMs = 700;
 const blockedTagMeters = [650, 500, 380, 260, 180];
 // 現在地や吹き出しの基準点から、これより近い候補は使わない（px）
 const blockedTagClearance = 70;
-// 到達範囲の札を置く向き。PC 幅は北西、狭い画面は画面に入りやすい南
-const reachLabelBearing = { wide: 315, narrow: 150 };
+// 到達範囲の札を置く向き。PC 幅は北西、狭い画面は画面に入りやすい南東
+const reachLabelBearing = { wide: 315, narrow: 135 };
 
 // 推奨経路の色。推奨の選択肢が待つなら青、それ以外は琥珀
 export function selectRouteTone(
@@ -137,7 +137,7 @@ function applyMapScene(map: MapLibreMap, scene: MapScene): void {
   setSourceData(map, sourceIds.keyStations, scene.keyStations);
 }
 
-// 狭い画面では、徒歩の札はおすすめの道だけにする。ほかの駅の分数は吹き出しの札が示す
+// 狭い画面では道が短く札が重なるので、徒歩の札は出さない。分数は吹き出しと札が示す
 function applyGuide(
   map: MapLibreMap,
   guide: StationGuide | null,
@@ -146,13 +146,7 @@ function applyGuide(
 ): void {
   const labels = guide?.walkLabels ?? emptyCollection;
   setSourceData(map, sourceIds.guideWalk, guide?.walkPaths ?? emptyCollection);
-  setSourceData(
-    map,
-    sourceIds.guideWalkLabels,
-    narrow && guide
-      ? { ...labels, features: guide.walkLabels.features.filter((f) => f.properties.recommended) }
-      : labels,
-  );
+  setSourceData(map, sourceIds.guideWalkLabels, narrow ? emptyCollection : labels);
   setSourceData(map, sourceIds.guideStations, {
     type: "FeatureCollection",
     features: (guide?.stations ?? []).map((s) => ({
