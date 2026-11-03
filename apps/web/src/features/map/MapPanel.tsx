@@ -33,6 +33,7 @@ import {
   type MapScene,
   type Position,
   type ReachSource,
+  resolvePlacePosition,
 } from "./scene";
 import {
   buildStationGuide,
@@ -75,6 +76,8 @@ const focusMargin = {
   narrow: { top: 56, right: 215, bottom: 30, left: 80 },
 };
 const fitDurationMs = 700;
+// 最初に出発の駅へ寄せておく拡大率。入口が判断へ移る直前に寄せる値とそろえる
+const initialOriginZoom = 15.8;
 // おすすめの吹き出しの高さのおよそ（px）
 const recommendedBubbleHeight = 130;
 // 止まっている路線の札は、現在地からこの距離の線上に置く
@@ -249,7 +252,7 @@ function useReachAreas(origin: Place): readonly ReachArea[] | null {
 type HostKey = string;
 
 // DOM で描く印（吹き出し・現在地・止まっている路線の札）。MapLibre の Marker に React の部品を差し込む
-function useMarkerHosts(
+export function useMarkerHosts(
   map: MapLibreMap | null,
   markerClass: typeof Marker | null,
   entries: readonly {
@@ -310,6 +313,8 @@ export function MapPanel(props: MapPanelProps) {
   paletteRef.current = palette;
   const toneRef = useRef(tone);
   toneRef.current = tone;
+  const originRef = useRef(origin);
+  originRef.current = origin;
   const fittedRef = useRef<string | null>(null);
   const markersRef = useRef<{ origin: Marker | null; destination: Marker | null }>({
     origin: null,
@@ -348,11 +353,13 @@ export function MapPanel(props: MapPanelProps) {
       .then(({ Map: MapClass, Marker: MarkerClass }) => {
         if (disposed) return;
         setMarkerClass(() => MarkerClass);
+        // 入口から移ってきたときに地図が引いて見えないよう、出発の駅に寄せた視点で作る
+        const start = resolvePlacePosition(geo.index, originRef.current);
         instance = new MapClass({
           container,
           style: buildBaseStyle(paletteRef.current),
-          center: defaultCenter,
-          zoom: 10,
+          center: start ?? defaultCenter,
+          zoom: start ? initialOriginZoom : 10,
           minZoom: 7,
           maxZoom: 17,
           attributionControl: false,

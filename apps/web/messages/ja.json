@@ -405,5 +405,47 @@
       "half": "半分まで開いています。",
       "full": "すべて開いています。"
     }
+  },
+  "entry": {
+    "question": "いま、どこで止まっていますか",
+    "hint": "地図の駅か、そのあたりを触ってください",
+    "searchPlaceholder": "駅名・よみがなで探す",
+    "mapLabel": "駅を選ぶ地図",
+    "back": "戻る",
+    "here": "いま",
+    "around": "{station}のあたり",
+    "areaQuestion": "どの駅ですか",
+    "areaHint": "{area}の駅です。地図の丸か、下から選んでください",
+    "lineQuestion": "止まっている路線はどれですか",
+    "lineHint": "乗っていた路線を選んでください",
+    "nearby": "近くの駅は{station}です（約{distance}）",
+    "suspended": "見合わせ",
+    "destinationQuestion": "どこへ向かいますか",
+    "destinationLabel": "行き先",
+    "destinationPlaceholder": "駅名・よみがな（例: 三ノ宮）",
+    "suggestions": "主な駅",
+    "from": "出発",
+    "to": "行き先",
+    "change": "選び直す",
+    "methodQuestion": "いまの様子を教えてください",
+    "methodHint": "掲示や発表から、いまの段階を読み取ります",
+    "methods": {
+      "photo": {
+        "title": "撮る",
+        "note": "掲示や画面",
+        "heading": "掲示や画面を撮ってください"
+      },
+      "paste": {
+        "title": "貼る",
+        "note": "発表の文章",
+        "heading": "発表の文章を貼ってください"
+      },
+      "select": {
+        "title": "選ぶ",
+        "note": "聞いた案内",
+        "heading": "当てはまるものを選んでください"
+      }
+    },
+    "demoNote": "架空のシナリオで判断の流れを再生"
   }
 }

@@ -1,0 +1,194 @@
+"use client";
+
+import type { MouseEvent, ReactNode } from "react";
+import { testIds } from "@/features/judgment/testids";
+import { cn } from "@/lib/utils";
+import type { LabelSide } from "./areas";
+
+// 入口の地図の印。押せる範囲は丸を中心にした 44px の四角で、名前の札はその外側に出す
+
+const labelSideClass: Record<LabelSide, string> = {
+  right: "left-[calc(50%+14px)] top-1/2 -translate-y-1/2",
+  left: "right-[calc(50%+14px)] top-1/2 -translate-y-1/2",
+  top: "bottom-[calc(50%+14px)] left-1/2 -translate-x-1/2",
+  bottom: "top-[calc(50%+14px)] left-1/2 -translate-x-1/2",
+};
+
+function stop(handler: () => void) {
+  return (e: MouseEvent) => {
+    e.stopPropagation();
+    handler();
+  };
+}
+
+function MarkerButton({
+  label,
+  side,
+  onClick,
+  testId,
+  dim = false,
+  pressed,
+  dot,
+  children,
+}: {
+  label: string;
+  side: LabelSide;
+  onClick: () => void;
+  testId: string;
+  dim?: boolean;
+  pressed?: boolean;
+  dot: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      aria-label={label}
+      aria-pressed={pressed}
+      onClick={stop(onClick)}
+      className={cn(
+        "group relative flex size-11 animate-fade-in items-center justify-center rounded-full transition-opacity duration-200",
+        dim && "opacity-45 hover:opacity-100",
+      )}
+    >
+      {dot}
+      <span
+        aria-hidden
+        className={cn(
+          "absolute flex items-center gap-1.5 whitespace-nowrap rounded-full bg-surface text-foreground shadow-[0_2px_10px_rgb(0_0_0/0.16)] ring-1 ring-[var(--glass-border)] transition-transform duration-150 group-hover:scale-[1.04] group-active:scale-95",
+          labelSideClass[side],
+        )}
+      >
+        {children}
+      </span>
+    </button>
+  );
+}
+
+// 関西の段の大きな丸
+export function HubMarker({
+  areaId,
+  label,
+  side,
+  onSelect,
+}: {
+  areaId: string;
+  label: string;
+  side: LabelSide;
+  onSelect: () => void;
+}) {
+  return (
+    <MarkerButton
+      label={label}
+      side={side}
+      onClick={onSelect}
+      testId={testIds.start.hub(areaId)}
+      dot={
+        <span className="flex size-[26px] items-center justify-center rounded-full bg-surface shadow-[0_2px_10px_rgb(0_0_0/0.22)] transition-transform duration-150 group-hover:scale-110 group-active:scale-90">
+          <span className="size-3 rounded-full bg-brand" />
+        </span>
+      }
+    >
+      <span className="px-3.5 py-1.5 text-[15px] leading-none font-bold">{label}</span>
+    </MarkerButton>
+  );
+}
+
+function LineSwatches({ colors }: { colors: string[] }) {
+  return (
+    <span className="flex gap-0.5">
+      {colors.slice(0, 4).map((color, i) => (
+        <span
+          // biome-ignore lint/suspicious/noArrayIndexKey: 同じ色の路線が並ぶことがあり、位置で見分ける
+          key={i}
+          className="h-3 w-1.5 rounded-full"
+          style={{ backgroundColor: color }}
+        />
+      ))}
+    </span>
+  );
+}
+
+// エリアの段の駅。選んだ駅は判断の画面の現在地と同じ青い丸にする
+export function PlaceMarker({
+  placeKey,
+  label,
+  side,
+  colors,
+  selected,
+  dim,
+  hereLabel,
+  onSelect,
+}: {
+  placeKey: string;
+  label: string;
+  side: LabelSide;
+  colors: string[];
+  selected: boolean;
+  dim: boolean;
+  hereLabel: string;
+  onSelect: () => void;
+}) {
+  return (
+    <MarkerButton
+      label={label}
+      side={side}
+      onClick={onSelect}
+      testId={testIds.start.place(placeKey)}
+      dim={dim}
+      pressed={selected}
+      dot={
+        selected ? (
+          <span className="relative size-5">
+            <span
+              aria-hidden
+              className="absolute -inset-3 animate-here-pulse rounded-full bg-focus/30"
+            />
+            <span className="absolute inset-0 rounded-full border-[3px] border-white bg-focus shadow-[0_1px_6px_rgb(0_0_0/0.35)]" />
+          </span>
+        ) : (
+          <span
+            className="size-[15px] rounded-full border-[3.5px] bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.25)] transition-transform duration-150 group-hover:scale-110 group-active:scale-90"
+            style={{ borderColor: colors[0] ?? "currentColor" }}
+          />
+        )
+      }
+    >
+      <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] leading-none font-semibold">
+        {selected && <span className="text-focus">{hereLabel}</span>}
+        {label}
+        <LineSwatches colors={colors} />
+      </span>
+    </MarkerButton>
+  );
+}
+
+// 行き先のピン。判断の画面の行き先と同じ形にする
+export function DestinationMarker({ label }: { label: string }) {
+  return (
+    <div
+      data-testid={testIds.start.destinationPin}
+      className="relative flex animate-drop-in flex-col items-center"
+    >
+      <span className="mb-1 rounded-full bg-surface ring-1 ring-[var(--glass-border)] px-2.5 py-1.5 text-[13px] leading-none font-semibold whitespace-nowrap text-foreground shadow-[0_2px_10px_rgb(0_0_0/0.16)]">
+        {label}
+      </span>
+      <svg
+        width="28"
+        height="36"
+        viewBox="0 0 28 36"
+        aria-hidden
+        className="text-foreground drop-shadow-[0_2px_4px_rgb(0_0_0/0.3)]"
+      >
+        <path
+          d="M14 35c-6-8-12-13-12-20a12 12 0 0 1 24 0c0 7-6 12-12 20Z"
+          fill="currentColor"
+          stroke="white"
+          strokeWidth="2"
+        />
+        <circle cx="14" cy="14" r="4.5" fill="white" />
+      </svg>
+    </div>
+  );
+}
