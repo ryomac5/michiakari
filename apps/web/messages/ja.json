@@ -24,28 +24,19 @@
     "short": "推定であり、公式発表を優先してください。"
   },
   "start": {
-    "lead": "いる駅と行き先を選ぶと、運転見合わせのときに待つか乗り換えるかの見込みを示します。",
     "originLabel": "いまいる駅",
-    "originPlaceholder": "駅名・よみがな（例: 大阪）",
     "locate": "現在地を使う",
     "locating": "現在地を取得しています…",
     "locateFailed": "現在地を取得できませんでした。駅名で選んでください。",
     "locateUnsupported": "この端末では現在地を取得できません。駅名で選んでください。",
     "currentLocation": "現在地",
-    "nearest": "最寄り: {station}（約{distance}）",
-    "destinationLabel": "行き先",
-    "destinationPlaceholder": "駅名・よみがな（例: 三ノ宮）",
     "useFreeText": "「{text}」を行き先にする",
     "noResults": "一致する駅がありません",
-    "clear": "選び直す",
-    "next": "状況を伝える",
     "replayLink": "デモを見る",
-    "replayNote": "架空のシナリオで、発表のたびに判断が変わる様子を再生します。",
     "nearestFailed": "最寄り駅を調べられませんでした。駅名で選ぶこともできます。",
     "locationNote": "現在地は最寄り駅を調べるためだけに送り、保存しません。",
     "resultCount": "{count}件の駅が見つかりました",
-    "searchFailed": "駅を検索できませんでした。通信を確かめてください。",
-    "or": "または"
+    "searchFailed": "駅を検索できませんでした。通信を確かめてください。"
   },
   "situation": {
     "heading": "いまの状況を教えてください",
@@ -446,6 +437,7 @@
         "heading": "当てはまるものを選んでください"
       }
     },
-    "demoNote": "架空のシナリオで判断の流れを再生"
+    "demoNote": "架空のシナリオで判断の流れを再生",
+    "quickPicks": "よく使う駅"
   }
 }

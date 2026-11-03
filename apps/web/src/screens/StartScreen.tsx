@@ -30,8 +30,9 @@ import {
   pickPlaceName,
   resolveConfiguredArea,
 } from "@/features/entry/entry-places";
-import { initialEntryState, reduceEntry } from "@/features/entry/flow";
+import { initialEntryState, reduceEntry, stageDepth } from "@/features/entry/flow";
 import { buildLineObservation } from "@/features/entry/seed";
+import { useEntryHistory } from "@/features/entry/use-entry-history";
 import { useJudgmentSession } from "@/features/judgment/session";
 import { testIds } from "@/features/judgment/testids";
 import { loadMapGeoData, type MapGeoData } from "@/features/map/geo-data";
@@ -47,6 +48,8 @@ import { desktopMediaQuery, useMediaQuery } from "@/lib/use-media-query";
 const handoffZoom = 15.8;
 // PC 幅の右パネルの幅と余白
 const panelInset = 400 + 32;
+// PC 幅の関西の段で、左に重ねる列（上部の帯・問いかけ・デモの札）の幅と余白
+const leftColumnInset = 560 + 32;
 
 // 高さを測って地図の余白に使う
 function useElementHeight<T extends HTMLElement>() {
@@ -114,12 +117,26 @@ export function StartScreen() {
   const [promptRef, promptHeight] = useElementHeight<HTMLDivElement>();
   const [dockRef, dockHeight] = useElementHeight<HTMLDivElement>();
   const [sheetHeight, setSheetHeight] = useState(0);
+  const depth = stageDepth(entry.stage);
+  const [restored, setRestored] = useState(false);
+  const goToDepth = useEntryHistory(depth, dispatch, restored);
+
+  // エリアや関西まで引いたら、選んでいた出発の駅と路線を捨てる
+  const prevStageRef = useRef(entry.stage);
+  useEffect(() => {
+    const prev = prevStageRef.current;
+    prevStageRef.current = entry.stage;
+    if (depth < stageDepth(prev) && depth <= stageDepth("area")) {
+      setOrigin(null);
+      setOriginLine(null);
+      setNote(null);
+    }
+  }, [entry.stage, depth, setOrigin, setOriginLine]);
 
   // 判断の画面から戻ったときは、選んだ駅・路線・行き先の状態に戻す
-  const restoredRef = useRef(false);
   useEffect(() => {
-    if (!data || restoredRef.current) return;
-    restoredRef.current = true;
+    if (!data || restored) return;
+    setRestored(true);
     if (origin?.kind !== "station" || !originLine) return;
     const choice = findStationChoice(data, origin.name);
     const opened = choice ? openStationChoice(data, choice) : null;
@@ -127,7 +144,7 @@ export function StartScreen() {
     dispatch({ type: "openPlace", area: opened.area, place: opened.place });
     dispatch({ type: "chooseLine", line: originLine });
     if (destination) dispatch({ type: "chooseDestination" });
-  }, [data, origin, originLine, destination]);
+  }, [data, restored, origin, originLine, destination]);
 
   const openPlace = useCallback(
     (choice: StationChoice) => {
@@ -160,7 +177,7 @@ export function StartScreen() {
   const { status: locateStatus, locate } = useCurrentLocation(handleLocated);
   const locateMessage =
     locateStatus === "locating"
-      ? t("start.locating")
+      ? `${t("start.locating")} ${t("start.locationNote")}`
       : locateStatus === "failed"
         ? t("start.locateFailed")
         : locateStatus === "unsupported"
@@ -175,18 +192,8 @@ export function StartScreen() {
       const area = findAreaAt(data, point);
       if (area) dispatch({ type: "openArea", area });
     } else if (entry.stage === "station") {
-      dispatch({ type: "back" });
+      goToDepth(stageDepth("area"));
     }
-  }
-
-  function handleBack() {
-    const next = reduceEntry(entry, { type: "back" });
-    if (next.stage === "area" || next.stage === "kansai") {
-      setOrigin(null);
-      setOriginLine(null);
-      setNote(null);
-    }
-    dispatch({ type: "back" });
   }
 
   function chooseLine(line: EntryLine) {
@@ -220,10 +227,10 @@ export function StartScreen() {
   const showSheet = entry.stage !== "kansai";
   const insets: MapInsets = desktop
     ? {
-        top: showSheet ? sheetTopInset : sheetTopInset + promptHeight + 8,
+        top: sheetTopInset,
         right: showSheet ? panelInset : 0,
-        bottom: showSheet ? 0 : dockHeight,
-        left: 0,
+        bottom: 0,
+        left: showSheet ? 0 : leftColumnInset,
       }
     : {
         top: showSheet ? sheetTopInset : sheetTopInset + promptHeight + 8,
@@ -278,22 +285,30 @@ export function StartScreen() {
         variant="map"
         below={
           entry.stage === "kansai" ? (
-            <PromptCard
-              ref={promptRef}
-              locateStatus={locateStatus}
-              message={locateMessage}
-              onLocate={locate}
-              onSelect={openPlace}
-            />
+            <>
+              <PromptCard
+                ref={promptRef}
+                locateStatus={locateStatus}
+                message={locateMessage}
+                onLocate={locate}
+                onSelect={openPlace}
+                quickPicks={desktop ? hubs : null}
+                onQuickPick={(stationName) => {
+                  const choice = data ? findStationChoice(data, stationName) : null;
+                  if (choice) openPlace(choice);
+                }}
+              />
+              {desktop && <DemoDock inline />}
+            </>
           ) : undefined
         }
       />
       <main id="main">
-        {entry.stage === "kansai" && <DemoDock ref={dockRef} />}
+        {entry.stage === "kansai" && !desktop && <DemoDock ref={dockRef} />}
         {showSheet && (
           <EntrySheet
             stageKey={`${entry.stage}:${entry.area?.id}:${entry.place?.key}`}
-            onBack={handleBack}
+            onBack={() => goToDepth(depth - 1)}
             onHeightChange={setSheetHeight}
           >
             {entry.stage === "area" && entry.area && (
@@ -321,8 +336,8 @@ export function StartScreen() {
                 originName={lineOriginName}
                 destinationName={destinationLabel}
                 line={entry.line}
-                onEditLine={() => dispatch({ type: "editLine" })}
-                onEditDestination={() => dispatch({ type: "editDestination" })}
+                onEditLine={() => goToDepth(stageDepth("station"))}
+                onEditDestination={() => goToDepth(stageDepth("destination"))}
               />
             )}
             {entry.stage === "method" && (

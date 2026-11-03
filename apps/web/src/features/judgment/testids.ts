@@ -28,6 +28,8 @@ export const testIds = {
     hubEdge: (areaId: string) => `start-hub-edge-${areaId}`,
     place: (key: string) => `start-place-${key}`,
     destinationPin: "start-destination-pin",
+    // PC 幅の問いかけの下の、よく使う駅
+    quickPick: (areaId: string) => `start-quick-pick-${areaId}`,
     sheet: "start-sheet",
     back: "start-back",
     areaPlace: (key: string) => `start-area-place-${key}`,

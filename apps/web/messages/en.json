@@ -24,28 +24,19 @@
     "short": "Estimate only. Follow official notices."
   },
   "start": {
-    "lead": "Pick where you are and where you're going. If trains stop, we'll estimate whether to wait or switch.",
     "originLabel": "Where are you?",
-    "originPlaceholder": "Station name (e.g. Osaka)",
     "locate": "Use my location",
     "locating": "Getting your location…",
     "locateFailed": "Couldn't get your location. Please choose a station.",
     "locateUnsupported": "Location isn't available on this device. Please choose a station.",
     "currentLocation": "Current location",
-    "nearest": "Nearest: {station} (about {distance})",
-    "destinationLabel": "Where are you going?",
-    "destinationPlaceholder": "Station name (e.g. Sannomiya)",
     "useFreeText": "Go to “{text}”",
     "noResults": "No matching stations",
-    "clear": "Change",
-    "next": "Tell us what's happening",
     "replayLink": "Watch the demo",
-    "replayNote": "Replay a fictional incident and watch the advice change with each announcement.",
     "nearestFailed": "Couldn't find the nearest station. You can also choose one by name.",
     "locationNote": "Your location is sent only to find the nearest station and is never stored.",
     "resultCount": "{count, plural, one {# station found} other {# stations found}}",
-    "searchFailed": "Station search failed. Please check your connection.",
-    "or": "or"
+    "searchFailed": "Station search failed. Please check your connection."
   },
   "situation": {
     "heading": "What's happening now?",
@@ -446,6 +437,7 @@
         "heading": "Choose what applies"
       }
     },
-    "demoNote": "Replay a fictional disruption"
+    "demoNote": "Replay a fictional disruption",
+    "quickPicks": "Popular stations"
   }
 }
