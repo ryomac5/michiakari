@@ -80,8 +80,16 @@ test("大阪駅では現在地のまわりに寄せ、乗り換え候補の駅�
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}map-focus-switch-390x844.png` });
 
-  // 吹き出しを押すと、シートが開いてその選択肢が目立つ
+  // おすすめの吹き出しの路線は、推奨の選択肢の最初の乗車区間と、選択肢の名前の路線に一致する
   const optionId = await map.getAttribute("data-recommended-option");
+  const recommendedOption = page.getByTestId(testIds.judgment.option(optionId ?? ""));
+  const firstLine = await recommendedOption.getAttribute("data-first-line");
+  const mainLine = await recommendedOption.getAttribute("data-main-line");
+  expect(firstLine).not.toBe("");
+  await expect(recommended).toHaveAttribute("data-route-line", firstLine ?? "");
+  await expect(recommended).toHaveAttribute("data-route-main-line", mainLine ?? "");
+
+  // 吹き出しを押すと、シートが開いてその選択肢が目立つ
   await recommended.click();
   await expect(page.getByTestId(testIds.judgment.sheet)).toHaveAttribute("data-snap", "full");
   const option = page.getByTestId(testIds.judgment.option(optionId ?? ""));

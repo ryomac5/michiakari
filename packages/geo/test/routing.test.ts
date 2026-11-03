@@ -1,10 +1,16 @@
 import { computeArrival, MAX_ROUTE_CANDIDATES } from "@repo/core";
 import { type RouteOption, RouteOptionSchema, LINE_TYPES as SCHEMA_LINE_TYPES } from "@repo/schema";
 import { describe, expect, it } from "vitest";
-import { type BlockedSection, type FindAlternativeRoutesInput, LINE_TYPES } from "../src/index.ts";
+import {
+  applyNetworkCorrections,
+  type BlockedSection,
+  type FindAlternativeRoutesInput,
+  LINE_TYPES,
+} from "../src/index.ts";
 import { loadNetworkData, loadRouter } from "../src/node.ts";
 
-const network = loadNetworkData();
+// 経路探索は網の補正（阪急京都線の大阪梅田発など）を足した網で行うので、照合も同じ網で行う
+const network = applyNetworkCorrections(loadNetworkData());
 const router = loadRouter();
 
 const DAYTIME = "2026-11-05T14:00:00+09:00";

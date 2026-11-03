@@ -110,6 +110,37 @@ const loopOption: RouteOption = {
   ] as RouteOption["legs"],
 };
 
+// 大阪梅田まで歩き、阪急京都線に乗る選択肢（網の補正で足した京都線の大阪梅田から乗る）
+const hankyuOption: RouteOption = {
+  id: "transfer_hankyu",
+  kind: "transfer",
+  label: "阪急京都線で振替",
+  arrivalTime: "2026-11-06T00:20:00+09:00",
+  fareYen: null,
+  walkMinutes: 9,
+  isTransferService: true,
+  legs: [
+    {
+      mode: "walk",
+      from: "大阪",
+      to: "大阪梅田",
+      minutes: 9,
+      fromStationId: "jr-west.東海道線.大阪",
+      toStationId: "hankyu.京都線.大阪梅田",
+    },
+    {
+      mode: "ride",
+      from: "大阪梅田",
+      to: "烏丸",
+      minutes: 57,
+      line: "阪急京都線",
+      fromStationId: "hankyu.京都線.大阪梅田",
+      toStationId: "hankyu.京都線.烏丸",
+      lineId: "hankyu.京都線",
+    },
+  ] as RouteOption["legs"],
+};
+
 function buildInput(overrides: Partial<StationGuideInput> = {}): StationGuideInput {
   return {
     origin: { kind: "station", name: "大阪" },
@@ -172,17 +203,46 @@ describe("buildStationGuide", () => {
     expect(kitashinchi?.walkMinutes).toBe(estimateWalkMinutes(origin.lonLat, station.lonLat));
   });
 
-  it("止まっている路線を見合わせ、別の事業者で振替輸送に乗る駅を振替の対象にする", () => {
+  it("止まっている路線を見合わせ、振替の選択肢の名前の路線が出る駅だけを振替の対象にする", () => {
     const guide = buildGuide();
     const byKey = new Map(guide.stations.map((s) => [s.key, s]));
-    expect(byKey.get("metro-umeda")?.transferService).toBe(true);
+    // 御堂筋線は阪急京都線へ乗り継ぐためだけに使うので、振替の対象にしない
+    expect(byKey.get("metro-umeda")?.transferService).toBe(false);
     expect(byKey.get("hankyu-umeda")?.transferService).toBe(true);
-    // 阪神は振替の選択肢に出てこない。JR は止まっている路線と同じ事業者なので振替とは書かない
+    const kyoto = byKey.get("hankyu-umeda")?.lines.find((l) => l.lineId === "hankyu.京都線");
+    expect(kyoto?.transferService).toBe(true);
     expect(byKey.get("hanshin-umeda")?.transferService).toBe(false);
     expect(byKey.get("metro-umeda")?.suspended).toBe(false);
     const here = guide.here.lines.find((l) => l.lineId === tokaido);
-    expect(here).toMatchObject({ name: "JR京都線", suspended: true });
+    expect(here).toMatchObject({ name: "JR京都線", suspended: true, transferService: false });
     expect(guide.here.lines[0]?.suspended).toBe(true);
+  });
+
+  it("推奨が乗り継ぐなら、おすすめの吹き出しに最初の路線と、結論の路線への乗り継ぎを 2 段で持たせる", () => {
+    const metro = buildGuide().stations.find((s) => s.key === "metro-umeda");
+    expect(metro?.route?.first.name).toBe("地下鉄御堂筋線");
+    expect(metro?.route?.via).toMatchObject({
+      stationName: "南方",
+      line: { name: "阪急京都線", transferService: true },
+    });
+    const others = buildGuide().stations.filter((s) => s.key !== "metro-umeda");
+    expect(others.every((s) => s.route === null)).toBe(true);
+  });
+
+  it("大阪梅田から阪急京都線に乗る推奨では、阪急の吹き出しがおすすめになり、京都線を先頭に置く", () => {
+    const guide = buildGuide({
+      options: [waitOption, hankyuOption, metroOption],
+      recommendedOptionId: "transfer_hankyu",
+    });
+    const hankyu = guide.stations.find((s) => s.key === "hankyu-umeda");
+    expect(hankyu).toMatchObject({
+      recommended: true,
+      optionId: "transfer_hankyu",
+      walkMinutes: 9,
+    });
+    expect(hankyu?.lines[0]?.name).toBe("阪急京都線");
+    expect(hankyu?.route).toMatchObject({ first: { name: "阪急京都線" }, via: null });
+    expect(guide.stations.filter((s) => s.recommended)).toHaveLength(1);
   });
 
   it("振替輸送がまだ無い判断では、振替の印を付けない", () => {
@@ -193,7 +253,7 @@ describe("buildStationGuide", () => {
     expect(guide.stations.some((s) => s.transferService)).toBe(false);
   });
 
-  it("阪急の大阪梅田には、路線データに駅の無い京都線も乗れる路線として出す", () => {
+  it("阪急の大阪梅田には、網の補正で足した京都線も乗れる路線として出す", () => {
     const hankyu = buildGuide().stations.find((s) => s.key === "hankyu-umeda");
     expect(hankyu?.lines.map((l) => l.name)).toContain("阪急京都線");
   });

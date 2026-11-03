@@ -1,5 +1,6 @@
 "use client";
 
+import { findMainRideLeg } from "@repo/geo";
 import type { RouteOption } from "@repo/schema";
 import { LoaderCircle, Star } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -84,6 +85,13 @@ function OptionRow({
   const Icon = optionIcons[option.kind];
   const tone = actionStyles[selectOptionTone(option.kind)];
   const translateLine = useLineTranslator();
+  // 最初に乗る路線と、選択肢の名前の路線。地図の吹き出しと同じものを指すかを外から確かめる
+  const firstRide = option.legs.find((l) => l.mode === "ride") as
+    | (RouteOption["legs"][number] & { lineId?: string | null })
+    | undefined;
+  const mainRide = findMainRideLeg(option.legs, undefined) as
+    | (RouteOption["legs"][number] & { lineId?: string | null })
+    | undefined;
   // 英語の画面に日本語の路線名を混ぜない。英語名が無ければ「乗車」と書く
   const legs = option.legs
     .filter((leg) => leg.mode !== "wait")
@@ -98,6 +106,8 @@ function OptionRow({
       data-kind={option.kind}
       data-recommended={recommended}
       data-station={mark?.key ?? ""}
+      data-first-line={firstRide?.lineId ?? ""}
+      data-main-line={mainRide?.lineId ?? ""}
       data-highlighted={highlighted}
       className={cn(
         "flex items-start gap-3 rounded-2xl px-3 py-2.5 transition-shadow duration-300",

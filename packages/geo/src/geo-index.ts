@@ -1,3 +1,4 @@
+import { applyNetworkCorrections, listExtendedStationAliases } from "./corrections.ts";
 import { computeDistanceMeters } from "./distance.ts";
 import { buildNetworkGraph, type NetworkGraph } from "./graph.ts";
 import { normalizeSearchText } from "./text.ts";
@@ -116,11 +117,20 @@ function indexIsochrones(
   return byKey;
 }
 
-export function createGeoIndex(network: NetworkData, options: GeoIndexOptions = {}): GeoIndex {
+export function createGeoIndex(input: NetworkData, options: GeoIndexOptions = {}): GeoIndex {
+  const network = applyNetworkCorrections(input);
   const stationById = new Map(network.nodes.map((n) => [n.stationId, n]));
   const lineById = new Map(network.lines.map((l) => [l.lineId, l]));
   const transfersByStation = indexTransfers(network.transfers);
   const isochroneByKey = indexIsochrones(options.isochrones);
+  // 補正で写した駅は、写した元の駅の到達範囲を使う
+  for (const alias of listExtendedStationAliases(network)) {
+    for (const [key, feature] of [...isochroneByKey]) {
+      const [id, minutes] = key.split("\u0000");
+      if (id === alias.sourceStationId)
+        isochroneByKey.set(`${alias.stationId}\u0000${minutes}`, feature);
+    }
+  }
   const searchEntries: SearchEntry[] = network.nodes.map((station) => ({
     station,
     keys: [station.name, station.reading]

@@ -1,3 +1,4 @@
+import { applyNetworkCorrections } from "./corrections.ts";
 import type { LineType, NetworkData } from "./types.ts";
 import { getTransferWalkMinutes } from "./walk.ts";
 
@@ -24,7 +25,8 @@ export type GraphLink = RideLink | TransferLink;
 
 export type NetworkGraph = ReadonlyMap<string, readonly GraphLink[]>;
 
-export function buildNetworkGraph(network: NetworkData): NetworkGraph {
+export function buildNetworkGraph(input: NetworkData): NetworkGraph {
+  const network = applyNetworkCorrections(input);
   const graph = new Map<string, GraphLink[]>(network.nodes.map((n) => [n.stationId, []]));
   const link = (from: string, entry: GraphLink) => graph.get(from)?.push(entry);
   for (const e of network.edges) {
