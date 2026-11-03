@@ -437,7 +437,12 @@ export function EntryMap(props: EntryMapProps) {
           resolve();
           return;
         }
-        map.once("moveend", () => resolve());
+        // 別の視点の動きに割り込まれて moveend が来ないときも、動きの長さを過ぎたら先へ進む
+        const timer = setTimeout(resolve, durationMs + 300);
+        map.once("moveend", () => {
+          clearTimeout(timer);
+          resolve();
+        });
         map.flyTo({
           center: origin,
           zoom,
