@@ -8,6 +8,7 @@ import { actionStyles } from "../action-style";
 import { splitHeadline } from "../headline";
 import { testIds } from "../testids";
 import { formatClockTime } from "../time";
+import { NoBreakText } from "./NoBreakText";
 
 // 判断の種類のピル。アイコン・色・ラベルを必ず併せて出す
 export function ActionPill({ action, className }: { action: Action; className?: string }) {
@@ -69,14 +70,14 @@ export function ConclusionCard({
         data-testid={testIds.judgment.conclusionHeadline}
         className="line-clamp-2 text-[22px] leading-[1.3] font-bold tracking-tight text-balance"
       >
-        {lead}
+        <NoBreakText text={lead} />
       </h2>
       {cardReason && (
         <p
           data-testid={testIds.judgment.conclusionReason}
           className="line-clamp-3 text-[15px] leading-snug text-pretty"
         >
-          {cardReason}
+          <NoBreakText text={cardReason} />
         </p>
       )}
     </section>
@@ -94,7 +95,8 @@ export function ConclusionDetail({ judgment }: { judgment: Judgment }) {
   const remaining = judgment.estimate.remaining;
 
   const chips: string[] = [];
-  if (recommended && judgment.action !== "wait") {
+  // 切り替えでは、閉じたシートが切り替え先の到着を出すので重ねない
+  if (recommended && judgment.action === "hold") {
     chips.push(
       lead.includes(recommended.label)
         ? t("conclusion.arrival", { time: formatClockTime(recommended.arrivalTime, locale) })
@@ -114,7 +116,7 @@ export function ConclusionDetail({ judgment }: { judgment: Judgment }) {
           data-testid={testIds.judgment.conclusionReason}
           className="text-[15px] leading-relaxed text-pretty"
         >
-          {reason}
+          <NoBreakText text={reason} />
         </p>
       )}
       <ul className="flex flex-wrap gap-1.5 text-[12px] text-muted">

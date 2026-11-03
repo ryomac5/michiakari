@@ -25,6 +25,7 @@ import { StatusChip, TripChip } from "@/features/judgment/components/TripSummary
 import { TypicalFlowSection } from "@/features/judgment/components/TypicalFlow";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
+import { selectSwitchStep } from "@/features/judgment/switch-step";
 import { testIds } from "@/features/judgment/testids";
 import { formatClockTime } from "@/features/judgment/time";
 import { useOptionFocus } from "@/features/judgment/use-option-focus";
@@ -140,6 +141,7 @@ export function ReplayPlayer({
     now,
     timeline: selectTimelineBasis(display.settled, catalog, deadline),
   };
+  const switchStep = selectSwitchStep(display.judgment ?? null);
 
   return (
     <div
@@ -260,6 +262,10 @@ export function ReplayPlayer({
                   <BreakEvenSummary
                     {...breakEvenProps}
                     hideMeaning={selectCardReason(display.judgment) !== null}
+                    switchStep={switchStep}
+                    switchLineColor={
+                      guide?.optionMarks.find((m) => m.optionId === switchStep?.optionId)?.color
+                    }
                   />
                 )}
                 {started && <Disclaimer />}

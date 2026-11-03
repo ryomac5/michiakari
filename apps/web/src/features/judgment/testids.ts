@@ -97,6 +97,8 @@ export const testIds = {
     breakEvenTime: "judgment-break-even-time",
     breakEvenMeaning: "judgment-break-even-meaning",
     breakEvenCountdown: "judgment-break-even-countdown",
+    // 切り替えの判断で、分岐点と残り時間の代わりに出す「阪急京都線 大阪梅田まで徒歩 9 分・00:14 着」
+    switchStep: "judgment-switch-step",
     // 閉じたシートの「おおよその再開 23:43〜23:58 は分岐点より後」。data-relation を出す
     breakEvenResume: "judgment-break-even-resume",
     // 「21:40 までに再開しなければ…」の文
