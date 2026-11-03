@@ -216,6 +216,18 @@
       },
       "openKnowledge": "See in knowledge base"
     },
+    "flow": {
+      "title": "Typical flow",
+      "now": "Now: {phase} · {index}/{total}",
+      "steps": "{total} steps",
+      "minutes": "~{minutes} min",
+      "here": "You are here",
+      "predictability": {
+        "high": "Predictable",
+        "medium": "Somewhat variable",
+        "low": "Hard to predict"
+      }
+    },
     "addInfo": {
       "title": "Add information",
       "lead": "Seen a new notice or announcement? Add it to update the advice."
@@ -338,6 +350,11 @@
   },
   "about": {
     "title": "About MatsuKaeru",
+    "why": {
+      "title": "Why we built this",
+      "p1": "When an incident happens, crews put safety and recovery first, so announcements tend to stop at what happened.",
+      "p2": "Experienced drivers and dispatchers can read how things will likely unfold. This app brings that reading to the people stuck on the platform right now."
+    },
     "purpose": {
       "title": "Purpose",
       "p1": "Service updates tell you what happened. MatsuKaeru goes one step further and suggests what to do.",
@@ -485,6 +502,7 @@
     "causeHint": "Pick what sounds closest",
     "causes": {
       "person": "Person hit by a train",
+      "inCar": "Emergency button / passenger help",
       "vehicle": "Train inspection",
       "signal": "Signal trouble",
       "rain": "Heavy rain",

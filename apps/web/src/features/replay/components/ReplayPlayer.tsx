@@ -11,13 +11,18 @@ import { Button } from "@/components/ui/button";
 import { selectTimelineBasis } from "@/features/judgment/break-even-timeline";
 import { BreakEvenDetail, BreakEvenSummary } from "@/features/judgment/components/BreakEvenPanel";
 import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
-import { ConclusionCard, ConclusionDetail } from "@/features/judgment/components/ConclusionCard";
+import {
+  ConclusionCard,
+  ConclusionDetail,
+  selectCardReason,
+} from "@/features/judgment/components/ConclusionCard";
 import { Disclaimer } from "@/features/judgment/components/Disclaimer";
 import { EvidenceSection } from "@/features/judgment/components/EvidenceSection";
 import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
 import { StatusChip, TripChip } from "@/features/judgment/components/TripSummary";
+import { TypicalFlowSection } from "@/features/judgment/components/TypicalFlow";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { testIds } from "@/features/judgment/testids";
@@ -81,6 +86,7 @@ export function ReplayPlayer({
   const nowIso = resolveScenarioTime(scenario.start_time, player.clockMinutes);
   const now = useMemo(() => new Date(nowIso), [nowIso]);
   const display = selectJudgmentDisplay(state);
+  const typicalFlow = display.settled?.judgment.typicalFlow ?? null;
   const streaming = state.status === "streaming";
   const started = player.enteredCount > 0;
 
@@ -250,7 +256,12 @@ export function ReplayPlayer({
                     }
                   />
                 )}
-                {started && !streaming && <BreakEvenSummary {...breakEvenProps} />}
+                {started && !streaming && (
+                  <BreakEvenSummary
+                    {...breakEvenProps}
+                    hideMeaning={selectCardReason(display.judgment) !== null}
+                  />
+                )}
                 {started && <Disclaimer />}
               </div>
             </div>
@@ -269,14 +280,23 @@ export function ReplayPlayer({
                   <ConclusionDetail judgment={display.judgment} />
                 </SheetSection>
               )}
+              <SheetSection>
+                {typicalFlow ? (
+                  <TypicalFlowSection
+                    flow={typicalFlow}
+                    estimate={display.estimate}
+                    expanded={chrome.desktop || chrome.snap === "full"}
+                    testIds={{ section: testIds.replay.phaseStrip, phase: testIds.replay.phase }}
+                  />
+                ) : (
+                  <PhaseStrip estimate={display.estimate} catalog={catalog} />
+                )}
+              </SheetSection>
               {display.breakEven && (
                 <SheetSection>
                   <BreakEvenDetail {...breakEvenProps} />
                 </SheetSection>
               )}
-              <SheetSection>
-                <PhaseStrip estimate={display.estimate} catalog={catalog} />
-              </SheetSection>
               <SheetSection>
                 <OptionList
                   options={display.options}
@@ -302,6 +322,7 @@ export function ReplayPlayer({
                   evidence={display.evidence}
                   catalog={catalog}
                   disclaimer={disclaimerExtra}
+                  showPhases={typicalFlow === null}
                 />
               </SheetSection>
               <SheetSection>

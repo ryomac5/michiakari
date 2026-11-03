@@ -3,11 +3,13 @@ import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 // 何も分からない人にも答えられる問いの選択肢。答えは既存の観測の型と知見の種別に結び付ける
 // 新しい知見の中身は作らない。知見に無い種別の選択肢は出さない
 
-export type CauseId = "person" | "vehicle" | "signal" | "rain";
+export type CauseId = "person" | "inCar" | "vehicle" | "signal" | "rain";
 
 // 放送の言葉と、それに当たる知見の id の候補。知見にある最初の id を使う
 const causeEventTypes: { id: CauseId; eventTypes: string[] }[] = [
   { id: "person", eventTypes: ["person_accident"] },
+  // 非常通報装置や車内のお客様対応。人身事故と並べ、短く終わる事象を見分けやすくする
+  { id: "inCar", eventTypes: ["in_car_response"] },
   { id: "vehicle", eventTypes: ["vehicle_failure", "vehicle_inspection"] },
   { id: "signal", eventTypes: ["signal_failure", "signal_trouble"] },
   { id: "rain", eventTypes: ["heavy_rain"] },

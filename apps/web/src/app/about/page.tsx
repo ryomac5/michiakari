@@ -2,6 +2,7 @@ import {
   BookOpen,
   Database,
   ExternalLink,
+  Lightbulb,
   Map as MapIcon,
   ShieldAlert,
   Target,
@@ -88,6 +89,15 @@ export default async function AboutPage() {
       </PageHero>
 
       <div className="grid items-start gap-4 lg:grid-cols-2">
+        <AboutSection
+          icon={<Lightbulb aria-hidden />}
+          title={t("why.title")}
+          testId={testIds.about.why}
+          className="lg:col-span-2"
+        >
+          <p className="leading-relaxed">{t("why.p1")}</p>
+          <p className="leading-relaxed">{t("why.p2")}</p>
+        </AboutSection>
         <AboutSection icon={<Target aria-hidden />} title={t("purpose.title")}>
           <p className="leading-relaxed">{t("purpose.p1")}</p>
           <p className="leading-relaxed">{t("purpose.p2")}</p>

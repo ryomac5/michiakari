@@ -23,6 +23,8 @@ type BreakEvenProps = {
   timeline?: TimelineBasis | null;
   // リプレイではシナリオ内の時刻で残り時間を数える。省略時は端末の時計
   now?: Date | null;
+  // 結論のカードが理由を出すときは、分岐点の意味の一文を省いて閉じたシートを短く保つ
+  hideMeaning?: boolean;
 };
 
 type BreakEvenState = "pending" | "none" | "passed" | "soon" | "open";
@@ -102,7 +104,7 @@ export function BreakEvenSummary(props: BreakEvenProps) {
         )}
       </div>
       {/* 分岐点の意味を一文で添える。数値は持たず、時刻は上の行が示す */}
-      {breakEven && state === "open" && (
+      {breakEven && state === "open" && !props.hideMeaning && (
         <p data-testid={testIds.judgment.breakEvenMeaning} className="text-[13px] text-muted">
           {t("meaning")}
         </p>

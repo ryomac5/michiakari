@@ -1,6 +1,15 @@
 "use client";
 
-import { Clock, CloudRain, Megaphone, Play, TrainFront, TriangleAlert, Wrench } from "lucide-react";
+import {
+  BellRing,
+  Clock,
+  CloudRain,
+  Megaphone,
+  Play,
+  TrainFront,
+  TriangleAlert,
+  Wrench,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { EmptyState } from "@/components/PageShell";
@@ -16,6 +25,7 @@ import { pickScenarioText, type ReplayScenario } from "../scenario";
 // 事象ごとの印。知見に無い事象は列車の印にする
 const eventIcons: Record<string, ReactNode> = {
   heavy_rain: <CloudRain />,
+  in_car_response: <BellRing />,
   person_accident: <TriangleAlert />,
   vehicle_failure: <Wrench />,
 };

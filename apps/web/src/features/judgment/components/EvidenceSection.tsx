@@ -41,6 +41,7 @@ export function EvidenceSection({
   evidence,
   catalog,
   disclaimer = null,
+  showPhases = true,
 }: {
   estimate: Estimate | null;
   signals: DetectedSignal[];
@@ -48,6 +49,8 @@ export function EvidenceSection({
   catalog: KnowledgeCatalog;
   // 判断が添えた注意書き
   disclaimer?: string | null;
+  // よくある流れの欄が段階を示すときは、ここでは段階を出さない
+  showPhases?: boolean;
 }) {
   const t = useTranslations("judgment.evidence");
 
@@ -68,7 +71,7 @@ export function EvidenceSection({
         />
       </CollapsibleTrigger>
       <CollapsibleContent className="flex flex-col gap-5 px-4 pb-4">
-        <PhaseTimeline estimate={estimate} catalog={catalog} />
+        {showPhases && <PhaseTimeline estimate={estimate} catalog={catalog} />}
         <SignalList signals={signals} catalog={catalog} />
         {evidence.length > 0 && (
           <div className="flex flex-col gap-2">

@@ -31,7 +31,13 @@ export function ActionPill({ action, className }: { action: Action; className?: 
   );
 }
 
-// 結論を一つだけ大きく出す。閉じたシートに収まるよう、ピルと見出し 1 文だけにする
+// 見込みが立てやすい事象では、理由に事象のよくある流れが入る。行動の理由がすぐ伝わるよう、閉じたシートに理由を出す
+export function selectCardReason(judgment: Judgment | null): string | null {
+  if (judgment?.typicalFlow?.predictability.level !== "high") return null;
+  return judgment.reason ?? null;
+}
+
+// 結論を一つだけ大きく出す。閉じたシートに収まるよう、ピルと見出しと、流れが読める事象では理由だけにする
 export function ConclusionCard({
   judgment,
   badge,
@@ -42,6 +48,7 @@ export function ConclusionCard({
 }) {
   const t = useTranslations("judgment");
   const { lead } = splitHeadline(judgment.headline);
+  const cardReason = selectCardReason(judgment);
 
   return (
     <section
@@ -64,6 +71,14 @@ export function ConclusionCard({
       >
         {lead}
       </h2>
+      {cardReason && (
+        <p
+          data-testid={testIds.judgment.conclusionReason}
+          className="line-clamp-3 text-[15px] leading-snug text-pretty"
+        >
+          {cardReason}
+        </p>
+      )}
     </section>
   );
 }
@@ -73,7 +88,8 @@ export function ConclusionDetail({ judgment }: { judgment: Judgment }) {
   const t = useTranslations("judgment");
   const locale = useLocale();
   const { lead, rest } = splitHeadline(judgment.headline);
-  const reason = judgment.reason ?? rest;
+  // 結論のカードが理由を出していれば、ここでは重ねない
+  const reason = selectCardReason(judgment) ? null : (judgment.reason ?? rest);
   const recommended = judgment.options.find((o) => o.id === judgment.recommendedOptionId);
   const remaining = judgment.estimate.remaining;
 
