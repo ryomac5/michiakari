@@ -204,7 +204,8 @@
         "wait": "Wait",
         "taxi": "Taxi"
       },
-      "walkShort": "{minutes} min walk"
+      "walkShort": "{minutes} min walk",
+      "from": "From {station}"
     },
     "evidence": {
       "title": "Why we think so",
@@ -312,7 +313,17 @@
   },
   "map": {
     "title": "Map",
-    "placeholder": "Map coming soon"
+    "placeholder": "Map coming soon",
+    "suspended": "Suspended",
+    "statusSuspended": "Suspended",
+    "statusRunning": "Running",
+    "recommended": "Suggested",
+    "walk": "{minutes} min walk",
+    "minutesShort": "{minutes} min",
+    "transferService": "Transfer OK",
+    "here": "You",
+    "viewOverview": "Whole route",
+    "viewFocus": "Around you"
   },
   "about": {
     "title": "About MatsuKaeru",

@@ -143,7 +143,7 @@ export function BackdropMap({
   useEffect(() => {
     if (!map) return;
     for (const { layerId, key, value } of listPaintValues(palette, "wait")) {
-      if (layerId === "background" || layerId === "gsi-blank") {
+      if (layerId === "background" || layerId === "gsi-pale") {
         type PaintArgs = Parameters<MapLibreMap["setPaintProperty"]>;
         map.setPaintProperty(layerId, key as PaintArgs[1], value as PaintArgs[2]);
       }

@@ -1,5 +1,6 @@
 "use client";
 
+import type { RouteOption } from "@repo/schema";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
@@ -20,11 +21,16 @@ import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { testIds } from "@/features/judgment/testids";
+import { useOptionFocus } from "@/features/judgment/use-option-focus";
 import { MapLegend } from "@/features/map/MapLegend";
 import { MapPanel, selectRouteTone } from "@/features/map/MapPanel";
 import type { ReachSource } from "@/features/map/scene";
+import type { StationGuide } from "@/features/map/station-guide";
 import { useLineLabel } from "@/features/map/use-line-label";
 import { SituationInput } from "@/features/situation/SituationInput";
+
+// 選択肢がまだ無いときの空の配列。描画のたびに新しい配列を作ると地図の組み立てが繰り返される
+const noOptions: RouteOption[] = [];
 
 export function JudgmentScreen() {
   const t = useTranslations("judgment");
@@ -33,6 +39,8 @@ export function JudgmentScreen() {
     useJudgmentSession();
   const chrome = useMapChrome();
   const [reachSource, setReachSource] = useState<ReachSource | null>(null);
+  const [guide, setGuide] = useState<StationGuide | null>(null);
+  const { highlightId, focusOption } = useOptionFocus(chrome.setSnap);
   const known = [...observations, ...state.observations];
   const blockedLine = known.findLast((o) => o.line !== null)?.line ?? null;
   const lineLabel = useLineLabel(blockedLine);
@@ -50,7 +58,7 @@ export function JudgmentScreen() {
   const blockedSection = known.findLast((o) => o.section !== null)?.section ?? null;
   const disclaimerExtra =
     display.judgment?.disclaimer ?? state.previousJudgment?.disclaimer ?? null;
-  const options = display.options ?? [];
+  const options = display.options ?? noOptions;
   const tone = selectRouteTone(options, display.recommendedOptionId);
   const breakEvenProps = {
     breakEven: display.breakEven,
@@ -79,6 +87,8 @@ export function JudgmentScreen() {
         blockedLine={blockedLine}
         insets={chrome.insets}
         onReachSourceChange={setReachSource}
+        onGuideChange={setGuide}
+        onSelectOption={focusOption}
       />
 
       <main id="main">
@@ -131,6 +141,8 @@ export function JudgmentScreen() {
               recommendedOptionId={display.recommendedOptionId}
               stale={display.optionsStale}
               pending={streaming}
+              marks={guide?.optionMarks}
+              highlightId={highlightId}
             />
           </SheetSection>
           <SheetSection>

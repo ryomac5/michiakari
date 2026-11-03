@@ -17,6 +17,8 @@ export type MapLabels = {
   };
   // 地図を推奨経路と区間の全体に戻すボタン
   recenter: string;
+  // 徒歩の道と到達範囲の札
+  walkLabel: (minutes: number) => string;
   // 地図の隅の出典。short は画面幅 390px でも 1 行に収まる短い表記、full は読み上げ用の全文
   attribution: { short: string; full: string[]; link: string };
   gestures: { windows: string; mac: string; mobile: string };
@@ -38,6 +40,7 @@ const ja: MapLabels = {
     places: "出発と行き先",
   },
   recenter: "経路の全体を表示",
+  walkLabel: (minutes) => `徒歩 ${minutes} 分`,
   attribution: {
     short: "国土地理院 / © OpenStreetMap contributors / 国土数値情報",
     full: [
@@ -70,6 +73,7 @@ const en: MapLabels = {
     places: "Start and destination",
   },
   recenter: "Show the whole route",
+  walkLabel: (minutes) => `${minutes} min walk`,
   attribution: {
     short: "GSI Japan / © OpenStreetMap contributors / MLIT",
     full: [

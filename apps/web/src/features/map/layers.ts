@@ -35,9 +35,9 @@ export const mapPalettes: Record<MapTheme, MapPalette> = {
   light: {
     background: "#f1f1ef",
     // 淡色地図を灰色にし、暗い部分を持ち上げて白っぽく低いコントラストにする
-    rasterBrightnessMin: 0.66,
+    rasterBrightnessMin: 0.68,
     rasterBrightnessMax: 1,
-    rasterContrast: -0.5,
+    rasterContrast: -0.55,
     rail: "#71717a",
     railOpacity: 0.42,
     reach: "#2563eb",
@@ -55,9 +55,9 @@ export const mapPalettes: Record<MapTheme, MapPalette> = {
   dark: {
     background: "#161618",
     // 明るさの上限と下限を逆にして、淡色地図を濃い灰色に反転させる
-    rasterBrightnessMin: 0.19,
-    rasterBrightnessMax: 0.08,
-    rasterContrast: -0.2,
+    rasterBrightnessMin: 0.24,
+    rasterBrightnessMax: 0.09,
+    rasterContrast: -0.3,
     rail: "#a1a1aa",
     railOpacity: 0.3,
     reach: "#60a5fa",
@@ -75,7 +75,7 @@ export const mapPalettes: Record<MapTheme, MapPalette> = {
 };
 
 export const sourceIds = {
-  gsi: "gsi-blank",
+  gsi: "gsi-pale",
   lines: "lines",
   reach: "walk-reach",
   blocked: "blocked-section",
@@ -84,13 +84,56 @@ export const sourceIds = {
   alternatives: "alternative-routes",
   keyStations: "key-stations",
   labels: "station-labels",
+  guideWalk: "guide-walk",
+  guideWalkLabels: "guide-walk-labels",
+  guideStations: "guide-stations",
+  reachLabels: "walk-reach-labels",
 } as const;
+
+// 地図の見せ方。focus は現在地のまわり、overview は行き先までの全体
+export type MapView = "focus" | "overview";
+
+export type MapMode = {
+  view: MapView;
+  // 現在地のまわりで路線色に塗る路線
+  relevantLineIds: readonly string[];
+  blockedLineIds: readonly string[];
+};
+
+const overviewMode: MapMode = { view: "overview", relevantLineIds: [], blockedLineIds: [] };
+
+// 片方の見せ方でだけ出す層
+const focusOnlyLayerIds = new Set([
+  "walk-reach-outline-20",
+  "guide-walk-paths",
+  "guide-walk-labels",
+  "guide-station-dots",
+  "walk-reach-labels",
+]);
+const overviewOnlyLayerIds = new Set([
+  "alternative-routes",
+  "route-casing",
+  "route-ride",
+  "route-taxi",
+  "route-walk",
+  "route-label",
+  "key-station-dots",
+  "key-station-labels",
+  // 現在地のまわりでは駅名を吹き出しが示すので、路線データの駅名は出さない
+  "station-labels-major",
+]);
+
+function selectVisibility(layerId: string, view: MapView): "visible" | "none" {
+  if (focusOnlyLayerIds.has(layerId)) return view === "focus" ? "visible" : "none";
+  if (overviewOnlyLayerIds.has(layerId)) return view === "overview" ? "visible" : "none";
+  return "visible";
+}
 
 // 経路の色を変える層。判断が変わったら塗りだけを差し替える
 export const routeColorLayerIds = ["route-ride", "route-taxi", "route-walk"] as const;
 
-// 地理院タイル（白地図）。地名や記号の文字が無く、主役の情報だけを立たせられる。ズーム 5〜14 で提供される
-const gsiBlankTiles = "https://cyberjapandata.gsi.go.jp/xyz/blank/{z}/{x}/{y}.png";
+// 地理院タイル（淡色地図）。低いコントラストで敷き、目印になる地名がうっすら見える程度にする
+const gsiPaleTiles = "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png";
 
 // glyphs を指定しないので、文字はすべて端末のフォントで描かれる。名前の並びが CSS の font-family になる
 // 太字は先頭の名前に含まれる Bold から判定される
@@ -106,16 +149,16 @@ export function buildBaseStyle(palette: MapPalette): StyleSpecification {
     sources: {
       [sourceIds.gsi]: {
         type: "raster",
-        tiles: [gsiBlankTiles],
+        tiles: [gsiPaleTiles],
         tileSize: 256,
         minzoom: 5,
-        maxzoom: 14,
+        maxzoom: 18,
       },
     },
     layers: [
       { id: "background", type: "background", paint: { "background-color": palette.background } },
       {
-        id: "gsi-blank",
+        id: "gsi-pale",
         type: "raster",
         source: sourceIds.gsi,
         paint: {
@@ -154,9 +197,34 @@ const routeOffset: ExpressionSpecification = [
 ];
 
 // 重ねる順（下から）: 到達範囲 → 路線 → 代替経路 → 推奨経路 → 止まっている区間 → 駅 → 文字
-export function buildDataLayers(palette: MapPalette, tone: Action = "wait"): LayerSpecification[] {
+export function buildDataLayers(
+  palette: MapPalette,
+  tone: Action = "wait",
+  mode: MapMode = overviewMode,
+): LayerSpecification[] {
   const accent = palette.route[tone];
   const halo = { "text-halo-color": palette.textHalo, "text-halo-width": 1.6 };
+  const focus = mode.view === "focus";
+  const relevant: ExpressionSpecification = [
+    "in",
+    ["get", "lineId"],
+    ["literal", [...mode.relevantLineIds]],
+  ];
+  const blocked: ExpressionSpecification = [
+    "in",
+    ["get", "lineId"],
+    ["literal", [...mode.blockedLineIds]],
+  ];
+  // 現在地のまわりでは、止まっている路線を赤、案内に出す路線を各社の色、ほかを淡い灰色にする
+  const railColor: ExpressionSpecification | string = focus
+    ? ["case", blocked, palette.blocked, relevant, ["get", "color"], palette.rail]
+    : palette.rail;
+  const railWidth: ExpressionSpecification = focus
+    ? ["case", blocked, 3, relevant, 3, 1]
+    : byZoom(0.8, 2);
+  const railOpacity: ExpressionSpecification | number = focus
+    ? ["case", blocked, 0.35, relevant, 0.8, palette.railOpacity * 0.6]
+    : palette.railOpacity;
 
   return [
     // 20 分の範囲だけを淡く塗り、10 分は細い輪郭だけにする
@@ -180,14 +248,21 @@ export function buildDataLayers(palette: MapPalette, tone: Action = "wait"): Lay
       },
     },
     {
+      id: "walk-reach-outline-20",
+      type: "line",
+      source: sourceIds.reach,
+      filter: ["==", ["get", "minutes"], 20],
+      paint: { "line-color": palette.reach, "line-width": 1, "line-opacity": 0.3 },
+    },
+    {
       id: "rail-lines",
       type: "line",
       source: sourceIds.lines,
       layout: { "line-cap": "round", "line-join": "round" },
       paint: {
-        "line-color": palette.rail,
-        "line-width": byZoom(0.8, 2),
-        "line-opacity": palette.railOpacity,
+        "line-color": railColor,
+        "line-width": railWidth,
+        "line-opacity": railOpacity,
       },
     },
     {
@@ -270,6 +345,29 @@ export function buildDataLayers(palette: MapPalette, tone: Action = "wait"): Lay
         "line-color-transition": colorTransition,
         "line-width": 4,
         "line-dasharray": [0, 2],
+      },
+    },
+    // 現在地から乗り換え候補の駅への徒歩の道。おすすめだけ太くアクセント色にする
+    {
+      id: "guide-walk-paths",
+      type: "line",
+      source: sourceIds.guideWalk,
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: {
+        "line-color": ["case", ["get", "recommended"], palette.route.switch, palette.textMuted],
+        "line-width": ["case", ["get", "recommended"], 5, 3],
+        "line-dasharray": [0, 1.8],
+      },
+    },
+    {
+      id: "guide-station-dots",
+      type: "circle",
+      source: sourceIds.guideStations,
+      paint: {
+        "circle-radius": ["case", ["get", "recommended"], 7, 5],
+        "circle-color": palette.stationFill,
+        "circle-stroke-color": ["get", "color"],
+        "circle-stroke-width": ["case", ["get", "recommended"], 4, 3],
       },
     },
     // 乗換駅と止まっている区間の端は小さな丸。出発と行き先は画面側のピンで示す
@@ -363,18 +461,70 @@ export function buildDataLayers(palette: MapPalette, tone: Action = "wait"): Lay
         "text-halo-width": 2,
       },
     },
-  ] as LayerSpecification[];
+    {
+      id: "walk-reach-labels",
+      type: "symbol",
+      source: sourceIds.reachLabels,
+      layout: {
+        "text-field": ["get", "label"],
+        "text-font": fontRegular,
+        "text-size": 11,
+        "text-allow-overlap": false,
+      },
+      paint: { "text-color": palette.reach, ...halo, "text-halo-width": 2 },
+    },
+    {
+      id: "guide-walk-labels",
+      type: "symbol",
+      source: sourceIds.guideWalkLabels,
+      layout: {
+        "text-field": ["get", "label"],
+        "text-font": [
+          "case",
+          ["get", "recommended"],
+          ["literal", fontBold],
+          ["literal", fontRegular],
+        ],
+        "text-size": ["case", ["get", "recommended"], 13, 11],
+        "symbol-sort-key": ["case", ["get", "recommended"], 0, 1],
+        "text-padding": 2,
+      },
+      paint: {
+        "text-color": ["case", ["get", "recommended"], palette.text, palette.textMuted],
+        "text-halo-color": palette.textHalo,
+        "text-halo-width": 2.4,
+      },
+    },
+  ].map((layer) =>
+    focusOnlyLayerIds.has(layer.id) || overviewOnlyLayerIds.has(layer.id)
+      ? {
+          ...layer,
+          layout: { ...(layer.layout ?? {}), visibility: selectVisibility(layer.id, mode.view) },
+        }
+      : layer,
+  ) as LayerSpecification[];
 }
 
-// テーマや判断が変わったときに塗りの値だけを入れ替えるための一覧
+// テーマ・判断・見せ方が変わったときに、塗りと表示の値だけを入れ替えるための一覧
 export function listPaintValues(
   palette: MapPalette,
   tone: Action,
-): { layerId: string; key: string; value: unknown }[] {
-  const layers = [...buildBaseStyle(palette).layers, ...buildDataLayers(palette, tone)];
-  return layers.flatMap((layer) =>
-    Object.entries(("paint" in layer ? layer.paint : undefined) ?? {})
+  mode: MapMode = overviewMode,
+): { layerId: string; key: string; value: unknown; kind: "paint" | "layout" }[] {
+  const layers = [...buildBaseStyle(palette).layers, ...buildDataLayers(palette, tone, mode)];
+  return layers.flatMap((layer) => [
+    ...Object.entries(("paint" in layer ? layer.paint : undefined) ?? {})
       .filter(([key]) => !key.endsWith("-transition"))
-      .map(([key, value]) => ({ layerId: layer.id, key, value })),
-  );
+      .map(([key, value]) => ({ layerId: layer.id, key, value, kind: "paint" as const })),
+    ...("layout" in layer && layer.layout && "visibility" in layer.layout
+      ? [
+          {
+            layerId: layer.id,
+            key: "visibility",
+            value: layer.layout.visibility,
+            kind: "layout" as const,
+          },
+        ]
+      : []),
+  ]);
 }

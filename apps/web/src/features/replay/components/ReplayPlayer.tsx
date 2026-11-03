@@ -1,6 +1,6 @@
 "use client";
 
-import { type Action, resolveDeadline } from "@repo/schema";
+import { type Action, type RouteOption, resolveDeadline } from "@repo/schema";
 import { ArrowLeft, History, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
@@ -22,10 +22,12 @@ import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { testIds } from "@/features/judgment/testids";
 import { formatClockTime } from "@/features/judgment/time";
+import { useOptionFocus } from "@/features/judgment/use-option-focus";
 import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import { MapLegend } from "@/features/map/MapLegend";
 import { MapPanel, selectRouteTone } from "@/features/map/MapPanel";
 import type { ReachSource } from "@/features/map/scene";
+import type { StationGuide } from "@/features/map/station-guide";
 import { useLineLabel } from "@/features/map/use-line-label";
 import { pickStationName, type StationNames } from "@/features/stations/describe";
 import { computeReplayProgress } from "../clock";
@@ -42,6 +44,9 @@ import { PhaseStrip } from "./PhaseStrip";
 import { ReplayBar } from "./ReplayBar";
 import { ReplayHistory } from "./ReplayHistory";
 import { ReplayOutcomeCard } from "./ReplayOutcomeCard";
+
+// 選択肢がまだ無いときの空の配列。描画のたびに新しい配列を作ると地図の組み立てが繰り返される
+const noOptions: RouteOption[] = [];
 
 // 上部の帯の下に再生バー（56px）と余白を重ねるぶん、シートの上端を下げる
 const replayTopInset = sheetTopInset + 64;
@@ -70,6 +75,8 @@ export function ReplayPlayer({
   const chrome = useMapChrome(replayTopInset);
   const { setSnap } = chrome;
   const [reachSource, setReachSource] = useState<ReachSource | null>(null);
+  const [guide, setGuide] = useState<StationGuide | null>(null);
+  const { highlightId, focusOption } = useOptionFocus(chrome.setSnap);
 
   const nowIso = resolveScenarioTime(scenario.start_time, player.clockMinutes);
   const now = useMemo(() => new Date(nowIso), [nowIso]);
@@ -83,7 +90,7 @@ export function ReplayPlayer({
   const lineLabel = useLineLabel(blockedLine);
   const disclaimerExtra =
     display.judgment?.disclaimer ?? state.previousJudgment?.disclaimer ?? null;
-  const options = display.options ?? [];
+  const options = display.options ?? noOptions;
   const tone = selectRouteTone(options, display.recommendedOptionId);
 
   // 表示中の判断と、その一つ前の判断の行動
@@ -190,6 +197,8 @@ export function ReplayPlayer({
         blockedLine={blockedLine}
         insets={{ ...chrome.insets, top: chrome.insets.top + announcementInset }}
         onReachSourceChange={setReachSource}
+        onGuideChange={setGuide}
+        onSelectOption={focusOption}
       />
 
       <main id="main">
@@ -274,6 +283,8 @@ export function ReplayPlayer({
                   recommendedOptionId={display.recommendedOptionId}
                   stale={display.optionsStale}
                   pending={streaming}
+                  marks={guide?.optionMarks}
+                  highlightId={highlightId}
                 />
               </SheetSection>
               <SheetSection>
