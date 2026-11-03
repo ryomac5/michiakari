@@ -52,6 +52,7 @@ export {
 export {
   compareReplayOutcome,
   OUTCOME_SMALL_DIFF_MINUTES,
+  type OutcomeTraveler,
   type ReplayDecision,
   type ReplayOutcome,
   type ReplayOutcomeInput,

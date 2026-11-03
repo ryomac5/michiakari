@@ -2,7 +2,7 @@ import type { Action } from "@repo/schema";
 import { checkDeadline, type DeadlineCheck } from "./break-even.ts";
 import { addMinutesToIso, formatJstIso, parseIsoToMs } from "./time.ts";
 
-// リプレイの結末: 判断に従った人と待ち続けた人の到着時刻を、実際の再開時刻で比べる
+// リプレイの結末: 判断に従った人と、その判断と逆を選んだ人の到着時刻を、実際の再開時刻で比べる
 // 値はリプレイ中に記録した判断のものだけを使い、新しい推定はしない
 
 const MS_PER_MINUTE = 60_000;
@@ -30,31 +30,30 @@ export type ReplayOutcomeInput = {
   deadline: string | null;
 };
 
-// followed_earlier: 従った人が早い。waited_earlier: 待った人が早い
-// about_same: 差が小さい。never_switched: 最後まで切り替えの判断が出なかった
-export type ReplayOutcomeVerdict =
-  | "followed_earlier"
-  | "waited_earlier"
-  | "about_same"
-  | "never_switched";
+// 結末に並べる 1 人分
+export type OutcomeTraveler = {
+  // 切り替えた時刻。再開を待って乗ったなら null
+  switchedAt: string | null;
+  arrival: string;
+  // 期限が無ければ null
+  deadline: DeadlineCheck | null;
+};
+
+// followed_earlier: 従った人が早い。counterpart_earlier: 比べる相手が早い。about_same: 差が小さい
+export type ReplayOutcomeVerdict = "followed_earlier" | "counterpart_earlier" | "about_same";
 
 export type ReplayOutcome = {
   resumedAt: string;
-  // 判断に従って切り替えた時刻。切り替えなければ null
-  switchedAt: string | null;
-  followedArrival: string;
-  waitedArrival: string;
-  // 待ち続けた人の到着 − 判断に従った人の到着（分）。正なら従った人が早い
+  followed: OutcomeTraveler;
+  // 比べる相手。切り替えた判断なら待ち続けた人、最後まで待つ判断なら最初の観測で切り替えた人
+  // 待つ判断で代替手段が無ければ待ち続けた人とし、従った人と同じ時刻に着く
+  counterpart: OutcomeTraveler;
+  // 相手の到着 − 従った人の到着（分）。正なら従った人が早い
   diffMinutes: number;
-  // 期限が無ければ null
-  followedDeadline: DeadlineCheck | null;
-  waitedDeadline: DeadlineCheck | null;
-  // 最後まで待つ判断だった場合に、最初の判断の時点で切り替えていたときの到着
-  firstAlternativeArrival: string | null;
-  // 待ち続けた人の到着 − 最初の時点で切り替えた場合の到着（分）。比べられなければ null
-  alternativeDiffMinutes: number | null;
   verdict: ReplayOutcomeVerdict;
 };
+
+type SwitchPoint = { observedAt: string; arrival: string };
 
 function diffRoundedMinutes(fromIso: string, toIso: string): number {
   return Math.round((parseIsoToMs(toIso) - parseIsoToMs(fromIso)) / MS_PER_MINUTE);
@@ -74,20 +73,39 @@ function pickWaitRideMinutes(
 function findFirstSwitch(
   decisions: readonly ReplayDecision[],
   resumedMs: number,
-): (ReplayDecision & { recommendedArrival: string }) | null {
+): SwitchPoint | null {
   for (const d of decisions) {
     if (parseIsoToMs(d.observedAt) >= resumedMs) break;
     if (d.action === "switch" && d.recommendedArrival !== null) {
-      return { ...d, recommendedArrival: d.recommendedArrival };
+      return { observedAt: d.observedAt, arrival: d.recommendedArrival };
     }
   }
   return null;
 }
 
-function selectVerdict(switched: boolean, diffMinutes: number): ReplayOutcomeVerdict {
-  if (!switched) return "never_switched";
+// 最初の観測で、最も早い代替手段へ切り替えた場合。代替手段が無ければ null
+function findSwitchAtStart(decisions: readonly ReplayDecision[]): SwitchPoint | null {
+  const first = decisions[0];
+  if (!first?.bestAlternativeArrival) return null;
+  return { observedAt: first.observedAt, arrival: first.bestAlternativeArrival };
+}
+
+function selectVerdict(diffMinutes: number): ReplayOutcomeVerdict {
   if (Math.abs(diffMinutes) < OUTCOME_SMALL_DIFF_MINUTES) return "about_same";
-  return diffMinutes > 0 ? "followed_earlier" : "waited_earlier";
+  return diffMinutes > 0 ? "followed_earlier" : "counterpart_earlier";
+}
+
+function buildTraveler(
+  switchedAt: string | null,
+  arrival: string,
+  deadline: string | null,
+): OutcomeTraveler {
+  const normalized = formatJstIso(parseIsoToMs(arrival));
+  return {
+    switchedAt: switchedAt === null ? null : formatJstIso(parseIsoToMs(switchedAt)),
+    arrival: normalized,
+    deadline: deadline === null ? null : checkDeadline(normalized, deadline),
+  };
 }
 
 // 結末を求める。正解が無い、または再開後の乗車分が記録に無いときは null
@@ -104,27 +122,21 @@ export function compareReplayOutcome(input: ReplayOutcomeInput): ReplayOutcome |
   const rideMinutes = pickWaitRideMinutes(decisions, resumedMs);
   if (rideMinutes === null) return null;
 
-  const waitedArrival = addMinutesToIso(resumedAt, input.firstTrainWaitMinutes + rideMinutes);
+  const waited = buildTraveler(
+    null,
+    addMinutesToIso(resumedAt, input.firstTrainWaitMinutes + rideMinutes),
+    input.deadline,
+  );
+  // 切り替えた判断なら待ち続けた人と比べ、最後まで待つ判断なら最初に切り替えた人と比べる
   const firstSwitch = findFirstSwitch(decisions, resumedMs);
-  const followedArrival = firstSwitch
-    ? formatJstIso(parseIsoToMs(firstSwitch.recommendedArrival))
-    : waitedArrival;
-  const diffMinutes = diffRoundedMinutes(followedArrival, waitedArrival);
-  const firstAlternative = decisions[0]?.bestAlternativeArrival ?? null;
+  const switchAtStart = firstSwitch ? null : findSwitchAtStart(decisions);
+  const followed = firstSwitch
+    ? buildTraveler(firstSwitch.observedAt, firstSwitch.arrival, input.deadline)
+    : waited;
+  const counterpart = switchAtStart
+    ? buildTraveler(switchAtStart.observedAt, switchAtStart.arrival, input.deadline)
+    : waited;
+  const diffMinutes = diffRoundedMinutes(followed.arrival, counterpart.arrival);
 
-  return {
-    resumedAt,
-    switchedAt: firstSwitch ? formatJstIso(parseIsoToMs(firstSwitch.observedAt)) : null,
-    followedArrival,
-    waitedArrival,
-    diffMinutes,
-    followedDeadline:
-      input.deadline === null ? null : checkDeadline(followedArrival, input.deadline),
-    waitedDeadline: input.deadline === null ? null : checkDeadline(waitedArrival, input.deadline),
-    firstAlternativeArrival: firstAlternative ? formatJstIso(parseIsoToMs(firstAlternative)) : null,
-    alternativeDiffMinutes: firstAlternative
-      ? diffRoundedMinutes(waitedArrival, firstAlternative)
-      : null,
-    verdict: selectVerdict(firstSwitch !== null, diffMinutes),
-  };
+  return { resumedAt, followed, counterpart, diffMinutes, verdict: selectVerdict(diffMinutes) };
 }

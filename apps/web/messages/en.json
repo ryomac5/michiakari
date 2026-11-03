@@ -310,6 +310,7 @@
       "resumed": "Service actually resumed at {time}",
       "followed": "Followed the advice",
       "waited": "Kept waiting",
+      "switched": "Switched instead",
       "switchedAt": "Switched at {time}",
       "neverSwitched": "Advice stayed “wait”",
       "waitedNote": "Boarded after resumption",
@@ -318,18 +319,20 @@
       "late": "{minutes} min late",
       "diff": "{minutes} min apart",
       "summary": {
-        "followedEarlierMadeIt": "Following the advice got you there {minutes} min earlier, in time for {deadline}.",
-        "followedEarlier": "Following the advice got you there {minutes} min earlier.",
+        "followedEarlierMadeIt": "Following the advice got you there {minutes} min earlier than waiting, in time for {deadline}.",
+        "followedEarlier": "Following the advice got you there {minutes} min earlier than waiting.",
         "waitedEarlier": "This time, waiting got you there {minutes} min earlier.",
         "aboutSame": "Following the advice or waiting made only {minutes} min of difference.",
-        "waitWon": "Waiting, as advised, got you there {minutes} min earlier than switching.",
-        "switchWouldWin": "This time the advice to wait was wrong. Switching at the start would have got you there {minutes} min earlier.",
+        "waitWon": "Waiting, as advised, got you there {minutes} min earlier than switching at {time}.",
+        "switchWouldWin": "This time the advice to wait was wrong. Switching at {time} got there {minutes} min earlier.",
+        "waitAboutSame": "Waiting as advised or switching at {time} made only {minutes} min of difference.",
         "neverSwitched": "The advice stayed “wait”, so you arrived with those who waited."
       },
       "deadline": {
         "both": "Both made it by {deadline}.",
         "followedOnly": "Only those who followed the advice made it by {deadline}.",
         "waitedOnly": "Only those who kept waiting made it by {deadline}.",
+        "switchedOnly": "Only those who switched made it by {deadline}.",
         "neither": "Neither made it by {deadline}.",
         "sameOnTime": "You made it by {deadline}.",
         "sameLate": "You did not make it by {deadline}."

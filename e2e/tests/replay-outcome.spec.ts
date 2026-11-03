@@ -8,6 +8,7 @@ import {
   compareReplayOutcome,
   getFirstTrainWait,
   type ReplayDecision,
+  type ReplayOutcome,
 } from "../../packages/core/src/index.ts";
 import type { Judgment } from "../../packages/schema/src/judgment.ts";
 import {
@@ -113,6 +114,59 @@ function findFirstTrainWait(recorded: readonly RecordedJudgment[]): number {
   return found ? getFirstTrainWait(found).p50 : 0;
 }
 
+// 列に表示した到着時刻。列の中で最後に出る HH:MM が到着である
+async function readArrivalClock(page: Page, testId: string): Promise<string> {
+  const text = (await page.getByTestId(testId).textContent()) ?? "";
+  const clock = text.match(/\d{2}:\d{2}/g)?.at(-1);
+  if (!clock) throw new Error(`${testId} に到着時刻がありません`);
+  return clock;
+}
+
+function toClockMinutes(clock: string): number {
+  const [h, m] = clock.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
+function formatJstClock(iso: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: "Asia/Tokyo",
+  }).format(new Date(iso));
+}
+
+// 要約の文が語る相手と分が、2 列に並べた相手と表示の時刻の差に一致する
+async function expectSummaryMatchesColumns(
+  page: Page,
+  locale: "ja" | "en",
+  expected: ReplayOutcome,
+): Promise<void> {
+  const summary = (await page.getByTestId(testIds.replay.outcomeSummary).textContent()) ?? "";
+  const followedClock = await readArrivalClock(page, testIds.replay.outcomeFollowed);
+  const counterpartClock = await readArrivalClock(page, testIds.replay.outcomeCounterpart);
+  const shownDiff =
+    ((toClockMinutes(counterpartClock) - toClockMinutes(followedClock) + 2160) % 1440) - 720;
+  expect(shownDiff, "2 列の時刻の差").toBe(expected.diffMinutes);
+  if (expected.diffMinutes !== 0) {
+    expect(followedClock).not.toBe(counterpartClock);
+    const minutes = Math.abs(expected.diffMinutes);
+    expect(summary).toContain(locale === "ja" ? `${minutes}分` : `${minutes} min`);
+  }
+  const counterpart = page.getByTestId(testIds.replay.outcomeCounterpart);
+  if (expected.counterpart.switchedAt === null) {
+    await expect(counterpart).toContainText(locale === "ja" ? "待ち続けた人" : "Kept waiting");
+    expect(summary).toMatch(locale === "ja" ? /待ち続け/ : /wait/i);
+    return;
+  }
+  const switchedClock = formatJstClock(expected.counterpart.switchedAt);
+  await expect(counterpart).toContainText(locale === "ja" ? "切り替えた人" : "Switched instead");
+  await expect(counterpart).toContainText(switchedClock);
+  expect(summary).toContain(
+    locale === "ja" ? `${switchedClock} に切り替え` : `switching at ${switchedClock}`,
+  );
+}
+
 test("ground_truth のあるシナリオが 1 本以上ある", () => {
   expect(scenarios.length).toBeGreaterThan(0);
 });
@@ -151,23 +205,23 @@ for (const scenario of scenarios) {
 
       const card = page.getByTestId(testIds.replay.outcome);
       await expect(card).toBeVisible();
-      await expect(card).toHaveAttribute("data-followed-arrival", expected.followedArrival);
-      await expect(card).toHaveAttribute("data-waited-arrival", expected.waitedArrival);
+      await expect(card).toHaveAttribute("data-followed-arrival", expected.followed.arrival);
+      await expect(card).toHaveAttribute("data-counterpart-arrival", expected.counterpart.arrival);
+      await expect(card).toHaveAttribute(
+        "data-counterpart-switched-at",
+        expected.counterpart.switchedAt ?? "",
+      );
       await expect(card).toHaveAttribute("data-diff-minutes", String(expected.diffMinutes));
       await expect(card).toHaveAttribute("data-verdict", expected.verdict);
-      await expect(card).toHaveAttribute(
-        "data-alternative-diff-minutes",
-        expected.alternativeDiffMinutes === null ? "" : String(expected.alternativeDiffMinutes),
-      );
       await expect(page.getByTestId(testIds.replay.outcomeFollowed)).toHaveAttribute(
         "data-on-time",
-        expected.followedDeadline ? String(expected.followedDeadline.onTime) : "",
+        expected.followed.deadline ? String(expected.followed.deadline.onTime) : "",
       );
-      await expect(page.getByTestId(testIds.replay.outcomeWaited)).toHaveAttribute(
+      await expect(page.getByTestId(testIds.replay.outcomeCounterpart)).toHaveAttribute(
         "data-on-time",
-        expected.waitedDeadline ? String(expected.waitedDeadline.onTime) : "",
+        expected.counterpart.deadline ? String(expected.counterpart.deadline.onTime) : "",
       );
-      await expect(page.getByTestId(testIds.replay.outcomeSummary)).not.toBeEmpty();
+      await expectSummaryMatchesColumns(page, locale, expected);
       // 架空であることと、推定であることの注記
       await expect(card).toContainText(
         locale === "ja" ? "すべて架空のシナリオです" : "All scenarios are fictional",
@@ -183,7 +237,7 @@ for (const scenario of scenarios) {
       expect(box, "結末のカードの位置").not.toBeNull();
       expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(844);
       // 2 列の中身が列の幅からはみ出さない
-      for (const id of [testIds.replay.outcomeFollowed, testIds.replay.outcomeWaited]) {
+      for (const id of [testIds.replay.outcomeFollowed, testIds.replay.outcomeCounterpart]) {
         const clipped = await page
           .getByTestId(id)
           .evaluate((el) =>

@@ -1,9 +1,4 @@
-import {
-  compareReplayOutcome,
-  OUTCOME_SMALL_DIFF_MINUTES,
-  type ReplayDecision,
-  type ReplayOutcome,
-} from "@repo/core";
+import { compareReplayOutcome, type ReplayDecision, type ReplayOutcome } from "@repo/core";
 import { type Judgment, resolveDeadline } from "@repo/schema";
 import { findCatalogEvent, type KnowledgeCatalog } from "@/features/knowledge/catalog";
 import type { ReplayScenario } from "./scenario";
@@ -81,56 +76,82 @@ export type OutcomeSummaryKey =
   | "aboutSame"
   | "waitWon"
   | "switchWouldWin"
+  | "waitAboutSame"
   | "neverSwitched";
 
 export type OutcomeDeadlineKey =
   | "both"
   | "followedOnly"
   | "waitedOnly"
+  | "switchedOnly"
   | "neither"
   | "sameOnTime"
   | "sameLate";
 
 export type OutcomeSummary = {
   key: OutcomeSummaryKey;
+  // 並べる 2 人の到着の差。core の diffMinutes の絶対値
   minutes: number;
+  // 比べる相手が切り替えた時刻。待ち続けた人と比べるときは null
+  counterpartSwitchedAt: string | null;
   // 期限が無い、または要約の文に含めたときは null
   deadlineKey: OutcomeDeadlineKey | null;
 };
 
-function selectDeadlineKey(outcome: ReplayOutcome): OutcomeDeadlineKey | null {
-  const followed = outcome.followedDeadline?.onTime;
-  const waited = outcome.waitedDeadline?.onTime;
-  if (followed === undefined || waited === undefined) return null;
-  if (outcome.verdict === "never_switched") return followed ? "sameOnTime" : "sameLate";
-  if (followed && waited) return "both";
-  if (followed) return "followedOnly";
-  return waited ? "waitedOnly" : "neither";
+// 比べる相手が従った人と同じ待ち続けた人か。待つ判断で代替手段が無いとき
+function isSameTraveler(outcome: ReplayOutcome): boolean {
+  return outcome.followed.switchedAt === null && outcome.counterpart.switchedAt === null;
 }
 
-// 結末の一行の要約に使う文言の種類と分を選ぶ
-export function selectOutcomeSummary(outcome: ReplayOutcome): OutcomeSummary {
-  const deadlineKey = selectDeadlineKey(outcome);
-  const minutes = Math.abs(outcome.diffMinutes);
+function selectDeadlineKey(outcome: ReplayOutcome): OutcomeDeadlineKey | null {
+  const followed = outcome.followed.deadline?.onTime;
+  const counterpart = outcome.counterpart.deadline?.onTime;
+  if (followed === undefined || counterpart === undefined) return null;
+  if (isSameTraveler(outcome)) return followed ? "sameOnTime" : "sameLate";
+  if (followed && counterpart) return "both";
+  if (followed) return "followedOnly";
+  if (!counterpart) return "neither";
+  return outcome.counterpart.switchedAt === null ? "waitedOnly" : "switchedOnly";
+}
+
+// 判断に従って切り替えた人を、待ち続けた人と比べる文
+function selectSwitchSummaryKey(
+  outcome: ReplayOutcome,
+  deadlineKey: OutcomeDeadlineKey | null,
+): OutcomeSummaryKey {
   switch (outcome.verdict) {
     case "followed_earlier":
-      return deadlineKey === "followedOnly"
-        ? { key: "followedEarlierMadeIt", minutes, deadlineKey: null }
-        : { key: "followedEarlier", minutes, deadlineKey };
-    case "waited_earlier":
-      return { key: "waitedEarlier", minutes, deadlineKey };
+      return deadlineKey === "followedOnly" ? "followedEarlierMadeIt" : "followedEarlier";
+    case "counterpart_earlier":
+      return "waitedEarlier";
     case "about_same":
-      return { key: "aboutSame", minutes, deadlineKey };
-    case "never_switched": {
-      // 正なら待つ判断のほうが、最初の時点で切り替えるより早かった
-      const advantage = outcome.alternativeDiffMinutes;
-      if (advantage !== null && advantage > 0) {
-        return { key: "waitWon", minutes: advantage, deadlineKey };
-      }
-      if (advantage !== null && -advantage >= OUTCOME_SMALL_DIFF_MINUTES) {
-        return { key: "switchWouldWin", minutes: -advantage, deadlineKey };
-      }
-      return { key: "neverSwitched", minutes: 0, deadlineKey };
-    }
+      return "aboutSame";
   }
+}
+
+// 待つ判断に従った人を、最初に切り替えた人と比べる文
+function selectWaitSummaryKey(outcome: ReplayOutcome): OutcomeSummaryKey {
+  switch (outcome.verdict) {
+    case "followed_earlier":
+      return "waitWon";
+    case "counterpart_earlier":
+      return "switchWouldWin";
+    case "about_same":
+      return "waitAboutSame";
+  }
+}
+
+// 結末の一行の要約に使う文言の種類と分を選ぶ。比べる相手と分は、カードに並べる 2 人と同じ
+export function selectOutcomeSummary(outcome: ReplayOutcome): OutcomeSummary {
+  const deadlineKey = selectDeadlineKey(outcome);
+  const base = {
+    minutes: Math.abs(outcome.diffMinutes),
+    counterpartSwitchedAt: outcome.counterpart.switchedAt,
+  };
+  if (isSameTraveler(outcome)) return { ...base, key: "neverSwitched", deadlineKey };
+  if (outcome.followed.switchedAt === null) {
+    return { ...base, key: selectWaitSummaryKey(outcome), deadlineKey };
+  }
+  const key = selectSwitchSummaryKey(outcome, deadlineKey);
+  return { ...base, key, deadlineKey: key === "followedEarlierMadeIt" ? null : deadlineKey };
 }
