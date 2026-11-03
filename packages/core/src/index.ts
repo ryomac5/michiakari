@@ -1,6 +1,11 @@
 // 決定論的な計算。Claude を呼ばない
 
-export { MONTE_CARLO_SAMPLE_COUNT, MONTE_CARLO_SEED } from "../params/estimation.ts";
+export {
+  MONTE_CARLO_SAMPLE_COUNT,
+  MONTE_CARLO_SEED,
+  PREDICTABILITY_HIGH_MAX_RATIO,
+  PREDICTABILITY_MEDIUM_MAX_RATIO,
+} from "../params/estimation.ts";
 export * from "../params/routing.ts";
 export {
   OSAKA_CITY_TAXI_FARE,
@@ -85,6 +90,11 @@ export {
   computeRideMinutesUnrounded,
   computeWaitMinutes,
 } from "./transit.ts";
+export {
+  describeTypicalFlow,
+  estimateUntilResume,
+  inferPredictabilityLevel,
+} from "./typical-flow.ts";
 export {
   computeHaversineMeters,
   computeWalkMinutesFromMeters,

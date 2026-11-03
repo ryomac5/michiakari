@@ -117,3 +117,10 @@ caveats:
 external_factors:
   weather: false
   notes: 天候は判断材料にしない。
+
+# 見込みの立てやすさ。ダミーの書き方
+predictability:
+  level: medium
+  basis:
+    ja: その場の処置で直れば短く終わるが、救援の列車を呼ぶと長引く。どちらになるかは、救援を伝える発表が出るまで分からない。
+    en: It ends quickly if fixed on the spot, but takes much longer if a rescue train is called. Which way it goes is unclear until a rescue is announced.

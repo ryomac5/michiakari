@@ -44,6 +44,34 @@ describe("KnowledgeSchema", () => {
     expect(KnowledgeSchema.safeParse(raw).success).toBe(false);
   });
 
+  it("predictability が無くても受け入れる", () => {
+    expect(loadValid().predictability).toBeUndefined();
+  });
+
+  it("predictability を受け入れる。typical_floor_minutes は省略できる", () => {
+    const basis = { ja: "現場確認を経るため、再開までの流れがほぼ決まっている" };
+    const withFloor = { level: "high", basis, typical_floor_minutes: 60 };
+    const withoutFloor = { level: "low", basis };
+    for (const predictability of [withFloor, withoutFloor]) {
+      const parsed = KnowledgeSchema.parse({ ...loadValid(), predictability });
+      expect(parsed.predictability).toEqual(predictability);
+    }
+  });
+
+  it("predictability の不正な値を拒否する", () => {
+    const basis = { ja: "理由" };
+    const invalid = [
+      { level: "certain", basis },
+      { level: "high" },
+      { level: "high", basis, typical_floor_minutes: -1 },
+      { level: "high", basis, typical_floor_minutes: 1.5 },
+      { level: "high", basis, extra: true },
+    ];
+    for (const predictability of invalid) {
+      expect(KnowledgeSchema.safeParse({ ...loadValid(), predictability }).success).toBe(false);
+    }
+  });
+
   it("snake_case 以外の id を拒否する", () => {
     expect(KnowledgeSchema.safeParse({ ...loadValid(), id: "TODO_event_id" }).success).toBe(false);
   });
