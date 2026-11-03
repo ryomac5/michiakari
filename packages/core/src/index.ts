@@ -29,6 +29,7 @@ export {
   type BreakEvenResult,
   checkDeadline,
   computeBreakEven,
+  computeLateShare,
   computeWaitArrival,
   convertToBreakEven,
   type DeadlineCheck,

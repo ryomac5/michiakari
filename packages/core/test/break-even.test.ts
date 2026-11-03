@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   checkDeadline,
   computeBreakEven,
+  computeLateShare,
   computeWaitArrival,
   convertToBreakEven,
   selectBestAlternative,
@@ -345,5 +346,17 @@ describe("checkDeadline", () => {
       onTime: true,
       marginMinutes: 20,
     });
+  });
+});
+
+describe("computeLateShare", () => {
+  it("p50 が分岐点より後なら 1、p80 が分岐点以前なら 0", () => {
+    expect(computeLateShare({ marginP50Minutes: -43, marginP80Minutes: -118 })).toBe(1);
+    expect(computeLateShare({ marginP50Minutes: 20, marginP80Minutes: 0 })).toBe(0);
+  });
+
+  it("分岐点が幅の中にあれば、後ろにある割合を返す", () => {
+    expect(computeLateShare({ marginP50Minutes: 10, marginP80Minutes: -30 })).toBe(0.75);
+    expect(computeLateShare({ marginP50Minutes: 0, marginP80Minutes: -20 })).toBe(1);
   });
 });

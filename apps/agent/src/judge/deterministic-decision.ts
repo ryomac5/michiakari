@@ -1,7 +1,8 @@
+import { computeLateShare } from "@repo/core";
 import type { Action, Knowledge } from "@repo/schema";
 import { decisionParams } from "../config.ts";
 import type { Decision } from "../tools/emit-judgment.ts";
-import type { WeatherToolResult } from "../tools/types.ts";
+import type { BreakEvenToolResult, WeatherToolResult } from "../tools/types.ts";
 import type { JudgmentToolResults } from "./assemble.ts";
 import { buildComputedBreakEven, type JudgeSession } from "./session.ts";
 import { buildDecisionText, buildNoAlternativeSentence, type DecisionReason } from "./templates.ts";
@@ -19,6 +20,19 @@ export type RuleInput = JudgmentToolResults & {
   weather: WeatherToolResult | null;
 };
 
+// 保留の代わりに切り替えを言い切るか。原因が分からないときと確信度が低いときの保留の前に確かめる
+// 分岐点までまだ時間があれば、次の発表を待てるので保留を保つ
+function decideSwitchInsteadOfHold(r: BreakEvenToolResult["result"]): DecisionReason | null {
+  if (r.kind !== "future" || r.resumeOutlook === null) return null;
+  if (r.minutesFromNow > decisionParams.holdDecisionWindowMinutes) return null;
+  // p50 が分岐点より後なら、p80 まで含めて見込みの幅のすべてが分岐点より後
+  if (r.resumeOutlook.marginP50Minutes < 0) return "resume_after_break_even";
+  if (computeLateShare(r.resumeOutlook) >= decisionParams.lateShareToSwitch) {
+    return "resume_mostly_after_break_even";
+  }
+  return null;
+}
+
 // 規則は上から順に当てはめる
 export function applyDecisionRules(input: RuleInput): RuleOutcome {
   const { estimate, breakEven } = input;
@@ -31,6 +45,10 @@ export function applyDecisionRules(input: RuleInput): RuleOutcome {
         reason: "break_even_passed",
         recommendedOptionId: r.bestAlternativeId,
       };
+    }
+    const late = decideSwitchInsteadOfHold(r);
+    if (late && r.kind === "future") {
+      return { action: "switch", reason: late, recommendedOptionId: r.bestAlternativeId };
     }
     return { action: "hold", reason: "unknown_event", recommendedOptionId: null };
   }
@@ -48,8 +66,10 @@ export function applyDecisionRules(input: RuleInput): RuleOutcome {
   if (input.knowledge?.external_factors.weather && input.weather?.summary.rainContinuing === true) {
     return { action: "hold", reason: "rain_continuing", recommendedOptionId: null };
   }
-  // 見込みの幅が大きい段階では断言しない
+  // 見込みの幅が大きい段階では、分岐点が迫って見込みが後に寄っているときだけ切り替えを言い切る
   if (estimate.estimate.confidence === "low") {
+    const late = decideSwitchInsteadOfHold(r);
+    if (late) return { action: "switch", reason: late, ...switchTo };
     return { action: "hold", reason: "low_confidence", recommendedOptionId: null };
   }
   // 見込み時刻が延長されたあとは、さらに延びる余地を見て p80 で比べる
