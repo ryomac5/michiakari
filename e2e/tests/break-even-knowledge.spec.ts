@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 // page 内で動かす関数（evaluate）のために DOM の型を読む
 import { fileURLToPath } from "node:url";
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
   loadReplayScenarios,
@@ -10,6 +10,7 @@ import {
   waitForFiniteAnimations,
   waitForJudged,
 } from "../support/replay.ts";
+import { expect, test } from "../support/test.ts";
 
 // 分岐点の時間軸と、知見ナレッジの閲覧画面の振る舞い
 // シナリオ ID と期待値はコードに書かず、YAML から選ぶ

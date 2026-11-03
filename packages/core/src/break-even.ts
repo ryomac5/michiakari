@@ -101,6 +101,17 @@ function buildResumeOutlook(
   };
 }
 
+// 再開見込みの幅（p50〜p80）のうち分岐点より後にある割合（0〜1）
+// p50 が分岐点より後なら 1、p80 が分岐点より前なら 0。幅が無いときは p50 で決める
+export function computeLateShare(
+  outlook: Pick<ResumeOutlook, "marginP50Minutes" | "marginP80Minutes">,
+): number {
+  const { marginP50Minutes: m50, marginP80Minutes: m80 } = outlook;
+  if (m50 < 0) return 1;
+  if (m80 >= 0) return 0;
+  return -m80 / (m50 - m80);
+}
+
 // 境目 = 最良の代替手段の到着 − 再開後の乗車時間 − 初列車待ち（運転再開の期限）
 export function computeBreakEven(input: BreakEvenInput): BreakEvenResult {
   assertNonNegativeMinutes(input.waitRouteMinutesAfterResume, "再開後の乗車時間");

@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import type { PlaywrightTestConfig } from "@playwright/test";
 
 // e2e と録画で共有するサーバー設定
@@ -12,26 +13,40 @@ export const agentUrl = `http://localhost:${agentPort}`;
 // リポジトリルートからの相対パス。agent と web はどちらもルート基準で解決する
 export const contentDir = "packages/schema/test/fixtures/dev-content";
 
-export const webServers: NonNullable<PlaywrightTestConfig["webServer"]> = [
-  {
-    command: `pnpm --filter @repo/web exec next dev --port ${webPort}`,
-    env: { CONTENT_DIR: contentDir, NEXT_PUBLIC_AGENT_URL: agentUrl },
-    url: webUrl,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
-  {
-    command: "pnpm --filter @repo/agent start",
-    env: {
-      JUDGE_MODE: "deterministic",
-      CONTENT_DIR: contentDir,
-      PORT: String(agentPort),
-      CORS_ORIGINS: webUrl,
-      // リプレイは観測ごとに要求を送るので、頻度制限に掛からないようにする
-      RATE_LIMIT_PER_MINUTE: "10000",
+// 外部のタイルとフォントを固定データに差し替えるか。E2E_REAL_TILES=1 なら本物を取りに行く
+// 録画は playwright.record.config.ts で常に本物を使う
+export const stubExternal = process.env.E2E_REAL_TILES !== "1";
+
+// next/font/google の取得を固定の応答に差し替える。e2e/fixtures/fonts/google-fonts.cjs を読ませる
+const fontMockPath = fileURLToPath(new URL("./fixtures/fonts/google-fonts.cjs", import.meta.url));
+
+export function buildWebServers(options: {
+  stubExternal: boolean;
+}): NonNullable<PlaywrightTestConfig["webServer"]> {
+  const fontEnv: Record<string, string> = options.stubExternal
+    ? { NEXT_FONT_GOOGLE_MOCKED_RESPONSES: fontMockPath }
+    : {};
+  return [
+    {
+      command: `pnpm --filter @repo/web exec next dev --port ${webPort}`,
+      env: { CONTENT_DIR: contentDir, NEXT_PUBLIC_AGENT_URL: agentUrl, ...fontEnv },
+      url: webUrl,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
     },
-    url: `${agentUrl}/health`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
-];
+    {
+      command: "pnpm --filter @repo/agent start",
+      env: {
+        JUDGE_MODE: "deterministic",
+        CONTENT_DIR: contentDir,
+        PORT: String(agentPort),
+        CORS_ORIGINS: webUrl,
+        // リプレイは観測ごとに要求を送るので、頻度制限に掛からないようにする
+        RATE_LIMIT_PER_MINUTE: "10000",
+      },
+      url: `${agentUrl}/health`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+  ];
+}

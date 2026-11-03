@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 // page 内で動かす関数（addInitScript・evaluate）のために DOM の型を読む
 import { fileURLToPath } from "node:url";
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import type { Expectation, Scenario } from "../../packages/schema/src/scenario.ts";
 import {
@@ -11,6 +11,7 @@ import {
   waitForFiniteAnimations,
   waitForJudged,
 } from "../support/replay.ts";
+import { expect, test } from "../support/test.ts";
 
 // シナリオの振る舞いテスト（architecture.md 7.2）
 // CONTENT_DIR のすべてのシナリオをリプレイで流し、YAML の expectations を画面の DOM で確かめる

@@ -2,7 +2,7 @@
 // page 内で動かす関数（evaluate）のために DOM の型を読む
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
   compareReplayOutcome,
@@ -18,6 +18,7 @@ import {
 import { resolveDeadline } from "../../packages/schema/src/scenario.ts";
 import { contentDir } from "../servers.ts";
 import { loadReplayScenarios, openReplay, waitForFiniteAnimations } from "../support/replay.ts";
+import { expect, test } from "../support/test.ts";
 
 // リプレイの結末（デモ台本 2:35〜3:00）
 // ground_truth のあるシナリオをすべて最後まで流し、結末のカードの値が core の計算と一致することを確かめる

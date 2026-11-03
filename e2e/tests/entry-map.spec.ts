@@ -1,6 +1,7 @@
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
+import { expect, test } from "../support/test.ts";
 
 // 入口の地図: 関西 → エリア → 駅の順に寄り、戻る操作で 1 段ずつ引ける
 // 駅を選んだら路線・方面・行き先・いまどこ・様子を同じ画面のシートで 1 問ずつ聞き、最後の一手で判断の画面へ移る
@@ -172,7 +173,7 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   await expect(map).toHaveAttribute("data-focus-area", /^auto:/);
   await expect(map).toHaveAttribute("data-blocked", "true");
   const bubbles = page.locator(`[data-testid^="judgment-map-station-"]`);
-  expect(await bubbles.count()).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => bubbles.count()).toBeGreaterThanOrEqual(1);
   expect(await bubbles.count()).toBeLessThanOrEqual(4);
   await expect(bubbles.first()).toBeVisible();
   await expect(page.getByTestId(mapTestIds.blockedTag)).toBeVisible();

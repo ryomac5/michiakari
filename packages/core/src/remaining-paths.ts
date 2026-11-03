@@ -1,5 +1,10 @@
 import type { DurationDist, Knowledge } from "@repo/schema";
-import { estimateRemaining, findPhaseIndex, getFirstTrainWait } from "./remaining.ts";
+import {
+  computeResumeFloorRemaining,
+  estimateRemaining,
+  findPhaseIndex,
+  getFirstTrainWait,
+} from "./remaining.ts";
 import { diffMinutes } from "./time.ts";
 
 // 段階の分岐と発表された見込み時刻を考えた残り時間の推定
@@ -70,14 +75,25 @@ function selectPhases(knowledge: Knowledge, path: readonly number[]): Knowledge 
   };
 }
 
+export type BranchAwareOptions = {
+  // 発生からの経過分。与えると知見の typical_floor_minutes を再開までの下限として当てる
+  elapsedSinceOnsetMinutes?: number;
+};
+
 // p50 は p50 の合計が最小の経路で、p80 は最大の経路で求める
 // 段階が分岐しない知見では estimateRemaining と同じ値になる
+// 段階を飛ばす短い経路でも、再開までが知見の下限を下回らないようにする
 export function estimateBranchAwareRemaining(
   knowledge: Knowledge,
   phaseId: string,
   elapsedInPhaseMinutes: number,
+  options: BranchAwareOptions = {},
 ): BranchAwareRemaining {
   const index = findPhaseIndex(knowledge, phaseId);
+  const resumeFloorMinutes =
+    options.elapsedSinceOnsetMinutes === undefined
+      ? 0
+      : computeResumeFloorRemaining(knowledge, options.elapsedSinceOnsetMinutes);
   const { shortest, longest } = findPhasePaths(knowledge, index);
   const skippedPhaseIds = knowledge.phases
     .slice(index)
@@ -87,8 +103,13 @@ export function estimateBranchAwareRemaining(
     selectPhases(knowledge, shortest),
     phaseId,
     elapsedInPhaseMinutes,
+    {
+      resumeFloorMinutes,
+    },
   );
-  const long = estimateRemaining(selectPhases(knowledge, longest), phaseId, elapsedInPhaseMinutes);
+  const long = estimateRemaining(selectPhases(knowledge, longest), phaseId, elapsedInPhaseMinutes, {
+    resumeFloorMinutes,
+  });
   return { remaining: { p50: short.p50, p80: Math.max(long.p80, short.p80) }, skippedPhaseIds };
 }
 

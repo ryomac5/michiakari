@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import { expect, test } from "../support/test.ts";
 
 // 見つからない頁は、アプリの見た目のまま地図へ戻る道を示す
 test.use({ viewport: { width: 390, height: 844 } });

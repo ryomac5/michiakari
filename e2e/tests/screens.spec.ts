@@ -2,7 +2,7 @@
 // page 内で動かす関数（evaluate）のために DOM の型を読む
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
   loadReplayKnowledge,
@@ -12,6 +12,7 @@ import {
   waitForFiniteAnimations,
   waitForJudged,
 } from "../support/replay.ts";
+import { expect, test } from "../support/test.ts";
 
 // 全画面を言語・テーマ・画面幅の組み合わせで撮り、見た目の約束を機械で確かめる
 // 撮った画像は e2e/screenshots/screens/<組み合わせ>/ に出る（git 管理外）

@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
 import { agentUrl } from "../servers.ts";
+import { expect, test } from "../support/test.ts";
 
 test("web のトップに見出しと注意書きが表示される", async ({ page }) => {
   await page.goto("/");

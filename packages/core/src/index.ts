@@ -29,6 +29,7 @@ export {
   type BreakEvenResult,
   checkDeadline,
   computeBreakEven,
+  computeLateShare,
   computeWaitArrival,
   convertToBreakEven,
   type DeadlineCheck,
@@ -58,11 +59,14 @@ export {
 export { createMulberry32, type Random } from "./random.ts";
 export {
   computeQuantile,
+  computeResumeFloorRemaining,
   estimateRemaining,
   findPhaseIndex,
   getFirstTrainWait,
+  type RemainingOptions,
 } from "./remaining.ts";
 export {
+  type BranchAwareOptions,
   type BranchAwareRemaining,
   enumeratePhasePaths,
   estimateBranchAwareRemaining,

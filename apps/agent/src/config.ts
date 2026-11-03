@@ -74,6 +74,10 @@ export function resolveCorsOrigins(env: NodeJS.ProcessEnv = process.env): string
 export const decisionParams = {
   // 乗り換えの手間を考え、待つより この分数以上早く着かなければ切り替えを勧めない
   switchMarginMinutes: 5,
+  // 保留をやめて言い切る時間。分岐点までこの分数を切ったら、保留せず待つか切り替えるかを決める
+  holdDecisionWindowMinutes: 10,
+  // 上の時間内で、再開見込みの幅のうち分岐点より後の割合がこれ以上なら切り替える
+  lateShareToSwitch: 0.7,
 } as const;
 
 // 結論の一言（headline）の長さ。target は書き方の目安、max を超えたら検証エラーにする

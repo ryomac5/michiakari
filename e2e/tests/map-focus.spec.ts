@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 // page 内で動かす関数（evaluate）のために DOM の型を読む
 import { fileURLToPath } from "node:url";
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import {
@@ -10,6 +10,7 @@ import {
   waitForFiniteAnimations,
   waitForJudged,
 } from "../support/replay.ts";
+import { expect, test } from "../support/test.ts";
 
 // 現在地のまわりの地図。乗り換え候補の駅を吹き出しで出し、「全体を見る」で経路の全体に切り替える
 // 大阪駅は手で整えた範囲を使い、ほかの駅は駅データから候補を自動で選ぶ
@@ -55,7 +56,7 @@ test("大阪駅では現在地のまわりに寄せ、乗り換え候補の駅�
   // 現在地と、徒歩の分数・運行の状態を持つ候補の駅が出る
   await expect(page.getByTestId(mapTestIds.here)).toBeVisible();
   await expect(page.getByTestId(mapTestIds.here)).toContainText("大阪駅");
-  expect(await stations(page).count()).toBeGreaterThanOrEqual(3);
+  await expect.poll(() => stations(page).count()).toBeGreaterThanOrEqual(3);
   for (const station of await stations(page).all()) {
     await expect(station).toBeVisible();
     await expect(station).toHaveAttribute("data-walk-minutes", /^\d+$/);
@@ -123,7 +124,8 @@ test("「全体を見る」で経路の全体に切り替え、もう一度押�
 
   await toggle.click();
   await expect(map).toHaveAttribute("data-view", "focus");
-  expect(await stations(page).count()).toBeGreaterThanOrEqual(3);
+  // 吹き出しは見せ方が切り替わった次の描画で付くので、出そろうまで待つ
+  await expect.poll(() => stations(page).count()).toBeGreaterThanOrEqual(3);
 });
 
 test("手で整えた範囲の外の駅でも、駅データから選んだ乗り換え候補を吹き出しで出す", async ({

@@ -1,10 +1,11 @@
 /// <reference lib="dom" />
 // page 内で動かす関数（addInitScript・evaluate）のために DOM の型を読む
 import { fileURLToPath } from "node:url";
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import { openSheet } from "../support/replay.ts";
+import { expect, test } from "../support/test.ts";
 
 // モックの判断イベント（人身事故・終電間際の架空シナリオ）で、開始から判断までを通す
 // 開発サーバーでは ?mock=1 で NEXT_PUBLIC_JUDGE_MOCK=1 と同じモックになる

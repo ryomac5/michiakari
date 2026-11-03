@@ -65,6 +65,7 @@ export type DecisionReason =
   | "low_confidence"
   | "estimate_extended"
   | "resume_after_break_even"
+  | "resume_mostly_after_break_even"
   | "deadline_risk"
   | "resume_before_break_even";
 
@@ -167,6 +168,17 @@ function buildDecisionReason(input: DecisionTextInput): string {
       return ja
         ? `再開見込み${p50}頃が、分岐点${be}より遅いためです。`
         : `Resumption is expected around ${p50}, later than the break-even time of ${be}.`;
+    case "resume_mostly_after_break_even": {
+      const minutes = input.breakEvenMinutesFromNow;
+      if (!p50 || !p80 || !be || minutes === null) {
+        return ja
+          ? "分岐点が迫り、再開見込みの大半がそれより後のためです。"
+          : "The break-even time is close, and most of the resumption outlook falls after it.";
+      }
+      return ja
+        ? `分岐点${be}まであと${minutes}分で、再開見込み${p50}〜${p80}頃の大半がそれより後のためです。`
+        : `Only ${minutes} min remain until the break-even time of ${be}, and most of the ${p50}–${p80} outlook falls after it.`;
+    }
     case "deadline_risk":
       if (!deadline) {
         return ja
@@ -218,6 +230,7 @@ function buildDecisionHeadline(input: DecisionTextInput): string {
     case "break_even_passed":
     case "estimate_extended":
     case "resume_after_break_even":
+    case "resume_mostly_after_break_even":
     case "deadline_risk":
       return switchHeadline;
     case "resume_before_break_even": {

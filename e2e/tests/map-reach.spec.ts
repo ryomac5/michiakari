@@ -1,7 +1,6 @@
 /// <reference lib="dom" />
 // page 内で動かす関数（evaluate）のために DOM の型を読む
 import { fileURLToPath } from "node:url";
-import { expect, test } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import { ISOCHRONE_MINUTES } from "../../packages/geo/src/index.ts";
@@ -12,6 +11,7 @@ import {
   waitForFiniteAnimations,
   waitForJudged,
 } from "../support/replay.ts";
+import { expect, test } from "../support/test.ts";
 
 // 地図の徒歩の到達範囲。出発駅に Valhalla の事前計算があれば多角形、無ければ円の概算で描く
 

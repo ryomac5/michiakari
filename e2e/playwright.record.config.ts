@@ -1,5 +1,5 @@
 import { defineConfig } from "@playwright/test";
-import { webServers, webUrl } from "./servers.ts";
+import { buildWebServers, webUrl } from "./servers.ts";
 
 // デモ動画の録画用。pnpm --filter e2e record で動かす。CI の test には含めない
 // 動画は recordings/<テスト名>/video.webm に出る（git 管理外）
@@ -25,5 +25,6 @@ export default defineConfig({
     locale: "ja-JP",
     timezoneId: "Asia/Tokyo",
   },
-  webServer: webServers,
+  // 録画は本物の地図タイルとフォントで撮る
+  webServer: buildWebServers({ stubExternal: false }),
 });

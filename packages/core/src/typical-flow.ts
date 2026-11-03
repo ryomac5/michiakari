@@ -23,11 +23,13 @@ function withoutFirstTrainWait(knowledge: Knowledge): Knowledge {
 }
 
 // 発生から運転再開までの p50・p80。既存の残り時間の計算を最初の段階・経過 0 分で呼ぶ
-// 判断と同じく分岐を考える。p50 は最短の経路、p80 は最長の経路で求める
+// 判断と同じく分岐を考える。p50 は最短の経路、p80 は最長の経路で求める。知見の下限も当てる
 export function estimateUntilResume(knowledge: Knowledge): DurationDist {
   const firstPhase = knowledge.phases[0];
   if (!firstPhase) throw new RangeError(`知見 ${knowledge.id} に段階がありません`);
-  return estimateBranchAwareRemaining(withoutFirstTrainWait(knowledge), firstPhase.id, 0).remaining;
+  return estimateBranchAwareRemaining(withoutFirstTrainWait(knowledge), firstPhase.id, 0, {
+    elapsedSinceOnsetMinutes: 0,
+  }).remaining;
 }
 
 // 再開までの p80 と p50 の比から見込みの立てやすさを推し量る。p50 が 0 なら p80 が 0 のときだけ high
