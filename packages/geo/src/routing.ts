@@ -22,6 +22,7 @@ import {
   WALK_ONLY_MAX_MINUTES_REDUCED,
 } from "@repo/core";
 import type { Lang, RouteLeg, RouteOption } from "@repo/schema";
+import { applyNetworkCorrections } from "./corrections.ts";
 import { createGeoIndex } from "./geo-index.ts";
 import { buildNetworkGraph, type NetworkGraph } from "./graph.ts";
 import { normalizeSearchText } from "./text.ts";
@@ -340,7 +341,8 @@ function searchShortestSteps(graph: NetworkGraph, options: SearchOptions): Step[
 }
 
 // 主な乗車区間。止まっている路線以外で乗車の分が最も長いもの。なければ全乗車区間から選ぶ
-function findMainRideLeg(
+// 選択肢の名前と、振替輸送で乗る路線に使う
+export function findMainRideLeg(
   legs: readonly RouteLeg[],
   blockedLineId: string | undefined,
 ): RouteLeg | undefined {
@@ -363,7 +365,8 @@ function buildLegSignature(legs: readonly RouteLeg[]): string {
     .join(",");
 }
 
-export function createRouter(network: NetworkData): Router {
+export function createRouter(input: NetworkData): Router {
+  const network = applyNetworkCorrections(input);
   const geo = createGeoIndex(network);
   const graph = buildNetworkGraph(network);
   const stationById = new Map(network.nodes.map((n) => [n.stationId, n]));

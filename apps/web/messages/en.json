@@ -323,7 +323,9 @@
     "transferService": "Transfer OK",
     "here": "You",
     "viewOverview": "Whole route",
-    "viewFocus": "Around you"
+    "viewFocus": "Around you",
+    "changeAt": "change at {station}",
+    "transferShort": "Transfer"
   },
   "about": {
     "title": "About MatsuKaeru",

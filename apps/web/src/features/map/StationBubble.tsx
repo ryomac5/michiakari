@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightLeft, Footprints, Star } from "lucide-react";
+import { ArrowRight, ArrowRightLeft, Footprints, Star } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { BubblePlacement } from "./focus-areas";
@@ -63,6 +63,12 @@ export function LineChip({
       )}
       <span className="truncate">{line.name}</span>
       {line.suspended && <span className="font-semibold">{t("suspended")}</span>}
+      {line.transferService && (
+        <span className="flex shrink-0 items-center gap-0.5 font-normal text-muted">
+          <ArrowRightLeft className="size-3" aria-hidden />
+          {t("transferShort")}
+        </span>
+      )}
       {recommended && <Star className="size-3 shrink-0 fill-current text-switch" aria-hidden />}
     </span>
   );
@@ -155,11 +161,25 @@ export function StationBubble({
           {t("minutesShort", { minutes: station.walkMinutes })}
         </span>
       </span>
-      <span className="flex flex-wrap gap-1">
-        {station.lines.slice(0, 2).map((line) => (
-          <LineChip key={line.lineId} line={line} />
-        ))}
-      </span>
+      {station.route ? (
+        // 推奨の乗り方。結論が名前に出す路線まで、乗り継ぎを含めて 2 段で示す
+        <span data-route="true" className="flex flex-col items-start gap-1">
+          <LineChip line={station.route.first} />
+          {station.route.via && (
+            <span className="flex max-w-full flex-wrap items-center gap-1 text-[11px] text-muted">
+              <ArrowRight className="size-3 shrink-0" aria-hidden />
+              {t("changeAt", { station: station.route.via.stationName })}
+              <LineChip line={station.route.via.line} />
+            </span>
+          )}
+        </span>
+      ) : (
+        <span className="flex flex-wrap gap-1">
+          {station.lines.slice(0, 2).map((line) => (
+            <LineChip key={line.lineId} line={line} />
+          ))}
+        </span>
+      )}
       <span className="flex items-center gap-2 text-[11px] font-medium">
         <span className="flex items-center gap-1">
           <span
@@ -171,12 +191,6 @@ export function StationBubble({
           />
           {status}
         </span>
-        {station.transferService && (
-          <span className="flex items-center gap-1 text-muted">
-            <ArrowRightLeft className="size-3" aria-hidden />
-            {t("transferService")}
-          </span>
-        )}
       </span>
     </span>
   );
@@ -196,6 +210,8 @@ export function StationBubble({
     "data-walk-minutes": station.walkMinutes,
     "data-transfer-service": station.transferService,
     "data-variant": variant,
+    "data-route-line": station.route?.first.lineId ?? "",
+    "data-route-main-line": station.route?.via?.line.lineId ?? station.route?.first.lineId ?? "",
   };
 
   if (!onSelect) {

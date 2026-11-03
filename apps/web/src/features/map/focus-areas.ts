@@ -11,8 +11,6 @@ export type FocusStation = {
   key: string;
   // 同じ駅として扱う路線データの駅 ID。最初の駅の位置に吹き出しを置く
   stationIds: string[];
-  // 路線データに駅が無いが、この駅から出る路線（阪急京都線の大阪梅田発など）
-  extraLineIds?: string[];
   name: { ja: string; en: string };
   // 小さな札の名前。同じ駅名が並ぶとき（阪急と阪神の大阪梅田）は事業者を添えて見分ける
   shortName?: { ja: string; en: string };
@@ -52,9 +50,8 @@ export const focusAreas: FocusArea[] = [
       },
       {
         key: "hankyu-umeda",
-        stationIds: ["hankyu.神戸線.大阪梅田", "hankyu.宝塚線.大阪梅田"],
-        // 路線データでは京都線は十三から始まるが、列車は大阪梅田から出る
-        extraLineIds: ["hankyu.京都線"],
+        // 京都線の駅は @repo/geo の網の補正で足したもの
+        stationIds: ["hankyu.京都線.大阪梅田", "hankyu.神戸線.大阪梅田", "hankyu.宝塚線.大阪梅田"],
         name: { ja: "大阪梅田", en: "Osaka-umeda" },
         shortName: { ja: "阪急 大阪梅田", en: "Hankyu Umeda" },
         operator: { ja: "阪急", en: "Hankyu" },

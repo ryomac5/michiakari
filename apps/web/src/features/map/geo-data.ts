@@ -1,4 +1,9 @@
-import { buildNetworkGraph, createGeoIndex, type NetworkData } from "@repo/geo";
+import {
+  applyNetworkCorrections,
+  buildNetworkGraph,
+  createGeoIndex,
+  type NetworkData,
+} from "@repo/geo";
 import type { MapGeo } from "./scene";
 
 // 路線・駅のデータを静的に読み込む。地図を開いたときだけ取得するよう動的 import にする
@@ -16,7 +21,9 @@ export type LinesGeoJson = {
 
 export type MapGeoData = MapGeo & { lines: LinesGeoJson };
 
-export function createMapGeo(network: NetworkData): MapGeo {
+// 経路探索と同じく、網の補正（阪急京都線の大阪梅田発など）を足した網を使う
+export function createMapGeo(input: NetworkData): MapGeo {
+  const network = applyNetworkCorrections(input);
   return {
     index: createGeoIndex(network),
     graph: buildNetworkGraph(network),

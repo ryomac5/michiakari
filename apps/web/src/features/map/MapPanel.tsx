@@ -75,13 +75,15 @@ const focusMargin = {
   narrow: { top: 56, right: 215, bottom: 30, left: 80 },
 };
 const fitDurationMs = 700;
+// おすすめの吹き出しの高さのおよそ（px）
+const recommendedBubbleHeight = 130;
 // 止まっている路線の札は、現在地からこの距離の線上に置く
 // 近い順に試し、見える範囲に入り、現在地と吹き出しから離れた最初の点に置く
-const blockedTagMeters = [650, 500, 380, 260, 180];
+const blockedTagMeters = [900, 750, 650, 500, 380, 260, 180];
 // 現在地や吹き出しの基準点から、これより近い候補は使わない（px）
 const blockedTagClearance = 70;
-// 到達範囲の札を置く向き。PC 幅は北西、狭い画面は画面に入りやすい南東
-const reachLabelBearing = { wide: 315, narrow: 135 };
+// 到達範囲の札を置く向き。PC 幅は北西、狭い画面は出典や吹き出しと重なりにくい東
+const reachLabelBearing = { wide: 315, narrow: 75 };
 
 // 推奨経路の色。推奨の選択肢が待つなら青、それ以外は琥珀
 export function selectRouteTone(
@@ -462,8 +464,16 @@ export function MapPanel(props: MapPanelProps) {
       const duration = instant || prefersReducedMotion() ? 0 : fitDurationMs;
       const insets = { top, right, bottom, left };
       if (view === "focus" && guide?.bounds) {
+        const margin = narrow ? focusMargin.narrow : focusMargin.wide;
+        // おすすめの吹き出しを駅の上に出すときは、その高さのぶん上を空ける
+        const tallTop = guide.stations.some(
+          (s) => s.recommended && s.placement[narrow ? "narrow" : "wide"] === "top",
+        );
         map.fitBounds(guide.bounds, {
-          padding: buildFocusPadding(insets, narrow ? focusMargin.narrow : focusMargin.wide),
+          padding: buildFocusPadding(insets, {
+            ...margin,
+            top: margin.top + (tallTop ? recommendedBubbleHeight : 0),
+          }),
           maxZoom: 16.2,
           duration,
         });
@@ -510,7 +520,9 @@ export function MapPanel(props: MapPanelProps) {
     applyMapScene(map, scene);
     applyGuide(map, guide, reachLabels, narrow);
     const bounds = view === "focus" ? guide?.bounds : scene.bounds;
-    const fitKey = JSON.stringify([view, bounds, top, right, bottom, left, narrow]);
+    // おすすめの駅が変わると吹き出しの大きさが変わるので、寄せ直す
+    const recommendedKey = guide?.stations.find((s) => s.recommended)?.key ?? "";
+    const fitKey = JSON.stringify([view, bounds, recommendedKey, top, right, bottom, left, narrow]);
     if (bounds && fitKey !== fittedRef.current) {
       fitView(fittedRef.current === null);
       fittedRef.current = fitKey;
@@ -574,10 +586,29 @@ export function MapPanel(props: MapPanelProps) {
         const p = findPointAtDistance(blockedPath, here, m);
         return p ? [p] : [];
       });
+      // 吹き出しと現在地の札の矩形。札の幅と高さの半分だけ広げて、重なる点を外す
+      const origin = canvas.getBoundingClientRect();
+      const boxes = [
+        ...map
+          .getContainer()
+          .querySelectorAll<HTMLElement>(
+            `[data-testid^="judgment-map-station-"], [data-testid="${mapTestIds.here}"] > div`,
+          ),
+      ].map((el) => {
+        const r = el.getBoundingClientRect();
+        return {
+          left: r.left - origin.left - 44,
+          right: r.right - origin.left + 44,
+          top: r.top - origin.top - 14,
+          bottom: r.bottom - origin.top + 14,
+        };
+      });
       const chosen = points.find((p) => {
         const { x, y } = map.project(p);
         return (
-          visible(x, y) && anchors.every((a) => Math.hypot(a.x - x, a.y - y) > blockedTagClearance)
+          visible(x, y) &&
+          anchors.every((a) => Math.hypot(a.x - x, a.y - y) > blockedTagClearance) &&
+          boxes.every((b) => x < b.left || x > b.right || y < b.top || y > b.bottom)
         );
       });
       // 置ける点が無ければ札は出さない。止まっていることは現在地の札と上部の帯が示す

@@ -1,3 +1,10 @@
+export {
+  applyNetworkCorrections,
+  buildExtendedStationId,
+  listExtendedStationAliases,
+  TERMINAL_EXTENSIONS,
+  type TerminalExtension,
+} from "./corrections.ts";
 export { computeDistanceMeters } from "./distance.ts";
 export {
   createGeoIndex,
@@ -19,6 +26,7 @@ export {
   type BlockedSection,
   createRouter,
   type FindAlternativeRoutesInput,
+  findMainRideLeg,
   formatLineName,
   formatRouteLabel,
   formatStationName,

@@ -1,5 +1,11 @@
 import { estimateWalkMinutes } from "@repo/core";
-import { computeDistanceMeters, formatLineName, type StationNode } from "@repo/geo";
+import {
+  computeDistanceMeters,
+  findMainRideLeg,
+  formatLineName,
+  formatStationName,
+  type StationNode,
+} from "@repo/geo";
 import type { Lang, Place, RouteOption } from "@repo/schema";
 import {
   type FocusArea,
@@ -26,6 +32,15 @@ export type GuideLine = {
   name: string;
   color: string;
   suspended: boolean;
+  // 振替輸送で乗る路線。振替の選択肢の主な乗車区間（選択肢の名前の路線）から求める
+  transferService: boolean;
+};
+
+// 推奨の選択肢の乗り方。最初に乗る路線と、結論が名前に出す路線が違えば乗り継ぎを 1 段添える
+export type GuideRoute = {
+  first: GuideLine;
+  // 例: 西中島南方で阪急京都線
+  via: { stationName: string; line: GuideLine } | null;
 };
 
 export type WalkSource = "option" | "transfer" | "estimate";
@@ -43,8 +58,10 @@ export type GuideStation = {
   suspended: boolean;
   walkMinutes: number;
   walkSource: WalkSource;
-  // 振替輸送を使う選択肢が、この駅の事業者の路線に乗る
+  // 振替輸送で乗る路線のどれかが、この駅から出る
   transferService: boolean;
+  // 推奨の選択肢の乗り方。おすすめの駅だけが持つ
+  route: GuideRoute | null;
   // 推奨の選択肢が最初に乗る駅
   recommended: boolean;
   // 吹き出しを押したときに移る選択肢。推奨を優先する
@@ -118,7 +135,12 @@ function listGroupNodes(geo: MapGeo, origin: StationNode): StationNode[] {
   );
 }
 
-function buildGuideLine(geo: MapGeo, lineId: string, input: StationGuideInput): GuideLine | null {
+function buildGuideLine(
+  geo: MapGeo,
+  lineId: string,
+  input: StationGuideInput,
+  transferLineIds: ReadonlySet<string> = new Set(),
+): GuideLine | null {
   const line = geo.index.getLine(lineId);
   if (!line) return null;
   const suspended = input.blockedLineIds.includes(lineId);
@@ -134,6 +156,7 @@ function buildGuideLine(geo: MapGeo, lineId: string, input: StationGuideInput): 
     name: observed ?? formatLineName(line, input.language),
     color: line.color,
     suspended,
+    transferService: !suspended && transferLineIds.has(lineId),
   };
 }
 
@@ -206,21 +229,62 @@ export function resolveWalkMinutes(
   return { minutes: estimateWalkMinutes(originNode.lonLat, position), source: "estimate" };
 }
 
-// 振替輸送を使う選択肢が乗る事業者。止まっている路線の事業者は除く
-function listTransferOperators(geo: MapGeo, input: StationGuideInput): Set<string> {
-  const blockedOperators = new Set(
-    input.blockedLineIds.flatMap((id) => geo.index.getLine(id)?.operatorKey ?? []),
+type LegWithIds = RouteOption["legs"][number] & {
+  fromStationId?: string | null;
+  toStationId?: string | null;
+  lineId?: string | null;
+};
+
+// 振替輸送で乗る路線。振替の選択肢の主な乗車区間で、選択肢の名前（阪急京都線で振替）の路線
+// 乗り継ぎに使うだけの路線（御堂筋線など）は含めない
+export function listTransferLineIds(input: StationGuideInput): Set<string> {
+  const blocked = input.blockedLineIds[0];
+  return new Set(
+    input.options
+      .filter((o) => o.isTransferService)
+      .flatMap((o) => {
+        const main = findMainRideLeg(o.legs, blocked) as LegWithIds | undefined;
+        return main?.lineId ? [main.lineId] : [];
+      }),
   );
-  const keys = input.options
-    .filter((o) => o.isTransferService)
-    .flatMap((o) => o.legs)
-    .flatMap((leg) => {
-      const lineId = (leg as { lineId?: string | null }).lineId;
-      const line = leg.mode === "ride" && lineId ? geo.index.getLine(lineId) : undefined;
-      return line ? [line.operatorKey] : [];
-    })
-    .filter((key) => !blockedOperators.has(key));
-  return new Set(keys);
+}
+
+// 推奨の選択肢の乗り方。最初の乗車区間と、主な乗車区間が違えば乗り継ぎの駅と路線を添える
+function buildGuideRoute(
+  geo: MapGeo,
+  option: RouteOption,
+  input: StationGuideInput,
+  transferLineIds: ReadonlySet<string>,
+): GuideRoute | null {
+  const rides = option.legs.filter((l) => l.mode === "ride") as LegWithIds[];
+  const firstLeg = rides[0];
+  const first = firstLeg?.lineId
+    ? buildGuideLine(geo, firstLeg.lineId, input, transferLineIds)
+    : null;
+  if (!first) return null;
+  const main = findMainRideLeg(option.legs, input.blockedLineIds[0]) as LegWithIds | undefined;
+  if (!main?.lineId || main === firstLeg || main.lineId === firstLeg?.lineId) {
+    return { first, via: null };
+  }
+  const line = buildGuideLine(geo, main.lineId, input, transferLineIds);
+  const station = main.fromStationId ? geo.index.getStation(main.fromStationId) : undefined;
+  if (!line) return { first, via: null };
+  return {
+    first,
+    via: {
+      stationName: station ? formatStationName(station, input.language) : main.from,
+      line,
+    },
+  };
+}
+
+// 路線の並び。推奨の選択肢が乗る路線、ほかの選択肢が乗る路線、そのほかの順
+function sortLines(lines: GuideLine[], preferred: readonly string[]): GuideLine[] {
+  const rank = (l: GuideLine) => {
+    const i = preferred.indexOf(l.lineId);
+    return i === -1 ? preferred.length : i;
+  };
+  return [...lines].sort((a, b) => rank(a) - rank(b));
 }
 
 // 吹き出しに出す駅を選ぶ。選択肢が最初に乗る駅を先に、残りは設定の優先度の順
@@ -254,25 +318,33 @@ export function buildStationGuide(
     return leg?.fromStationId ? [{ option: o, leg, stationId: leg.fromStationId }] : [];
   });
   const boardingIds = new Set(boardings.map((b) => b.stationId));
-  const transferOperators = listTransferOperators(geo, input);
+  const transferLineIds = listTransferLineIds(input);
 
   const stations = selectStations(area, boardingIds).flatMap((station): GuideStation[] => {
     const nodes = station.stationIds.flatMap((id) => geo.index.getStation(id) ?? []);
     const first = nodes[0];
     if (!first) return [];
     const position = toPosition(first.lonLat);
-    const boardingHere = boardings.filter((b) => station.stationIds.includes(b.stationId));
-    const lines = uniqueLines([
-      ...nodes.map((n) => buildGuideLine(geo, n.lineId, input)),
-      ...(station.extraLineIds ?? []).map((id) => buildGuideLine(geo, id, input)),
-      ...boardingHere.map((b) => (b.leg.lineId ? buildGuideLine(geo, b.leg.lineId, input) : null)),
-    ]);
+    const boardingHere = boardings
+      .filter((b) => station.stationIds.includes(b.stationId))
+      // 推奨の選択肢を先に置き、路線の並びと押したときに移る先に使う
+      .sort(
+        (a, b) => Number(b.option.id === recommended?.id) - Number(a.option.id === recommended?.id),
+      );
+    const lines = sortLines(
+      uniqueLines([
+        ...nodes.map((n) => buildGuideLine(geo, n.lineId, input, transferLineIds)),
+        ...boardingHere.map((b) =>
+          b.leg.lineId ? buildGuideLine(geo, b.leg.lineId, input, transferLineIds) : null,
+        ),
+      ]),
+      boardingHere.flatMap((b) => (b.leg.lineId ? [b.leg.lineId] : [])),
+    );
     const walk = resolveWalkMinutes(geo, originNode, originIds, station, position, input.options);
     const isRecommended =
       recommendedBoarding?.fromStationId !== undefined &&
       recommendedBoarding.fromStationId !== null &&
       station.stationIds.includes(recommendedBoarding.fromStationId);
-    const operatorKeys = lines.flatMap((l) => geo.index.getLine(l.lineId)?.operatorKey ?? []);
     return [
       {
         key: station.key,
@@ -285,15 +357,21 @@ export function buildStationGuide(
         suspended: lines.length > 0 && lines.every((l) => l.suspended),
         walkMinutes: walk.minutes,
         walkSource: walk.source,
-        transferService: operatorKeys.some((k) => transferOperators.has(k)),
+        transferService: lines.some((l) => l.transferService),
         recommended: isRecommended,
+        route:
+          isRecommended && recommended
+            ? buildGuideRoute(geo, recommended, input, transferLineIds)
+            : null,
         optionId: isRecommended ? (recommended?.id ?? null) : (boardingHere[0]?.option.id ?? null),
       },
     ];
   });
 
   const herePosition = toPosition(originNode.lonLat);
-  const hereLines = uniqueLines(groupNodes.map((n) => buildGuideLine(geo, n.lineId, input)))
+  const hereLines = uniqueLines(
+    groupNodes.map((n) => buildGuideLine(geo, n.lineId, input, transferLineIds)),
+  )
     // 止まっている路線を先に出す
     .sort((a, b) => Number(b.suspended) - Number(a.suspended));
   const recommendedLineId =
