@@ -137,6 +137,12 @@ export const testIds = {
     outcomeFollowed: "replay-outcome-followed",
     outcomeWaited: "replay-outcome-waited",
   },
+  // 見つからない頁と、思わぬエラーの画面。data-kind に notFound / error を出す
+  status: {
+    screen: "status-screen",
+    home: "status-home",
+    retry: "status-retry",
+  },
   about: {
     screen: "about-screen",
     attribution: "about-attribution",

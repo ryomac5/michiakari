@@ -1,11 +1,10 @@
 "use client";
 
-import { BookOpen, ChevronRight, FlaskConical, House, Info, Menu, X } from "lucide-react";
+import { BookOpen, ChevronRight, FlaskConical, Info, Map as MapIcon, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { testIds } from "@/features/judgment/testids";
-import { cn } from "@/lib/utils";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -66,32 +65,36 @@ export function AppMenu({ mock = false }: { mock?: boolean }) {
         id={panelId}
         data-testid={testIds.app.menu}
         hidden={!open}
-        className="glass-strong absolute top-[calc(100%+12px)] right-0 z-40 w-72 animate-drop-in rounded-2xl p-2"
+        className="glass-strong absolute top-[calc(100%+12px)] right-0 z-40 flex w-[min(300px,calc(100vw-24px))] animate-drop-in flex-col gap-2 rounded-[24px] p-2"
       >
+        {/* 表示の設定。言語とテーマを 1 枚の面にまとめる */}
+        <div className="flex flex-col rounded-[18px] bg-foreground/[0.04] p-1">
+          <div className="flex min-h-11 items-center justify-between gap-3 pr-1 pl-2.5">
+            <span className="text-[14px] font-medium">{t("language")}</span>
+            <LanguageSwitcher />
+          </div>
+          <ThemeToggle />
+        </div>
+        <nav aria-label={t("menu.label")} className="flex flex-col">
+          <MenuLink href="/" icon={<MapIcon />}>
+            {t("home")}
+          </MenuLink>
+          <MenuLink href="/knowledge" testId={testIds.app.knowledgeLink} icon={<BookOpen />}>
+            {t("knowledge")}
+          </MenuLink>
+          <MenuLink href="/about" testId={testIds.app.aboutLink} icon={<Info />}>
+            {t("about")}
+          </MenuLink>
+        </nav>
         {mock && (
           <p
             data-testid={testIds.app.mockBadge}
-            className="mb-1 flex items-center gap-2 rounded-xl bg-hold-surface px-2 py-2 text-[13px] font-medium text-hold"
+            className="flex items-center gap-2 rounded-[14px] bg-hold-surface px-3 py-2 text-[12px] font-medium text-hold"
           >
             <FlaskConical className="size-4 shrink-0" aria-hidden />
             {t("mockBadge")}
           </p>
         )}
-        <div className="flex items-center justify-between gap-3 px-2 py-1.5">
-          <span className="text-[13px] font-medium text-muted">{t("language")}</span>
-          <LanguageSwitcher />
-        </div>
-        <ThemeToggle />
-        <div className="my-1.5 h-px bg-border" />
-        <MenuLink href="/knowledge" testId={testIds.app.knowledgeLink} icon={<BookOpen />}>
-          {t("knowledge")}
-        </MenuLink>
-        <MenuLink href="/about" testId={testIds.app.aboutLink} icon={<Info />}>
-          {t("about")}
-        </MenuLink>
-        <MenuLink href="/" icon={<House />}>
-          {t("home")}
-        </MenuLink>
       </div>
     </div>
   );
@@ -112,12 +115,14 @@ function MenuLink({
     <Link
       href={href}
       data-testid={testId}
-      className={cn(
-        "flex min-h-11 items-center gap-3 rounded-xl px-2 text-[15px] font-medium transition-colors hover:bg-foreground/5",
-        "[&>svg:first-child]:size-5 [&>svg:first-child]:stroke-[1.75] [&>svg:first-child]:text-muted",
-      )}
+      className="flex min-h-12 items-center gap-3 rounded-[16px] px-1.5 text-[15px] font-medium transition-[transform,background-color] duration-150 hover:bg-foreground/5 active:scale-[0.98]"
     >
-      {icon}
+      <span
+        aria-hidden
+        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-foreground/[0.06] text-muted [&>svg]:size-[18px] [&>svg]:stroke-[1.75]"
+      >
+        {icon}
+      </span>
       <span className="flex-1">{children}</span>
       <ChevronRight className="size-4 text-muted" aria-hidden />
     </Link>

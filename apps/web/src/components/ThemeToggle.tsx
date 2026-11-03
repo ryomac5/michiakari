@@ -30,9 +30,9 @@ export function ThemeToggle() {
       data-testid={testIds.app.themeToggle}
       data-theme={theme}
       onClick={() => applyTheme(dark ? "light" : "dark")}
-      className="flex min-h-11 w-full items-center gap-3 rounded-xl px-2 text-left text-[15px] font-medium transition-colors hover:bg-foreground/5"
+      className="flex min-h-11 w-full items-center gap-2.5 rounded-[14px] pr-1.5 pl-2.5 text-left text-[14px] font-medium transition-colors hover:bg-foreground/5"
     >
-      <Moon className="size-5 text-muted" strokeWidth={1.75} aria-hidden />
+      <Moon className="size-[18px] text-muted" strokeWidth={1.75} aria-hidden />
       <span className="flex-1">{t("menu.darkMode")}</span>
       <span
         aria-hidden
