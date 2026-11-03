@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, LoaderCircle, MapPin, Search, X } from "lucide-react";
+import { CircleAlert, LoaderCircle, Search } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { type KeyboardEvent, type ReactNode, useId, useState } from "react";
 import { Input } from "@/components/ui/input";
@@ -12,17 +12,11 @@ import { useStationSearch } from "../use-station-search";
 type StationSearchProps = {
   label: string;
   placeholder: string;
-  // 選択済みのときの表示名。null なら検索欄を出す
-  selectedLabel: string | null;
-  selectedDetail?: ReactNode;
   onSelect: (station: StationChoice) => void;
   onFreeText?: (text: string) => void;
-  onClear: () => void;
   testIds: {
     search: string;
     option: (id: string) => string;
-    selected: string;
-    clear: string;
   };
   children?: ReactNode;
   // 見出しが別にあるときは、ラベルを読み上げ専用にする
@@ -32,11 +26,8 @@ type StationSearchProps = {
 export function StationSearch({
   label,
   placeholder,
-  selectedLabel,
-  selectedDetail,
   onSelect,
   onFreeText,
-  onClear,
   testIds,
   children,
   hideLabel = false,
@@ -77,38 +68,6 @@ export function StationSearch({
       setQuery("");
       setActiveIndex(-1);
     }
-  }
-
-  if (selectedLabel !== null) {
-    return (
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[12px] font-medium text-muted">{label}</span>
-        <div
-          data-testid={testIds.selected}
-          className="flex min-h-12 items-center gap-3 rounded-xl bg-foreground/[0.05] py-1 pr-1 pl-3"
-        >
-          <MapPin className="size-[18px] shrink-0 text-muted" strokeWidth={1.75} aria-hidden />
-          <div className="min-w-0 flex-1">
-            <p className="text-[17px] leading-tight font-semibold break-words">{selectedLabel}</p>
-            {selectedDetail && <p className="text-[12px] text-muted">{selectedDetail}</p>}
-          </div>
-          <button
-            type="button"
-            data-testid={testIds.clear}
-            aria-label={`${label}: ${t("clear")}`}
-            title={t("clear")}
-            onClick={() => {
-              setQuery("");
-              setActiveIndex(-1);
-              onClear();
-            }}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-foreground/5"
-          >
-            <X className="size-[18px]" strokeWidth={1.75} aria-hidden />
-          </button>
-        </div>
-      </div>
-    );
   }
 
   return (

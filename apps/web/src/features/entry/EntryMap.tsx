@@ -1,6 +1,7 @@
 "use client";
 
 import "maplibre-gl/dist/maplibre-gl.css";
+import { computeDistanceMeters } from "@repo/geo";
 import { ArrowUp } from "lucide-react";
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import Link from "next/link";
@@ -49,6 +50,8 @@ const sourceIds = { lines: "entry-lines", trip: "entry-trip" } as const;
 // 名前の札のぶん、印のまわりに空ける余白（px）
 const labelMargin = { x: 96, y: 44 };
 const durationMs = 650;
+// 駅の段で一緒に収める、まわりの駅までの距離（m）
+const nearbyMeters = 600;
 
 function buildRailColor(palette: MapPalette) {
   // 遠くでは無彩色、寄るほど路線色にする
@@ -193,10 +196,10 @@ function placeEdgeHubs(
   hubs: EntryHub[],
   project: (p: Position) => { x: number; y: number },
   size: { width: number; height: number },
-  insets: { top: number; bottom: number },
+  insets: { top: number; bottom: number; left: number },
 ): EdgeHub[] {
   const box = {
-    left: 16,
+    left: insets.left + 16,
     right: size.width - 16,
     top: insets.top + 16,
     bottom: size.height - insets.bottom - 16,
@@ -332,13 +335,19 @@ export function EntryMap(props: EntryMapProps) {
       }
       return;
     }
+    // 駅の段は、選んだ駅とそのまわりの駅を、名前の札が上部の帯やシートに隠れない余白で収める
     if ((stage === "station" || stage === "destination") && place) {
-      map.easeTo({
-        center: place.position,
-        zoom: map.getZoom() >= 14.5 ? map.getZoom() : 15.2,
-        offset: buildOffset(current),
-        duration,
-      });
+      const nearby = (area?.places ?? []).filter(
+        (p) => computeDistanceMeters(p.position, place.position) <= nearbyMeters,
+      );
+      const bounds = computeBounds([place.position, ...nearby.map((p) => p.position)]);
+      if (bounds) {
+        map.fitBounds(bounds, {
+          padding: buildPadding(map, current, { x: labelMargin.x + 16, y: labelMargin.y + 12 }),
+          maxZoom: 16,
+          duration,
+        });
+      }
       return;
     }
     if (stage === "area" && area) {
@@ -377,7 +386,7 @@ export function EntryMap(props: EntryMapProps) {
           hubs,
           (p) => map.project(p),
           { width: canvas.clientWidth, height: canvas.clientHeight },
-          { top, bottom },
+          { top, bottom, left },
         ),
       );
     };
@@ -386,7 +395,7 @@ export function EntryMap(props: EntryMapProps) {
     return () => {
       map.off("move", update);
     };
-  }, [map, stage, hubs, top, bottom]);
+  }, [map, stage, hubs, top, bottom, left]);
 
   props.apiRef.current = {
     zoomToOrigin: (zoom) =>
@@ -405,6 +414,7 @@ export function EntryMap(props: EntryMapProps) {
       }),
   };
 
+  const edgeKey = edgeHubs.map((e) => e.hub.areaId).join(",");
   // 段ごとの印。関西は大きな丸、エリアと駅は駅の丸、行き先を選んだら出発と行き先だけ
   const entries = useMemo(() => {
     type Entry = {
@@ -419,7 +429,13 @@ export function EntryMap(props: EntryMapProps) {
       anchor: "center",
       offset: [0, 0],
     });
-    if (stage === "kansai") return hubs.map((h) => at(`hub:${h.areaId}`, h.position));
+    // 縁の札で示す丸は、地図の上には出さない
+    if (stage === "kansai") {
+      const onEdge = new Set(edgeKey.split(","));
+      return hubs
+        .filter((h) => !onEdge.has(h.areaId))
+        .map((h) => at(`hub:${h.areaId}`, h.position));
+    }
     const places = showTrip && place ? [place] : (area?.places ?? []);
     const list = places.map((p) => at(`place:${p.key}`, p.position));
     if (showTrip && destinationPosition) {
@@ -431,7 +447,7 @@ export function EntryMap(props: EntryMapProps) {
       });
     }
     return list;
-  }, [stage, hubs, area, place, showTrip, destinationPosition]);
+  }, [stage, hubs, area, place, showTrip, destinationPosition, edgeKey]);
   const hosts = useMarkerHosts(map, markerClass, entries);
   const side = narrow ? "narrow" : "wide";
 

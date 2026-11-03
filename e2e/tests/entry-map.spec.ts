@@ -105,4 +105,40 @@ test("入力を終えると、選んだ路線を見合わせとして判断の�
   await page.goBack();
   await expectStage(page, "method");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("京都");
+  // 再開したあとも、端末の戻る操作は 1 段ずつ引く
+  await page.goBack();
+  await expectStage(page, "destination");
+});
+
+test("端末の戻る操作でも、入口の段を 1 段ずつ引ける", async ({ page }) => {
+  await openEntry(page);
+  await page.getByTestId(testIds.start.hub("umeda")).click();
+  await page.getByTestId(testIds.start.place("osaka")).click();
+  await page.getByTestId(testIds.start.line(kobeLine)).click();
+  await page.getByTestId(testIds.start.destinationSuggestion("sannomiya")).click();
+  await page.getByTestId(testIds.start.method("paste")).click();
+  await expectStage(page, "input");
+
+  // 選び直しも履歴を引くので、そのあとの戻る操作と食い違わない
+  await page.getByTestId(testIds.start.editDestination).click();
+  await expectStage(page, "destination");
+  for (const stage of ["station", "area", "kansai"]) {
+    await page.goBack();
+    await expectStage(page, stage);
+  }
+  await expect(page).toHaveURL(/\/\?mock=1$/);
+});
+
+test("PC 幅では、問いかけの下のよく使う駅から駅の段へ進める", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openEntry(page);
+  await expect(page.getByTestId(testIds.start.replayLink)).toBeVisible();
+  await page.getByTestId(testIds.start.quickPick("namba")).click();
+  await expectStage(page, "station");
+  await expect(page.getByTestId(testIds.start.place("namba"))).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.goBack();
+  await expectStage(page, "area");
 });

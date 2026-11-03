@@ -679,12 +679,18 @@ export function MapPanel(props: MapPanelProps) {
       className="fixed inset-0 z-0 bg-background"
     >
       <div ref={containerRef} data-testid={mapTestIds.canvas} className="h-full w-full" />
-      {(status === "loading" || status === "error") && (
+      {/* 読み込み中は文字を出さず、入口から引き継いだ駅のまわりの地図を見せたままにする */}
+      {status === "loading" && (
+        <p role="status" className="sr-only">
+          {labels.loading}
+        </p>
+      )}
+      {status === "error" && (
         <p
           role="status"
           className="pointer-events-none absolute inset-0 flex items-center justify-center text-[13px] text-muted"
         >
-          {status === "error" ? labels.error : labels.loading}
+          {labels.error}
         </p>
       )}
 

@@ -1,7 +1,9 @@
 "use client";
 
-import { ChevronRight, Clock, TrainFront } from "lucide-react";
+import { Clock, CloudRain, Megaphone, Play, TrainFront, TriangleAlert, Wrench } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import type { ReactNode } from "react";
+import { EmptyState } from "@/components/PageShell";
 import { testIds } from "@/features/judgment/testids";
 import { formatClockTime } from "@/features/judgment/time";
 import {
@@ -11,7 +13,14 @@ import {
 } from "@/features/knowledge/catalog";
 import { pickScenarioText, type ReplayScenario } from "../scenario";
 
-// 再生できるシナリオの一覧
+// 事象ごとの印。知見に無い事象は列車の印にする
+const eventIcons: Record<string, ReactNode> = {
+  heavy_rain: <CloudRain />,
+  person_accident: <TriangleAlert />,
+  vehicle_failure: <Wrench />,
+};
+
+// 再生できるシナリオの格子。1 枚のカードを押すとそのシナリオを開く
 export function ScenarioList({
   scenarios,
   catalog,
@@ -24,46 +33,69 @@ export function ScenarioList({
   const t = useTranslations("replay");
   const locale = useLocale();
 
-  if (scenarios.length === 0) return <p className="text-[14px] text-muted">{t("empty")}</p>;
+  if (scenarios.length === 0) {
+    return <EmptyState icon={<TrainFront />} title={t("empty")} />;
+  }
 
   return (
-    <ul data-testid={testIds.replay.scenarioList} className="-mx-2 flex flex-col">
-      {scenarios.map((scenario) => {
+    <ul
+      data-testid={testIds.replay.scenarioList}
+      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+    >
+      {scenarios.map((scenario, i) => {
         const event = findCatalogEvent(catalog, scenario.event_type);
         return (
-          <li key={scenario.id}>
+          <li
+            key={scenario.id}
+            className="flex animate-rise-in"
+            style={{ animationDelay: `${i * 60}ms` }}
+          >
             <button
               type="button"
               data-testid={testIds.replay.scenario(scenario.id)}
               onClick={() => onSelect(scenario.id)}
-              className="flex w-full items-center gap-3 rounded-2xl px-2 py-3 text-left transition-colors hover:bg-foreground/5"
+              className="glass-strong group flex w-full flex-col gap-3 rounded-[24px] p-5 text-left sm:gap-4 transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.98]"
             >
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <span className="flex items-center gap-2.5">
+                <span
+                  aria-hidden
+                  className="flex size-10 shrink-0 items-center justify-center rounded-[14px] bg-foreground/[0.06] [&>svg]:size-5 [&>svg]:stroke-[1.75]"
+                >
+                  {eventIcons[scenario.event_type] ?? <TrainFront />}
+                </span>
                 {event && (
-                  <span className="text-[12px] font-medium text-muted">
+                  <span className="text-[13px] font-semibold text-muted">
                     {pickLocalized(event.name, locale)}
                   </span>
                 )}
-                <p className="text-[15px] leading-snug font-semibold">
-                  {pickScenarioText(scenario.title, locale)}
-                </p>
-                <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted">
-                  <span className="inline-flex items-center gap-1">
-                    <TrainFront className="size-3.5" strokeWidth={1.75} aria-hidden />
-                    {scenario.line}
-                  </span>
-                  <span className="inline-flex items-center gap-1 tabular-nums">
-                    <Clock className="size-3.5" strokeWidth={1.75} aria-hidden />
-                    {formatClockTime(scenario.start_time, locale)}
-                  </span>
-                  <span>{t("observationCount", { count: scenario.timeline.length })}</span>
-                </p>
-              </div>
-              <ChevronRight className="size-5 shrink-0 text-muted" strokeWidth={1.75} aria-hidden />
+              </span>
+              <span className="flex-1 text-[17px] leading-snug font-bold text-balance">
+                {pickScenarioText(scenario.title, locale)}
+              </span>
+              <span className="flex flex-wrap items-center gap-1.5 text-[12px] font-medium text-muted">
+                <Meta icon={<TrainFront />}>{scenario.line}</Meta>
+                <Meta icon={<Clock />}>{formatClockTime(scenario.start_time, locale)}</Meta>
+                <Meta icon={<Megaphone />}>
+                  {t("observationCount", { count: scenario.timeline.length })}
+                </Meta>
+              </span>
+              <span className="inline-flex h-9 w-fit items-center gap-2 rounded-full bg-primary pr-4 pl-3 text-[14px] font-semibold text-primary-foreground transition-transform duration-150 group-hover:translate-x-0.5">
+                <Play className="size-4 fill-current" aria-hidden />
+                {t("pick")}
+              </span>
             </button>
           </li>
         );
       })}
     </ul>
+  );
+}
+
+function Meta({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <span className="inline-flex h-7 items-center gap-1 rounded-full bg-foreground/[0.05] px-2.5 tabular-nums [&>svg]:size-3.5 [&>svg]:stroke-[1.75]">
+      {icon}
+      {children}
+    </span>
   );
 }

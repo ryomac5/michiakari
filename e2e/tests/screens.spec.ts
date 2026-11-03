@@ -242,6 +242,11 @@ for (const variant of variants) {
       await capture(page, variant, "15-knowledge-full", true);
       await checkScreen(page, "知見ナレッジ");
       if (variant.width === desktop.width) await expectKnowledgeSideBySide(page, "知見ナレッジ");
+
+      await page.goto("/no-such-page");
+      await expect(page.getByTestId(testIds.status.screen)).toBeVisible({ timeout: 30_000 });
+      await capture(page, variant, "16-not-found");
+      await checkScreen(page, "見つからない頁");
     });
 
     test("リプレイ", async ({ page }) => {

@@ -28,6 +28,8 @@ export const testIds = {
     hubEdge: (areaId: string) => `start-hub-edge-${areaId}`,
     place: (key: string) => `start-place-${key}`,
     destinationPin: "start-destination-pin",
+    // PC 幅の問いかけの下の、よく使う駅
+    quickPick: (areaId: string) => `start-quick-pick-${areaId}`,
     sheet: "start-sheet",
     back: "start-back",
     areaPlace: (key: string) => `start-area-place-${key}`,
@@ -134,6 +136,12 @@ export const testIds = {
     outcomeSummary: "replay-outcome-summary",
     outcomeFollowed: "replay-outcome-followed",
     outcomeWaited: "replay-outcome-waited",
+  },
+  // 見つからない頁と、思わぬエラーの画面。data-kind に notFound / error を出す
+  status: {
+    screen: "status-screen",
+    home: "status-home",
+    retry: "status-retry",
   },
   about: {
     screen: "about-screen",

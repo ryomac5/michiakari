@@ -2,12 +2,14 @@
 
 import { ChevronRight, Info, LoaderCircle, LocateFixed, Play } from "lucide-react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { forwardRef } from "react";
 import { testIds } from "@/features/judgment/testids";
 import type { StationChoice } from "@/features/stations/catalog";
 import { StationSearch } from "@/features/stations/components/StationSearch";
 import type { LocateStatus } from "@/features/stations/use-current-location";
+import { cn } from "@/lib/utils";
+import { type EntryHub, pickLocalized } from "./entry-places";
 
 // 関西の段で地図の上に重ねる部品。上に問いかけと検索、下にデモへの札
 
@@ -18,9 +20,13 @@ export const PromptCard = forwardRef<
     message: string | null;
     onLocate: () => void;
     onSelect: (station: StationChoice) => void;
+    // PC 幅で検索の下に並べる、よく使う駅
+    quickPicks: EntryHub[] | null;
+    onQuickPick: (stationName: string) => void;
   }
->(function PromptCard({ locateStatus, message, onLocate, onSelect }, ref) {
+>(function PromptCard({ locateStatus, message, onLocate, onSelect, quickPicks, onQuickPick }, ref) {
   const t = useTranslations();
+  const locale = useLocale();
   return (
     <div
       ref={ref}
@@ -39,14 +45,10 @@ export const PromptCard = forwardRef<
             hideLabel
             label={t("start.originLabel")}
             placeholder={t("entry.searchPlaceholder")}
-            selectedLabel={null}
             onSelect={onSelect}
-            onClear={() => {}}
             testIds={{
               search: testIds.start.originSearch,
               option: testIds.start.originOption,
-              selected: "",
-              clear: "",
             }}
           />
         </div>
@@ -66,6 +68,25 @@ export const PromptCard = forwardRef<
           )}
         </button>
       </div>
+      {quickPicks && quickPicks.length > 0 && (
+        <div className="flex flex-col gap-2 px-1 pt-1">
+          <p className="text-[12px] font-medium text-muted">{t("entry.quickPicks")}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {quickPicks.map((hub) => (
+              <button
+                key={hub.areaId}
+                type="button"
+                data-testid={testIds.start.quickPick(hub.areaId)}
+                onClick={() => onQuickPick(hub.stationName)}
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-foreground/[0.05] px-3.5 text-[14px] font-semibold transition-[transform,background-color] duration-150 hover:bg-foreground/[0.09] active:scale-95"
+              >
+                <span aria-hidden className="size-2 rounded-full bg-brand" />
+                {pickLocalized(hub.label, locale)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {message && (
         <p
           data-testid={testIds.start.locateStatus}
@@ -79,12 +100,21 @@ export const PromptCard = forwardRef<
   );
 });
 
-export const DemoDock = forwardRef<HTMLDivElement>(function DemoDock(_, ref) {
+// inline は PC 幅で、左の列の問いかけの下に続けて置く
+export const DemoDock = forwardRef<HTMLDivElement, { inline?: boolean }>(function DemoDock(
+  { inline = false },
+  ref,
+) {
   const t = useTranslations();
   return (
     <div
       ref={ref}
-      className="fixed inset-x-0 bottom-0 z-10 flex flex-col gap-2 px-3 pb-[max(28px,calc(env(safe-area-inset-bottom)+20px))] lg:right-auto lg:w-[432px] lg:px-4 lg:pb-10"
+      className={cn(
+        "flex flex-col gap-2",
+        inline
+          ? "pointer-events-auto"
+          : "fixed inset-x-0 bottom-0 z-10 px-3 pb-[max(28px,calc(env(safe-area-inset-bottom)+20px))]",
+      )}
     >
       <Link
         href="/replay"

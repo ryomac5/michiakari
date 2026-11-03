@@ -20,9 +20,9 @@ export type EntryAction =
   | { type: "chooseLine"; line: OriginLine }
   | { type: "chooseDestination" }
   | { type: "chooseMethod"; method: SituationTab }
-  | { type: "editLine" }
-  | { type: "editDestination" }
   | { type: "back" }
+  // 端末の戻る操作や、行き先・路線の選び直しで、その深さの段まで引く
+  | { type: "backTo"; depth: number }
   | { type: "reset" };
 
 export const initialEntryState: EntryState = {
@@ -32,6 +32,13 @@ export const initialEntryState: EntryState = {
   line: null,
   method: null,
 };
+
+const stageOrder: EntryStage[] = ["kansai", "area", "station", "destination", "method", "input"];
+
+// 段の深さ。関西が 0、入力が 5。端末の履歴の深さと対応させる
+export function stageDepth(stage: EntryStage): number {
+  return stageOrder.indexOf(stage);
+}
 
 const previousStage: Record<EntryStage, EntryStage> = {
   kansai: "kansai",
@@ -69,12 +76,13 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
       return state.line ? { ...state, stage: "method", method: null } : state;
     case "chooseMethod":
       return state.line ? { ...state, stage: "input", method: action.method } : state;
-    case "editLine":
-      return state.place ? { ...state, stage: "station", line: null, method: null } : state;
-    case "editDestination":
-      return state.line ? { ...state, stage: "destination", method: null } : state;
     case "back":
       return stepBack(state);
+    case "backTo": {
+      let next = state;
+      while (stageDepth(next.stage) > Math.max(0, action.depth)) next = stepBack(next);
+      return next;
+    }
     case "reset":
       return initialEntryState;
   }

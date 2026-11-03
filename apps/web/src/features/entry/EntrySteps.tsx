@@ -176,15 +176,11 @@ export function DestinationStep({
         hideLabel
         label={t("destinationLabel")}
         placeholder={t("destinationPlaceholder")}
-        selectedLabel={null}
         onSelect={onSelect}
         onFreeText={onFreeText}
-        onClear={() => {}}
         testIds={{
           search: testIds.start.destinationSearch,
           option: testIds.start.destinationOption,
-          selected: "",
-          clear: "",
         }}
       />
       <div className="flex flex-col gap-2">

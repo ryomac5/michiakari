@@ -1,11 +1,11 @@
 "use client";
 
+import { Play } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
-import { AppHeader } from "@/components/AppHeader";
+import { PageHero, PageShell } from "@/components/PageShell";
 import { useJudgmentSession } from "@/features/judgment/session";
 import { testIds } from "@/features/judgment/testids";
-import { BackdropMap } from "@/features/map/BackdropMap";
 import { ReplayPlayer } from "@/features/replay/components/ReplayPlayer";
 import { ScenarioList } from "@/features/replay/components/ScenarioList";
 import type { ReplayScenario } from "@/features/replay/scenario";
@@ -42,24 +42,12 @@ export function ReplayScreen({
   }
 
   return (
-    <>
-      <BackdropMap />
-      <AppHeader />
-      <main
-        id="main"
-        data-testid={testIds.replay.screen}
-        data-state="select"
-        className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 pt-[96px] pb-12"
-      >
-        <section className="glass-strong flex flex-col gap-4 rounded-[24px] p-5">
-          <div className="flex flex-col gap-1.5">
-            <h1 className="text-[26px] leading-tight font-bold tracking-tight">{t("heading")}</h1>
-            <p className="text-[14px] leading-relaxed text-muted">{t("lead")}</p>
-          </div>
-          <ScenarioList scenarios={scenarios} catalog={catalog} onSelect={setSelectedId} />
-          <p className="text-[12px] text-muted">{t("fictional")}</p>
-        </section>
-      </main>
-    </>
+    <PageShell testId={testIds.replay.screen} state="select" wide>
+      <PageHero icon={<Play />} title={t("heading")} lead={t("lead")} />
+      <ScenarioList scenarios={scenarios} catalog={catalog} onSelect={setSelectedId} />
+      <p className="px-2 text-center text-[12px] text-muted [text-shadow:0_0_4px_var(--background)]">
+        {t("fictional")}
+      </p>
+    </PageShell>
   );
 }

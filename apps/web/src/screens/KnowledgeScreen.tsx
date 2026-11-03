@@ -16,7 +16,7 @@ import {
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { AppHeader } from "@/components/AppHeader";
+import { EmptyState, PageHero, PageShell } from "@/components/PageShell";
 import { testIds } from "@/features/judgment/testids";
 import {
   buildEventAnchor,
@@ -44,72 +44,98 @@ export function KnowledgeScreen({
   scenarios: KnowledgeScenarioLink[];
 }) {
   const t = useTranslations("knowledge");
-  const locale = useLocale();
   const anyDummy = documents.some((d) => d.dummy);
 
   return (
-    <>
-      <AppHeader />
-      <main
-        id="main"
-        data-testid={testIds.knowledge.screen}
-        className="mx-auto flex max-w-2xl flex-col gap-6 px-4 pt-[96px] pb-12 lg:max-w-6xl"
-      >
-        <div id={topAnchor} className="flex flex-col gap-3">
-          <h1 className="flex items-center gap-2 text-[26px] leading-tight font-semibold">
-            <BookOpen className="size-7 shrink-0 text-muted" strokeWidth={1.75} aria-hidden />
-            {t("title")}
-          </h1>
-          <p className="leading-relaxed text-muted">{t("lead")}</p>
-          <p
-            data-testid={testIds.knowledge.notice}
-            className="flex items-start gap-2 rounded-2xl border border-border bg-surface p-4 font-medium"
-          >
-            <ShieldCheck className="mt-0.5 size-5 shrink-0" aria-hidden />
-            {t("notice")}
-          </p>
-          {anyDummy && (
+    <PageShell testId={testIds.knowledge.screen} wide>
+      <div id={topAnchor} className="flex flex-col gap-4">
+        <PageHero icon={<BookOpen />} title={t("title")} lead={t("lead")}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <p
-              data-testid={testIds.knowledge.dummyNotice}
-              className="flex items-start gap-2 rounded-2xl border border-hold-border bg-hold-surface p-4 font-medium text-hold"
+              data-testid={testIds.knowledge.notice}
+              className="flex items-start gap-2 rounded-[16px] bg-foreground/[0.04] px-3.5 py-2.5 text-[13px] font-medium"
             >
-              <FlaskConical className="mt-0.5 size-5 shrink-0" aria-hidden />
-              {t("dummy")}
+              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
+              {t("notice")}
             </p>
-          )}
-        </div>
+            {anyDummy && (
+              <p
+                data-testid={testIds.knowledge.dummyNotice}
+                className="flex items-start gap-2 rounded-[16px] bg-hold-surface px-3.5 py-2.5 text-[13px] font-medium text-hold"
+              >
+                <FlaskConical className="mt-0.5 size-4 shrink-0" aria-hidden />
+                {t("dummy")}
+              </p>
+            )}
+          </div>
+        </PageHero>
 
-        {documents.length === 0 && <p className="text-muted">{t("empty")}</p>}
+        {documents.length === 0 && <EmptyState icon={<BookOpen />} title={t("empty")} />}
 
         {documents.length > 1 && (
           <nav aria-labelledby="knowledge-contents" className="flex flex-col gap-2">
-            <h2 id="knowledge-contents" className="text-lg font-semibold">
-              {t("contents")}
+            <h2 id="knowledge-contents" className="sr-only">
+              {t("overview")}
             </h2>
-            <ul className="flex flex-wrap gap-2">
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {documents.map(({ knowledge }) => (
-                <li key={knowledge.id}>
-                  <a
-                    href={`#${buildEventAnchor(knowledge.id)}`}
-                    className="inline-flex min-h-11 items-center rounded-xl border border-border px-3 font-medium hover:bg-surface-raised"
-                  >
-                    {pickLocalized(knowledge.name, locale)}
-                  </a>
+                <li key={knowledge.id} className="flex">
+                  <EventOverview knowledge={knowledge} />
                 </li>
               ))}
             </ul>
           </nav>
         )}
+      </div>
 
-        {documents.map((doc) => (
-          <KnowledgeEvent
-            key={doc.knowledge.id}
-            document={doc}
-            scenarios={scenarios.filter((s) => s.eventType === doc.knowledge.id)}
+      {documents.map((doc) => (
+        <KnowledgeEvent
+          key={doc.knowledge.id}
+          document={doc}
+          scenarios={scenarios.filter((s) => s.eventType === doc.knowledge.id)}
+        />
+      ))}
+    </PageShell>
+  );
+}
+
+// 事象の格子の 1 枚。名前・要約・段階の数と長さで、どんな知見かを見通せるようにする
+function EventOverview({ knowledge }: { knowledge: Knowledge }) {
+  const t = useTranslations("knowledge");
+  const locale = useLocale();
+  const total = knowledge.phases.reduce((sum, p) => sum + p.duration_minutes.p50, 0) || 1;
+  return (
+    <a
+      href={`#${buildEventAnchor(knowledge.id)}`}
+      className="glass-strong group flex w-full flex-col gap-3 rounded-[24px] p-5 transition-transform duration-150 hover:-translate-y-0.5 active:scale-[0.98]"
+    >
+      <span className="text-[18px] leading-tight font-bold">
+        {pickLocalized(knowledge.name, locale)}
+      </span>
+      <span className="line-clamp-3 flex-1 text-[14px] leading-relaxed text-muted">
+        {pickLocalized(knowledge.summary, locale)}
+      </span>
+      {/* 段階ごとの目安の長さを、濃淡を変えた帯で並べる */}
+      <span aria-hidden className="flex h-2 w-full gap-0.5 overflow-hidden rounded-full">
+        {knowledge.phases.map((phase, i) => (
+          <span
+            key={phase.id}
+            className="h-full rounded-full bg-foreground"
+            style={{
+              width: `${(phase.duration_minutes.p50 / total) * 100}%`,
+              opacity: 0.85 - (i / Math.max(1, knowledge.phases.length)) * 0.6,
+            }}
           />
         ))}
-      </main>
-    </>
+      </span>
+      <span className="flex items-center justify-between text-[13px] font-semibold">
+        <span className="text-muted">{t("phaseCount", { count: knowledge.phases.length })}</span>
+        <span className="inline-flex items-center gap-1 transition-transform duration-150 group-hover:translate-x-0.5">
+          {t("open")}
+          <ArrowDown className="size-4" aria-hidden />
+        </span>
+      </span>
+    </a>
   );
 }
 
@@ -130,10 +156,7 @@ function KnowledgeEvent({
       data-testid={testIds.knowledge.event(knowledge.id)}
       data-dummy={document.dummy}
       aria-labelledby={`${buildEventAnchor(knowledge.id)}-title`}
-      className={cn(
-        "flex flex-col gap-4 border-t-2 border-border pt-6 target:rounded-[20px]",
-        targetHighlight,
-      )}
+      className={cn("glass-strong flex flex-col gap-4 rounded-[28px] p-4 sm:p-6", targetHighlight)}
     >
       <Row yaml={excerpts.header} fileName={fileName} id={`${knowledge.id}-header`}>
         <div className="flex flex-col gap-3">

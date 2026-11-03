@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { EntryArea, EntryLine, EntryPlace } from "./entry-places";
-import { type EntryAction, type EntryState, initialEntryState, reduceEntry } from "./flow";
+import {
+  type EntryAction,
+  type EntryState,
+  initialEntryState,
+  reduceEntry,
+  stageDepth,
+} from "./flow";
 
 const line: EntryLine = {
   key: "大阪|jr-west.東海道線|JR神戸線",
@@ -65,19 +71,23 @@ describe("reduceEntry", () => {
     expect(run([{ type: "openArea", area }, { type: "chooseDestination" }]).stage).toBe("area");
   });
 
-  it("入力の段から路線と行き先を選び直せる", () => {
+  it("指定した深さまで一度に引ける。路線は駅の段、行き先は行き先の段まで引いて選び直す", () => {
     const filled = run([
       { type: "openPlace", area, place },
       { type: "chooseLine", line },
       { type: "chooseDestination" },
+      { type: "chooseMethod", method: "paste" },
     ]);
-    expect(reduceEntry(filled, { type: "editLine" })).toMatchObject({
+    expect(stageDepth(filled.stage)).toBe(5);
+    expect(reduceEntry(filled, { type: "backTo", depth: stageDepth("station") })).toMatchObject({
       stage: "station",
       line: null,
+      method: null,
     });
-    expect(reduceEntry(filled, { type: "editDestination" })).toMatchObject({
-      stage: "destination",
-      line,
-    });
+    expect(reduceEntry(filled, { type: "backTo", depth: stageDepth("destination") })).toMatchObject(
+      { stage: "destination", line, method: null },
+    );
+    expect(reduceEntry(filled, { type: "backTo", depth: 9 })).toBe(filled);
+    expect(reduceEntry(filled, { type: "backTo", depth: -1 })).toEqual(initialEntryState);
   });
 });

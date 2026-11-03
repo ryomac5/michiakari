@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useId, useRef, useState } from "react";
+import { EmptyState } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -231,9 +232,11 @@ export function SelectPanel({
 
   if (catalog.length === 0) {
     return (
-      <p data-testid={testIds.situation.selectionEmpty} className="text-muted">
-        {t("empty")}
-      </p>
+      <EmptyState
+        testId={testIds.situation.selectionEmpty}
+        icon={<ListChecks />}
+        title={t("empty")}
+      />
     );
   }
 
