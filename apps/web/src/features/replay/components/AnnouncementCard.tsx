@@ -54,6 +54,7 @@ export function AnnouncementCard({
       data-observation-id={entry.id}
       data-kind={entry.kind}
       data-expanded={expanded}
+      data-map-obstacle
       aria-live="polite"
       className={cn(
         "glass pointer-events-auto flex w-full animate-drop-in items-start gap-2.5 rounded-2xl px-3 py-2.5",

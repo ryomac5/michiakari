@@ -187,6 +187,7 @@ export function JudgmentScreen() {
           {state.status === "ready" && display.estimate && (
             <NextCheckSection
               estimate={display.estimate}
+              flow={typicalFlow}
               catalog={catalog}
               onUpdate={() => {
                 chrome.setSnap("full");

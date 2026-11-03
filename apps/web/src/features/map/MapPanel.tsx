@@ -703,6 +703,7 @@ export function MapPanel(props: MapPanelProps) {
   // 止まっている路線の札。現在地のまわりでは現在地の近くの線上、全体では区間の中ほど
   const blockedPath = scene?.blocked.features[0]?.geometry.coordinates ?? null;
   const [blockedTagPosition, setBlockedTagPosition] = useState<Position | null>(null);
+  const viewToggleRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!map || !blockedPath || blockedPath.length < 2) {
       setBlockedTagPosition(null);
@@ -725,22 +726,29 @@ export function MapPanel(props: MapPanelProps) {
         const p = findPointAtDistance(blockedPath, here, m);
         return p ? [p] : [];
       });
-      // 吹き出しと現在地の札の矩形。札の幅と高さの半分だけ広げて、重なる点を外す
+      // 吹き出しと現在地の札と「全体を見る」のボタンの矩形。札の幅と高さの半分だけ広げて、重なる点を外す
+      // 地図に重なる部品（リプレイの発表など）は data-map-obstacle で印を付ける。隠れている部品は大きさが 0 になるので外す
       const origin = canvas.getBoundingClientRect();
+      const toggle = viewToggleRef.current;
       const boxes = [
         ...map
           .getContainer()
           .querySelectorAll<HTMLElement>(
             `[data-testid^="judgment-map-station-"], [data-testid="${mapTestIds.here}"] > div`,
           ),
-      ].map((el) => {
+        ...(toggle ? [toggle] : []),
+        ...document.querySelectorAll<HTMLElement>("[data-map-obstacle]"),
+      ].flatMap((el) => {
         const r = el.getBoundingClientRect();
-        return {
-          left: r.left - origin.left - 44,
-          right: r.right - origin.left + 44,
-          top: r.top - origin.top - 14,
-          bottom: r.bottom - origin.top + 14,
-        };
+        if (r.width === 0 || r.height === 0) return [];
+        return [
+          {
+            left: r.left - origin.left - 44,
+            right: r.right - origin.left + 44,
+            top: r.top - origin.top - 14,
+            bottom: r.bottom - origin.top + 14,
+          },
+        ];
       });
       const chosen = points.find((p) => {
         const { x, y } = map.project(p);
@@ -874,6 +882,7 @@ export function MapPanel(props: MapPanelProps) {
 
       {guide ? (
         <button
+          ref={viewToggleRef}
           type="button"
           data-testid={mapTestIds.viewToggle}
           data-view={view}

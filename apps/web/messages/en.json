@@ -247,6 +247,7 @@
       "title": "What to check next",
       "cause": "Listen or look for the cause of the stop",
       "resume": "When an announcement gives a restart time, enter it again",
+      "departSoon": "If the onboard announcement says the train will depart shortly, just stay on board",
       "transfer": "When transfer service is announced, enter it again",
       "signals": "If you notice any of these, enter it again",
       "action": "Update what you see"
@@ -502,7 +503,7 @@
     "causeHint": "Pick what sounds closest",
     "causes": {
       "person": "Person hit by a train",
-      "inCar": "Emergency button / passenger help",
+      "inCar": "Emergency button / illness",
       "vehicle": "Train inspection",
       "signal": "Signal trouble",
       "rain": "Heavy rain",

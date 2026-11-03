@@ -5,6 +5,7 @@ export {
   MONTE_CARLO_SEED,
   PREDICTABILITY_HIGH_MAX_RATIO,
   PREDICTABILITY_MEDIUM_MAX_RATIO,
+  SHORT_FLOW_MAX_MINUTES,
 } from "../params/estimation.ts";
 export * from "../params/routing.ts";
 export {
@@ -95,8 +96,10 @@ export {
   computeWaitMinutes,
 } from "./transit.ts";
 export {
+  classifyFlowOutlook,
   describeTypicalFlow,
   estimateUntilResume,
+  type FlowOutlook,
   inferPredictabilityLevel,
 } from "./typical-flow.ts";
 export {

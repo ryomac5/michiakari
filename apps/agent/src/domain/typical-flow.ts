@@ -1,16 +1,9 @@
+import type { FlowOutlook } from "@repo/core";
 import type { Lang, TypicalFlow } from "@repo/schema";
-import { decisionParams } from "../config.ts";
 
 // よくある流れを、結論の言葉に使える形にまとめる。数値は知見から core が求めた値だけを使う
-
-// short: 短く終わり、慌てず待てる。long: 時間はかかるが、見込みは立てやすい
-// 見込みが立てやすい事象でなければ null
-export type FlowOutlook = "short" | "long";
-
-export function classifyFlowOutlook(flow: TypicalFlow | null): FlowOutlook | null {
-  if (flow?.predictability.level !== "high") return null;
-  return flow.untilResume.p80 <= decisionParams.shortFlowMaxMinutes ? "short" : "long";
-}
+// 短く終わるか長くかかるかの区別は、画面と同じ閾値を使うため core に置く
+export { classifyFlowOutlook, type FlowOutlook } from "@repo/core";
 
 // 長くかかる事象の目安の分。下限があれば下限、無ければ再開までの p50
 export function selectTypicalMinutes(flow: TypicalFlow): number {

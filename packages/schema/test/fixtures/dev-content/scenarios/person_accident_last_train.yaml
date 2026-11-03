@@ -62,18 +62,22 @@ timeline:
       en: The JR Kyoto Line will resume shortly. Delays and cancellations are expected for some time after resumption.
 
 expectations:
+  # obs_1 と obs_2 の期待は hold から switch に変えた（2026-11-04）
+  # 開発者の知見では、人身事故は最低 1 時間はかかり、見込みの立てやすい事象である
+  # 発生直後でも、知見から見積もった再開の見込みが分岐点より全部後なので、切り替えを言い切る
+  # obs_2 も発表の見込みが無く、再開の見込みが分岐点より後のままなので、同じ理由で switch にした
   - after: obs_1
-    action: hold
+    action: switch
     phase: initial
     evidence_includes: [pa_occurred_announced]
     break_even_shown: true
-    note: 発生直後で見込みの幅が大きい。断言せず、分岐点と振替経路を示して保留する。
+    note: 人身事故は再開まで 1 時間はかかる。再開の見込みが分岐点より後なので、いま振替経路へ切り替える。
   - after: obs_2
-    action: hold
+    action: switch
     phase: initial
     evidence_includes: [pa_occurred_announced]
     break_even_shown: true
-    note: 状況は変わらず、再開見込みの発表もまだない。保留を続け、分岐点を示す。
+    note: 状況は変わらず、再開見込みの発表もまだない。再開の見込みは分岐点より後のままなので、切り替えを続ける。
   - after: obs_3
     action: wait
     phase: resume_estimate

@@ -8,6 +8,7 @@ import type {
 import {
   PREDICTABILITY_HIGH_MAX_RATIO,
   PREDICTABILITY_MEDIUM_MAX_RATIO,
+  SHORT_FLOW_MAX_MINUTES,
 } from "../params/estimation.ts";
 import { getFirstTrainWait } from "./remaining.ts";
 import { estimateBranchAwareRemaining } from "./remaining-paths.ts";
@@ -62,4 +63,13 @@ export function describeTypicalFlow(knowledge: Knowledge): TypicalFlow {
     predictability: resolvePredictability(knowledge, untilResume),
     typicalFloorMinutes: knowledge.predictability?.typical_floor_minutes ?? null,
   };
+}
+
+// short: 短く終わり、慌てず待てる。long: 時間はかかるが、見込みは立てやすい
+// 見込みが立てやすい事象でなければ null
+export type FlowOutlook = "short" | "long";
+
+export function classifyFlowOutlook(flow: TypicalFlow | null): FlowOutlook | null {
+  if (flow?.predictability.level !== "high") return null;
+  return flow.untilResume.p80 <= SHORT_FLOW_MAX_MINUTES ? "short" : "long";
 }
