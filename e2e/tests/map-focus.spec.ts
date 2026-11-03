@@ -42,12 +42,19 @@ const stations = (page: Page) => page.locator(`[data-testid^="judgment-map-stati
 
 test("大阪駅では現在地のまわりに寄せ、乗り換え候補の駅を吹き出しで出す", async ({ page }) => {
   if (!osaka) throw new Error("大阪駅のシナリオがありません");
-  const first = osaka.timeline[0];
-  const switchAfter = osaka.expectations.find((e) => e.action === "switch")?.after;
-  if (!first || !switchAfter) throw new Error("観測がありません");
+  // 切り替え以外の判断になる最初の観測と、そのあとで切り替えに変わる観測
+  // 発生直後から切り替えを言い切るシナリオもあるので、最初の観測とは限らない
+  const calmIndex = osaka.expectations.findIndex(
+    (e) => e.action !== undefined && e.action !== "switch",
+  );
+  const calm = osaka.expectations[calmIndex];
+  const switchAfter = osaka.expectations
+    .slice(calmIndex + 1)
+    .find((e) => e.action === "switch")?.after;
+  if (!calm || !switchAfter) throw new Error("観測がありません");
 
   await openReplay(page, osaka.id);
-  await stepTo(page, first.id);
+  await stepTo(page, calm.after);
   const map = page.getByTestId(testIds.judgment.map);
   await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   await expect(map).toHaveAttribute("data-view", "focus");
