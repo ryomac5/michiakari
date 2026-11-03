@@ -1,5 +1,7 @@
 # 開発用のダミー。開発者の知見ではない。本番の判断には使わない
 # 所要時間は利用者の体感程度の目安。例文はすべて自作。社内の手順や規程の値は書かない
+# 段階の p50 の合計は 5 分にした。よくある流れの帯の目安を、再開までの見込み 5〜10 分にそろえるためである
+# 長引く幅は、駅の係員の対応の p80 に寄せた（2026-11-04）
 
 id: in_car_response
 name:
@@ -34,7 +36,7 @@ phases:
         description: 車掌が車内を通って、通報のあった車両へ向かう
         example_phrases:
           - 車掌が前の車両へ向かっています
-    duration_minutes: { p50: 2, p80: 5 }
+    duration_minutes: { p50: 2, p80: 3 }
     exit_signals: [icr_staff_responding]
     guidance:
       ja: 短く終わることが多いと伝え、慌てずに待つよう示す。車外に出ないよう添える。
@@ -52,7 +54,7 @@ phases:
         example_phrases:
           - 駅の係員がお客様の対応をしております
           - ホームで係員が対応しています
-    duration_minutes: { p50: 1, p80: 3 }
+    duration_minutes: { p50: 2, p80: 6 }
     exit_signals: [icr_response_finished]
     guidance:
       ja: まもなく発車に向かうことを伝え、待つ判断を後押しする。
@@ -76,7 +78,7 @@ phases:
         example_phrases:
           - 運転を再開しました
           - 列車が動き出しました
-    duration_minutes: { p50: 1, p80: 2 }
+    duration_minutes: { p50: 1, p80: 1 }
     exit_signals: [icr_resumed]
     guidance:
       ja: すぐに動き出すことを伝える。乗ったまま待つよう示す。

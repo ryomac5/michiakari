@@ -1,6 +1,7 @@
 "use client";
 
-import type { Estimate } from "@repo/schema";
+import { classifyFlowOutlook } from "@repo/core";
+import type { Estimate, TypicalFlow } from "@repo/schema";
 import { Eye, Info, RotateCcw } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { SheetSection } from "@/components/SheetSection";
@@ -11,6 +12,7 @@ import { testIds } from "../testids";
 
 // 入口で方面だけ・電車の中・分からないで進んだときの前提と、次に確かめること
 // 確信度が高くないときだけ、次に確かめることを出す。兆候の文言は知見の抜粋から引く
+// 短く終わる事象では、再開見込みの放送を待たないので、発車の放送を確かめるよう示す
 
 // 次に確かめることの数の上限。兆候と定型の項目を合わせて数える
 const checkLimit = 3;
@@ -71,19 +73,22 @@ export function PremiseSection() {
 
 export function NextCheckSection({
   estimate,
+  flow,
   catalog,
   onUpdate,
 }: {
   estimate: Estimate;
+  flow: TypicalFlow | null;
   catalog: KnowledgeCatalog;
   onUpdate: () => void;
 }) {
   const t = useTranslations("judgment.nextCheck");
   const locale = useLocale();
   if (estimate.confidence === "high") return null;
+  const short = flow?.eventType === estimate.eventType && classifyFlowOutlook(flow) === "short";
   const items = [
     ...(estimate.eventType === null ? [t("cause")] : []),
-    t("resume"),
+    short ? t("departSoon") : t("resume"),
     ...(estimate.eventType === null ? [t("transfer")] : []),
   ].slice(0, checkLimit);
   const signals = listNextSignals(catalog, estimate, locale, checkLimit - items.length);

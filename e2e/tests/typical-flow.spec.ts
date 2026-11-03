@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import { openReplay, openSheet, waitForJudged } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -31,6 +32,9 @@ test("車内対応のリプレイでは、止まった直後でも待つにな�
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   await expect(conclusion).toHaveAttribute("data-action", "wait");
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText(reassuring);
+  // 流れが読める事象なので、確信度は低にならない
+  await expect(conclusion).not.toContainText("確信度 低");
+  await expectBlockedTagClearOfToggle(page);
 
   // 半分では 1 行の要約だけ、全部開くと帯と見込みの根拠が出る
   await openSheet(page, "half");
@@ -45,13 +49,40 @@ test("車内対応のリプレイでは、止まった直後でも待つにな�
   await expect(current).toBeVisible();
   await expect(current).toContainText("約2分");
   await expect(page.getByTestId(`${testIds.replay.phaseStrip}-basis`)).toBeVisible();
+  // 帯の各段の目安の合計は、再開までの見込み 5〜10 分の下端にそろう
+  const minutes = await page
+    .getByTestId(testIds.replay.phaseStrip)
+    .locator("li[data-position]")
+    .evaluateAll((els) =>
+      els.map((el) => Number(/約(\d+)分/.exec(el.textContent ?? "")?.[1] ?? Number.NaN)),
+    );
+  expect(minutes.reduce((a, b) => a + b, 0)).toBe(5);
 });
+
+// 「見合わせ」の札が出るなら、「全体を見る」のボタンに重ならない
+async function expectBlockedTagClearOfToggle(page: Page): Promise<void> {
+  const map = page.getByTestId(testIds.judgment.map);
+  await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+  const toggle = page.getByTestId(mapTestIds.viewToggle);
+  const tag = page.getByTestId(mapTestIds.blockedTag);
+  await expect(toggle).toBeVisible();
+  if ((await tag.count()) === 0) return;
+  const [a, b] = [await tag.boundingBox(), await toggle.boundingBox()];
+  if (!a || !b) return;
+  const overlaps =
+    a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  expect(overlaps, "見合わせの札が全体を見るのボタンに重なる").toBe(false);
+}
 
 test("人身事故のリプレイでは、よくある流れで再開まで 1 時間ほどと伝える", async ({ page }) => {
   await openReplay(page, "person_accident_last_train", 60);
   await page.getByTestId(testIds.replay.nextButton).click();
   await waitForJudged(page, "obs_1");
 
+  // 発生直後でも、1 時間はかかる見込みが分岐点より後なので切り替えを言い切る
+  const conclusion = page.getByTestId(testIds.judgment.conclusion);
+  await expect(conclusion).toHaveAttribute("data-action", "switch");
+  await expect(conclusion).not.toContainText("確信度 低");
   await openSheet(page, "half");
   await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(
     "人身事故は、再開まで1時間ほどかかるのがふつうです",
@@ -63,9 +94,7 @@ test("人身事故のリプレイでは、よくある流れで再開まで 1 �
   );
 });
 
-test("入口で「非常ボタン・お客様の対応」を選ぶと、待つの判断と安心させる文が出る", async ({
-  page,
-}) => {
+test("入口で「非常ボタン・急病」を選ぶと、待つの判断と安心させる文が出る", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
@@ -80,7 +109,7 @@ test("入口で「非常ボタン・お客様の対応」を選ぶと、待つ�
   await page.getByTestId(testIds.start.method("select")).click();
 
   const inCar = page.getByTestId(testIds.start.cause("inCar"));
-  await expect(inCar).toHaveText("非常ボタン・お客様の対応");
+  await expect(inCar).toHaveText("非常ボタン・急病");
   await inCar.click();
   await page.getByTestId(testIds.start.elapsed("m5")).click();
 
@@ -97,6 +126,10 @@ test("入口で「非常ボタン・お客様の対応」を選ぶと、待つ�
   await expectFlow(page, testIds.judgment.flow, "in_car_response");
   // 段階はよくある流れの欄にまとめ、根拠の中には重ねて出さない
   await openSheet(page, "full");
+  // 短く終わる事象なので、次に確かめることは再開見込みではなく発車の放送にする
+  const nextCheck = page.getByTestId(testIds.judgment.nextCheck);
+  await expect(nextCheck).toContainText("まもなく発車します");
+  await expect(nextCheck).not.toContainText("再開見込み");
   await page.getByTestId(testIds.judgment.evidenceToggle).click();
   await expect(page.getByTestId(testIds.judgment.phaseTimeline)).toHaveCount(0);
   await expect(page.getByTestId(testIds.judgment.flowPhase("stopped_for_check"))).toBeVisible();
