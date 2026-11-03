@@ -116,3 +116,10 @@ caveats:
 external_factors:
   weather: true
   notes: 10分雨量の推移と大雨警報・注意報を判断材料に使う。雨のピークを過ぎたか、雨雲が抜けつつあるかを見る。規制の基準値は扱わない。
+
+# 見込みの立てやすさ。ダミーの書き方
+predictability:
+  level: low
+  basis:
+    ja: 再開の時刻は雨がいつ弱まるかに左右され、強い雨が戻ればやり直しになる。雨がやんでも、線路の点検にかかる時間は場所で変わる。
+    en: Resumption depends on when the rain eases, and starts over if heavy rain returns. Even after the rain stops, track inspection time varies by location.

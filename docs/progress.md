@@ -15,6 +15,27 @@
 
 ## 記録
 
+### 2026-11-03 / 知見と core / よくある流れと見込みの立てやすさの土台
+
+- やったこと:
+  - 知見のスキーマに任意項目 predictability を足した。level、basis、下限の目安を持つ
+  - core に describeTypicalFlow を足した。段階の列と再開までの見込みを返す
+  - 見込みの立てやすさは、知見に無ければ再開までの p80 と p50 の比から推し量る
+  - 比の閾値は params/estimation.ts に仮の値で置いた。high は 1.3 以下、medium は 1.6 以下である
+  - ダミーの知見 3 件に predictability を書いた。人身事故は high で、下限は 60 分である
+  - 画面と agent には触れていない
+- 確認結果: typecheck、lint、test、guard、validate:dev がすべて exit 0
+- 残課題:
+  - 画面と agent から describeTypicalFlow を使う
+  - ダミーの人身事故は、再開までの p50 が 42 分で下限の 60 分を下回る
+  - 発生直後から再開見込みの発表へ飛ぶ分岐を、最短の経路として数えるためである
+- 開発者に確認したいこと:
+  - 本物の knowledge/person_accident.yaml などに predictability を書いてほしい
+    - level は high、medium、low から選ぶ。basis は外から観察できる理由で書く
+    - 下限の目安がある事象は typical_floor_minutes に分で書く
+    - 雛形 knowledge/_template.yaml にこの項目の例を足すかも決めてほしい
+    - 無い知見では、比から推し量った値を出す。閾値の 1.3 と 1.6 も見てほしい
+
 ### 2026-11-03 / 統合 / 自律開発の第 4 波
 
 - やったこと:

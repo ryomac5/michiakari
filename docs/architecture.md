@@ -74,6 +74,7 @@
 決定論的な計算。Claude を呼ばない。すべて単体テストを持つ。
 
 - `estimateRemaining`: 知見・現在の段階・段階の経過時間から、実際に乗れる列車が来るまでの残り時間分布（p50, p80）を返す。再開後の初列車待ちである after_resume を含む
+- `describeTypicalFlow`: 知見から、よくある流れと見込みの立てやすさを返す。詳細は 4.1 に書く
 - `computeArrival`: 経路（徒歩・乗車・待ち）から到着時刻を返す
 - `computeBreakEven`: 待つ場合と各代替手段の到着時刻を比べ、分岐点の時刻を返す。分岐点の time は運転再開の期限である
 - `computeTaxiFare`: 距離と時刻から公示運賃体系にもとづく概算運賃を返す
@@ -145,6 +146,24 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
   - 兆候の id がファイル全体で重複しない
   - `exit_signals` は同じファイルで定義した兆候の id を指す
   - `id` は拡張子を除いたファイル名と一致する
+
+任意項目 `predictability` で、見込みの立てやすさを書ける。無ければ省いてよい。
+
+| キー | 内容 |
+|---|---|
+| `level` | `high`、`medium`、`low` のいずれか。必須 |
+| `basis` | 見込みを立てやすい理由。外から観察できる言葉で書く。必須 |
+| `typical_floor_minutes` | これより早く再開することはまれ、という目安の分。任意 |
+
+`packages/core` の `describeTypicalFlow` が、この項目を読んで「よくある流れ」を返す。
+返す型は `TypicalFlowSchema` で、キーは camelCase である。
+
+- 段階の列は、各段階の名前と所要時間の p50 と p80 を持つ
+- 発生から再開までの見込みは、残り時間の計算を経過 0 分で呼んで出す
+- この見込みは初列車待ちを含まない。初列車待ちは別の項目で返す
+- 知見に `predictability` が無ければ、再開までの p80 と p50 の比から推し量る
+- 比の閾値は `packages/core/params/estimation.ts` に置く
+- 書かれた値か推し量った値かを `source` で区別する
 
 ### 4.2 Observation（利用者が持ち込んだ観測）
 

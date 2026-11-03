@@ -3,6 +3,7 @@ import {
   DurationDistSchema,
   IdSchema,
   LocalizedTextSchema,
+  NonNegativeIntSchema,
   ObservableKindSchema,
 } from "./common.ts";
 import { findDuplicateIds } from "./internal.ts";
@@ -28,6 +29,19 @@ export const KnowledgePhaseSchema = z.strictObject({
 });
 export type KnowledgePhase = z.infer<typeof KnowledgePhaseSchema>;
 
+// 見込みの立てやすさ。high は再開までの流れがほぼ決まっている事象
+export const PredictabilityLevelSchema = z.enum(["high", "medium", "low"]);
+export type PredictabilityLevel = z.infer<typeof PredictabilityLevelSchema>;
+
+export const KnowledgePredictabilitySchema = z.strictObject({
+  level: PredictabilityLevelSchema,
+  // 見込みを立てやすい理由。外から観察できる言葉で書く
+  basis: LocalizedTextSchema,
+  // これより早く再開することはまれ、という目安（分）
+  typical_floor_minutes: NonNegativeIntSchema.optional(),
+});
+export type KnowledgePredictability = z.infer<typeof KnowledgePredictabilitySchema>;
+
 export const KnowledgeSchema = z.strictObject({
   id: IdSchema,
   name: LocalizedTextSchema,
@@ -45,6 +59,7 @@ export const KnowledgeSchema = z.strictObject({
     weather: z.boolean(),
     notes: z.string(),
   }),
+  predictability: KnowledgePredictabilitySchema.optional(),
 });
 export type Knowledge = z.infer<typeof KnowledgeSchema>;
 

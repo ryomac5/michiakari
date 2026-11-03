@@ -125,3 +125,11 @@ caveats:
 external_factors:
   weather: false
   notes: 天候は判断材料にしない。悪天候で現場対応が長引くことはある。
+
+# 見込みの立てやすさ。ダミーの書き方。下限の 60 分だけは開発者が述べた外から観察できる目安
+predictability:
+  level: high
+  basis:
+    ja: 乗務員の連絡を受けて警察と消防が現場に入るため、再開までの流れがほぼ決まっている。1 時間ほどを見込めば再開の時刻を予想しやすい。
+    en: Police and fire crews come to the site after the crew reports, so the path to resumption is largely fixed. Allowing about an hour makes the resumption time fairly predictable.
+  typical_floor_minutes: 60
