@@ -386,6 +386,8 @@ export function StartScreen() {
           ...entry.place,
           name: { ja: nearStop.choice.name, en: nearStop.choice.nameEn },
           position: nearStop.position,
+          // 近い駅の路線はすべては分からないので、乗っている路線の色だけを添える
+          lines: entry.place.lines.filter((l) => l.lineId === entry.line?.lineId),
         }
       : entry.place;
   const angles = Object.fromEntries(
@@ -491,6 +493,7 @@ export function StartScreen() {
         lineId={entry.line?.lineId ?? null}
         destination={destinationMarker}
         stops={mapStops}
+        focus={entry.stage === "position" && !onTrain ? nearby.map((s) => s.position) : []}
         onSelectStop={selectMapStop}
         insets={insets}
         narrow={narrow}

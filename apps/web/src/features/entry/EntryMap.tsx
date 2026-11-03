@@ -49,6 +49,8 @@ type EntryMapProps = {
   lineId: string | null;
   destination: { position: Position; label: string } | null;
   stops: MapStop[];
+  // 札は出さずに視点だけに含める点。いまどこの段で前後の駅まで収める
+  focus: Position[];
   onSelectStop: (key: string) => void;
   insets: MapInsets;
   narrow: boolean;
@@ -241,7 +243,8 @@ export function EntryMap(props: EntryMapProps) {
   const labels = selectMapLabels(locale);
   const theme = useDocumentTheme();
   const palette = mapPalettes[theme];
-  const { geo, stage, hubs, area, place, lineId, destination, stops, insets, narrow } = props;
+  const { geo, stage, hubs, area, place, lineId, destination, stops, focus, insets, narrow } =
+    props;
   const containerRef = useRef<HTMLDivElement>(null);
   const paletteRef = useRef(palette);
   paletteRef.current = palette;
@@ -321,7 +324,7 @@ export function EntryMap(props: EntryMapProps) {
 
   // 段が変わるたびに視点を寄せる
   const { top, right, bottom, left } = insets;
-  const stopKey = stops.map((s) => s.key).join(",");
+  const stopKey = [...stops.map((s) => s.key), ...focus.map((p) => p.join(":"))].join(",");
   const cameraKey = JSON.stringify([
     stage === "input" || stage === "elapsed" ? "method" : stage,
     area?.id,
@@ -354,8 +357,8 @@ export function EntryMap(props: EntryMapProps) {
       return;
     }
     // 方面・行き先・近い駅の段は、選んだ駅と札を収める
-    if (stops.length > 0 && origin) {
-      const bounds = computeBounds([origin, ...stops.map((s) => s.position)]);
+    if ((stops.length > 0 || focus.length > 0) && origin) {
+      const bounds = computeBounds([origin, ...focus, ...stops.map((s) => s.position)]);
       if (bounds) {
         map.fitBounds(bounds, {
           padding: buildPadding(map, current, { x: labelMargin.x + 24, y: labelMargin.y + 12 }),
