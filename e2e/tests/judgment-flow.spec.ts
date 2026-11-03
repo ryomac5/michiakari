@@ -168,9 +168,20 @@ test("情報を追加すると判断が更新され、根拠に段階と兆候�
     "data-state",
     "passed",
   );
-  await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(
-    "分岐点を過ぎました",
-  );
+  // 切り替えでは、閉じたシートに残り時間を出さず、切り替え先の行動を出す
+  await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveCount(0);
+  for (const id of [testIds.judgment.conclusion, testIds.judgment.breakEven]) {
+    await expect(page.getByTestId(id)).not.toContainText(/あと \d+ (分|時間)/);
+  }
+  const step = page.getByTestId(testIds.judgment.switchStep);
+  await expect(step).toHaveAttribute("data-option-id", "transfer_hankyu");
+  await expect(step).toContainText("阪急神戸線");
+  await expect(step).toContainText(/大阪梅田まで徒歩 \d+ 分/);
+  await expect(step).toContainText(/\d{2}:\d{2} 着/);
+  // 分岐点そのものは、全部開いたシートの説明に残す
+  await openSheet(page, "full");
+  await expect(page.getByTestId(testIds.judgment.breakEvenSentence)).toContainText(/\d{2}:\d{2}/);
+  await openSheet(page, "collapsed");
   await expect(page.getByTestId(testIds.judgment.option("transfer_hankyu"))).toHaveAttribute(
     "data-recommended",
     "true",

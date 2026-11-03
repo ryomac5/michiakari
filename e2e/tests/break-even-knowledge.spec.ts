@@ -78,8 +78,11 @@ test("待つ判断では再開見込みが分岐点より前、切り替える�
   await expect(conclusion).toHaveAttribute("data-action", "switch");
   await expect(timeline).toHaveAttribute("data-relation", "after");
   // 図の値は判断の分岐点と一致し、帯の始まりは分岐点より後にある
+  // 切り替えでは閉じたシートに分岐点の時刻を出さないので、開いたシートの説明の時刻と比べる
   const breakEvenTime = await page
-    .getByTestId(testIds.judgment.breakEvenTime)
+    .getByTestId(testIds.judgment.breakEvenSentence)
+    .locator("time")
+    .first()
     .evaluate((el) => el.getAttribute("datetime"));
   await expect(timeline).toHaveAttribute("data-break-even", breakEvenTime ?? "");
   const [breakEven, resumeP50] = await timeline.evaluate((el) => [

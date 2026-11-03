@@ -26,6 +26,7 @@ import { TypicalFlowSection } from "@/features/judgment/components/TypicalFlow";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { type OriginLine, type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
+import { selectSwitchStep } from "@/features/judgment/switch-step";
 import { testIds } from "@/features/judgment/testids";
 import { useOptionFocus } from "@/features/judgment/use-option-focus";
 import { MapLegend } from "@/features/map/MapLegend";
@@ -104,6 +105,7 @@ export function JudgmentScreen() {
     stale: display.breakEvenStale,
     timeline: selectTimelineBasis(display.settled, catalog, null),
   };
+  const switchStep = selectSwitchStep(display.judgment ?? null);
 
   return (
     <div data-testid={testIds.judgment.screen} data-status={state.status} className="h-dvh">
@@ -157,6 +159,10 @@ export function JudgmentScreen() {
                 <BreakEvenSummary
                   {...breakEvenProps}
                   hideMeaning={selectCardReason(display.judgment) !== null}
+                  switchStep={switchStep}
+                  switchLineColor={
+                    guide?.optionMarks.find((m) => m.optionId === switchStep?.optionId)?.color
+                  }
                 />
               )}
               <Disclaimer />

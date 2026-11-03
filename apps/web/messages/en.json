@@ -158,6 +158,14 @@
         }
       }
     },
+    "switchStep": {
+      "title": "Switch to",
+      "walkTo": "Walk {minutes} min to {station}",
+      "boardAt": "Board at {station}",
+      "taxi": "Take a taxi",
+      "walk": "Walk there, {minutes} min",
+      "arrival": "Arrive {time}"
+    },
     "weather": {
       "title": "Rainfall, every 10 min",
       "stale": "Updating",

@@ -76,7 +76,18 @@ async function checkExpectation(page: Page, expectation: Expectation): Promise<v
   }
   if (expectation.break_even_shown !== undefined) {
     const breakEven = page.getByTestId(testIds.judgment.breakEven);
-    if (expectation.break_even_shown) {
+    const action = await page.getByTestId(testIds.judgment.conclusion).getAttribute("data-action");
+    if (expectation.break_even_shown && action === "switch") {
+      // 切り替えでは、閉じたシートは残り時間の代わりに切り替え先を出し、分岐点は開いたシートの文に残す
+      await expect(breakEven, label).toHaveAttribute("data-state", /^(open|soon|passed)$/);
+      await expect(breakEven, label).toHaveAttribute("data-mode", "switch");
+      await expect(page.getByTestId(testIds.judgment.switchStep), label).toBeVisible();
+      await expect(page.getByTestId(testIds.judgment.breakEvenCountdown), label).toHaveCount(0);
+      await expect(
+        page.getByTestId(testIds.judgment.breakEvenSentence).locator("time"),
+        label,
+      ).toHaveText(/^\d{2}:\d{2}$/);
+    } else if (expectation.break_even_shown) {
       await expect(breakEven, label).toHaveAttribute("data-state", /^(open|soon|passed)$/);
       await expect(page.getByTestId(testIds.judgment.breakEvenTime), label).toHaveText(
         /^\d{2}:\d{2}$/,

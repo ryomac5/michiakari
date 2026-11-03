@@ -158,6 +158,14 @@
         }
       }
     },
+    "switchStep": {
+      "title": "切り替え先",
+      "walkTo": "{station}まで徒歩 {minutes} 分",
+      "boardAt": "{station}から乗る",
+      "taxi": "タクシーで向かう",
+      "walk": "徒歩 {minutes} 分で向かう",
+      "arrival": "{time} 着"
+    },
     "weather": {
       "title": "雨量の推移 10分ごと",
       "stale": "更新中",
