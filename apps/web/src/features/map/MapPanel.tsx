@@ -12,6 +12,8 @@ import { selectOptionTone } from "@/features/judgment/action-style";
 import { testIds } from "@/features/judgment/testids";
 import { prefersReducedMotion, useDocumentTheme } from "@/lib/use-document-theme";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { buildAutoFocusArea } from "./auto-focus";
+import { chooseBubblePlacements, type LayoutItem, projectToWorld } from "./bubble-layout";
 import type { BubblePlacement } from "./focus-areas";
 import { loadMapGeoData, type MapGeoData } from "./geo-data";
 import { selectMapLabels } from "./labels";
@@ -28,6 +30,7 @@ import {
 import { fetchReachAreas, type ReachArea } from "./reach";
 import { BlockedTag, HereMarker, StationBubble } from "./StationBubble";
 import {
+  type BlockedDirection,
   buildMapScene,
   buildStationLabels,
   type MapScene,
@@ -40,6 +43,7 @@ import {
   findFocusArea,
   findPointAtDistance,
   findRingLabelPoint,
+  listBoardingStationIds,
   type StationGuide,
 } from "./station-guide";
 import { mapTestIds } from "./testids";
@@ -56,6 +60,8 @@ export type MapPanelProps = {
   blockedSection: Section | null;
   // 止まっている路線の名前（観測の line）。無ければ「待つ」経路の路線から推し量る
   blockedLine?: string | null;
+  // 入口で選んだ路線と方面。観測に区間が無いとき、その方面を止まっている区間として描く
+  blockedDirection?: BlockedDirection | null;
   insets: MapInsets;
   onReachSourceChange?: (source: ReachSource | null) => void;
   // 現在地のまわりの案内。シートの選択肢の行に同じ印を添えるのに使う
@@ -74,6 +80,11 @@ const fitMargin = { x: 64, y: 36 };
 const focusMargin = {
   wide: { top: 110, right: 230, bottom: 60, left: 230 },
   narrow: { top: 56, right: 215, bottom: 30, left: 80 },
+};
+// 自動で選んだ駅は吹き出しが四方に出るので、左右を同じだけ空ける
+const autoFocusMargin = {
+  wide: { top: 120, right: 230, bottom: 80, left: 230 },
+  narrow: { top: 70, right: 110, bottom: 60, left: 110 },
 };
 const fitDurationMs = 700;
 // 最初に出発の駅へ寄せておく拡大率。入口が判断へ移る直前に寄せる値とそろえる
@@ -196,6 +207,97 @@ function buildFocusPadding(insets: MapInsets, margin: MapInsets) {
   };
 }
 
+// 現在地のまわりに寄せるときの余白。おすすめの吹き出しを駅の上に出すなら、その高さのぶん上を空ける
+function buildGuidePadding(insets: MapInsets, narrow: boolean, guide: StationGuide) {
+  const margins = guide.areaId.startsWith("auto:") ? autoFocusMargin : focusMargin;
+  const margin = narrow ? margins.narrow : margins.wide;
+  const tallTop = guide.stations.some(
+    (s) => s.recommended && s.placement[narrow ? "narrow" : "wide"] === "top",
+  );
+  return buildFocusPadding(insets, {
+    ...margin,
+    top: margin.top + (tallTop ? recommendedBubbleHeight : 0),
+  });
+}
+
+// 吹き出しと現在地の札のおおよその大きさ（px）。重なりを避ける配置に使う
+function estimateBubbleSize(
+  station: StationGuide["stations"][number],
+  narrow: boolean,
+): { w: number; h: number } {
+  if (station.recommended) return { w: narrow ? 196 : 220, h: 150 };
+  if (!narrow) return { w: 200, h: 64 };
+  return { w: 12 * [...station.shortName].length + 70, h: 34 };
+}
+
+function estimateHereSize(guide: StationGuide, narrow: boolean): { w: number; h: number } {
+  const nameWidth = 14 * [...guide.here.name].length;
+  if (narrow) return { w: nameWidth + 70, h: 34 };
+  return { w: Math.max(nameWidth + 60, 170), h: 36 + 28 * Math.min(3, guide.here.lines.length) };
+}
+
+// 自動で選んだ駅の吹き出しを、寄せたあとの画面の上で重ならない向きに置く
+// 寄せる範囲の中心が、余白を除いた画面の中心に来るとみなして画面の位置を求める
+function layoutAutoPlacements(
+  map: MapLibreMap,
+  guide: StationGuide,
+  insets: MapInsets,
+  narrow: boolean,
+  herePreferred: BubblePlacement,
+  // 札で隠したくない点。到達範囲の札の位置
+  avoid: readonly Position[],
+): Record<string, BubblePlacement> | null {
+  if (!guide.bounds) return null;
+  const padding = buildGuidePadding(insets, narrow, guide);
+  const camera = map.cameraForBounds(guide.bounds, { padding, maxZoom: 16.2 });
+  const zoom = camera?.zoom;
+  if (zoom === undefined) return null;
+  const canvas = map.getCanvas();
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  const [[west, south], [east, north]] = guide.bounds;
+  const nw = projectToWorld([west, north], zoom);
+  const se = projectToWorld([east, south], zoom);
+  const center = { x: (nw.x + se.x) / 2, y: (nw.y + se.y) / 2 };
+  const screenCenter = {
+    x: padding.left + (width - padding.left - padding.right) / 2,
+    y: padding.top + (height - padding.top - padding.bottom) / 2,
+  };
+  const toScreen = (p: Position) => {
+    const w = projectToWorld(p, zoom);
+    return { x: screenCenter.x + w.x - center.x, y: screenCenter.y + w.y - center.y };
+  };
+  const here = toScreen(guide.here.position);
+  const items: LayoutItem[] = [
+    { key: "here", point: here, size: estimateHereSize(guide, narrow), gap: 20 },
+    ...guide.stations.map((s) => ({
+      key: s.key,
+      point: toScreen(s.position),
+      size: estimateBubbleSize(s, narrow),
+      gap: 12,
+    })),
+  ];
+  const side = narrow ? "narrow" : "wide";
+  return chooseBubblePlacements({
+    items,
+    here,
+    view: {
+      left: insets.left + 8,
+      top: insets.top + 8,
+      right: width - insets.right - 8,
+      bottom: height - insets.bottom - 8,
+    },
+    preferred: Object.fromEntries([
+      ["here", herePreferred],
+      ...guide.stations.map((s) => [s.key, s.placement[side]]),
+    ]),
+    obstacles: avoid.map((p) => {
+      const { x, y } = toScreen(p);
+      return { left: x - 40, right: x + 40, top: y - 11, bottom: y + 11 };
+    }),
+  });
+}
+
 // 出発は丸、行き先はピン。色はテーマの文字色に合わせる
 function createPlaceElement(role: "origin" | "destination"): HTMLElement {
   const el = document.createElement("div");
@@ -305,7 +407,15 @@ export function MapPanel(props: MapPanelProps) {
   const theme = useDocumentTheme();
   const palette = mapPalettes[theme];
   const narrow = useMediaQuery("(max-width: 639px)");
-  const { origin, destination, options, recommendedOptionId, blockedSection, blockedLine } = props;
+  const {
+    origin,
+    destination,
+    options,
+    recommendedOptionId,
+    blockedSection,
+    blockedLine,
+    blockedDirection,
+  } = props;
   const tone = selectRouteTone(options, recommendedOptionId);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -403,6 +513,7 @@ export function MapPanel(props: MapPanelProps) {
               recommendedOptionId,
               blockedSection,
               blockedLine,
+              blockedDirection,
               reachAreas,
             },
             { ...labels, english: locale === "en" },
@@ -417,12 +528,36 @@ export function MapPanel(props: MapPanelProps) {
       recommendedOptionId,
       blockedSection,
       blockedLine,
+      blockedDirection,
       labels,
       locale,
     ],
   );
 
-  const area = useMemo(() => findFocusArea(origin), [origin]);
+  // 手で整えた範囲が無い駅では、駅データと路線データから乗り換え候補を選ぶ
+  const configuredArea = useMemo(() => findFocusArea(origin), [origin]);
+  const sceneDestination = scene?.destination ?? null;
+  const sceneBlockedKey = scene?.blockedLineIds.join("|") ?? null;
+  const boardingKey = [...listBoardingStationIds(options)].sort().join("|");
+  // 止まっている路線と乗る駅は key で比べ、判断のたびに作り直さない
+  const area = useMemo(() => {
+    if (configuredArea) return configuredArea;
+    if (!geo || sceneBlockedKey === null) return null;
+    return buildAutoFocusArea(geo, {
+      origin,
+      blockedLineIds: sceneBlockedKey ? sceneBlockedKey.split("|") : [],
+      destination: sceneDestination,
+      boardingIds: new Set(boardingKey ? boardingKey.split("|") : []),
+    });
+  }, [
+    configuredArea,
+    geo,
+    origin,
+    sceneBlockedKey,
+    sceneDestination?.[0],
+    sceneDestination?.[1],
+    boardingKey,
+  ]);
   const guide = useMemo(
     () =>
       geo && scene && area
@@ -471,16 +606,8 @@ export function MapPanel(props: MapPanelProps) {
       const duration = instant || prefersReducedMotion() ? 0 : fitDurationMs;
       const insets = { top, right, bottom, left };
       if (view === "focus" && guide?.bounds) {
-        const margin = narrow ? focusMargin.narrow : focusMargin.wide;
-        // おすすめの吹き出しを駅の上に出すときは、その高さのぶん上を空ける
-        const tallTop = guide.stations.some(
-          (s) => s.recommended && s.placement[narrow ? "narrow" : "wide"] === "top",
-        );
         map.fitBounds(guide.bounds, {
-          padding: buildFocusPadding(insets, {
-            ...margin,
-            top: margin.top + (tallTop ? recommendedBubbleHeight : 0),
-          }),
+          padding: buildGuidePadding(insets, narrow, guide),
           maxZoom: 16.2,
           duration,
         });
@@ -628,6 +755,27 @@ export function MapPanel(props: MapPanelProps) {
     };
   }, [map, blockedPath, view, guide, top, right, bottom, left]);
 
+  // 自動で選んだ駅は、寄せたあとの画面で重ならない向きに吹き出しを置く。手で整えた駅は設定に従う
+  const autoPlacements = useMemo(
+    () =>
+      map && guide && area?.auto
+        ? layoutAutoPlacements(
+            map,
+            guide,
+            { top, right, bottom, left },
+            narrow,
+            area.herePlacement[narrow ? "narrow" : "wide"],
+            reachLabels.features.map((f) => f.geometry.coordinates),
+          )
+        : null,
+    [map, guide, area, narrow, top, right, bottom, left, reachLabels],
+  );
+  const placeStation = useCallback(
+    (s: StationGuide["stations"][number]): BubblePlacement =>
+      autoPlacements?.[s.key] ?? s.placement[narrow ? "narrow" : "wide"],
+    [autoPlacements, narrow],
+  );
+
   const focusEntries = useMemo(() => {
     if (view !== "focus" || !guide) return [];
     return [
@@ -640,11 +788,11 @@ export function MapPanel(props: MapPanelProps) {
       ...guide.stations.map((s) => ({
         key: `station:${s.key}`,
         position: s.position,
-        anchor: markerAnchor[narrow ? s.placement.narrow : s.placement.wide],
-        offset: markerOffset[narrow ? s.placement.narrow : s.placement.wide],
+        anchor: markerAnchor[placeStation(s)],
+        offset: markerOffset[placeStation(s)],
       })),
     ];
-  }, [view, guide, narrow]);
+  }, [view, guide, placeStation]);
   const tagEntries = useMemo(
     () =>
       blockedTagPosition
@@ -661,7 +809,8 @@ export function MapPanel(props: MapPanelProps) {
   );
   const entries = useMemo(() => [...tagEntries, ...focusEntries], [tagEntries, focusEntries]);
   const hosts = useMarkerHosts(map, markerClass, entries);
-  const herePlacement = area ? area.herePlacement[narrow ? "narrow" : "wide"] : "left";
+  const herePlacement =
+    autoPlacements?.here ?? (area ? area.herePlacement[narrow ? "narrow" : "wide"] : "left");
 
   const toggleLabel = view === "focus" ? t("viewOverview") : t("viewFocus");
 
@@ -709,7 +858,7 @@ export function MapPanel(props: MapPanelProps) {
         return createPortal(
           <StationBubble
             station={station}
-            placement={narrow ? station.placement.narrow : station.placement.wide}
+            placement={placeStation(station)}
             variant={station.recommended ? "full" : narrow ? "compact" : "medium"}
             onSelect={optionId && onSelectOption ? () => onSelectOption(optionId) : null}
           />,

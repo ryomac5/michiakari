@@ -82,7 +82,12 @@ export type MapSceneInput = {
   blockedLine?: string | null;
   // 現在地の駅の到達範囲（Valhalla）。10 分と 20 分がそろわなければ円で概算する
   reachAreas?: readonly ReachArea[];
+  // 入口で選んだ路線と方面。観測に区間が無いとき、出発の駅から方面の先までを止まっている区間にする
+  // 運行の状態は利用者の申告だけから出す
+  blockedDirection?: BlockedDirection | null;
 };
+
+export type BlockedDirection = { lineId: string; terminalId: string };
 
 export type MapSceneLabels = {
   origin: string;
@@ -274,6 +279,37 @@ export function buildBlockedSectionPath(
     lineId: between.line.lineId,
     coordinates: buildPathCoordinates(geo, between.line.lineId, between.from, between.to),
   };
+}
+
+// 入口で選んだ方面の区間。来た側の隣の駅から、行き先（方面の先にあれば）か方面の終わりの駅まで
+export function buildDirectionBlockedPath(
+  geo: MapGeo,
+  origin: Place,
+  destination: Place,
+  direction: BlockedDirection,
+): (ResolvedSection & { stationIds: string[] }) | null {
+  if (origin.kind !== "station") return null;
+  const from = resolveStationByName(geo.index, origin.name, [direction.lineId]);
+  if (from?.lineId !== direction.lineId) return null;
+  const ahead = findStationPathOnLine(
+    geo.graph,
+    direction.lineId,
+    from.stationId,
+    direction.terminalId,
+  );
+  if (ahead === null || ahead.length < 2) return null;
+  const goal =
+    destination.kind === "station"
+      ? resolveStationByName(geo.index, destination.name, [direction.lineId])
+      : undefined;
+  const goalIndex = goal ? ahead.indexOf(goal.stationId) : -1;
+  const forward = goalIndex > 0 ? ahead.slice(0, goalIndex + 1) : ahead;
+  // 現在地を線が通り抜けて見えるよう、来た側の隣の駅を 1 つ足す
+  const behind = (geo.graph.get(from.stationId) ?? []).find(
+    (link) => link.kind === "ride" && link.lineId === direction.lineId && link.to !== forward[1],
+  )?.to;
+  const stationIds = behind ? [behind, ...forward] : forward;
+  return { lineId: direction.lineId, coordinates: buildCoordinates(geo, stationIds), stationIds };
 }
 
 type ResolvedLeg = {
@@ -643,9 +679,14 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
   const origin = resolvePlacePosition(geo.index, input.origin);
   const destination = resolvePlacePosition(geo.index, input.destination);
 
-  const blockedPath = input.blockedSection
+  const sectionPath = input.blockedSection
     ? buildBlockedSectionPath(geo, input.blockedSection, listBlockedLineHints(input))
     : null;
+  const directionPath =
+    sectionPath === null && input.blockedDirection
+      ? buildDirectionBlockedPath(geo, input.origin, input.destination, input.blockedDirection)
+      : null;
+  const blockedPath = sectionPath ?? directionPath;
   const blockedLineIds = blockedPath ? [blockedPath.lineId] : [];
   const blockedLabel = input.blockedSection
     ? `${labels.blocked} ${input.blockedSection.fromStation}–${input.blockedSection.toStation}`
@@ -692,9 +733,14 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
   const blockedEnds = blockedPath
     ? [blockedPath.coordinates[0], blockedPath.coordinates.at(-1)]
     : [];
+  const directionEnds = directionPath
+    ? [directionPath.stationIds[0], directionPath.stationIds.at(-1)].map(
+        (id) => (id ? geo.index.getStation(id)?.name : undefined) ?? "",
+      )
+    : [];
   const blockedEndNames = input.blockedSection
     ? [input.blockedSection.fromStation, input.blockedSection.toStation]
-    : [];
+    : directionEnds;
   const keyStations = buildKeyStations([
     {
       position: origin,

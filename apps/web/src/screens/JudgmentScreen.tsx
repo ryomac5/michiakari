@@ -3,7 +3,7 @@
 import type { RouteOption } from "@repo/schema";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { MapSheet } from "@/components/MapSheet";
 import { SheetSection, useMapChrome } from "@/components/SheetSection";
@@ -19,13 +19,13 @@ import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
 import { StatusChip, TripSummary } from "@/features/judgment/components/TripSummary";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
-import { useJudgmentSession } from "@/features/judgment/session";
+import { type OriginLine, type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { testIds } from "@/features/judgment/testids";
 import { useOptionFocus } from "@/features/judgment/use-option-focus";
 import { MapLegend } from "@/features/map/MapLegend";
 import { MapPanel, selectRouteTone } from "@/features/map/MapPanel";
-import type { ReachSource } from "@/features/map/scene";
+import type { BlockedDirection, ReachSource } from "@/features/map/scene";
 import type { StationGuide } from "@/features/map/station-guide";
 import { useLineLabel } from "@/features/map/use-line-label";
 import { SituationInput } from "@/features/situation/SituationInput";
@@ -33,11 +33,31 @@ import { SituationInput } from "@/features/situation/SituationInput";
 // 選択肢がまだ無いときの空の配列。描画のたびに新しい配列を作ると地図の組み立てが繰り返される
 const noOptions: RouteOption[] = [];
 
+// 方面の key は「路線の key>方面の終わりの駅の ID」
+function selectBlockedDirection(
+  line: OriginLine | null,
+  trip: TripContext | null,
+): BlockedDirection | null {
+  if (!line || !trip) return null;
+  const terminalId = trip.directionKey.slice(trip.directionKey.lastIndexOf(">") + 1);
+  return terminalId ? { lineId: line.lineId, terminalId } : null;
+}
+
 export function JudgmentScreen() {
   const t = useTranslations("judgment");
   const router = useRouter();
-  const { origin, destination, observations, state, catalog, submitInput, retry, resumeJudgment } =
-    useJudgmentSession();
+  const {
+    origin,
+    destination,
+    observations,
+    state,
+    catalog,
+    submitInput,
+    retry,
+    resumeJudgment,
+    originLine,
+    tripContext,
+  } = useJudgmentSession();
 
   // 入口で預けた判断は、この画面が開いてから流し始める
   useEffect(() => {
@@ -50,6 +70,12 @@ export function JudgmentScreen() {
   const known = [...observations, ...state.observations];
   const blockedLine = known.findLast((o) => o.line !== null)?.line ?? null;
   const lineLabel = useLineLabel(blockedLine);
+
+  // 入口で選んだ路線と方面。区間の観測が無いあいだ、地図はこの方面を止まっている区間として描く
+  const blockedDirection = useMemo(
+    () => selectBlockedDirection(originLine, tripContext),
+    [originLine, tripContext],
+  );
 
   // 判断をまだ求めていなければ開始画面へ戻す
   const hasStarted = state.status !== "idle";
@@ -91,6 +117,7 @@ export function JudgmentScreen() {
         recommendedOptionId={display.recommendedOptionId}
         blockedSection={blockedSection}
         blockedLine={blockedLine}
+        blockedDirection={blockedDirection}
         insets={chrome.insets}
         onReachSourceChange={setReachSource}
         onGuideChange={setGuide}
