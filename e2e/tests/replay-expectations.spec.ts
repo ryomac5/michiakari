@@ -20,6 +20,9 @@ const screenshotDir = fileURLToPath(new URL("../screenshots/", import.meta.url))
 // テスト用の再生速度。シナリオの 60 分を実時間 1 秒で進める
 const testSpeed = 60;
 const scenarios = loadReplayScenarios();
+// 利用者に「分からない」と返す言い回し。結論と理由には出さない
+const nonDecisive =
+  /まだ判断できません|判断できません|分かりません|わかりません|情報が足りません|材料が不足|見込みが立ちません|unknown|can't|not enough information/i;
 
 test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
 test.setTimeout(180_000);
@@ -137,6 +140,10 @@ for (const scenario of scenarios) {
           /^(wait|switch|hold)$/,
         );
         await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).not.toBeEmpty();
+        // どの段でも、結論と理由は行動の言葉で言い切る
+        await expect(page.getByTestId(testIds.judgment.conclusion)).not.toContainText(nonDecisive);
+        const reason = page.getByTestId(testIds.judgment.conclusionReason);
+        if ((await reason.count()) > 0) await expect(reason).not.toContainText(nonDecisive);
         const breakEvenFrame = page.locator(`[data-observation-id="${entry.id}"]`, {
           has: page.getByTestId(testIds.judgment.breakEven),
         });
