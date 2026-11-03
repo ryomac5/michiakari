@@ -3,6 +3,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import type { Scenario } from "../../packages/schema/src/scenario.ts";
+import { webUrl } from "../servers.ts";
 import {
   loadReplayScenarios,
   openSheet,
@@ -13,7 +14,8 @@ import {
 // デモ動画の台本（docs/demo-script.md）の 0:25〜1:50 をリプレイで自動操作して録画する
 //   0:25〜0:45 最初の掲示 → 推論の過程が順に現れる → 結論と分岐点
 //   0:45〜1:30 発表が更新されるたびに、いまここ・分岐点・地図が変わる。結論が変わるたびに止めて見せる
-//   1:30〜1:50 地図: 止まっている区間、徒歩の到達範囲、推奨経路と代替経路
+//   1:30〜1:50 最後に結論が変わった時点の地図: 止まっている区間、徒歩の到達範囲、推奨経路と代替経路
+//   残りの観測は次へで送り、結末のカードで締める
 // 続けて、同じ「止まった」でも慌てず待てる事象を流し、行動が逆になる対比を見せる
 // 主役は RECORD_SCENARIO、対比は RECORD_CONTRAST で指定する
 // 無ければ、主役は期待値に「切り替える」を含む最初のシナリオ、対比は期待値がすべて「待つ」の最初のシナリオ
@@ -60,6 +62,18 @@ function listActionChanges(scenario: Scenario): { after: string; action: string 
 }
 
 // 地図の上のシートを指定の段まで開き、しばらく見せる
+// 録画はシートの取っ手をキーで動かす。指で動かしたときには出ない、取っ手のフォーカスの枠を消す
+async function hideHandleFocusRing(page: Page): Promise<void> {
+  const css = `[data-testid="${testIds.judgment.sheetHandle}"]:focus-visible { outline: none; }`;
+  await page.addInitScript((rule) => {
+    document.addEventListener("DOMContentLoaded", () => {
+      const style = document.createElement("style");
+      style.textContent = rule;
+      document.head.append(style);
+    });
+  }, css);
+}
+
 async function showSheet(page: Page, snap: SheetSnap, holdMs: number): Promise<void> {
   await openSheet(page, snap);
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
@@ -72,6 +86,11 @@ async function pickScenario(page: Page, scenario: Scenario): Promise<void> {
   await expect(page.getByTestId(testIds.replay.scenario(scenario.id))).toBeVisible({
     timeout: 60_000,
   });
+  // 録画の設定の色で描かれていること
+  const scheme = test.info().project.use.colorScheme;
+  if (scheme === "dark" || scheme === "light") {
+    await expect(page.locator("html")).toHaveClass(new RegExp(`\\b${scheme}\\b`));
+  }
   await page.waitForTimeout(1500);
   await page.getByTestId(testIds.replay.scenario(scenario.id)).click();
   await expect(page.getByTestId(testIds.replay.screen)).toHaveAttribute("data-state", "idle");
@@ -90,18 +109,46 @@ async function showFirstJudgment(page: Page, scenario: Scenario): Promise<void> 
   await showSheet(page, "collapsed", 1000);
 }
 
+// 録画の前に、リプレイの画面のコンパイルと本物のフォントの取得を済ませる
+// 動画に写らないよう、ページではなく HTTP の要求で温める
+test.beforeAll(async ({ playwright }) => {
+  const request = await playwright.request.newContext({ baseURL: webUrl });
+  const response = await request.get("/replay", { timeout: 5 * 60_000 });
+  expect(response.ok(), "リプレイの画面を温める").toBe(true);
+  await request.dispose();
+});
+
+// 一時停止したまま、残りの観測を次へで 1 件ずつ入れて最後まで流す
+async function finishReplay(page: Page, scenario: Scenario): Promise<void> {
+  const screen = page.getByTestId(testIds.replay.screen);
+  const judgment = page.getByTestId(testIds.replay.judgment);
+  if ((await screen.getAttribute("data-state")) === "playing") {
+    await page.getByTestId(testIds.replay.playButton).click();
+  }
+  const current = await judgment.getAttribute("data-observation-id");
+  const start = scenario.timeline.findIndex((e) => e.id === current) + 1;
+  for (const entry of scenario.timeline.slice(start)) {
+    await page.getByTestId(testIds.replay.nextButton).click();
+    await waitForJudged(page, entry.id, 60_000);
+  }
+  await expect(screen).toHaveAttribute("data-state", "ended");
+  await expect(page.getByTestId(testIds.replay.outcome)).toBeVisible();
+}
+
 test("デモ: リプレイで判断と地図が変わる様子を録画する", async ({ page }) => {
   const scenarios = loadReplayScenarios();
   const scenario = selectDemoScenario(scenarios);
   const contrast = selectContrastScenario(scenarios, scenario);
 
+  await hideHandleFocusRing(page);
   await pickScenario(page, scenario);
   await showFirstJudgment(page, scenario);
 
   // 速度を上げて再生し、結論が変わるたびに一時停止して、結論とシートの上部を見せる
   await page.getByTestId(testIds.replay.speed(playbackSpeed)).click();
   await page.getByTestId(testIds.replay.playButton).click();
-  for (const change of listActionChanges(scenario)) {
+  const changes = listActionChanges(scenario);
+  for (const [index, change] of changes.entries()) {
     await waitForJudged(page, change.after, 5 * 60_000);
     await page.getByTestId(testIds.replay.playButton).click();
     await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
@@ -111,19 +158,18 @@ test("デモ: リプレイで判断と地図が変わる様子を録画する", 
     await page.waitForTimeout(3500);
     await showSheet(page, "half", 3000);
     await showSheet(page, "collapsed", 800);
-    await page.getByTestId(testIds.replay.playButton).click();
+    // 最後の変化では止めたまま、下の地図と結末へ進む
+    if (index < changes.length - 1) await page.getByTestId(testIds.replay.playButton).click();
   }
-  await expect(page.getByTestId(testIds.replay.screen)).toHaveAttribute("data-state", "ended", {
-    timeout: 5 * 60_000,
-  });
-  await page.waitForTimeout(2500);
 
-  // シートを閉じて地図を大きく見せ、結末と選択肢へ戻る
+  // 最後に結論が変わった時点で地図を大きく見せる。推奨経路と止まっている区間が主役
   const map = page.getByTestId(testIds.judgment.map);
   await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
-  await showSheet(page, "collapsed", 12_000);
-  await showSheet(page, "half", 5000);
-  await showSheet(page, "full", 2000);
+  await showSheet(page, "collapsed", 9000);
+
+  // 残りの観測は次へで送り、結末のカードへつなぐ。終わるとシートは半分まで開く
+  await finishReplay(page, scenario);
+  await page.waitForTimeout(7000);
 
   // 対比: 同じ「止まった」でも、慌てず待てば数分で動く事象。最初から待つと言い切る
   if (!contrast) return;

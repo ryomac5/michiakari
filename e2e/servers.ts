@@ -20,19 +20,29 @@ export const stubExternal = process.env.E2E_REAL_TILES !== "1";
 // next/font/google の取得を固定の応答に差し替える。e2e/fixtures/fonts/google-fonts.cjs を読ませる
 const fontMockPath = fileURLToPath(new URL("./fixtures/fonts/google-fonts.cjs", import.meta.url));
 
-export function buildWebServers(options: {
-  stubExternal: boolean;
-}): NonNullable<PlaywrightTestConfig["webServer"]> {
+// web の起動待ちの既定。本物のフォントを取る録画では、record の設定で延ばす
+const defaultWebStartTimeoutMs = 120_000;
+
+export const webCommand = `pnpm --filter @repo/web exec next dev --port ${webPort}`;
+
+export function buildWebEnv(options: { stubExternal: boolean }): Record<string, string> {
   const fontEnv: Record<string, string> = options.stubExternal
     ? { NEXT_FONT_GOOGLE_MOCKED_RESPONSES: fontMockPath }
     : {};
+  return { CONTENT_DIR: contentDir, NEXT_PUBLIC_AGENT_URL: agentUrl, ...fontEnv };
+}
+
+export function buildWebServers(options: {
+  stubExternal: boolean;
+  webStartTimeoutMs?: number;
+}): NonNullable<PlaywrightTestConfig["webServer"]> {
   return [
     {
-      command: `pnpm --filter @repo/web exec next dev --port ${webPort}`,
-      env: { CONTENT_DIR: contentDir, NEXT_PUBLIC_AGENT_URL: agentUrl, ...fontEnv },
+      command: webCommand,
+      env: buildWebEnv(options),
       url: webUrl,
       reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
+      timeout: options.webStartTimeoutMs ?? defaultWebStartTimeoutMs,
     },
     {
       command: "pnpm --filter @repo/agent start",
