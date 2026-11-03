@@ -173,7 +173,7 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   await expect(map).toHaveAttribute("data-focus-area", /^auto:/);
   await expect(map).toHaveAttribute("data-blocked", "true");
   const bubbles = page.locator(`[data-testid^="judgment-map-station-"]`);
-  expect(await bubbles.count()).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => bubbles.count()).toBeGreaterThanOrEqual(1);
   expect(await bubbles.count()).toBeLessThanOrEqual(4);
   await expect(bubbles.first()).toBeVisible();
   await expect(page.getByTestId(mapTestIds.blockedTag)).toBeVisible();
