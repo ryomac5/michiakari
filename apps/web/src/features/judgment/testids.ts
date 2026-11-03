@@ -157,7 +157,7 @@ export const testIds = {
     outcome: "replay-outcome",
     outcomeSummary: "replay-outcome-summary",
     outcomeFollowed: "replay-outcome-followed",
-    outcomeWaited: "replay-outcome-waited",
+    outcomeCounterpart: "replay-outcome-counterpart",
   },
   // 見つからない頁と、思わぬエラーの画面。data-kind に notFound / error を出す
   status: {

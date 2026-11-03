@@ -9,9 +9,10 @@ import { formatClockTime } from "@/features/judgment/time";
 import { cn } from "@/lib/utils";
 import { selectOutcomeSummary } from "../outcome";
 
-type DeadlineCheck = ReplayOutcome["followedDeadline"];
+type DeadlineCheck = ReplayOutcome["followed"]["deadline"];
 
-// リプレイの結末。判断に従った人と待ち続けた人の到着時刻を並べる
+// リプレイの結末。判断に従った人と、比べる相手の到着時刻を並べる
+// 相手は、切り替えの判断なら待ち続けた人、待つ判断なら最初に切り替えた人
 export function ReplayOutcomeCard({
   outcome,
   deadlineClock,
@@ -23,16 +24,19 @@ export function ReplayOutcomeCard({
   const locale = useLocale();
   const summary = selectOutcomeSummary(outcome);
   const deadline = deadlineClock ?? "";
-  const followedTone = outcome.switchedAt ? "switch" : "wait";
+  const { followed, counterpart } = outcome;
+  const counterpartTime = counterpart.switchedAt
+    ? formatClockTime(counterpart.switchedAt, locale)
+    : "";
 
   return (
     <section
       data-testid={testIds.replay.outcome}
       data-verdict={outcome.verdict}
-      data-followed-arrival={outcome.followedArrival}
-      data-waited-arrival={outcome.waitedArrival}
+      data-followed-arrival={followed.arrival}
+      data-counterpart-arrival={counterpart.arrival}
+      data-counterpart-switched-at={counterpart.switchedAt ?? ""}
       data-diff-minutes={outcome.diffMinutes}
-      data-alternative-diff-minutes={outcome.alternativeDiffMinutes ?? ""}
       aria-labelledby="replay-outcome-title"
       className="flex animate-rise-in flex-col gap-2.5"
     >
@@ -52,9 +56,14 @@ export function ReplayOutcomeCard({
       <p
         data-testid={testIds.replay.outcomeSummary}
         data-summary={summary.key}
+        data-minutes={summary.minutes}
         className="text-[15px] leading-snug font-medium text-pretty"
       >
-        {t(`replay.outcome.summary.${summary.key}`, { minutes: summary.minutes, deadline })}
+        {t(`replay.outcome.summary.${summary.key}`, {
+          minutes: summary.minutes,
+          deadline,
+          time: counterpartTime,
+        })}
         {summary.deadlineKey && (
           <> {t(`replay.outcome.deadline.${summary.deadlineKey}`, { deadline })}</>
         )}
@@ -63,25 +72,29 @@ export function ReplayOutcomeCard({
       <div className="grid grid-cols-2 gap-2">
         <OutcomeColumn
           testId={testIds.replay.outcomeFollowed}
-          tone={followedTone}
+          tone={followed.switchedAt ? "switch" : "wait"}
           label={t("replay.outcome.followed")}
           note={
-            outcome.switchedAt
+            followed.switchedAt
               ? t("replay.outcome.switchedAt", {
-                  time: formatClockTime(outcome.switchedAt, locale),
+                  time: formatClockTime(followed.switchedAt, locale),
                 })
               : t("replay.outcome.neverSwitched")
           }
-          arrival={outcome.followedArrival}
-          deadline={outcome.followedDeadline}
+          arrival={followed.arrival}
+          deadline={followed.deadline}
         />
         <OutcomeColumn
-          testId={testIds.replay.outcomeWaited}
+          testId={testIds.replay.outcomeCounterpart}
           tone={null}
-          label={t("replay.outcome.waited")}
-          note={t("replay.outcome.waitedNote")}
-          arrival={outcome.waitedArrival}
-          deadline={outcome.waitedDeadline}
+          label={t(counterpart.switchedAt ? "replay.outcome.switched" : "replay.outcome.waited")}
+          note={
+            counterpart.switchedAt
+              ? t("replay.outcome.switchedAt", { time: counterpartTime })
+              : t("replay.outcome.waitedNote")
+          }
+          arrival={counterpart.arrival}
+          deadline={counterpart.deadline}
         />
       </div>
 
@@ -113,7 +126,7 @@ function OutcomeColumn({
   deadline,
 }: {
   testId: string;
-  // 判断に従った人は行動の色、待ち続けた人は色を付けない
+  // 判断に従った人は行動の色、比べる相手は色を付けない
   tone: keyof typeof actionStyles | null;
   label: string;
   note: string;

@@ -310,6 +310,7 @@
       "resumed": "実際の運転再開は {time}",
       "followed": "判断に従った人",
       "waited": "待ち続けた人",
+      "switched": "切り替えた人",
       "switchedAt": "{time} に切り替え",
       "neverSwitched": "最後まで待つ判断",
       "waitedNote": "再開を待って乗車",
@@ -318,18 +319,20 @@
       "late": "{minutes}分遅れ",
       "diff": "差 {minutes}分",
       "summary": {
-        "followedEarlierMadeIt": "判断に従うと {minutes}分早く着き、{deadline} の期限に間に合いました。",
-        "followedEarlier": "判断に従うと {minutes}分早く着きました。",
+        "followedEarlierMadeIt": "判断に従うと、待ち続けた人より {minutes}分早く着き、{deadline} の期限に間に合いました。",
+        "followedEarlier": "判断に従うと、待ち続けた人より {minutes}分早く着きました。",
         "waitedEarlier": "今回は待ち続けたほうが {minutes}分早く着きました。",
         "aboutSame": "判断に従っても待ち続けても、着く時刻の差は {minutes}分でした。",
-        "waitWon": "待つ判断で、切り替えるより {minutes}分早く着きました。",
-        "switchWouldWin": "今回は待つ判断が外れました。最初の時点で切り替えていれば {minutes}分早く着けました。",
+        "waitWon": "待つ判断に従うと、{time} に切り替えた人より {minutes}分早く着きました。",
+        "switchWouldWin": "今回は待つ判断が外れました。{time} に切り替えた人のほうが {minutes}分早く着きました。",
+        "waitAboutSame": "待つ判断に従っても {time} に切り替えても、着く時刻の差は {minutes}分でした。",
         "neverSwitched": "最後まで待つ判断で、待ち続けた人と同じ時刻に着きました。"
       },
       "deadline": {
         "both": "どちらも {deadline} の期限に間に合いました。",
         "followedOnly": "判断に従った人だけが {deadline} の期限に間に合いました。",
         "waitedOnly": "待ち続けた人だけが {deadline} の期限に間に合いました。",
+        "switchedOnly": "切り替えた人だけが {deadline} の期限に間に合いました。",
         "neither": "どちらも {deadline} の期限に間に合いませんでした。",
         "sameOnTime": "{deadline} の期限に間に合いました。",
         "sameLate": "{deadline} の期限には間に合いませんでした。"
