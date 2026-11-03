@@ -36,8 +36,13 @@ const noOptions: RouteOption[] = [];
 export function JudgmentScreen() {
   const t = useTranslations("judgment");
   const router = useRouter();
-  const { origin, destination, observations, state, catalog, submitInput, retry } =
+  const { origin, destination, observations, state, catalog, submitInput, retry, resumeJudgment } =
     useJudgmentSession();
+
+  // 入口で預けた判断は、この画面が開いてから流し始める
+  useEffect(() => {
+    resumeJudgment();
+  }, [resumeJudgment]);
   const chrome = useMapChrome();
   const [reachSource, setReachSource] = useState<ReachSource | null>(null);
   const [guide, setGuide] = useState<StationGuide | null>(null);

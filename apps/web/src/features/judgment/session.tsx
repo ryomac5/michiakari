@@ -53,6 +53,8 @@ type JudgmentSession = {
   // 新しい行程として判断を始める。これまでの観測は捨て、seed（利用者が選んだ路線など）から始める
   // 原因が分からないまま進んだときは input を null にし、seed だけで判断する
   startJudgment: (input: RawInput | null, seed: Observation[]) => void;
+  // startJudgment で預けた判断を流し始める。判断の画面が開いたときに呼ぶ
+  resumeJudgment: () => void;
   retry: () => void;
 };
 
@@ -149,13 +151,22 @@ export function JudgmentSessionProvider({
     [runJudgment, observations],
   );
 
-  const startJudgment = useCallback(
-    (input: RawInput | null, seed: Observation[]) => {
-      setObservations(seed);
-      void runJudgment(input, seed);
-    },
-    [runJudgment],
-  );
+  // 入口から判断の画面へ移るあいだは流さず、判断の画面が開いてから流す
+  // 移る途中で判断のイベントが続くと画面の切り替えが遅れ、推論の過程が見えないまま終わるため
+  const pendingRef = useRef<{ input: RawInput | null; seed: Observation[] } | null>(null);
+  const startJudgment = useCallback((input: RawInput | null, seed: Observation[]) => {
+    controllerRef.current?.abort();
+    setObservations(seed);
+    pendingRef.current = { input, seed };
+    setState(startJudgmentRun);
+  }, []);
+
+  const resumeJudgment = useCallback(() => {
+    const pending = pendingRef.current;
+    if (!pending) return;
+    pendingRef.current = null;
+    void runJudgment(pending.input, pending.seed);
+  }, [runJudgment]);
 
   const retry = useCallback(() => {
     void runJudgment(lastInputRef.current, observations);
@@ -191,6 +202,7 @@ export function JudgmentSessionProvider({
       mockEnabled,
       submitInput,
       startJudgment,
+      resumeJudgment,
       retry,
     }),
     [
@@ -207,6 +219,7 @@ export function JudgmentSessionProvider({
       mockEnabled,
       submitInput,
       startJudgment,
+      resumeJudgment,
       retry,
     ],
   );
