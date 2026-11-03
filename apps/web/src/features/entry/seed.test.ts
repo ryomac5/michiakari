@@ -21,4 +21,19 @@ describe("buildLineObservation", () => {
     expect(observation.eventTypeCandidates).toEqual([]);
     expect(observation.observedAt).toBe("2026-11-03T14:00:00+09:00");
   });
+
+  it("止まってからの分が分かれば、見た時刻をその分だけ前にする", () => {
+    const line = {
+      key: "心斎橋|osaka-metro.御堂筋線|地下鉄御堂筋線",
+      lineId: "osaka-metro.御堂筋線",
+      stationName: "心斎橋",
+      observedName: "地下鉄御堂筋線",
+      name: { ja: "地下鉄御堂筋線", en: "Midosuji Line" },
+      operator: { ja: "Osaka Metro", en: "Osaka Metro" },
+      color: "#E5171F",
+    };
+    const now = new Date("2026-11-03T05:00:00Z");
+    expect(buildLineObservation(line, now, 15).observedAt).toBe("2026-11-03T13:45:00+09:00");
+    expect(buildLineObservation(line, now, null).observedAt).toBe("2026-11-03T14:00:00+09:00");
+  });
 });

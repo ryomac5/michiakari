@@ -108,10 +108,11 @@ function buildDecisionReason(input: DecisionTextInput): string {
   const deadline = clock(input.deadline);
   const target = nameSwitchTarget(input.bestOption, input.language);
   switch (input.reason) {
+    // 保留のときは、次に確かめることを 2 文目に添える
     case "unknown_event":
       return ja
-        ? "事象を特定できず、再開の見込みを分岐点と比べられません。"
-        : "The cause is unknown, so the outlook cannot be compared with the break-even time.";
+        ? "原因が分からず、再開の見込みを分岐点と比べられません。原因や再開見込みの放送が出たら、もう一度入れてください。"
+        : "The cause is unknown, so the outlook cannot be compared with the break-even time. When the cause or a restart time is announced, enter it again.";
     case "no_alternative":
       return ja
         ? "代替手段が見つからず、待つほかに比べる手段がありません。"
@@ -131,8 +132,8 @@ function buildDecisionReason(input: DecisionTextInput): string {
         : "Rain continues and alternative routes may also stop, so the options cannot be compared yet.";
     case "low_confidence":
       return ja
-        ? "見込みの幅が大きく、まだどちらとも言えません。"
-        : "The outlook is still too uncertain to favor either option.";
+        ? "見込みの幅が大きく、まだどちらとも言えません。次の放送で再開見込みが出たら、もう一度入れてください。"
+        : "The outlook is still too uncertain to favor either option. When a restart time is announced, enter it again.";
     case "estimate_extended":
       if (!p80 || !be) {
         return ja

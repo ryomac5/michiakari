@@ -52,9 +52,13 @@ async function startWithPastedText(page: Page): Promise<void> {
   await page.getByTestId(testIds.start.originSearch).fill("大阪");
   await page.getByTestId(testIds.start.originOption("大阪")).click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "station");
-  await page.getByTestId(testIds.start.line("大阪|jr-west.東海道線|JR神戸線")).click();
+  const kobeLine = "大阪|jr-west.東海道線|JR神戸線";
+  await page.getByTestId(testIds.start.line(kobeLine)).click();
+  // 路線を選ぶと方面を聞く。行き先は方面の外の駅も検索で選べる
+  await page.getByTestId(testIds.start.direction(`${kobeLine}>jr-west.東海道線.神戸`)).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+  await page.getByTestId(testIds.start.positionStation).click();
   await expect(page.getByTestId(testIds.start.trip)).toContainText("三ノ宮");
 
   // 状況の入力は別の画面に飛ばず、同じ地図の上のシートで続ける

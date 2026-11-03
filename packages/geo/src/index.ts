@@ -5,6 +5,7 @@ export {
   TERMINAL_EXTENSIONS,
   type TerminalExtension,
 } from "./corrections.ts";
+export { type LineDirection, listLineDirections } from "./directions.ts";
 export { computeDistanceMeters } from "./distance.ts";
 export {
   createGeoIndex,

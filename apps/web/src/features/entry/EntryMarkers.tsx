@@ -192,3 +192,69 @@ export function DestinationMarker({ label }: { label: string }) {
     </div>
   );
 }
+
+// 方面・行き先・近い駅の札。地図からも答えを選べるようにする
+// 方面の札は路線色の丸に矢印を添え、駅の札は路線色の縁の小さな丸にする
+export function StopMarker({
+  stopKey,
+  label,
+  side,
+  color,
+  angle,
+  onSelect,
+}: {
+  stopKey: string;
+  label: string;
+  side: LabelSide;
+  color: string;
+  // 方面の札だけが持つ矢印の向き（度）
+  angle: number | null;
+  onSelect: () => void;
+}) {
+  return (
+    <MarkerButton
+      label={label}
+      side={side}
+      onClick={onSelect}
+      testId={testIds.start.mapStop(stopKey)}
+      dot={
+        angle === null ? (
+          <span
+            className="size-[13px] rounded-full border-[3px] bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.25)] transition-transform duration-150 group-hover:scale-110 group-active:scale-90"
+            style={{ borderColor: color }}
+          />
+        ) : (
+          <span
+            className="flex size-7 items-center justify-center rounded-full text-white shadow-[0_2px_8px_rgb(0_0_0/0.3)] transition-transform duration-150 group-hover:scale-110 group-active:scale-90"
+            style={{ backgroundColor: color }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="size-4"
+              aria-hidden
+              style={{ transform: `rotate(${angle}deg)` }}
+            >
+              <path
+                d="M12 19V5M5 12l7-7 7 7"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        )
+      }
+    >
+      <span
+        className={cn(
+          "px-2.5 py-1.5 leading-none",
+          angle === null ? "text-[13px] font-semibold" : "text-[14px] font-bold",
+        )}
+      >
+        {label}
+      </span>
+    </MarkerButton>
+  );
+}

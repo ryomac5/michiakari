@@ -40,7 +40,19 @@ export const testIds = {
     locateStatus: "start-locate-status",
     destinationSearch: "start-destination-search",
     destinationOption: (id: string) => `start-destination-option-${id}`,
-    destinationSuggestion: (id: string) => `start-destination-suggestion-${id}`,
+    // 進み具合の印。data-step に今の段の番号（0 から）を出す
+    progress: "start-progress",
+    direction: (key: string) => `start-direction-${key}`,
+    // 地図の上の、方面・行き先・近い駅の札
+    mapStop: (key: string) => `start-map-stop-${key}`,
+    destinationUndecided: "start-destination-undecided",
+    // 方面の先の行き先の候補。data-operator に事業者名を出す
+    destinationCandidate: (id: string) => `start-destination-candidate-${id}`,
+    positionStation: "start-position-station",
+    positionTrain: "start-position-train",
+    nearStop: (id: string) => `start-near-stop-${id}`,
+    cause: (id: string) => `start-cause-${id}`,
+    elapsed: (id: string) => `start-elapsed-${id}`,
     trip: "start-trip",
     editLine: "start-edit-line",
     editDestination: "start-edit-destination",
@@ -109,6 +121,10 @@ export const testIds = {
     weatherSummary: "judgment-weather-summary",
     weatherFictional: "judgment-weather-fictional",
     addInfo: "judgment-add-info",
+    // 入口で方面だけ・電車の中・分からないで進んだときの前提と、次に確かめること
+    premise: "judgment-premise",
+    nextCheck: "judgment-next-check",
+    nextCheckAction: "judgment-next-check-action",
   },
   // リプレイ。判断の部品は judgment の testid をそのまま使う
   replay: {
