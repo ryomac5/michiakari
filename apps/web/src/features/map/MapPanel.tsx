@@ -87,6 +87,8 @@ const autoFocusMargin = {
   narrow: { top: 70, right: 110, bottom: 60, left: 110 },
 };
 const fitDurationMs = 700;
+// 現在地のまわりに寄せる上限。自動で選んだ駅は近い駅だけのこともあるので、まわりの街が見える程度に抑える
+const focusMaxZoom = { configured: 16.2, auto: 15.5 };
 // 最初に出発の駅へ寄せておく拡大率。入口が判断へ移る直前に寄せる値とそろえる
 const initialOriginZoom = 15.8;
 // おすすめの吹き出しの高さのおよそ（px）
@@ -249,7 +251,7 @@ function layoutAutoPlacements(
 ): Record<string, BubblePlacement> | null {
   if (!guide.bounds) return null;
   const padding = buildGuidePadding(insets, narrow, guide);
-  const camera = map.cameraForBounds(guide.bounds, { padding, maxZoom: 16.2 });
+  const camera = map.cameraForBounds(guide.bounds, { padding, maxZoom: focusMaxZoom.auto });
   const zoom = camera?.zoom;
   if (zoom === undefined) return null;
   const canvas = map.getCanvas();
@@ -608,7 +610,7 @@ export function MapPanel(props: MapPanelProps) {
       if (view === "focus" && guide?.bounds) {
         map.fitBounds(guide.bounds, {
           padding: buildGuidePadding(insets, narrow, guide),
-          maxZoom: 16.2,
+          maxZoom: guide.areaId.startsWith("auto:") ? focusMaxZoom.auto : focusMaxZoom.configured,
           duration,
         });
       } else if (scene?.bounds) {
