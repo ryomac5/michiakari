@@ -53,8 +53,8 @@ export function buildPassedSentence(time: string, label: string, language: Lang)
 
 export function buildNoAlternativeSentence(language: Lang): string {
   return language === "ja"
-    ? "代替手段が見つからないため、分岐点を示せません。"
-    : "No alternative route was found, so no break-even time can be shown.";
+    ? "近くの代わりの経路より、運転再開を待つほうが確実です。"
+    : "Waiting for service to resume is surer than the nearby alternatives.";
 }
 
 export type DecisionReason =
@@ -108,32 +108,47 @@ function buildDecisionReason(input: DecisionTextInput): string {
   const deadline = clock(input.deadline);
   const target = nameSwitchTarget(input.bestOption, input.language);
   switch (input.reason) {
-    // 保留のときは、次に確かめることを 2 文目に添える
+    // 保留のときも謝らず、分岐点を過ぎたら何が早いかを比べる形で書く。次に確かめることは画面が別に示す
     case "unknown_event":
+      if (!be) {
+        return ja
+          ? "いまは運転再開を待つのが確実です。放送で原因が分かれば、もっと確かに言えます。"
+          : "Waiting for service to resume is the surest move now. Hearing the cause will sharpen this.";
+      }
       return ja
-        ? "原因が分からず、再開の見込みを分岐点と比べられません。原因や再開見込みの放送が出たら、もう一度入れてください。"
-        : "The cause is unknown, so the outlook cannot be compared with the break-even time. When the cause or a restart time is announced, enter it again.";
+        ? `${be}を過ぎると${target}のほうが早く着きます。放送で原因が分かれば、もっと確かに言えます。`
+        : `After ${be}, ${target} gets you there sooner. Hearing the cause will sharpen this.`;
     case "no_alternative":
       return ja
-        ? "代替手段が見つからず、待つほかに比べる手段がありません。"
-        : "No alternative route was found, so there is nothing to compare with waiting.";
+        ? "近くの代わりの経路より、運転再開を待つほうが確実です。"
+        : "Waiting for service to resume is surer than the nearby alternatives.";
     case "break_even_passed":
       if (!be) {
         return ja
-          ? `分岐点を過ぎ、いま再開しても${target}より早く着けないためです。`
-          : `The break-even time has passed, so even an immediate resumption cannot beat ${target}.`;
+          ? `分岐点を過ぎ、いま再開しても${target}のほうが早く着くためです。`
+          : `The break-even time has passed, so ${target} is faster even if service resumes now.`;
       }
       return ja
-        ? `分岐点の${be}を過ぎ、いま再開しても${target}より早く着けないためです。`
-        : `The break-even time of ${be} has passed, so even an immediate resumption cannot beat ${target}.`;
+        ? `分岐点の${be}を過ぎ、いま再開しても${target}のほうが早く着くためです。`
+        : `The break-even time of ${be} has passed, so ${target} is faster even if service resumes now.`;
     case "rain_continuing":
       return ja
-        ? "雨が続き、代替経路も止まるおそれがあるため、まだ比べられません。"
-        : "Rain continues and alternative routes may also stop, so the options cannot be compared yet.";
+        ? "雨が続き、代わりの路線も止まるおそれがあります。"
+        : "Rain continues, and alternative routes may stop too.";
     case "low_confidence":
+      if (!be) {
+        return ja
+          ? "いまは待つのが確実です。再開見込みの放送が出れば、もっと確かに言えます。"
+          : "Waiting is the surest move now. A restart time in an announcement will sharpen this.";
+      }
+      if (!p50 || !p80) {
+        return ja
+          ? `見込みの幅が大きく、${be}を過ぎると${target}のほうが早く着きます。`
+          : `The outlook is still wide. After ${be}, ${target} gets you there sooner.`;
+      }
       return ja
-        ? "見込みの幅が大きく、まだどちらとも言えません。次の放送で再開見込みが出たら、もう一度入れてください。"
-        : "The outlook is still too uncertain to favor either option. When a restart time is announced, enter it again.";
+        ? `再開見込みは${p50}〜${p80}頃と幅があり、${be}を過ぎると${target}のほうが早く着きます。`
+        : `Resumption is expected between ${p50} and ${p80}. After ${be}, ${target} gets you there sooner.`;
     case "estimate_extended":
       if (!p80 || !be) {
         return ja
@@ -179,14 +194,19 @@ function buildDecisionReason(input: DecisionTextInput): string {
   }
 }
 
+// 見出しは 3 つの形のどれかにする。待つ、切り替える、いまは待ちつつ分岐点を過ぎたら切り替える
+// 情報が足りなくても「判断できない」とは書かず、いまの最善の一手を言い切る
 function buildDecisionHeadline(input: DecisionTextInput): string {
   const ja = input.language === "ja";
   const target = nameSwitchTarget(input.bestOption, input.language);
   const switchHeadline = ja ? `いま${target}に切り替えてください` : `Switch to ${target} now.`;
-  const holdHeadline = ja
-    ? "まだ判断できません。分岐点を見てください"
-    : "Too early to decide. Watch the break-even time.";
   const waitHeadline = ja ? "運転再開を待ってください" : "Wait for service to resume.";
+  const be = input.breakEvenTime ? formatClock(input.breakEvenTime, input.language) : null;
+  const holdHeadline = be
+    ? ja
+      ? `${be}まで待って、だめなら切り替え`
+      : `Wait until ${be}, then switch if still stopped.`
+    : waitHeadline;
   switch (input.reason) {
     case "unknown_event":
     case "low_confidence":
@@ -194,7 +214,7 @@ function buildDecisionHeadline(input: DecisionTextInput): string {
     case "no_alternative":
       return waitHeadline;
     case "rain_continuing":
-      return ja ? "雨が続くあいだは判断を保留します" : "Holding off while the rain continues.";
+      return ja ? "雨が弱まるまで待ちましょう" : "Wait until the rain eases.";
     case "break_even_passed":
     case "estimate_extended":
     case "resume_after_break_even":

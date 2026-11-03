@@ -1,6 +1,7 @@
 import type { RouteOption } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { headlineLimits, reasonLimits } from "../src/config.ts";
+import { checkDecisiveWording } from "../src/judge/assemble.ts";
 import {
   buildBreakEvenSentence,
   buildDecisionText,
@@ -52,7 +53,7 @@ const OPTIONS: Pick<RouteOption, "kind" | "label" | "isTransferService">[] = [
 
 describe("buildDecisionText", () => {
   for (const language of ["ja", "en"] as const) {
-    it(`${language} の見出しと理由は目安の長さに収まり、見出しは経路名や時刻を含まない`, () => {
+    it(`${language} の見出しと理由は目安の長さに収まり、見出しは経路名を含まない`, () => {
       for (const reason of REASONS) {
         for (const bestOption of OPTIONS) {
           for (const outlook of [OUTLOOK, NO_OUTLOOK]) {
@@ -64,8 +65,13 @@ describe("buildDecisionText", () => {
               ...outlook,
             });
             expect([...text.headline].length).toBeLessThanOrEqual(headlineLimits[language].target);
+            // 時刻を出すのは、待ちつつ分岐点を過ぎたら切り替える形の見出しだけ
+            if (/\d{1,2}(時\d{2}分|:\d{2})/.test(text.headline)) {
+              expect(["unknown_event", "low_confidence"]).toContain(reason);
+            }
             expect(text.headline).not.toContain(LONG_LABEL);
-            expect(text.headline).not.toMatch(/\d{1,2}(時\d{2}分|:\d{2})/);
+            expect(checkDecisiveWording("headline", text.headline, language)).toEqual([]);
+            expect(checkDecisiveWording("reason", text.reason, language)).toEqual([]);
             expect(text.reason.length).toBeGreaterThan(0);
             expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits[language].target);
             expect(text.reason).not.toContain(LONG_LABEL);
@@ -74,6 +80,27 @@ describe("buildDecisionText", () => {
       }
     });
   }
+
+  it("保留の見出しは、分岐点まで待ち動かなければ切り替える形にする", () => {
+    const input = {
+      reason: "unknown_event" as const,
+      breakEvenMinutesFromNow: 23,
+      bestOption: { kind: "transfer" as const, label: "四つ橋線経由", isTransferService: false },
+      ...OUTLOOK,
+    };
+    const ja = buildDecisionText({ ...input, language: "ja" });
+    expect(ja.headline).toBe("23時23分まで待って、だめなら切り替え");
+    expect(ja.reason).toBe(
+      "23時23分を過ぎると別の路線のほうが早く着きます。放送で原因が分かれば、もっと確かに言えます。",
+    );
+    expect(buildDecisionText({ ...input, language: "en" }).headline).toBe(
+      "Wait until 23:23, then switch if still stopped.",
+    );
+    // 分岐点が無ければ待つ形にする
+    expect(buildDecisionText({ ...input, ...NO_OUTLOOK, language: "ja" }).headline).toBe(
+      "運転再開を待ってください",
+    );
+  });
 
   it("待つときの見出しは分岐点までの分を示す", () => {
     const input = {

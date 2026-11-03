@@ -220,6 +220,21 @@ export function checkReasonLength(reason: string | undefined, language: Lang): s
   ];
 }
 
+// 判断しない旨の言い回し。情報が足りなくても、結論はいまの最善の一手を言い切る
+const NON_DECISION_PATTERNS: Record<Lang, RegExp> = {
+  ja: /判断できません|判断できない|判断を保留|判断は保留|まだ判断|分かりません|わかりません|どちらとも言え|情報が足りません|材料が不足|見込みが立ちません|読めません/,
+  en: /too early to (decide|tell|judge)|can't|cannot|unable to|unknown|not enough information|holding off/i,
+};
+
+// 見出しと理由に、判断しない旨の言い回しがあれば指摘する
+export function checkDecisiveWording(field: string, text: string, language: Lang): string[] {
+  const match = NON_DECISION_PATTERNS[language].exec(text);
+  if (!match) return [];
+  return [
+    `${field} の「${match[0]}」は判断しない旨の言い回しです。待つ、切り替える、分岐点の時刻まで待ち動かなければ切り替える、のどれかの行動で書いてください`,
+  ];
+}
+
 export type JudgmentCheckInput = {
   judgment: unknown;
   language: Lang;
@@ -244,6 +259,8 @@ export function validateJudgment(input: JudgmentCheckInput): {
     ...checkJudgmentRefs(j),
     ...checkHeadlineLength(j.headline, input.language),
     ...checkReasonLength(j.reason, input.language),
+    ...checkDecisiveWording("headline", j.headline, input.language),
+    ...checkDecisiveWording("reason", j.reason ?? "", input.language),
   ];
 
   for (const e of j.evidence) {
