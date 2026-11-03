@@ -48,7 +48,8 @@ const weatherWaitAfter =
   weatherScenario?.expectations.find((e) => e.action === "wait")?.after ??
   weatherScenario?.timeline.at(-1)?.id;
 
-test.setTimeout(180_000);
+// 入口の段が増え、撮る場面も増えたので、全体を並べて走らせたときの余裕を見て長めにする
+test.setTimeout(240_000);
 
 async function capture(page: Page, variant: Variant, name: string, fullPage = false) {
   await page.evaluate(() => window.scrollTo(0, 0));
