@@ -8,4 +8,10 @@ export const mapTestIds = {
   reachApprox: "judgment-map-reach-approx",
   attribution: "judgment-map-attribution",
   attributionLine: "judgment-map-attribution-line",
+  // 現在地のまわりと全体の切り替え。地図の枠の data-view に focus / overview を出す
+  viewToggle: "judgment-map-view-toggle",
+  // 乗り換え候補の駅の吹き出し。data-recommended・data-status・data-walk-minutes を出す
+  station: (key: string) => `judgment-map-station-${key}`,
+  here: "judgment-map-here",
+  blockedTag: "judgment-map-blocked-tag",
 } as const;

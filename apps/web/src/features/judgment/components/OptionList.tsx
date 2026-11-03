@@ -3,6 +3,7 @@
 import type { RouteOption } from "@repo/schema";
 import { LoaderCircle, Star } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import type { OptionMark } from "@/features/map/station-guide";
 import { useLineTranslator } from "@/features/map/use-line-label";
 import { cn } from "@/lib/utils";
 import { actionStyles, optionIcons, selectOptionTone } from "../action-style";
@@ -15,11 +16,17 @@ export function OptionList({
   recommendedOptionId,
   stale,
   pending,
+  marks = [],
+  highlightId = null,
 }: {
   options: RouteOption[] | null;
   recommendedOptionId: string | null;
   stale: boolean;
   pending: boolean;
+  // 地図の吹き出しと同じ色と名前で示す、最初に乗る駅
+  marks?: readonly OptionMark[];
+  // 地図の吹き出しから移ってきた選択肢。しばらく目立たせる
+  highlightId?: string | null;
 }) {
   const t = useTranslations("judgment.options");
 
@@ -51,6 +58,8 @@ export function OptionList({
             key={option.id}
             option={option}
             recommended={option.id === recommendedOptionId}
+            mark={marks.find((m) => m.optionId === option.id) ?? null}
+            highlighted={option.id === highlightId}
           />
         ))}
       </ul>
@@ -59,7 +68,17 @@ export function OptionList({
   );
 }
 
-function OptionRow({ option, recommended }: { option: RouteOption; recommended: boolean }) {
+function OptionRow({
+  option,
+  recommended,
+  mark,
+  highlighted,
+}: {
+  option: RouteOption;
+  recommended: boolean;
+  mark: OptionMark | null;
+  highlighted: boolean;
+}) {
   const t = useTranslations("judgment.options");
   const locale = useLocale();
   const Icon = optionIcons[option.kind];
@@ -78,9 +97,12 @@ function OptionRow({ option, recommended }: { option: RouteOption; recommended: 
       data-testid={testIds.judgment.option(option.id)}
       data-kind={option.kind}
       data-recommended={recommended}
+      data-station={mark?.key ?? ""}
+      data-highlighted={highlighted}
       className={cn(
-        "flex items-start gap-3 rounded-2xl px-3 py-2.5",
+        "flex items-start gap-3 rounded-2xl px-3 py-2.5 transition-shadow duration-300",
         recommended ? [tone.surface, "ring-1 ring-inset", tone.ring] : "bg-foreground/[0.03]",
+        highlighted && "ring-2 ring-foreground ring-inset",
       )}
     >
       <span
@@ -94,6 +116,16 @@ function OptionRow({ option, recommended }: { option: RouteOption; recommended: 
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <p className="line-clamp-2 text-[15px] leading-snug font-semibold">{option.label}</p>
+        {mark && (
+          <p className="flex items-center gap-1.5 text-[12px] font-medium">
+            <span
+              aria-hidden
+              className="h-3 w-1.5 shrink-0 rounded-full"
+              style={{ backgroundColor: mark.color }}
+            />
+            {t("from", { station: mark.stationName })}
+          </p>
+        )}
         <p className="line-clamp-2 text-[12px] leading-snug text-muted">
           {recommended && (
             <span className={cn("font-semibold", tone.text)}>

@@ -204,7 +204,8 @@
         "wait": "待ち",
         "taxi": "タクシー"
       },
-      "walkShort": "徒歩{minutes}分"
+      "walkShort": "徒歩{minutes}分",
+      "from": "{station}から"
     },
     "evidence": {
       "title": "判断の根拠",
@@ -312,7 +313,17 @@
   },
   "map": {
     "title": "地図",
-    "placeholder": "地図は準備中です"
+    "placeholder": "地図は準備中です",
+    "suspended": "見合わせ",
+    "statusSuspended": "見合わせ中",
+    "statusRunning": "運転中",
+    "recommended": "おすすめ",
+    "walk": "徒歩 {minutes} 分",
+    "minutesShort": "{minutes}分",
+    "transferService": "振替輸送",
+    "here": "いま",
+    "viewOverview": "全体を見る",
+    "viewFocus": "現在地のまわり"
   },
   "about": {
     "title": "このアプリについて",

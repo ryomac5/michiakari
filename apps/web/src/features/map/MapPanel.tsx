@@ -2,25 +2,31 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Action, Place, RouteOption, Section } from "@repo/schema";
-import { LocateFixed } from "lucide-react";
+import { LocateFixed, Route } from "lucide-react";
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { selectOptionTone } from "@/features/judgment/action-style";
 import { testIds } from "@/features/judgment/testids";
 import { prefersReducedMotion, useDocumentTheme } from "@/lib/use-document-theme";
+import { useMediaQuery } from "@/lib/use-media-query";
+import type { BubblePlacement } from "./focus-areas";
 import { loadMapGeoData, type MapGeoData } from "./geo-data";
 import { selectMapLabels } from "./labels";
 import {
   buildBaseStyle,
   buildDataLayers,
   listPaintValues,
+  type MapMode,
   type MapPalette,
+  type MapView,
   mapPalettes,
   sourceIds,
 } from "./layers";
 import { fetchReachAreas, type ReachArea } from "./reach";
+import { BlockedTag, HereMarker, StationBubble } from "./StationBubble";
 import {
   buildMapScene,
   buildStationLabels,
@@ -28,6 +34,13 @@ import {
   type Position,
   type ReachSource,
 } from "./scene";
+import {
+  buildStationGuide,
+  findFocusArea,
+  findPointAtDistance,
+  findRingLabelPoint,
+  type StationGuide,
+} from "./station-guide";
 import { mapTestIds } from "./testids";
 
 // 地図の上に重なる部品（上部の帯・シート・パネル）が占める幅。地図を寄せるときの余白にする
@@ -44,6 +57,10 @@ export type MapPanelProps = {
   blockedLine?: string | null;
   insets: MapInsets;
   onReachSourceChange?: (source: ReachSource | null) => void;
+  // 現在地のまわりの案内。シートの選択肢の行に同じ印を添えるのに使う
+  onGuideChange?: (guide: StationGuide | null) => void;
+  // 吹き出しを押したとき。シートのその選択肢へ移る
+  onSelectOption?: (optionId: string) => void;
 };
 
 // updating は描画済みの地図にレイヤーの差し替えを反映している間
@@ -52,9 +69,21 @@ type MapStatus = "loading" | "updating" | "ready" | "error";
 const defaultCenter: [number, number] = [135.5, 34.7];
 // 重なる部品からさらに空ける余白
 const fitMargin = { x: 64, y: 36 };
+// 現在地のまわりでは、吹き出しと現在地の札のぶんを空ける。狭い画面では札を上に出す
+const focusMargin = {
+  wide: { top: 110, right: 230, bottom: 60, left: 230 },
+  narrow: { top: 56, right: 215, bottom: 30, left: 80 },
+};
 const fitDurationMs = 700;
+// 止まっている路線の札は、現在地からこの距離の線上に置く
+// 近い順に試し、見える範囲に入り、現在地と吹き出しから離れた最初の点に置く
+const blockedTagMeters = [650, 500, 380, 260, 180];
+// 現在地や吹き出しの基準点から、これより近い候補は使わない（px）
+const blockedTagClearance = 70;
+// 到達範囲の札を置く向き。PC 幅は北西、狭い画面は画面に入りやすい南東
+const reachLabelBearing = { wide: 315, narrow: 135 };
 
-// 推奨経路の色。推奨の選択肢が待つなら青、それ以外は橙
+// 推奨経路の色。推奨の選択肢が待つなら青、それ以外は琥珀
 export function selectRouteTone(
   options: RouteOption[],
   recommendedOptionId: string | null,
@@ -70,8 +99,9 @@ export async function loadMapLibre(): Promise<typeof import("maplibre-gl")> {
   return maplibre;
 }
 
+const emptyCollection = { type: "FeatureCollection" as const, features: [] };
+
 function addDataLayers(map: MapLibreMap, geo: MapGeoData, palette: MapPalette, tone: Action) {
-  const empty = { type: "FeatureCollection" as const, features: [] };
   map.addSource(sourceIds.lines, { type: "geojson", data: geo.lines });
   map.addSource(sourceIds.labels, {
     type: "geojson",
@@ -84,41 +114,80 @@ function addDataLayers(map: MapLibreMap, geo: MapGeoData, palette: MapPalette, t
     sourceIds.routeLabel,
     sourceIds.alternatives,
     sourceIds.keyStations,
+    sourceIds.guideWalk,
+    sourceIds.guideWalkLabels,
+    sourceIds.guideStations,
+    sourceIds.reachLabels,
   ]) {
-    map.addSource(id, { type: "geojson", data: empty });
+    map.addSource(id, { type: "geojson", data: emptyCollection });
   }
   for (const layer of buildDataLayers(palette, tone)) map.addLayer(layer);
 }
 
+function setSourceData(map: MapLibreMap, id: string, data: unknown): void {
+  map.getSource<GeoJSONSource>(id)?.setData(data as Parameters<GeoJSONSource["setData"]>[0]);
+}
+
 function applyMapScene(map: MapLibreMap, scene: MapScene): void {
-  const updates: [string, unknown][] = [
-    [sourceIds.reach, scene.reach],
-    [sourceIds.blocked, scene.blocked],
-    [sourceIds.route, scene.route],
-    [sourceIds.routeLabel, scene.routeLabel],
-    [sourceIds.alternatives, scene.alternatives],
-    [sourceIds.keyStations, scene.keyStations],
-  ];
-  for (const [id, data] of updates) {
-    map.getSource<GeoJSONSource>(id)?.setData(data as Parameters<GeoJSONSource["setData"]>[0]);
+  setSourceData(map, sourceIds.reach, scene.reach);
+  setSourceData(map, sourceIds.blocked, scene.blocked);
+  setSourceData(map, sourceIds.route, scene.route);
+  setSourceData(map, sourceIds.routeLabel, scene.routeLabel);
+  setSourceData(map, sourceIds.alternatives, scene.alternatives);
+  setSourceData(map, sourceIds.keyStations, scene.keyStations);
+}
+
+// 狭い画面では道が短く札が重なるので、徒歩の札は出さない。分数は吹き出しと札が示す
+function applyGuide(
+  map: MapLibreMap,
+  guide: StationGuide | null,
+  reachLabels: unknown,
+  narrow: boolean,
+): void {
+  const labels = guide?.walkLabels ?? emptyCollection;
+  setSourceData(map, sourceIds.guideWalk, guide?.walkPaths ?? emptyCollection);
+  setSourceData(map, sourceIds.guideWalkLabels, narrow ? emptyCollection : labels);
+  setSourceData(map, sourceIds.guideStations, {
+    type: "FeatureCollection",
+    features: (guide?.stations ?? []).map((s) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: s.position },
+      properties: {
+        recommended: s.recommended,
+        color: s.lines.find((l) => !l.suspended)?.color ?? s.lines[0]?.color ?? "#888888",
+      },
+    })),
+  });
+  setSourceData(map, sourceIds.reachLabels, reachLabels);
+}
+
+function applyMapStyle(map: MapLibreMap, palette: MapPalette, tone: Action, mode: MapMode): void {
+  type PaintArgs = Parameters<MapLibreMap["setPaintProperty"]>;
+  for (const { layerId, key, value, kind } of listPaintValues(palette, tone, mode)) {
+    if (!map.getLayer(layerId)) continue;
+    type LayoutArgs = Parameters<MapLibreMap["setLayoutProperty"]>;
+    if (kind === "layout")
+      map.setLayoutProperty(layerId, key as LayoutArgs[1], value as LayoutArgs[2]);
+    else map.setPaintProperty(layerId, key as PaintArgs[1], value as PaintArgs[2]);
   }
 }
 
-function applyMapPalette(map: MapLibreMap, palette: MapPalette, tone: Action): void {
-  for (const { layerId, key, value } of listPaintValues(palette, tone)) {
-    if (map.getLayer(layerId)) {
-      type PaintArgs = Parameters<MapLibreMap["setPaintProperty"]>;
-      map.setPaintProperty(layerId, key as PaintArgs[1], value as PaintArgs[2]);
-    }
-  }
-}
-
-function buildPadding(insets: MapInsets) {
+function buildPadding(insets: MapInsets, extra = { top: 0, right: 0, bottom: 0, left: 0 }) {
   return {
-    top: insets.top + fitMargin.y,
-    right: insets.right + fitMargin.x,
-    bottom: insets.bottom + fitMargin.y,
-    left: insets.left + fitMargin.x,
+    top: insets.top + fitMargin.y + extra.top,
+    right: insets.right + fitMargin.x + extra.right,
+    bottom: insets.bottom + fitMargin.y + extra.bottom,
+    left: insets.left + fitMargin.x + extra.left,
+  };
+}
+
+// 現在地のまわりの余白。重なる部品の幅に、吹き出しと札のぶんだけを足す
+function buildFocusPadding(insets: MapInsets, margin: MapInsets) {
+  return {
+    top: insets.top + margin.top,
+    right: insets.right + margin.right,
+    bottom: insets.bottom + margin.bottom,
+    left: insets.left + margin.left,
   };
 }
 
@@ -136,6 +205,20 @@ function createPlaceElement(role: "origin" | "destination"): HTMLElement {
   }
   return el;
 }
+
+// 吹き出しの尾が駅を指すよう、置く側の反対を MapLibre の基準点にする
+const markerAnchor: Record<BubblePlacement, "bottom" | "top" | "left" | "right"> = {
+  top: "bottom",
+  bottom: "top",
+  left: "right",
+  right: "left",
+};
+const markerOffset: Record<BubblePlacement, [number, number]> = {
+  top: [0, -12],
+  bottom: [0, 12],
+  left: [-12, 0],
+  right: [12, 0],
+};
 
 // 毎回新しい配列を返すと地図の組み立てが描画のたびに走るので、空は 1 つを使い回す
 const noReachAreas: readonly ReachArea[] = [];
@@ -161,13 +244,62 @@ function useReachAreas(origin: Place): readonly ReachArea[] | null {
   return reach?.stationName === stationName ? reach.areas : null;
 }
 
-// 地図を画面全体に敷き、止まっている区間・徒歩の到達範囲・推奨経路・代替経路を重ねる
+type HostKey = string;
+
+// DOM で描く印（吹き出し・現在地・止まっている路線の札）。MapLibre の Marker に React の部品を差し込む
+function useMarkerHosts(
+  map: MapLibreMap | null,
+  markerClass: typeof Marker | null,
+  entries: readonly {
+    key: HostKey;
+    position: Position;
+    anchor: "bottom" | "top" | "left" | "right" | "center";
+    offset: [number, number];
+  }[],
+): Map<HostKey, HTMLElement> {
+  const markersRef = useRef(new Map<HostKey, Marker>());
+  const [hosts, setHosts] = useState(new Map<HostKey, HTMLElement>());
+  const signature = entries.map((e) => `${e.key}:${e.anchor}`).join("|");
+
+  // 印の組み合わせが変わったときだけ作り直す
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 位置の更新は下の効果で行い、ここは組み合わせの変化だけを見る
+  useEffect(() => {
+    const markers = markersRef.current;
+    if (!map || !markerClass) return;
+    const next = new Map<HostKey, HTMLElement>();
+    for (const entry of entries) {
+      const element = document.createElement("div");
+      const marker = new markerClass({ element, anchor: entry.anchor, offset: entry.offset })
+        .setLngLat(entry.position)
+        .addTo(map);
+      markers.set(entry.key, marker);
+      next.set(entry.key, element);
+    }
+    setHosts(next);
+    return () => {
+      for (const marker of markers.values()) marker.remove();
+      markers.clear();
+    };
+  }, [map, markerClass, signature]);
+
+  useEffect(() => {
+    for (const entry of entries) {
+      markersRef.current.get(entry.key)?.setLngLat(entry.position);
+    }
+  }, [entries]);
+
+  return hosts;
+}
+
+// 地図を画面全体に敷く。大阪駅などでは現在地のまわりに寄せ、乗り換え候補の駅を吹き出しで出す
+// 「全体を見る」で、止まっている区間・推奨経路・出発・行き先の全体に切り替える
 export function MapPanel(props: MapPanelProps) {
   const t = useTranslations("map");
   const locale = useLocale();
   const labels = selectMapLabels(locale);
   const theme = useDocumentTheme();
   const palette = mapPalettes[theme];
+  const narrow = useMediaQuery("(max-width: 639px)");
   const { origin, destination, options, recommendedOptionId, blockedSection, blockedLine } = props;
   const tone = selectRouteTone(options, recommendedOptionId);
 
@@ -181,11 +313,12 @@ export function MapPanel(props: MapPanelProps) {
     origin: null,
     destination: null,
   });
-  const markerClassRef = useRef<typeof Marker | null>(null);
+  const [markerClass, setMarkerClass] = useState<typeof Marker | null>(null);
 
   const [geo, setGeo] = useState<MapGeoData | null>(null);
   const [map, setMap] = useState<MapLibreMap | null>(null);
   const [status, setStatus] = useState<MapStatus>("loading");
+  const [viewChoice, setViewChoice] = useState<MapView>("focus");
 
   useEffect(() => {
     let cancelled = false;
@@ -212,7 +345,7 @@ export function MapPanel(props: MapPanelProps) {
     loadMapLibre()
       .then(({ Map: MapClass, Marker: MarkerClass }) => {
         if (disposed) return;
-        markerClassRef.current = MarkerClass;
+        setMarkerClass(() => MarkerClass);
         instance = new MapClass({
           container,
           style: buildBaseStyle(paletteRef.current),
@@ -280,45 +413,118 @@ export function MapPanel(props: MapPanelProps) {
     ],
   );
 
-  const { onReachSourceChange } = props;
+  const area = useMemo(() => findFocusArea(origin), [origin]);
+  const guide = useMemo(
+    () =>
+      geo && scene && area
+        ? buildStationGuide(geo, area, {
+            origin,
+            options,
+            recommendedOptionId,
+            blockedLineIds: scene.blockedLineIds,
+            blockedLineName: blockedLine ?? null,
+            language: locale === "en" ? "en" : "ja",
+            formatWalk: labels.walkLabel,
+          })
+        : null,
+    [geo, scene, area, origin, options, recommendedOptionId, blockedLine, locale, labels],
+  );
+  const view: MapView = guide ? viewChoice : "overview";
+
+  const { onReachSourceChange, onGuideChange, onSelectOption } = props;
   const reachSource = scene?.reachSource ?? null;
   useEffect(() => {
     onReachSourceChange?.(reachSource);
   }, [reachSource, onReachSourceChange]);
+  useEffect(() => {
+    onGuideChange?.(guide);
+  }, [guide, onGuideChange]);
 
-  const { top, right, bottom, left } = props.insets;
-  const fitToScene = useMemo(
-    () => (instant: boolean) => {
-      if (!map || !scene?.bounds) return;
-      map.fitBounds(scene.bounds, {
-        padding: buildPadding({ top, right, bottom, left }),
-        maxZoom: 14,
-        duration: instant || prefersReducedMotion() ? 0 : fitDurationMs,
-      });
-    },
-    [map, scene, top, right, bottom, left],
+  // 推奨が乗り換えに変わったら、推奨の乗り換え駅が見えるよう現在地のまわりへ戻す
+  const recommendedKind = options.find((o) => o.id === recommendedOptionId)?.kind ?? null;
+  useEffect(() => {
+    if (recommendedKind !== null && recommendedKind !== "wait") setViewChoice("focus");
+  }, [recommendedKind]);
+
+  const mode: MapMode = useMemo(
+    () => ({
+      view,
+      relevantLineIds: guide?.relevantLineIds ?? [],
+      blockedLineIds: scene?.blockedLineIds ?? [],
+    }),
+    [view, guide, scene],
   );
 
-  // 判断の状態が変わるたびにレイヤーを差し替え、出発・行き先・経路・区間が収まるよう寄せる
+  const { top, right, bottom, left } = props.insets;
+  const fitView = useCallback(
+    (instant: boolean) => {
+      if (!map) return;
+      const duration = instant || prefersReducedMotion() ? 0 : fitDurationMs;
+      const insets = { top, right, bottom, left };
+      if (view === "focus" && guide?.bounds) {
+        map.fitBounds(guide.bounds, {
+          padding: buildFocusPadding(insets, narrow ? focusMargin.narrow : focusMargin.wide),
+          maxZoom: 16.2,
+          duration,
+        });
+      } else if (scene?.bounds) {
+        map.fitBounds(scene.bounds, { padding: buildPadding(insets), maxZoom: 14, duration });
+      }
+    },
+    [map, view, guide, scene, top, right, bottom, left, narrow],
+  );
+
+  // 判断の状態が変わるたびにレイヤーを差し替え、見せ方に合わせて寄せる
+  const reachLabels = useMemo(() => {
+    if (!scene?.origin) return emptyCollection;
+    const center = scene.origin;
+    return {
+      type: "FeatureCollection" as const,
+      features: scene.reach.features.flatMap((f) => {
+        const ring =
+          f.geometry.type === "Polygon"
+            ? f.geometry.coordinates[0]
+            : f.geometry.coordinates[0]?.[0];
+        const point = ring
+          ? findRingLabelPoint(
+              ring as Position[],
+              center,
+              narrow ? reachLabelBearing.narrow : reachLabelBearing.wide,
+            )
+          : null;
+        return point
+          ? [
+              {
+                type: "Feature" as const,
+                geometry: { type: "Point" as const, coordinates: point },
+                properties: { label: labels.walkLabel(f.properties.minutes) },
+              },
+            ]
+          : [];
+      }),
+    };
+  }, [scene, labels, narrow]);
+
   useEffect(() => {
     if (!map || !scene) return;
     applyMapScene(map, scene);
-    const fitKey = JSON.stringify([scene.bounds, top, right, bottom, left]);
-    if (scene.bounds && fitKey !== fittedRef.current) {
-      fitToScene(fittedRef.current === null);
+    applyGuide(map, guide, reachLabels, narrow);
+    const bounds = view === "focus" ? guide?.bounds : scene.bounds;
+    const fitKey = JSON.stringify([view, bounds, top, right, bottom, left, narrow]);
+    if (bounds && fitKey !== fittedRef.current) {
+      fitView(fittedRef.current === null);
       fittedRef.current = fitKey;
     }
     setStatus((s) => (s === "ready" ? "updating" : s));
     map.once("idle", () => setStatus("ready"));
     map.triggerRepaint();
-  }, [map, scene, fitToScene, top, right, bottom, left]);
+  }, [map, scene, guide, reachLabels, view, fitView, top, right, bottom, left, narrow]);
 
-  // 出発と行き先のピン
+  // 全体を見るときの出発と行き先のピン
   useEffect(() => {
-    const MarkerClass = markerClassRef.current;
-    if (!map || !scene || !MarkerClass) return;
+    if (!map || !scene || !markerClass) return;
     const entries: ["origin" | "destination", Position | null][] = [
-      ["origin", scene.origin],
+      ["origin", view === "overview" ? scene.origin : null],
       ["destination", scene.destination],
     ];
     for (const [role, position] of entries) {
@@ -329,7 +535,7 @@ export function MapPanel(props: MapPanelProps) {
       } else if (current) {
         current.setLngLat(position);
       } else {
-        markersRef.current[role] = new MarkerClass({
+        markersRef.current[role] = new markerClass({
           element: createPlaceElement(role),
           anchor: role === "origin" ? "center" : "bottom",
         })
@@ -337,16 +543,96 @@ export function MapPanel(props: MapPanelProps) {
           .addTo(map);
       }
     }
-  }, [map, scene]);
+  }, [map, scene, markerClass, view]);
 
   useEffect(() => {
-    if (map) applyMapPalette(map, palette, tone);
-  }, [map, palette, tone]);
+    if (map) applyMapStyle(map, palette, tone, mode);
+  }, [map, palette, tone, mode]);
+
+  // 止まっている路線の札。現在地のまわりでは現在地の近くの線上、全体では区間の中ほど
+  const blockedPath = scene?.blocked.features[0]?.geometry.coordinates ?? null;
+  const [blockedTagPosition, setBlockedTagPosition] = useState<Position | null>(null);
+  useEffect(() => {
+    if (!map || !blockedPath || blockedPath.length < 2) {
+      setBlockedTagPosition(null);
+      return;
+    }
+    if (view !== "focus" || !guide) {
+      setBlockedTagPosition(blockedPath[Math.floor(blockedPath.length / 2)] ?? null);
+      return;
+    }
+    const here = guide.here.position;
+    // 地図が止まるたびに、見える範囲に入る点を選び直す
+    const place = () => {
+      const anchors = [here, ...guide.stations.map((s) => s.position)].map((p) => map.project(p));
+      const canvas = map.getCanvas();
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const visible = (x: number, y: number) =>
+        x > left + 40 && x < width - right - 40 && y > top + 24 && y < height - bottom - 24;
+      const points = blockedTagMeters.flatMap((m) => {
+        const p = findPointAtDistance(blockedPath, here, m);
+        return p ? [p] : [];
+      });
+      const chosen = points.find((p) => {
+        const { x, y } = map.project(p);
+        return (
+          visible(x, y) && anchors.every((a) => Math.hypot(a.x - x, a.y - y) > blockedTagClearance)
+        );
+      });
+      // 置ける点が無ければ札は出さない。止まっていることは現在地の札と上部の帯が示す
+      setBlockedTagPosition(chosen ?? null);
+    };
+    place();
+    map.on("moveend", place);
+    return () => {
+      map.off("moveend", place);
+    };
+  }, [map, blockedPath, view, guide, top, right, bottom, left]);
+
+  const focusEntries = useMemo(() => {
+    if (view !== "focus" || !guide) return [];
+    return [
+      {
+        key: "here",
+        position: guide.here.position,
+        anchor: "center" as const,
+        offset: [0, 0] as [number, number],
+      },
+      ...guide.stations.map((s) => ({
+        key: `station:${s.key}`,
+        position: s.position,
+        anchor: markerAnchor[narrow ? s.placement.narrow : s.placement.wide],
+        offset: markerOffset[narrow ? s.placement.narrow : s.placement.wide],
+      })),
+    ];
+  }, [view, guide, narrow]);
+  const tagEntries = useMemo(
+    () =>
+      blockedTagPosition
+        ? [
+            {
+              key: "blocked",
+              position: blockedTagPosition,
+              anchor: "center" as const,
+              offset: [0, 0] as [number, number],
+            },
+          ]
+        : [],
+    [blockedTagPosition],
+  );
+  const entries = useMemo(() => [...tagEntries, ...focusEntries], [tagEntries, focusEntries]);
+  const hosts = useMarkerHosts(map, markerClass, entries);
+  const herePlacement = area ? area.herePlacement[narrow ? "narrow" : "wide"] : "left";
+
+  const toggleLabel = view === "focus" ? t("viewOverview") : t("viewFocus");
 
   return (
     <section
       data-testid={testIds.judgment.map}
       data-state={status}
+      data-view={view}
+      data-focus-area={guide?.areaId ?? ""}
       data-recommended-option={recommendedOptionId ?? ""}
       data-route-tone={tone}
       data-blocked={scene ? scene.blocked.features.length > 0 : false}
@@ -363,17 +649,64 @@ export function MapPanel(props: MapPanelProps) {
           {status === "error" ? labels.error : labels.loading}
         </p>
       )}
-      <button
-        type="button"
-        onClick={() => fitToScene(false)}
-        aria-label={labels.recenter}
-        title={labels.recenter}
-        disabled={!scene?.bounds}
-        style={{ bottom: bottom + 40, right: right + 12 }}
-        className="glass absolute z-10 flex size-11 items-center justify-center rounded-full text-foreground transition-[bottom] duration-200 disabled:opacity-0"
-      >
-        <LocateFixed className="size-5" strokeWidth={1.75} aria-hidden />
-      </button>
+
+      {[...hosts.entries()].map(([key, element]) => {
+        if (key === "blocked") return createPortal(<BlockedTag />, element, key);
+        if (key === "here" && guide) {
+          return createPortal(
+            <HereMarker here={guide.here} placement={herePlacement} compact={narrow} />,
+            element,
+            key,
+          );
+        }
+        const station = guide?.stations.find((s) => `station:${s.key}` === key);
+        if (!station) return null;
+        const optionId = station.optionId;
+        return createPortal(
+          <StationBubble
+            station={station}
+            placement={narrow ? station.placement.narrow : station.placement.wide}
+            variant={station.recommended ? "full" : narrow ? "compact" : "medium"}
+            onSelect={optionId && onSelectOption ? () => onSelectOption(optionId) : null}
+          />,
+          element,
+          key,
+        );
+      })}
+
+      {guide ? (
+        <button
+          type="button"
+          data-testid={mapTestIds.viewToggle}
+          data-view={view}
+          aria-pressed={view === "overview"}
+          onClick={() => {
+            fittedRef.current = null;
+            setViewChoice(view === "focus" ? "overview" : "focus");
+          }}
+          style={{ bottom: bottom + 40, right: right + 12 }}
+          className="glass absolute z-10 flex h-11 items-center gap-1.5 rounded-full px-4 text-[13px] font-semibold text-foreground transition-[bottom] duration-200"
+        >
+          {view === "focus" ? (
+            <Route className="size-4" strokeWidth={1.75} aria-hidden />
+          ) : (
+            <LocateFixed className="size-4" strokeWidth={1.75} aria-hidden />
+          )}
+          {toggleLabel}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fitView(false)}
+          aria-label={labels.recenter}
+          title={labels.recenter}
+          disabled={!scene?.bounds}
+          style={{ bottom: bottom + 40, right: right + 12 }}
+          className="glass absolute z-10 flex size-11 items-center justify-center rounded-full text-foreground transition-[bottom] duration-200 disabled:opacity-0"
+        >
+          <LocateFixed className="size-5" strokeWidth={1.75} aria-hidden />
+        </button>
+      )}
       {/* 出典は隅に 1 行で常設する。文字は小さいまま、押せる高さは 44px にする */}
       <div
         data-testid={mapTestIds.attribution}
