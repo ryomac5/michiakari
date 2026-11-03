@@ -91,7 +91,13 @@ function SubmitButton({
   );
 }
 
-function PhotoPanel({ busy, onSubmit }: { busy: boolean; onSubmit: (input: RawInput) => void }) {
+export function PhotoPanel({
+  busy,
+  onSubmit,
+}: {
+  busy: boolean;
+  onSubmit: (input: RawInput) => void;
+}) {
   const t = useTranslations("situation.photo");
   const fileRef = useRef<HTMLInputElement>(null);
   const [photo, setPhoto] = useState<{ input: PhotoInput; previewUrl: string } | null>(null);
@@ -173,7 +179,13 @@ function PhotoPanel({ busy, onSubmit }: { busy: boolean; onSubmit: (input: RawIn
   );
 }
 
-function PastePanel({ busy, onSubmit }: { busy: boolean; onSubmit: (input: RawInput) => void }) {
+export function PastePanel({
+  busy,
+  onSubmit,
+}: {
+  busy: boolean;
+  onSubmit: (input: RawInput) => void;
+}) {
   const t = useTranslations("situation.paste");
   const id = useId();
   const [text, setText] = useState("");
@@ -202,7 +214,7 @@ function PastePanel({ busy, onSubmit }: { busy: boolean; onSubmit: (input: RawIn
   );
 }
 
-function SelectPanel({
+export function SelectPanel({
   catalog,
   busy,
   onSubmit,

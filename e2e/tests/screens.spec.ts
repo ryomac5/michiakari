@@ -159,12 +159,15 @@ for (const variant of variants) {
     test("開始・状況・判断・このアプリについて", async ({ page }) => {
       const ja = variant.locale === "ja";
       await page.goto("/?mock=1");
-      await expect(page.getByTestId(testIds.app.mockBadge)).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
+        timeout: 30_000,
+      });
       await expect(page.locator("html")).toHaveClass(variant.theme);
       await expect(page.getByTestId(testIds.app.homeLink)).toContainText(
         ja ? "マツカエル" : "MatsuKaeru",
       );
       await expect(page).toHaveTitle(ja ? /マツカエル/ : /MatsuKaeru/);
+      await expect(page.getByTestId(testIds.start.hub("umeda"))).toBeVisible();
       await capture(page, variant, "01-start");
       await checkScreen(page, "開始");
 
@@ -172,25 +175,34 @@ for (const variant of variants) {
       await expect(page.getByTestId(testIds.start.originOption("大阪"))).toBeVisible();
       await capture(page, variant, "02-start-search");
       await checkScreen(page, "開始（検索中）");
-      await page.getByTestId(testIds.start.originOption("大阪")).click();
+      await page.getByTestId(testIds.start.originSearch).fill("");
+
+      // 地図の丸を触ってエリアへ寄り、駅を触るとシートに路線が並ぶ
+      await page.getByTestId(testIds.start.hub("umeda")).click();
+      await expect(page.getByTestId(testIds.start.place("osaka"))).toBeVisible();
+      await capture(page, variant, "03-start-area");
+      await checkScreen(page, "開始（エリア）");
+      await page.getByTestId(testIds.start.place("osaka")).click();
+      const line = page.getByTestId(testIds.start.line("大阪|jr-west.東海道線|JR神戸線"));
+      await expect(line).toBeVisible();
+      await capture(page, variant, "03b-start-station");
+      await checkScreen(page, "開始（駅）");
+      await line.click();
       await page.getByTestId(testIds.start.destinationSearch).fill(ja ? "三ノ宮" : "sannomiya");
       await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-      await expect(page.getByTestId(testIds.start.destinationSelected)).toContainText(
-        ja ? "三ノ宮" : "Sannomiya",
-      );
-      await capture(page, variant, "03-start-filled");
-      await checkScreen(page, "開始（選択済み）");
-
-      await page.getByTestId(testIds.start.nextButton).click();
-      await expect(page.getByTestId(testIds.situation.screen)).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId(testIds.start.trip)).toContainText(ja ? "三ノ宮" : "Sannomiya");
+      await expect(page.getByTestId(testIds.start.destinationPin)).toBeVisible();
       await capture(page, variant, "04-situation");
       await checkScreen(page, "状況の入力");
-      await page.getByTestId(testIds.situation.tab("select")).click();
+      await page.getByTestId(testIds.start.method("select")).click();
       await capture(page, variant, "05-situation-select");
-      await page.getByTestId(testIds.situation.tab("paste")).click();
+      await page.getByTestId(testIds.start.back).click();
+      await page.getByTestId(testIds.start.method("paste")).click();
       await page
         .getByTestId(testIds.situation.pasteInput)
         .fill("人身事故のため、運転を見合わせています。現在、現場の確認を行っています。");
+      await capture(page, variant, "05b-situation-ready");
+      await checkScreen(page, "状況の入力（判断の直前）");
       await page.getByTestId(testIds.situation.submit("paste")).click();
 
       await expect(page.getByTestId(testIds.judgment.reasoningStep("phase"))).toBeVisible({

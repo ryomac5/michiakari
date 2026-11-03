@@ -43,19 +43,22 @@ async function waitForFiniteAnimations(page: Page): Promise<void> {
 
 async function startWithPastedText(page: Page): Promise<void> {
   await page.goto("/?mock=1");
-  await expect(page.getByTestId(testIds.app.mockBadge)).toBeVisible({ timeout: 30_000 });
+  // 入口の地図は、駅データを読み終えると data-ready が true になる
+  await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
+    timeout: 30_000,
+  });
 
-  // 駅は国土数値情報の実データからサーバーで探す
+  // 駅は国土数値情報の実データからサーバーで探す。選ぶと地図がその駅に寄り、シートに路線が並ぶ
   await page.getByTestId(testIds.start.originSearch).fill("大阪");
   await page.getByTestId(testIds.start.originOption("大阪")).click();
-  await expect(page.getByTestId(testIds.start.originSelected)).toContainText("大阪");
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "station");
+  await page.getByTestId(testIds.start.line("大阪|jr-west.東海道線|JR神戸線")).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expect(page.getByTestId(testIds.start.destinationSelected)).toContainText("三ノ宮");
-  await page.getByTestId(testIds.start.nextButton).click();
+  await expect(page.getByTestId(testIds.start.trip)).toContainText("三ノ宮");
 
-  await expect(page.getByTestId(testIds.situation.screen)).toBeVisible({ timeout: 30_000 });
-  await page.getByTestId(testIds.situation.tab("paste")).click();
+  // 状況の入力は別の画面に飛ばず、同じ地図の上のシートで続ける
+  await page.getByTestId(testIds.start.method("paste")).click();
   await page
     .getByTestId(testIds.situation.pasteInput)
     .fill("人身事故のため、運転を見合わせています。現在、現場の確認を行っています。");

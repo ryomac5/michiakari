@@ -6,6 +6,7 @@ import type {
   Observation,
   RouteOption,
 } from "@repo/schema";
+import { entryLineObservationId } from "@/features/entry/seed";
 import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import { formatClockTime, formatIsoWithOffset } from "../time";
 
@@ -261,7 +262,8 @@ function buildFollowUpJudgment(request: JudgeRequest, now: Date): Judgment {
 // 1 回目は「待つ」、情報を追加した 2 回目以降は「切り替える」を返す
 export function buildPersonAccidentEvents(request: JudgeRequest): JudgmentEvent[] {
   const now = new Date(request.now);
-  const isFollowUp = request.observations.length > 0;
+  // 入口で選んだ路線の観測は数えない。掲示や発表を読み取った観測があるときだけ続きの判断にする
+  const isFollowUp = request.observations.some((o) => o.id !== entryLineObservationId);
   const judgment = isFollowUp
     ? buildFollowUpJudgment(request, now)
     : buildFirstJudgment(request, now);

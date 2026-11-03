@@ -39,12 +39,28 @@ type JudgmentSession = {
   // 現在地を出発地にしたときの最寄り駅
   originNearest: NearestStationLabel | null;
   setOriginNearest: (nearest: NearestStationLabel | null) => void;
+  // 入口で選んだ、止まっている路線。入口に戻ったときに選んだ状態を復元する
+  originLine: OriginLine | null;
+  setOriginLine: (line: OriginLine | null) => void;
   observations: Observation[];
   state: JudgmentState;
   catalog: KnowledgeCatalog;
   mockEnabled: boolean;
   submitInput: (input: RawInput | null) => void;
+  // 新しい行程として判断を始める。これまでの観測は捨て、seed（利用者が選んだ路線など）から始める
+  startJudgment: (input: RawInput, seed: Observation[]) => void;
   retry: () => void;
+};
+
+export type OriginLine = {
+  key: string;
+  lineId: string;
+  stationName: string;
+  // 観測に入れる路線名（日本語）
+  observedName: string;
+  name: { ja: string; en: string };
+  operator: { ja: string; en: string };
+  color: string;
 };
 
 const JudgmentSessionContext = createContext<JudgmentSession | null>(null);
@@ -61,6 +77,7 @@ export function JudgmentSessionProvider({
   const [destination, setDestination] = useState<Place | null>(null);
   const [stationNames, setStationNames] = useState<StationNames>({});
   const [originNearest, setOriginNearest] = useState<NearestStationLabel | null>(null);
+  const [originLine, setOriginLine] = useState<OriginLine | null>(null);
   const [observations, setObservations] = useState<Observation[]>([]);
   const [state, setState] = useState<JudgmentState>(createJudgmentState);
   const [mockEnabled, setMockEnabled] = useState(false);
@@ -113,6 +130,14 @@ export function JudgmentSessionProvider({
     [runJudgment, observations],
   );
 
+  const startJudgment = useCallback(
+    (input: RawInput, seed: Observation[]) => {
+      setObservations(seed);
+      void runJudgment(input, seed);
+    },
+    [runJudgment],
+  );
+
   const retry = useCallback(() => {
     void runJudgment(lastInputRef.current, observations);
   }, [runJudgment, observations]);
@@ -137,11 +162,14 @@ export function JudgmentSessionProvider({
       rememberStationName,
       originNearest,
       setOriginNearest,
+      originLine,
+      setOriginLine,
       observations,
       state,
       catalog: effectiveCatalog,
       mockEnabled,
       submitInput,
+      startJudgment,
       retry,
     }),
     [
@@ -150,11 +178,13 @@ export function JudgmentSessionProvider({
       stationNames,
       rememberStationName,
       originNearest,
+      originLine,
       observations,
       state,
       effectiveCatalog,
       mockEnabled,
       submitInput,
+      startJudgment,
       retry,
     ],
   );

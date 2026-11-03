@@ -25,6 +25,8 @@ type StationSearchProps = {
     clear: string;
   };
   children?: ReactNode;
+  // 見出しが別にあるときは、ラベルを読み上げ専用にする
+  hideLabel?: boolean;
 };
 
 export function StationSearch({
@@ -37,6 +39,7 @@ export function StationSearch({
   onClear,
   testIds,
   children,
+  hideLabel = false,
 }: StationSearchProps) {
   const t = useTranslations("start");
   const locale = useLocale();
@@ -110,7 +113,10 @@ export function StationSearch({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={inputId} className="text-[12px] font-medium text-muted">
+      <label
+        htmlFor={inputId}
+        className={cn("text-[12px] font-medium text-muted", hideLabel && "sr-only")}
+      >
         {label}
       </label>
       <div className="relative">

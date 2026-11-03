@@ -405,5 +405,47 @@
       "half": "Half open.",
       "full": "Fully open."
     }
+  },
+  "entry": {
+    "question": "Where are you stuck right now?",
+    "hint": "Tap a station on the map, or the area around it",
+    "searchPlaceholder": "Search by station name",
+    "mapLabel": "Map for choosing a station",
+    "back": "Back",
+    "here": "Now",
+    "around": "Around {station}",
+    "areaQuestion": "Which station?",
+    "areaHint": "Stations around {area}. Tap one on the map or below",
+    "lineQuestion": "Which line has stopped?",
+    "lineHint": "Pick the line you were riding",
+    "nearby": "Your nearest station is {station}, about {distance} away",
+    "suspended": "Suspended",
+    "destinationQuestion": "Where are you heading?",
+    "destinationLabel": "Destination",
+    "destinationPlaceholder": "Station name, e.g. Sannomiya",
+    "suggestions": "Major stations",
+    "from": "From",
+    "to": "To",
+    "change": "change",
+    "methodQuestion": "Tell us what you see",
+    "methodHint": "We read the current phase from signs and announcements",
+    "methods": {
+      "photo": {
+        "title": "Photo",
+        "note": "Signs, screens",
+        "heading": "Take a photo of the sign or screen"
+      },
+      "paste": {
+        "title": "Paste",
+        "note": "Announcement",
+        "heading": "Paste the announcement text"
+      },
+      "select": {
+        "title": "Choose",
+        "note": "What you heard",
+        "heading": "Choose what applies"
+      }
+    },
+    "demoNote": "Replay a fictional disruption"
   }
 }
