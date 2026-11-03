@@ -727,6 +727,7 @@ export function MapPanel(props: MapPanelProps) {
         return p ? [p] : [];
       });
       // 吹き出しと現在地の札と「全体を見る」のボタンの矩形。札の幅と高さの半分だけ広げて、重なる点を外す
+      // 地図に重なる部品（リプレイの発表など）は data-map-obstacle で印を付ける。隠れている部品は大きさが 0 になるので外す
       const origin = canvas.getBoundingClientRect();
       const toggle = viewToggleRef.current;
       const boxes = [
@@ -736,14 +737,18 @@ export function MapPanel(props: MapPanelProps) {
             `[data-testid^="judgment-map-station-"], [data-testid="${mapTestIds.here}"] > div`,
           ),
         ...(toggle ? [toggle] : []),
-      ].map((el) => {
+        ...document.querySelectorAll<HTMLElement>("[data-map-obstacle]"),
+      ].flatMap((el) => {
         const r = el.getBoundingClientRect();
-        return {
-          left: r.left - origin.left - 44,
-          right: r.right - origin.left + 44,
-          top: r.top - origin.top - 14,
-          bottom: r.bottom - origin.top + 14,
-        };
+        if (r.width === 0 || r.height === 0) return [];
+        return [
+          {
+            left: r.left - origin.left - 44,
+            right: r.right - origin.left + 44,
+            top: r.top - origin.top - 14,
+            bottom: r.bottom - origin.top + 14,
+          },
+        ];
       });
       const chosen = points.find((p) => {
         const { x, y } = map.project(p);
