@@ -188,14 +188,36 @@ for (const variant of variants) {
       await capture(page, variant, "03b-start-station");
       await checkScreen(page, "開始（駅）");
       await line.click();
+      // 方面・行き先・いまどこを 1 段ずつ聞く
+      const kobe = page.getByTestId(
+        testIds.start.direction("大阪|jr-west.東海道線|JR神戸線>jr-west.東海道線.神戸"),
+      );
+      await expect(kobe).toBeVisible();
+      await capture(page, variant, "03c-start-direction");
+      await checkScreen(page, "開始（方面）");
+      await kobe.click();
+      await expect(page.getByTestId(testIds.start.destinationUndecided)).toBeVisible();
+      await capture(page, variant, "03d-start-destination");
+      await checkScreen(page, "開始（行き先）");
       await page.getByTestId(testIds.start.destinationSearch).fill(ja ? "三ノ宮" : "sannomiya");
       await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+      await page.getByTestId(testIds.start.positionTrain).click();
+      await capture(page, variant, "03e-start-position");
+      await checkScreen(page, "開始（いまどこ）");
+      // 電車の中の問いから戻ると、駅か電車の中かの問いに戻る
+      await page.getByTestId(testIds.start.back).click();
+      await page.getByTestId(testIds.start.positionStation).click();
       await expect(page.getByTestId(testIds.start.trip)).toContainText(ja ? "三ノ宮" : "Sannomiya");
       await expect(page.getByTestId(testIds.start.destinationPin)).toBeVisible();
       await capture(page, variant, "04-situation");
       await checkScreen(page, "状況の入力");
       await page.getByTestId(testIds.start.method("select")).click();
       await capture(page, variant, "05-situation-select");
+      await checkScreen(page, "状況の入力（答える）");
+      await page.getByTestId(testIds.start.cause("unknown")).click();
+      await capture(page, variant, "05a-situation-elapsed");
+      await checkScreen(page, "状況の入力（経過）");
+      await page.getByTestId(testIds.start.back).click();
       await page.getByTestId(testIds.start.back).click();
       await page.getByTestId(testIds.start.method("paste")).click();
       await page

@@ -221,7 +221,23 @@
     },
     "sheet": "判断の詳細",
     "status": "{line} 見合わせ",
-    "statusOnly": "見合わせ"
+    "statusOnly": "見合わせ",
+    "premise": {
+      "title": "この判断の前提",
+      "destinationHub": "行き先は{station}で考えています。{direction}方面の主な駅です",
+      "destinationTerminal": "行き先は終点の{station}で考えています",
+      "onTrain": "電車の中なので、{station}駅にいるとして考えています",
+      "elapsedUnknown": "止まった時刻が分からないので、いまから数えています",
+      "causeUnknown": "原因が分からないので、見込みを断言していません"
+    },
+    "nextCheck": {
+      "title": "次に確かめること",
+      "cause": "放送や掲示で、止まった原因を確かめてください",
+      "resume": "次の放送で「再開見込み」が出たら、もう一度入れてください",
+      "transfer": "「振替輸送」の案内が出たら、もう一度入れてください",
+      "signals": "次の様子が見えたら、もう一度入れてください",
+      "action": "いまの様子を入れ直す"
+    }
   },
   "replay": {
     "heading": "デモを見る",
@@ -401,7 +417,7 @@
   },
   "entry": {
     "question": "いま、どこで止まっていますか",
-    "hint": "地図の駅か、そのあたりを触ってください",
+    "hint": "地図の駅を触ってください。電車の中なら近くの駅で大丈夫です",
     "searchPlaceholder": "駅名・よみがなで探す",
     "mapLabel": "駅を選ぶ地図",
     "back": "戻る",
@@ -410,10 +426,10 @@
     "areaQuestion": "どの駅ですか",
     "areaHint": "{area}の駅です。地図の丸か、下から選んでください",
     "lineQuestion": "止まっている路線はどれですか",
-    "lineHint": "乗っていた路線を選んでください",
+    "lineHint": "乗っていた路線か、乗る予定だった路線です",
     "nearby": "近くの駅は{station}です（約{distance}）",
     "suspended": "見合わせ",
-    "destinationQuestion": "どこへ向かいますか",
+    "destinationQuestion": "どこまで行きますか",
     "destinationLabel": "行き先",
     "destinationPlaceholder": "駅名・よみがな（例: 三ノ宮）",
     "suggestions": "主な駅",
@@ -421,7 +437,7 @@
     "to": "行き先",
     "change": "選び直す",
     "methodQuestion": "いまの様子を教えてください",
-    "methodHint": "掲示や発表から、いまの段階を読み取ります",
+    "methodHint": "分からなくても大丈夫です。答えるだけで進めます",
     "methods": {
       "photo": {
         "title": "撮る",
@@ -434,13 +450,54 @@
         "heading": "発表の文章を貼ってください"
       },
       "select": {
-        "title": "選ぶ",
-        "note": "聞いた案内",
-        "heading": "当てはまるものを選んでください"
+        "title": "答える",
+        "note": "分からなくても大丈夫",
+        "heading": "放送で何と言っていましたか"
       }
     },
     "demoNote": "架空のシナリオで判断の流れを再生",
-    "quickPicks": "よく使う駅"
+    "quickPicks": "よく使う駅",
+    "directionQuestion": "どっち方面ですか",
+    "directionHint": "電車が向かう方向を選んでください",
+    "directionName": "{names}方面",
+    "destinationHint": "{direction}方面の主な駅です",
+    "destinationUndecided": "まだ決めていない",
+    "destinationUndecidedNote": "方面だけで進みます",
+    "destinationSearchLabel": "ほかの駅を探す",
+    "positionQuestion": "いまどこにいますか",
+    "positionStation": "{station}駅にいる",
+    "positionStationNote": "ホームや改札",
+    "positionTrain": "電車の中",
+    "positionTrainNote": "駅と駅の間も",
+    "positionNearQuestion": "いちばん近い駅はどこですか",
+    "positionNearHint": "駅と駅の間なら、近いほうを押してください",
+    "progress": "{current} / {total}・{step}",
+    "steps": {
+      "line": "路線",
+      "direction": "方面",
+      "destination": "行き先",
+      "position": "いまどこ",
+      "situation": "様子"
+    },
+    "tripHub": "方面の主な駅で考えます",
+    "tripTerminal": "方面の終点で考えます",
+    "causeHint": "聞こえた言葉に近いものを選んでください",
+    "causes": {
+      "person": "人身事故",
+      "vehicle": "車両の点検",
+      "signal": "信号",
+      "rain": "大雨",
+      "unknown": "聞き取れなかった"
+    },
+    "elapsedQuestion": "止まってどれくらいですか",
+    "elapsedHint": "だいたいで大丈夫です",
+    "elapsed": {
+      "m5": "5分くらい",
+      "m15": "15分くらい",
+      "m30": "30分以上",
+      "unknown": "分からない"
+    },
+    "nextStation": "次は{station}"
   },
   "status": {
     "notFound": {

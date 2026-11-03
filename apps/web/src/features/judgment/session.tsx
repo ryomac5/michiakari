@@ -42,13 +42,17 @@ type JudgmentSession = {
   // 入口で選んだ、止まっている路線。入口に戻ったときに選んだ状態を復元する
   originLine: OriginLine | null;
   setOriginLine: (line: OriginLine | null) => void;
+  // 入口で選んだ方面と、行き先・出発の決め方。判断の画面で前提として示し、入口に戻ったときに復元する
+  tripContext: TripContext | null;
+  setTripContext: (context: TripContext | null) => void;
   observations: Observation[];
   state: JudgmentState;
   catalog: KnowledgeCatalog;
   mockEnabled: boolean;
   submitInput: (input: RawInput | null) => void;
   // 新しい行程として判断を始める。これまでの観測は捨て、seed（利用者が選んだ路線など）から始める
-  startJudgment: (input: RawInput, seed: Observation[]) => void;
+  // 原因が分からないまま進んだときは input を null にし、seed だけで判断する
+  startJudgment: (input: RawInput | null, seed: Observation[]) => void;
   retry: () => void;
 };
 
@@ -61,6 +65,20 @@ export type OriginLine = {
   name: { ja: string; en: string };
   operator: { ja: string; en: string };
   color: string;
+};
+
+export type TripContext = {
+  directionKey: string;
+  // 「新大阪・千里中央」
+  directionLabel: { ja: string; en: string };
+  // chosen は利用者が選んだ駅。hub と terminal は方面だけで進んだときの仮の行き先
+  destinationBasis: "chosen" | "hub" | "terminal";
+  // 電車の中にいて、近い駅を出発の駅とみなした
+  onTrain: boolean;
+  // 止まってからの分。分からなければ null。選んで答えたときだけ持つ
+  elapsedMinutes?: number | null;
+  // 原因を聞き取れなかった。選んで答えたときだけ持つ
+  causeUnknown?: boolean;
 };
 
 const JudgmentSessionContext = createContext<JudgmentSession | null>(null);
@@ -78,6 +96,7 @@ export function JudgmentSessionProvider({
   const [stationNames, setStationNames] = useState<StationNames>({});
   const [originNearest, setOriginNearest] = useState<NearestStationLabel | null>(null);
   const [originLine, setOriginLine] = useState<OriginLine | null>(null);
+  const [tripContext, setTripContext] = useState<TripContext | null>(null);
   const [observations, setObservations] = useState<Observation[]>([]);
   const [state, setState] = useState<JudgmentState>(createJudgmentState);
   const [mockEnabled, setMockEnabled] = useState(false);
@@ -131,7 +150,7 @@ export function JudgmentSessionProvider({
   );
 
   const startJudgment = useCallback(
-    (input: RawInput, seed: Observation[]) => {
+    (input: RawInput | null, seed: Observation[]) => {
       setObservations(seed);
       void runJudgment(input, seed);
     },
@@ -164,6 +183,8 @@ export function JudgmentSessionProvider({
       setOriginNearest,
       originLine,
       setOriginLine,
+      tripContext,
+      setTripContext,
       observations,
       state,
       catalog: effectiveCatalog,
@@ -179,6 +200,7 @@ export function JudgmentSessionProvider({
       rememberStationName,
       originNearest,
       originLine,
+      tripContext,
       observations,
       state,
       effectiveCatalog,

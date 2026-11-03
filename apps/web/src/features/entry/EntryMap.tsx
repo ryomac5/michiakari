@@ -14,7 +14,8 @@ import { selectMapLabels } from "@/features/map/labels";
 import { buildBaseStyle, type MapPalette, mapPalettes } from "@/features/map/layers";
 import { loadMapLibre, type MapInsets, useMarkerHosts } from "@/features/map/MapPanel";
 import { prefersReducedMotion, useDocumentTheme } from "@/lib/use-document-theme";
-import { DestinationMarker, HubMarker, PlaceMarker } from "./EntryMarkers";
+import type { LabelSide } from "./areas";
+import { DestinationMarker, HubMarker, PlaceMarker, StopMarker } from "./EntryMarkers";
 import type { EntryArea, EntryHub, EntryPlace, Position } from "./entry-places";
 import { pickLocalized, pickPlaceName } from "./entry-places";
 import type { EntryStage } from "./flow";
@@ -27,6 +28,17 @@ export type EntryMapApi = {
   zoomToOrigin: (zoom: number) => Promise<void>;
 };
 
+// 方面・行き先・近い駅の札。シートの答えと同じものを地図にも置く
+export type MapStop = {
+  key: string;
+  position: Position;
+  label: string;
+  color: string;
+  // 方面の札だけが持つ矢印の向き（度）
+  angle: number | null;
+  side: LabelSide;
+};
+
 type EntryMapProps = {
   geo: MapGeoData | null;
   stage: EntryStage;
@@ -36,6 +48,8 @@ type EntryMapProps = {
   // 選んだ路線。地図ではその路線だけを路線色で太く描く
   lineId: string | null;
   destination: { position: Position; label: string } | null;
+  stops: MapStop[];
+  onSelectStop: (key: string) => void;
   insets: MapInsets;
   narrow: boolean;
   apiRef: RefObject<EntryMapApi | null>;
@@ -227,7 +241,7 @@ export function EntryMap(props: EntryMapProps) {
   const labels = selectMapLabels(locale);
   const theme = useDocumentTheme();
   const palette = mapPalettes[theme];
-  const { geo, stage, hubs, area, place, lineId, destination, insets, narrow } = props;
+  const { geo, stage, hubs, area, place, lineId, destination, stops, insets, narrow } = props;
   const containerRef = useRef<HTMLDivElement>(null);
   const paletteRef = useRef(palette);
   paletteRef.current = palette;
@@ -284,7 +298,8 @@ export function EntryMap(props: EntryMapProps) {
 
   // 行き先を選んだら、出発と行き先を弧で結ぶ
   const origin = place?.position ?? null;
-  const showTrip = (stage === "method" || stage === "input") && destination !== null;
+  const showTrip =
+    (stage === "method" || stage === "input" || stage === "elapsed") && destination !== null;
   const destinationPosition = destination?.position ?? null;
   useEffect(() => {
     if (!map) return;
@@ -306,11 +321,14 @@ export function EntryMap(props: EntryMapProps) {
 
   // 段が変わるたびに視点を寄せる
   const { top, right, bottom, left } = insets;
+  const stopKey = stops.map((s) => s.key).join(",");
   const cameraKey = JSON.stringify([
-    stage === "input" ? "method" : stage === "destination" ? "station" : stage,
+    stage === "input" || stage === "elapsed" ? "method" : stage,
     area?.id,
     area?.center,
     place?.key,
+    origin,
+    stopKey,
     showTrip ? destinationPosition : null,
     top,
     right,
@@ -335,8 +353,20 @@ export function EntryMap(props: EntryMapProps) {
       }
       return;
     }
+    // 方面・行き先・近い駅の段は、選んだ駅と札を収める
+    if (stops.length > 0 && origin) {
+      const bounds = computeBounds([origin, ...stops.map((s) => s.position)]);
+      if (bounds) {
+        map.fitBounds(bounds, {
+          padding: buildPadding(map, current, { x: labelMargin.x + 24, y: labelMargin.y + 12 }),
+          maxZoom: 15,
+          duration,
+        });
+      }
+      return;
+    }
     // 駅の段は、選んだ駅とそのまわりの駅を、名前の札が上部の帯やシートに隠れない余白で収める
-    if ((stage === "station" || stage === "destination") && place) {
+    if (stage !== "area" && stage !== "kansai" && place) {
       const nearby = (area?.places ?? []).filter(
         (p) => computeDistanceMeters(p.position, place.position) <= nearbyMeters,
       );
@@ -436,8 +466,13 @@ export function EntryMap(props: EntryMapProps) {
         .filter((h) => !onEdge.has(h.areaId))
         .map((h) => at(`hub:${h.areaId}`, h.position));
     }
-    const places = showTrip && place ? [place] : (area?.places ?? []);
+    // 駅を選んだあとは、選んだ駅と札だけを出す
+    const places =
+      stage !== "area" && stage !== "station" && place ? [place] : (area?.places ?? []);
     const list = places.map((p) => at(`place:${p.key}`, p.position));
+    if (!showTrip) {
+      for (const s of stops) list.push(at(`stop:${s.key}`, s.position));
+    }
     if (showTrip && destinationPosition) {
       list.push({
         key: "destination",
@@ -447,7 +482,7 @@ export function EntryMap(props: EntryMapProps) {
       });
     }
     return list;
-  }, [stage, hubs, area, place, showTrip, destinationPosition, edgeKey]);
+  }, [stage, hubs, area, place, showTrip, destinationPosition, edgeKey, stops]);
   const hosts = useMarkerHosts(map, markerClass, entries);
   const side = narrow ? "narrow" : "wide";
 
@@ -496,9 +531,25 @@ export function EntryMap(props: EntryMapProps) {
             key,
           );
         }
+        if (key.startsWith("stop:")) {
+          const target = stops.find((s) => `stop:${s.key}` === key);
+          if (!target) return null;
+          return createPortal(
+            <StopMarker
+              stopKey={target.key}
+              label={target.label}
+              side={target.side}
+              color={target.color}
+              angle={target.angle}
+              onSelect={() => props.onSelectStop(target.key)}
+            />,
+            element,
+            key,
+          );
+        }
         const target =
-          area?.places.find((p) => `place:${p.key}` === key) ??
-          (place && `place:${place.key}` === key ? place : null);
+          (place && `place:${place.key}` === key ? place : null) ??
+          area?.places.find((p) => `place:${p.key}` === key);
         if (!target) return null;
         const selected = place?.key === target.key;
         return createPortal(

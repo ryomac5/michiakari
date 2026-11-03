@@ -221,7 +221,23 @@
     },
     "sheet": "Judgment details",
     "status": "{line} suspended",
-    "statusOnly": "Suspended"
+    "statusOnly": "Suspended",
+    "premise": {
+      "title": "What this assumes",
+      "destinationHub": "Destination is set to {station}, a major station toward {direction}",
+      "destinationTerminal": "Destination is set to {station}, the end of the line",
+      "onTrain": "You're on the train, so we start from {station}",
+      "elapsedUnknown": "We don't know when it stopped, so we count from now",
+      "causeUnknown": "The cause is unknown, so the outlook stays open"
+    },
+    "nextCheck": {
+      "title": "What to check next",
+      "cause": "Listen or look for the cause of the stop",
+      "resume": "When an announcement gives a restart time, enter it again",
+      "transfer": "When transfer service is announced, enter it again",
+      "signals": "If you notice any of these, enter it again",
+      "action": "Update what you see"
+    }
   },
   "replay": {
     "heading": "Watch the demo",
@@ -401,7 +417,7 @@
   },
   "entry": {
     "question": "Where are you stuck right now?",
-    "hint": "Tap a station on the map, or the area around it",
+    "hint": "Tap a station on the map. On a train? Pick one nearby",
     "searchPlaceholder": "Search by station name",
     "mapLabel": "Map for choosing a station",
     "back": "Back",
@@ -410,18 +426,18 @@
     "areaQuestion": "Which station?",
     "areaHint": "Stations around {area}. Tap one on the map or below",
     "lineQuestion": "Which line has stopped?",
-    "lineHint": "Pick the line you were riding",
+    "lineHint": "The line you were on, or were about to take",
     "nearby": "Your nearest station is {station}, about {distance} away",
     "suspended": "Suspended",
-    "destinationQuestion": "Where are you heading?",
+    "destinationQuestion": "How far are you going?",
     "destinationLabel": "Destination",
     "destinationPlaceholder": "Station name, e.g. Sannomiya",
     "suggestions": "Major stations",
     "from": "From",
     "to": "To",
     "change": "change",
-    "methodQuestion": "Tell us what you see",
-    "methodHint": "We read the current phase from signs and announcements",
+    "methodQuestion": "Tell us what's going on",
+    "methodHint": "Not sure? That's fine. Just answer two questions",
     "methods": {
       "photo": {
         "title": "Photo",
@@ -434,13 +450,54 @@
         "heading": "Paste the announcement text"
       },
       "select": {
-        "title": "Choose",
-        "note": "What you heard",
-        "heading": "Choose what applies"
+        "title": "Answer",
+        "note": "Fine if unsure",
+        "heading": "What did the announcement say?"
       }
     },
     "demoNote": "Replay a fictional disruption",
-    "quickPicks": "Popular stations"
+    "quickPicks": "Popular stations",
+    "directionQuestion": "Which way is the train going?",
+    "directionHint": "Pick the direction of your train",
+    "directionName": "Toward {names}",
+    "destinationHint": "Major stations toward {direction}",
+    "destinationUndecided": "Not sure yet",
+    "destinationUndecidedNote": "Go with the direction only",
+    "destinationSearchLabel": "Find another station",
+    "positionQuestion": "Where are you right now?",
+    "positionStation": "At {station}",
+    "positionStationNote": "Platform or gates",
+    "positionTrain": "On the train",
+    "positionTrainNote": "Even between stations",
+    "positionNearQuestion": "Which station is closest?",
+    "positionNearHint": "Between stations? Tap the closer one",
+    "progress": "{current} of {total}: {step}",
+    "steps": {
+      "line": "Line",
+      "direction": "Direction",
+      "destination": "Destination",
+      "position": "Where",
+      "situation": "Situation"
+    },
+    "tripHub": "Using a major station that way",
+    "tripTerminal": "Using the end of the line",
+    "causeHint": "Pick what sounds closest",
+    "causes": {
+      "person": "Person hit by a train",
+      "vehicle": "Train inspection",
+      "signal": "Signal trouble",
+      "rain": "Heavy rain",
+      "unknown": "Couldn't catch it"
+    },
+    "elapsedQuestion": "How long has it been stopped?",
+    "elapsedHint": "A rough guess is fine",
+    "elapsed": {
+      "m5": "About 5 min",
+      "m15": "About 15 min",
+      "m30": "30 min or more",
+      "unknown": "Not sure"
+    },
+    "nextStation": "Next: {station}"
   },
   "status": {
     "notFound": {

@@ -11,12 +11,15 @@ export function EntrySheet({
   stageKey,
   onBack,
   onHeightChange,
+  progress,
   children,
 }: {
   // 段が変わるたびに中身を短い動きで差し替える
   stageKey: string;
   onBack: () => void;
   onHeightChange: (height: number) => void;
+  // 戻るの右に置く進み具合の印
+  progress?: ReactNode;
   children: ReactNode;
 }) {
   const t = useTranslations();
@@ -44,15 +47,18 @@ export function EntrySheet({
       </div>
       <div className="min-h-0 overflow-y-auto overscroll-contain px-5 pt-2 pb-[max(16px,env(safe-area-inset-bottom))] lg:px-6 lg:pt-5">
         <div key={stageKey} className="flex animate-step-in flex-col gap-4">
-          <button
-            type="button"
-            data-testid={testIds.start.back}
-            onClick={onBack}
-            className="-ml-2 inline-flex min-h-11 w-fit items-center gap-0.5 rounded-full pr-3 pl-1 text-[14px] font-medium text-muted transition-colors hover:bg-foreground/5 hover:text-foreground active:scale-[0.97]"
-          >
-            <ChevronLeft className="size-5" strokeWidth={2} aria-hidden />
-            {t("entry.back")}
-          </button>
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              data-testid={testIds.start.back}
+              onClick={onBack}
+              className="-ml-2 inline-flex min-h-11 w-fit items-center gap-0.5 rounded-full pr-3 pl-1 text-[14px] font-medium text-muted transition-colors hover:bg-foreground/5 hover:text-foreground active:scale-[0.97]"
+            >
+              <ChevronLeft className="size-5" strokeWidth={2} aria-hidden />
+              {t("entry.back")}
+            </button>
+            {progress}
+          </div>
           {children}
         </div>
         <p className="mt-5 flex items-center gap-1.5 text-[12px] text-muted">

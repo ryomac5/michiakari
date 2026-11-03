@@ -14,6 +14,7 @@ import { ConclusionCard, ConclusionDetail } from "@/features/judgment/components
 import { Disclaimer } from "@/features/judgment/components/Disclaimer";
 import { EvidenceSection } from "@/features/judgment/components/EvidenceSection";
 import { JudgmentError } from "@/features/judgment/components/JudgmentError";
+import { NextCheckSection, PremiseSection } from "@/features/judgment/components/NextCheck";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
 import { StatusChip, TripSummary } from "@/features/judgment/components/TripSummary";
@@ -130,6 +131,19 @@ export function JudgmentScreen() {
               <ConclusionDetail judgment={display.judgment} />
             </SheetSection>
           )}
+          {state.status === "ready" && display.estimate && (
+            <NextCheckSection
+              estimate={display.estimate}
+              catalog={catalog}
+              onUpdate={() => {
+                chrome.setSnap("full");
+                document
+                  .querySelector(`[data-testid="${testIds.judgment.addInfo}"]`)
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            />
+          )}
+          {state.status === "ready" && <PremiseSection />}
           {display.breakEven && (
             <SheetSection>
               <BreakEvenDetail {...breakEvenProps} />
