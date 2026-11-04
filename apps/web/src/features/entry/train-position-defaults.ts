@@ -1,4 +1,5 @@
 import {
+  computeTrackHeadwayMinutes,
   findOperationPattern,
   inferDefaultOwnTrainType,
   inferTrainsAheadFromPattern,
@@ -19,6 +20,8 @@ export const NEXT_STATION_CANDIDATE_LIMIT = 4;
 export type TrainsAheadDefault = {
   trainsAhead: TrainType[] | null;
   trainsAheadCount: TrainsAheadCount | null;
+  // 並びを推し量ったときの、同じ線路のふだんの間隔（分）。前の列車はこの間隔で先を走っていたとみなす
+  headwayMinutes: number | null;
   // 運転パターンから推し量った並びか
   fromPattern: boolean;
 };
@@ -35,6 +38,7 @@ export function inferTrainsAheadDefault(
   return {
     trainsAhead: ahead,
     trainsAheadCount: ahead ? null : DEFAULT_TRAINS_AHEAD_COUNT,
+    headwayMinutes: ahead ? computeTrackHeadwayMinutes(pattern, ownTrainType) : null,
     fromPattern: ahead !== null,
   };
 }
@@ -70,6 +74,7 @@ export function buildDefaultBetweenPosition(
       trainsAhead: ahead.trainsAhead,
       trainsAheadCount: ahead.trainsAheadCount,
       ownTrainType,
+      trainsAheadHeadwayMinutes: ahead.headwayMinutes,
     },
     trainsAheadFromPattern: ahead.fromPattern,
   };

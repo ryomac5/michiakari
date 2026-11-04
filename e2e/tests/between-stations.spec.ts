@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -82,8 +83,8 @@ for (const theme of ["light", "dark"] as const) {
       await expect(own).toContainText("普通に乗車");
       await expect(own).toHaveAttribute("data-source", "default");
       const ahead = page.getByTestId(testIds.judgment.trainPositionChip("ahead"));
-      await expect(ahead).toContainText("普通・普通・普通");
-      await expect(ahead).toContainText("ふだんの運転から推定");
+      await expect(ahead).toContainText("ふだんの間隔で走行");
+      await expect(ahead).toContainText("推定");
       await expect(ahead).toHaveAttribute("data-source", "default");
       await expect(page.getByTestId(testIds.judgment.trainPositionHint)).toContainText(
         "前の列車の種類が分かると",
@@ -91,10 +92,18 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByTestId(testIds.judgment.disclaimer)).toContainText(
         "推定であり、公式発表を優先してください",
       );
+      // 既定値の理由は、ふだんの間隔とみた見込みを言い、「入れない」とは書かない
+      const reason = page.getByTestId(testIds.judgment.conclusionReason).first();
+      await expect(reason).toContainText("ふだんどおり");
+      await expect(reason).not.toContainText("入れない");
 
+      // 利用者は大阪と塚本の間にいる。上部の帯と現在地の札は駅の間にいることを出し、塚本は降りる駅として目立たせる
+      await expect(page.getByTestId(testIds.judgment.tripSummary)).toContainText("大阪〜塚本");
       await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
         timeout: 30_000,
       });
+      await expect(page.getByTestId(mapTestIds.here)).toContainText("大阪〜塚本の間");
+      await expect(page.getByTestId(mapTestIds.alight)).toContainText("塚本");
       await capture(page, theme, "02-judgment-chips-closed");
 
       // チップを押すと、その場で直せる選択が開く。閉じたシートでは下が切れるので、半分まで開く
@@ -122,18 +131,20 @@ test("判断の画面で前の列車のチップを押し、快速と普通を�
   await expect(page.locator("[data-testid^='judgment-train-position-ahead-item-']")).toHaveCount(2);
   await page.getByTestId(testIds.judgment.trainPositionApply).click();
 
-  // 直したチップは確定した見た目になり、推定の注記が消える
+  // 直したチップは確定した見た目になり、目の前に詰まっている列車として出る。推定の注記は消える
   const ahead = page.getByTestId(testIds.judgment.trainPositionChip("ahead"));
   await expect(ahead).toHaveAttribute("data-source", "user");
-  await expect(ahead).toContainText("快速・普通");
+  await expect(ahead).toContainText("前に詰まっている列車 快速・普通");
   await expect(ahead).not.toContainText("推定");
   await expect(page.getByTestId(testIds.judgment.trainPositionHint)).toHaveCount(0);
 
-  // 判断が出し直され、理由に「前の快速が塚本に入れない」事情が入る
+  // 判断が出し直され、理由に「前の快速は塚本に止まれない」事情が入る。「入れない」とは書かない
   await openSheet(page, "half");
   const reason = page.getByTestId(testIds.judgment.conclusionReason).first();
-  await expect(reason).toContainText("前の快速が塚本に入れないため", { timeout: 30_000 });
+  await expect(reason).toContainText("前の快速は塚本に止まれないため", { timeout: 30_000 });
+  await expect(reason).toContainText("塚本の手前で動けず");
   await expect(reason).toContainText("再開のあと");
+  await expect(reason).not.toContainText("入れない");
   await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready");
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toContainText("塚本");
 });

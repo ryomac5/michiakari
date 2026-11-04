@@ -99,6 +99,8 @@ export type TrainQueueText = {
   arrivalP50: string | null;
   beforeResume: boolean;
   trainsAheadCount: number;
+  // 前の列車をふだんの間隔で先を走っていたとみなしたか。目の前に詰まっているとみなしたなら false
+  spacedByHeadway: boolean;
   ownTrainType: ConcreteTrainType;
   delays: readonly TrainQueueDelay[];
   // 切り替え先で最初に乗る路線名。無ければ手段の種類で呼ぶ
@@ -165,6 +167,7 @@ function buildTrainQueueHeadline(
 }
 
 // 次の駅に着く見込みの一文。種別の事情があればそれを先に言う
+// ホームがふさがっている事情と、その種別がその駅に止まれない事情は、文の上で分ける
 function buildTrainQueueNote(queue: TrainQueueText, language: Lang): string | null {
   if (!queue.arrivalP50) return null;
   const ja = language === "ja";
@@ -172,23 +175,33 @@ function buildTrainQueueNote(queue: TrainQueueText, language: Lang): string | nu
   const time = formatClock(queue.arrivalP50, language);
   const delay = queue.delays[0];
   const own = formatTrainType(queue.ownTrainType, language);
-  if (delay?.kind === "ahead_cannot_enter") {
+  if (delay?.kind === "ahead_cannot_stop") {
     const type = formatTrainType(delay.trainType, language);
     return ja
-      ? `前の${type}が${delay.station}に入れないため、${st}に着くのは再開のあと、${time}ごろの見込みです。`
-      : `The ${type} ahead cannot enter ${delay.station}, so you should reach ${st} after service resumes, around ${time}.`;
+      ? `前の${type}は${delay.station}に止まれないため、${delay.station}の手前で動けず、${st}に着くのは再開のあと、${time}ごろの見込みです。`
+      : `The ${type} ahead cannot stop at ${delay.station} and is held short of it, so you should reach ${st} after service resumes, around ${time}.`;
+  }
+  if (delay?.kind === "platform_occupied") {
+    const type = formatTrainType(delay.occupiedBy, language);
+    return ja
+      ? `${delay.station}のホームに前の${type}が止まっているため、${st}に着くのは再開のあと、${time}ごろの見込みです。`
+      : `A ${type} ahead is standing at the ${delay.station} platform, so you should reach ${st} after service resumes, around ${time}.`;
   }
   if (delay?.kind === "own_cannot_stop") {
     return ja
       ? `${own}は${delay.station}に止まれないので、降りられるのは${st}で、${time}ごろの見込みです。`
       : `A ${own} cannot stop at ${delay.station}, so your first stop is ${st}, around ${time}.`;
   }
-  if (delay?.kind === "station_full") {
-    return ja
-      ? `前の列車で${delay.station}がふさがっているため、${st}に着くのは再開のあと、${time}ごろの見込みです。`
-      : `${delay.station} is full of trains ahead, so you should reach ${st} after service resumes, around ${time}.`;
-  }
   const n = queue.trainsAheadCount;
+  if (queue.spacedByHeadway) {
+    return ja
+      ? queue.beforeResume
+        ? `前の列車との間隔はふだんどおりとみて、${st}に着くのは${time}ごろの見込みです。`
+        : `前の列車との間隔はふだんどおりとみて、${st}に着くのは再開のあと、${time}ごろの見込みです。`
+      : queue.beforeResume
+        ? `Assuming the usual spacing to the trains ahead, you should reach ${st} around ${time}.`
+        : `Assuming the usual spacing to the trains ahead, you should reach ${st} after service resumes, around ${time}.`;
+  }
   if (queue.beforeResume) {
     if (n === 0) {
       return ja

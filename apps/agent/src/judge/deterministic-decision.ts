@@ -25,6 +25,7 @@ export function buildTrainQueueText(
     arrivalP50: queue.arrival?.p50 ?? null,
     beforeResume: queue.beforeResume,
     trainsAheadCount: queue.trainsAheadCount,
+    spacedByHeadway: queue.spacedByHeadway,
     ownTrainType: queue.ownTrainType,
     delays: queue.delays,
     switchLine: bestOption?.legs.find((l) => l.mode === "ride")?.line ?? null,

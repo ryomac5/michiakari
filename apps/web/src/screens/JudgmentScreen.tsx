@@ -65,6 +65,7 @@ export function JudgmentScreen() {
     resumeJudgment,
     originLine,
     tripContext,
+    trainPosition,
   } = useJudgmentSession();
 
   // 入口で預けた判断は、この画面が開いてから流し始める
@@ -139,6 +140,7 @@ export function JudgmentScreen() {
         blockedSection={blockedSection}
         blockedLine={blockedLine}
         blockedDirection={blockedDirection}
+        trainPosition={trainPosition}
         insets={chrome.insets}
         onReachSourceChange={setReachSource}
         onGuideChange={setGuide}

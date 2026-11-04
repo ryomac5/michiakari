@@ -15,6 +15,8 @@ import { addMinutesToIso } from "./time.ts";
 // 駅間に止まった列車が、ホームに着ける駅に着く時刻の見込み
 // 詰める事業者では、止まっている間に前の列車から順に前の駅へ進める動きを追う
 // 前の列車は順番を追い越せず、その種別が着けるホームのある駅にしか入れない
+// 前の列車は、利用者が押した並びなら目の前に詰まっているとみなし、
+// 運転パターンから推し量った並びなら、ふだんの間隔をあけて先を走っていたとみなす
 
 export type ConcreteTrainType = Exclude<TrainType, "unknown">;
 
@@ -35,15 +37,21 @@ export type TrainQueueInput = {
   trainsAhead: readonly TrainType[] | null;
   // 並びが分からないときの本数の目安
   trainsAheadCount: TrainsAheadCount | null;
+  // 並びを運転パターンから推し量ったときの、同じ線路の運転間隔（分）
+  // 値があれば、前の列車はこの間隔をあけて先を走っていたとみなす。null なら目の前に詰まっているとみなす
+  trainsAheadHeadwayMinutes: number | null;
   stationsAhead: readonly StationAhead[];
   params: TrainQueueParams;
 };
 
-// 遅れる理由。前の列車がその駅に入れない、自分の種別がその駅に止まれない、その駅のホームがふさがっている
+// 遅れる理由
+// ahead_cannot_stop: 前の列車の種別がその駅に止まれず、駅の手前で動けない
+// platform_occupied: その駅のホームに前の列車が止まっていて、入れる場所が無い
+// own_cannot_stop: 自分の種別がその駅に止まれず、降りられる駅が先になる
 export type TrainQueueDelay =
-  | { kind: "ahead_cannot_enter"; trainType: ConcreteTrainType; station: string }
-  | { kind: "own_cannot_stop"; station: string }
-  | { kind: "station_full"; station: string };
+  | { kind: "ahead_cannot_stop"; trainType: ConcreteTrainType; station: string }
+  | { kind: "platform_occupied"; station: string; occupiedBy: ConcreteTrainType }
+  | { kind: "own_cannot_stop"; station: string };
 
 export type TrainQueueOutcome = {
   // 自分の列車がホームに着けて降りられる駅
@@ -53,6 +61,12 @@ export type TrainQueueOutcome = {
   // 再開の前に、詰める動きでその駅に着けるか
   beforeResume: boolean;
   trainsAheadCount: number;
+  // 自分の行く手にいて、先に発車するのを待つ前の列車の本数
+  blockingCount: number;
+  // その本数ぶんの遅れ（分）。乗ったまま待つ場合の到着にも足す
+  departureDelayMinutes: number;
+  // 前の列車をふだんの間隔で先を走っていたとみなしたか
+  spacedByHeadway: boolean;
   delays: TrainQueueDelay[];
 };
 
@@ -91,8 +105,18 @@ export function inferDefaultOwnTrainType(pattern: OperationPattern | null): Conc
 
 const isLocalGroup = (type: ConcreteTrainType) => type === "local";
 
+// 複々線では同じ線路の列車だけを数える。自分と同じ線路を走る種別の並びに絞る
+function selectSameTrackSequence(
+  pattern: OperationPattern,
+  own: ConcreteTrainType,
+): readonly ConcreteTrainType[] {
+  return pattern.separateTracks
+    ? pattern.sequence.filter((t) => isLocalGroup(t) === isLocalGroup(own))
+    : pattern.sequence;
+}
+
 // 運転パターンから、自分の前を走る列車の種別を近い順に並べる
-// 複々線では同じ線路の列車だけを数える。パターンが無いか、自分の種別がパターンに無ければ null
+// パターンが無いか、自分の種別がパターンに無ければ null
 export function inferTrainsAheadFromPattern(
   pattern: OperationPattern | null,
   ownTrainType: TrainType | null,
@@ -100,9 +124,7 @@ export function inferTrainsAheadFromPattern(
 ): ConcreteTrainType[] | null {
   if (!pattern) return null;
   const own = normalizeTrainType(ownTrainType);
-  const sequence = pattern.separateTracks
-    ? pattern.sequence.filter((t) => isLocalGroup(t) === isLocalGroup(own))
-    : pattern.sequence;
+  const sequence = selectSameTrackSequence(pattern, own);
   const index = sequence.indexOf(own);
   if (index < 0 || sequence.length === 0) return null;
   const ahead: ConcreteTrainType[] = [];
@@ -111,6 +133,17 @@ export function inferTrainsAheadFromPattern(
     if (type) ahead.push(type);
   }
   return ahead;
+}
+
+// 運転パターンから、自分と同じ線路の列車どうしのふだんの間隔（分）。パターンに無い種別なら null
+export function computeTrackHeadwayMinutes(
+  pattern: OperationPattern | null,
+  ownTrainType: TrainType | null,
+): number | null {
+  if (!pattern) return null;
+  const sequence = selectSameTrackSequence(pattern, normalizeTrainType(ownTrainType));
+  if (sequence.length === 0) return null;
+  return pattern.cycleMinutes / sequence.length;
 }
 
 export function resolveTrainQueueParams(operator: string | null): TrainQueueParams {
@@ -150,61 +183,113 @@ function sumRideMinutes(stations: readonly StationAhead[], toIndex: number): num
   return stations.slice(0, toIndex + 1).reduce((sum, s) => sum + s.rideMinutesFromPrevious, 0);
 }
 
+// 前の列車 1 本。minIndex は、その列車が詰めるときに入れる最初の駅の位置
+// 目の前に詰まっている列車は 0。ふだんの間隔で先を走っていた列車は、間隔ぶん走った先の駅
+type QueuedTrain = { type: ConcreteTrainType; minIndex: number };
+
+// 前の列車を線路の上に置く。近い順
+// 間隔があれば、近い順に k 本目は k × 間隔の分だけ先にいたとみなし、走行時間の積み上げでどの駅の手前かに直す
+// 一覧の先より遠い列車は、自分の行く手にいないので外す
+function placeTrainsAhead(
+  trainsAhead: readonly TrainType[],
+  headwayMinutes: number | null,
+  stations: readonly StationAhead[],
+): QueuedTrain[] {
+  const placed: QueuedTrain[] = [];
+  trainsAhead.forEach((raw, index) => {
+    const type = normalizeTrainType(raw);
+    if (headwayMinutes === null) {
+      placed.push({ type, minIndex: 0 });
+      return;
+    }
+    const distance = (index + 1) * headwayMinutes;
+    const minIndex = stations.findIndex((_, i) => sumRideMinutes(stations, i) >= distance);
+    if (minIndex >= 0) placed.push({ type, minIndex });
+  });
+  return placed;
+}
+
 type CloseUpResult = {
   // 自分の列車が再開前に着ける駅の位置。着けなければ null
   ownIndex: number | null;
-  // 前の駅へ進めた列車の本数
-  movedCount: number;
+  // 目の前に詰まっていて、自分より先に前の駅へ進めた列車の本数
+  movedBlockingCount: number;
   delays: TrainQueueDelay[];
 };
 
 // 詰める動きを順に追う。遠い列車から前の駅へ入れ、同じ線路の上では追い越さない
 function simulateCloseUp(
   stations: readonly StationAhead[],
-  trainsAhead: readonly TrainType[],
+  queue: readonly QueuedTrain[],
   ownType: ConcreteTrainType,
   alightIndex: number,
 ): CloseUpResult {
-  const occupancy = stations.map(() => 0);
+  const occupants: ConcreteTrainType[][] = stations.map(() => []);
   const delays: TrainQueueDelay[] = [];
   // 前の列車が止まった駅より先へは進めない。先頭は一覧の最後の駅まで進める
   let frontLimit = stations.length - 1;
-  let movedCount = 0;
-  const findSlot = (type: ConcreteTrainType, from: number) => {
+  let movedBlockingCount = 0;
+  const findSlot = (type: ConcreteTrainType, from: number): number | null => {
     for (let i = from; i <= frontLimit; i++) {
       const station = stations[i];
-      if (!station) break;
-      if (canStop(station.platform, type) && occupancy[i] !== undefined) {
-        if ((occupancy[i] ?? 0) < station.platform.platformsPerDirection) return i;
+      const held = occupants[i];
+      if (!station || !held) break;
+      if (canStop(station.platform, type) && held.length < station.platform.platformsPerDirection) {
+        return i;
       }
     }
     return null;
   };
-  const nameBlockedStation = (type: ConcreteTrainType): string => {
-    const acceptable = stations.slice(0, frontLimit + 1).find((s) => canStop(s.platform, type));
-    return acceptable?.name ?? stations[0]?.name ?? "";
-  };
-  for (let j = trainsAhead.length - 1; j >= 0; j--) {
-    const type = normalizeTrainType(trainsAhead[j] ?? null);
-    const slot = frontLimit < 0 ? null : findSlot(type, 0);
-    if (slot === null) {
-      delays.push({
-        kind: "ahead_cannot_enter",
-        trainType: type,
-        station: nameBlockedStation(type),
-      });
-      return { ownIndex: null, movedCount, delays };
+  // 入れなかった理由。入れる種別の駅が範囲に無ければ止まれない、あればホームがふさがっている
+  const explainBlocked = (type: ConcreteTrainType, from: number): TrainQueueDelay | null => {
+    const nextStation = stations[Math.min(from, stations.length - 1)];
+    if (!nextStation) return null;
+    const acceptableIndex = stations.findIndex(
+      (s, i) => i >= from && i <= frontLimit && canStop(s.platform, type),
+    );
+    if (acceptableIndex < 0) {
+      return { kind: "ahead_cannot_stop", trainType: type, station: nextStation.name };
     }
-    occupancy[slot] = (occupancy[slot] ?? 0) + 1;
+    const station = stations[acceptableIndex];
+    const occupiedBy = occupants[acceptableIndex]?.[0];
+    return station && occupiedBy
+      ? { kind: "platform_occupied", station: station.name, occupiedBy }
+      : null;
+  };
+  for (let j = queue.length - 1; j >= 0; j--) {
+    const train = queue[j];
+    if (!train) continue;
+    // 先の列車がつかえていて動けない。理由は先の列車のものに含まれている
+    if (frontLimit < train.minIndex) continue;
+    const slot = findSlot(train.type, train.minIndex);
+    if (slot === null) {
+      const reason = explainBlocked(train.type, train.minIndex);
+      if (reason) delays.push(reason);
+      // 入れなかった列車はその駅の手前に残る。より近い列車と自分は、その手前の駅までしか進めない
+      frontLimit = train.minIndex - 1;
+      continue;
+    }
+    occupants[slot]?.push(train.type);
     frontLimit = slot;
-    movedCount += 1;
+    if (train.minIndex === 0) movedBlockingCount += 1;
   }
-  const ownIndex = frontLimit < alightIndex ? null : findSlot(ownType, alightIndex);
-  if (ownIndex === null) {
-    const station = stations[Math.min(Math.max(frontLimit, alightIndex), stations.length - 1)];
-    if (station) delays.push({ kind: "station_full", station: station.name });
+  if (frontLimit < alightIndex) {
+    // 降りたい駅より手前で前の列車が止まっている。その駅のホームがふさがっていて先へ進めない
+    const station = stations[frontLimit];
+    const occupiedBy = occupants[frontLimit]?.[0];
+    if (frontLimit >= 0 && station && occupiedBy) {
+      delays.push({ kind: "platform_occupied", station: station.name, occupiedBy });
+    }
+    return { ownIndex: null, movedBlockingCount, delays };
   }
-  return { ownIndex, movedCount, delays };
+  const ownIndex = findSlot(ownType, alightIndex);
+  if (ownIndex !== null) {
+    // 再開前に着けるなら、先の列車の事情は自分の遅れにならない
+    return { ownIndex, movedBlockingCount, delays: [] };
+  }
+  const reason = explainBlocked(ownType, alightIndex);
+  if (reason) delays.push(reason);
+  return { ownIndex: null, movedBlockingCount, delays };
 }
 
 function toArrival(now: string, minutes: DurationDist): { p50: string; p80: string } {
@@ -221,43 +306,46 @@ export function estimateTrainQueueArrival(input: TrainQueueInput): TrainQueueOut
   const ownType = normalizeTrainType(input.ownTrainType);
   const alightIndex = findAlightIndex(stations, ownType);
   const trainsAheadCount = countTrainsAhead(input.trainsAhead, input.trainsAheadCount);
+  const spacedByHeadway = input.trainsAhead !== null && input.trainsAheadHeadwayMinutes !== null;
   const delays: TrainQueueDelay[] = [];
   const firstStation = stations[0];
   if (alightIndex > 0 && firstStation) {
     delays.push({ kind: "own_cannot_stop", station: firstStation.name });
   }
 
-  // 再開を待つ経路。前の列車が順に動いたあとに、降りられる駅まで走る
+  // 前の列車を線路の上に置く。並びが分からなければ、本数ぶんの普通が目の前に詰まっているとみなす
+  const sequence =
+    input.trainsAhead ?? Array.from({ length: trainsAheadCount }, (): TrainType => "unknown");
+  const queue = placeTrainsAhead(
+    sequence,
+    spacedByHeadway ? input.trainsAheadHeadwayMinutes : null,
+    stations,
+  );
+  // 自分の行く手にいて、先に発車するのを待つ列車。降りる駅かその手前にいる列車を数える
+  const blockingCount = queue.filter((t) => t.minIndex <= alightIndex).length;
+  const departureDelayMinutes = blockingCount * params.minutesPerTrainAhead;
+
+  // 再開を待つ経路。行く手の列車が順に発車したあとに、降りられる駅まで走る
   const resumePath = input.untilResume
     ? {
-        p50:
-          input.untilResume.p50 +
-          trainsAheadCount * params.minutesPerTrainAhead +
-          sumRideMinutes(stations, alightIndex),
-        p80:
-          input.untilResume.p80 +
-          trainsAheadCount * params.minutesPerTrainAhead +
-          sumRideMinutes(stations, alightIndex),
+        p50: input.untilResume.p50 + departureDelayMinutes + sumRideMinutes(stations, alightIndex),
+        p80: input.untilResume.p80 + departureDelayMinutes + sumRideMinutes(stations, alightIndex),
       }
     : null;
 
-  // 詰める経路。並びが分からなければ、本数ぶんの普通が前にいるとみなす
-  const sequence =
-    input.trainsAhead ?? Array.from({ length: trainsAheadCount }, (): TrainType => "unknown");
-  const closeUp = params.closesUp
-    ? simulateCloseUp(stations, sequence, ownType, alightIndex)
-    : null;
+  // 詰める経路。目の前に詰まっていた列車が前の駅へ進んだあとに、自分も進む
+  const closeUp = params.closesUp ? simulateCloseUp(stations, queue, ownType, alightIndex) : null;
   const closeUpPath =
     closeUp && closeUp.ownIndex !== null
       ? {
           index: closeUp.ownIndex,
           p50:
             params.closeUpLeadMinutes.p50 +
-            closeUp.movedCount * params.minutesPerTrainAhead +
+            closeUp.movedBlockingCount * params.minutesPerTrainAhead +
             sumRideMinutes(stations, closeUp.ownIndex),
           p80:
             params.closeUpLeadMinutes.p80 +
-            closeUp.movedCount * params.minutesPerTrainAhead +
+            closeUp.movedBlockingCount * params.minutesPerTrainAhead +
             sumRideMinutes(stations, closeUp.ownIndex),
         }
       : null;
@@ -272,6 +360,9 @@ export function estimateTrainQueueArrival(input: TrainQueueInput): TrainQueueOut
       arrival: toArrival(input.now, closeUpPath),
       beforeResume: true,
       trainsAheadCount,
+      blockingCount,
+      departureDelayMinutes,
+      spacedByHeadway,
       delays,
     };
   }
@@ -280,6 +371,9 @@ export function estimateTrainQueueArrival(input: TrainQueueInput): TrainQueueOut
     arrival: resumePath ? toArrival(input.now, resumePath) : null,
     beforeResume: false,
     trainsAheadCount,
+    blockingCount,
+    departureDelayMinutes,
+    spacedByHeadway,
     delays,
   };
 }

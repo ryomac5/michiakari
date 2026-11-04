@@ -12,6 +12,8 @@ export type AlternativesQuery = {
   now: string;
   // 代替手段に乗り出せる時刻。駅間の車内なら次の駅に着く見込み。省略すれば now
   departureTime?: string;
+  // 再開後に、乗ったまま待つ側の到着へ足す分。駅間の車内なら、前の列車が先に発車するぶんの遅れ
+  extraWaitMinutesAfterResume?: number;
   // 再開して乗れるまでの残り時間。待つ選択肢に使う。不明なら null
   remaining: DurationDist | null;
   transferServiceActive: boolean | null;

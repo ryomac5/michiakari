@@ -266,10 +266,10 @@
       "title": "車内の前提",
       "next": "次は{station}",
       "own": "{type}に乗車",
-      "aheadNone": "前に列車はいない",
+      "aheadNone": "前に詰まっている列車はいない",
       "aheadUnknown": "前の列車 分からない",
-      "ahead": "前の列車 {types}",
-      "aheadPattern": "前の列車 {types}（ふだんの運転から推定）",
+      "ahead": "前に詰まっている列車 {types}",
+      "aheadPattern": "前の列車 ふだんの間隔で走行（推定）",
       "estimated": "推定",
       "edit": "直す",
       "nextQuestion": "次に着く駅はどこですか",
@@ -290,7 +290,8 @@
       "limited_express": "特急",
       "unknown": "分からない",
       "unknownType": "種別は分からない"
-    }
+    },
+    "tripBetween": "{from}〜{to}"
   },
   "replay": {
     "heading": "デモを見る",
@@ -389,7 +390,9 @@
     "viewOverview": "全体を見る",
     "viewFocus": "現在地のまわり",
     "changeAt": "{station}で",
-    "transferShort": "振替"
+    "transferShort": "振替",
+    "between": "{from}〜{to}の間",
+    "alight": "降りる駅"
   },
   "about": {
     "title": "このアプリについて",

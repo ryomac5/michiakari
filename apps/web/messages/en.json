@@ -266,10 +266,10 @@
       "title": "On the train",
       "next": "Next: {station}",
       "own": "On a {type}",
-      "aheadNone": "No trains ahead",
+      "aheadNone": "No trains stuck ahead",
       "aheadUnknown": "Trains ahead: not sure",
-      "ahead": "Trains ahead: {types}",
-      "aheadPattern": "Trains ahead: {types} (typical service)",
+      "ahead": "Trains stuck ahead: {types}",
+      "aheadPattern": "Trains ahead: usual spacing (estimated)",
       "estimated": "estimated",
       "edit": "change",
       "nextQuestion": "Which station is next?",
@@ -290,7 +290,8 @@
       "limited_express": "limited express",
       "unknown": "not sure",
       "unknownType": "type unknown"
-    }
+    },
+    "tripBetween": "{from}–{to}"
   },
   "replay": {
     "heading": "Watch the demo",
@@ -389,7 +390,9 @@
     "viewOverview": "Whole route",
     "viewFocus": "Around you",
     "changeAt": "change at {station}",
-    "transferShort": "Transfer"
+    "transferShort": "Transfer",
+    "between": "between {from} and {to}",
+    "alight": "Get off at"
   },
   "about": {
     "title": "About MatsuKaeru",

@@ -13,5 +13,7 @@ export const mapTestIds = {
   // 乗り換え候補の駅の吹き出し。data-recommended・data-status・data-walk-minutes を出す
   station: (key: string) => `judgment-map-station-${key}`,
   here: "judgment-map-here",
+  // 駅間の車内の人に出す、次に降りる駅の印
+  alight: "judgment-map-alight",
   blockedTag: "judgment-map-blocked-tag",
 } as const;

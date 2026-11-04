@@ -236,6 +236,24 @@ export function StationBubble({
 }
 
 // 現在地。脈打つ丸と「いま 大阪駅」の札に、止まっている路線と動いている路線を添える
+// 降りる駅の印。駅間の車内の人に、代替手段へ移る駅を目立たせる。札は駅の下に出す
+export function AlightMarker({ alight }: { alight: NonNullable<StationGuide["alight"]> }) {
+  const t = useTranslations("map");
+  return (
+    <div data-testid={mapTestIds.alight} className="relative size-4">
+      <span aria-hidden className="absolute -inset-1.5 rounded-full border-2 border-focus/50" />
+      <span
+        aria-hidden
+        className="absolute inset-0 rounded-full border-[3px] border-focus bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.3)]"
+      />
+      <p className="absolute top-[calc(100%+8px)] left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full bg-focus px-2 py-0.5 text-[12px] leading-tight font-bold whitespace-nowrap text-white shadow-[0_1px_6px_rgb(0_0_0/0.25)]">
+        <span className="font-semibold opacity-90">{t("alight")}</span>
+        {alight.name}
+      </p>
+    </div>
+  );
+}
+
 export function HereMarker({
   here,
   placement,

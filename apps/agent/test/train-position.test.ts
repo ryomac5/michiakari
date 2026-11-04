@@ -49,42 +49,64 @@ function buildRequest(trainPosition: TrainPosition | null, origin = "塚本"): J
   };
 }
 
-const between: TrainPosition = {
+// 入口の既定値。前の列車は運転パターンから推し量った並びで、ふだんの間隔で先を走っていたとみなす
+const defaults: TrainPosition = {
   kind: "between_stations",
   nextStation: "塚本",
   previousStation: "大阪",
   trainsAhead: ["local", "local", "local"],
   trainsAheadCount: null,
   ownTrainType: "local",
+  trainsAheadHeadwayMinutes: 7.5,
 };
 
+// 利用者が押した並び。目の前に詰まっているとみなす
+function observed(trainsAhead: TrainPosition["trainsAhead"]): TrainPosition {
+  return { ...defaults, trainsAhead, trainsAheadHeadwayMinutes: null };
+}
+
 describe("駅間の車内にいる利用者の判断", () => {
-  it("結論は次の駅に着いてからの行動で書き、理由の頭に次の駅に着く見込みを置く", async () => {
-    const judgment = findJudgment(await postJudge(app, buildRequest(between)));
+  it("既定値では、結論を次の駅に着いてからの行動で書き、理由の頭にふだんの間隔とみた見込みを置く", async () => {
+    const judgment = findJudgment(await postJudge(app, buildRequest(defaults)));
     expect(judgment.headline).toMatch(/^塚本(に着い|で降りて|でも降りずに)/);
     expect(judgment.headline).not.toMatch(/^あと\d+分/);
     expect(judgment.headline).not.toMatch(/まで待って/);
-    expect(judgment.reason).toMatch(/塚本に着くのは.*\d+時\d+分ごろの見込みです。/);
+    expect(judgment.reason).toContain("前の列車との間隔はふだんどおりとみて");
+    expect(judgment.reason).toMatch(/塚本に着くのは\d+時\d+分ごろの見込みです。/);
+    expect(judgment.reason).not.toContain("入れない");
     expect(judgment.disclaimer).toContain("推定");
   });
 
-  it("すぐ前の快速が次の駅に入れなければ、理由に種別の事情を入れる", async () => {
-    const judgment = findJudgment(
-      await postJudge(app, buildRequest({ ...between, trainsAhead: ["rapid", "local"] })),
-    );
-    expect(judgment.reason).toContain("前の快速が塚本に入れないため");
+  it("目の前の普通が次の駅に入ると、ホームがふさがっている事情を理由に書く", async () => {
+    const judgment = findJudgment(await postJudge(app, buildRequest(observed(["local"]))));
+    expect(judgment.reason).toContain("塚本のホームに前の普通が止まっているため");
     expect(judgment.reason).toContain("再開のあと");
+    expect(judgment.reason).not.toContain("入れない");
+  });
+
+  it("すぐ前の快速が次の駅に止まれなければ、その事情を理由に書く", async () => {
+    const judgment = findJudgment(await postJudge(app, buildRequest(observed(["rapid", "local"]))));
+    expect(judgment.reason).toContain("前の快速は塚本に止まれないため");
+    expect(judgment.reason).toContain("塚本の手前で動けず");
+    expect(judgment.reason).toContain("再開のあと");
+    expect(judgment.reason).not.toContain("入れない");
   });
 
   it("自分が快速で次の駅に止まれなければ、降りる駅をその先の駅にする", async () => {
     const judgment = findJudgment(
-      await postJudge(
-        app,
-        buildRequest({ ...between, ownTrainType: "rapid", trainsAhead: [] }, "尼崎"),
-      ),
+      await postJudge(app, buildRequest({ ...observed([]), ownTrainType: "rapid" }, "尼崎")),
     );
     expect(judgment.headline).toMatch(/^尼崎/);
     expect(judgment.reason).toContain("快速は塚本に止まれないので");
+  });
+
+  it("前の列車が先に発車するぶんの遅れは、乗ったまま待つ側の到着にも足す", async () => {
+    const none = findJudgment(await postJudge(app, buildRequest(observed([]))));
+    const two = findJudgment(await postJudge(app, buildRequest(observed(["local", "local"]))));
+    const waitArrival = (j: Judgment) =>
+      Date.parse(j.options.find((o) => o.kind === "wait")?.arrivalTime ?? "");
+    // 2 本ぶん、1 本あたり 3 分の 6 分だけ遅くなる
+    expect(waitArrival(two) - waitArrival(none)).toBe(6 * 60_000);
   });
 
   it("駅にいる人と、駅に止まっている車内の人の判断は、位置を付けないときと同じ", async () => {

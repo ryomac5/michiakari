@@ -109,6 +109,7 @@ export {
 } from "./time.ts";
 export {
   type ConcreteTrainType,
+  computeTrackHeadwayMinutes,
   countTrainsAhead,
   estimateTrainQueueArrival,
   findOperationPattern,

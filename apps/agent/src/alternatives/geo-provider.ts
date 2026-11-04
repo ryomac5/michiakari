@@ -276,13 +276,19 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
     // 代替手段は乗り出せる時刻から探す。駅間の車内なら次の駅に着く見込みの時刻
     const departureTime = query.departureTime ?? query.now;
 
+    // 乗ったまま待つ側は、再開後に前の列車が先に発車するぶんも待つ
+    const extraWait = query.extraWaitMinutesAfterResume ?? 0;
     const waitOption = waitRoute
       ? router.buildWaitOption({
           originStationId: origin.station.stationId,
           destinationStationId: destination.station.stationId,
           lineId: waitLineId,
           now: query.now,
-          arrivalTime: computeWaitArrival(query.now, query.remaining?.p50 ?? 0, waitRoute.minutes),
+          arrivalTime: computeWaitArrival(
+            query.now,
+            query.remaining?.p50 ?? 0,
+            waitRoute.minutes + extraWait,
+          ),
         })
       : null;
     const alternatives = router.findAlternativeRoutes({
@@ -315,7 +321,7 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
       options,
       waitOptionId: WAIT_OPTION_ID,
       waitRouteMinutesAfterResume: waitRoute
-        ? waitRoute.minutes + origin.accessWalkMinutes + destination.accessWalkMinutes
+        ? waitRoute.minutes + extraWait + origin.accessWalkMinutes + destination.accessWalkMinutes
         : null,
       notes: [
         ...notes,

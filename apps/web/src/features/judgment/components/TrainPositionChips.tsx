@@ -125,13 +125,14 @@ export function TrainPositionChips({
   const typeName = (type: TrainType) => tType(type);
   const joinTypes = (types: readonly TrainType[]) =>
     types.map(typeName).join(locale === "en" ? ", " : "・");
+  // 既定の並びは、ふだんの間隔で先を走っていたとみなす推定。利用者が押した並びは、目の前に詰まっている列車
   const aheadLabel =
     position.trainsAhead === null
       ? t("aheadUnknown")
       : position.trainsAhead.length === 0
         ? t("aheadNone")
-        : !edited.trainsAhead && trainsAheadFromPattern
-          ? t("aheadPattern", { types: joinTypes(position.trainsAhead) })
+        : position.trainsAheadHeadwayMinutes != null
+          ? t("aheadPattern")
           : t("ahead", { types: joinTypes(position.trainsAhead) });
   const candidates = tripContext?.nextStationCandidates ?? [];
 
@@ -193,15 +194,22 @@ export function TrainPositionChips({
         ownTrainType: type,
         trainsAhead: ahead.trainsAhead,
         trainsAheadCount: ahead.trainsAheadCount,
+        trainsAheadHeadwayMinutes: ahead.headwayMinutes,
       },
       { ownTrainType: true },
       ahead.fromPattern,
     );
   }
 
+  // 利用者が押した並びは、目の前に詰まっている列車として扱う。間隔の前提は外す
   function applyAhead(list: TrainType[] | null) {
     apply(
-      { ...position, trainsAhead: list, trainsAheadCount: list === null ? "unknown" : null },
+      {
+        ...position,
+        trainsAhead: list,
+        trainsAheadCount: list === null ? "unknown" : null,
+        trainsAheadHeadwayMinutes: null,
+      },
       { trainsAhead: true },
       false,
     );

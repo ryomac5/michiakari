@@ -19,9 +19,20 @@ export function TripSummary({
 }) {
   const t = useTranslations();
   const locale = useLocale();
-  const { stationNames, originNearest } = useJudgmentSession();
+  const { stationNames, originNearest, trainPosition } = useJudgmentSession();
   const current = t("start.currentLocation");
-  const from = describePlace(origin, locale, current, stationNames, originNearest).label;
+  const nameOf = (name: string) =>
+    describePlace({ kind: "station", name }, locale, current, stationNames).label;
+  // 駅と駅の間の車内なら、出発の駅ではなく「大阪〜塚本」のように駅の間にいることを出す
+  const between =
+    trainPosition?.kind === "between_stations" &&
+    trainPosition.previousStation &&
+    trainPosition.nextStation
+      ? { from: trainPosition.previousStation, to: trainPosition.nextStation }
+      : null;
+  const from = between
+    ? t("judgment.tripBetween", { from: nameOf(between.from), to: nameOf(between.to) })
+    : describePlace(origin, locale, current, stationNames, originNearest).label;
   const to = describePlace(destination, locale, current, stationNames).label;
 
   return <TripChip testId={testId} from={from} to={to} href="/" />;

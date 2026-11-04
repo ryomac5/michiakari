@@ -78,6 +78,7 @@ function estimateTrainQueue(
     ownTrainType: position.ownTrainType,
     trainsAhead: position.trainsAhead,
     trainsAheadCount: position.trainsAheadCount,
+    trainsAheadHeadwayMinutes: position.trainsAheadHeadwayMinutes ?? null,
     stationsAhead,
     params: resolveTrainQueueParams(findOperator(ctx)),
   });

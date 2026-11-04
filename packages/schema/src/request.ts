@@ -46,6 +46,9 @@ export const TrainPositionSchema = z.object({
   // 並びが分からないときの本数の目安。並びがあれば null
   trainsAheadCount: TrainsAheadCountSchema.nullable(),
   ownTrainType: TrainTypeSchema.nullable(),
+  // 前の列車の並びを運転パターンから推し量ったときの、同じ線路の運転間隔（分）
+  // 値があれば前の列車はふだんの間隔で先を走っていたとみなす。無ければ目の前に詰まっているとみなす
+  trainsAheadHeadwayMinutes: z.number().positive().nullable().optional(),
 });
 export type TrainPosition = z.infer<typeof TrainPositionSchema>;
 
