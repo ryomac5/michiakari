@@ -159,6 +159,42 @@
         }
       }
     },
+    "resumeChance": {
+      "title": "再開の見込み",
+      "waitFaster": "待ったほうが早く着く見込み",
+      "waitOnTime": "待って期限に間に合う見込み",
+      "chance": {
+        "under": "1割未満",
+        "over": "9割以上",
+        "tenths": "{n}割"
+      },
+      "bar": {
+        "under": "1割未満",
+        "over": "9割以上",
+        "tenths": "{n}割"
+      },
+      "lead": {
+        "fromNow": "{fromNow}後の {time} には、{chance}の見込みで動いています",
+        "sinceOnset": "発生から{since}の {time} には、{chance}の見込みで動いています",
+        "both": "発生から{since}、いまから{fromNow}後の {time} には、{chance}の見込みで動いています",
+        "plain": "{time} には、{chance}の見込みで動いています"
+      },
+      "duration": {
+        "minutes": "{minutes}分",
+        "hours": "{hours}時間",
+        "hoursMinutes": "{hours}時間{minutes}分"
+      },
+      "marks": {
+        "breakEven": "分岐点",
+        "deadline": "期限"
+      },
+      "sr": {
+        "ticks": "時刻ごとの再開の見込み: {items}。",
+        "tick": "{time} {chance}",
+        "waitFaster": "待ったほうが早く着く見込みは{chance}。",
+        "waitOnTime": "期限に間に合うには {time} までに動く必要があり、待って間に合う見込みは{chance}。"
+      }
+    },
     "switchStep": {
       "title": "切り替え先",
       "walkTo": "{station}まで徒歩 {minutes} 分",

@@ -37,9 +37,42 @@ export const RouteOptionSchema = z.object({
 });
 export type RouteOption = z.infer<typeof RouteOptionSchema>;
 
+// 1 割単位に丸めた確率。0 は 1 割未満、10 は 9 割以上を表し、0% と 100% は出さない
+export const ChanceTenthsSchema = z.number().int().min(0).max(10);
+export type ChanceTenths = z.infer<typeof ChanceTenthsSchema>;
+
+export const ResumeChanceTickSchema = z.object({
+  time: IsoDateTimeSchema,
+  // この時刻までに動いている確率
+  tenths: ChanceTenthsSchema,
+  // 発生とみなした時刻からの分。発生が分からなければ null
+  sinceOnsetMinutes: NonNegativeIntSchema.nullable(),
+});
+export type ResumeChanceTick = z.infer<typeof ResumeChanceTickSchema>;
+
+// 時刻ごとの再開の見込みと、待ったほうが早く着く確率。packages/core の computeResumeChance の出力
+// 分岐点の比べ方を確率にしたものなので、分岐点と一緒に届ける
+export const ResumeChanceSchema = z.object({
+  // 目盛りの刻み（分）
+  stepMinutes: z.number().int().positive(),
+  // 切りのよい時刻の目盛り。いまから、ほぼ動いている時刻までを覆う
+  ticks: z.array(ResumeChanceTickSchema).min(4).max(6),
+  // 待ったほうが早く着く確率 P(T_wait ≤ T_alternative)。代替手段が無ければ null
+  waitFaster: ChanceTenthsSchema.nullable(),
+  // 待って期限に間に合う確率 P(T_wait ≤ 期限)。期限か経路が無ければ null
+  waitOnTime: ChanceTenthsSchema.nullable(),
+  // 期限に間に合うために動いていなければならない時刻。waitOnTime が null なら null
+  resumeByForDeadline: IsoDateTimeSchema.nullable(),
+  // 発生とみなした時刻。分からなければ null
+  onsetTime: IsoDateTimeSchema.nullable(),
+});
+export type ResumeChance = z.infer<typeof ResumeChanceSchema>;
+
 export const BreakEvenSchema = z.object({
   time: IsoDateTimeSchema,
   explanation: z.string(),
+  // 時刻ごとの再開の見込みと、待ったほうが早く着く確率。残り時間の見込みがあるときに agent が詰める。無ければ画面は出さない
+  resumeChance: ResumeChanceSchema.optional(),
 });
 export type BreakEven = z.infer<typeof BreakEvenSchema>;
 

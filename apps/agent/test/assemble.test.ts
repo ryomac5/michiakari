@@ -103,7 +103,12 @@ describe("assembleJudgment", () => {
     expect(judgment.options).toEqual(results.alternatives.options);
     const r = results.breakEven.result;
     if (r.kind !== "future" && r.kind !== "passed") throw new Error("分岐点がありません");
-    expect(judgment.breakEven).toEqual({ time: r.time, explanation: "説明" });
+    // 分岐点の時刻と再開の見込みの確率はツールの結果から取り、説明だけを決定から受け取る
+    expect(judgment.breakEven).toEqual({
+      time: r.time,
+      explanation: "説明",
+      resumeChance: results.breakEven.resumeChance,
+    });
     expect(judgment.reason).toBe("理由");
     expect(judgment.disclaimer.length).toBeGreaterThan(0);
   });

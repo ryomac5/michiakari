@@ -141,6 +141,9 @@ export function ReplayPlayer({
     now,
     judgedAt: display.settled?.at ?? null,
     timeline: selectTimelineBasis(display.settled, catalog, deadline),
+    // 時刻ごとの再開の見込み。シナリオでは最初の観測が発生なので「発生から」を出す
+    chance: display.breakEven?.resumeChance ?? null,
+    showOnset: true,
   };
   const switchStep = selectSwitchStep(display.judgment ?? null);
 

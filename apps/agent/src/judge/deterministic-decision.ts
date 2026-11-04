@@ -1,4 +1,4 @@
-import { computeLateShare } from "@repo/core";
+import { computeLateShare, selectKeyTick } from "@repo/core";
 import type { Action, Knowledge, RouteOption } from "@repo/schema";
 import { decisionParams } from "../config.ts";
 import type { Decision } from "../tools/emit-judgment.ts";
@@ -8,6 +8,7 @@ import { buildComputedBreakEven, type JudgeSession } from "./session.ts";
 import {
   buildDecisionText,
   buildNoAlternativeSentence,
+  type ChanceTextInput,
   type DecisionReason,
   type DecisionTextInput,
   type TrainQueueText,
@@ -181,6 +182,18 @@ function buildFlowText(estimate: EstimateToolResult): DecisionTextInput["flow"] 
   };
 }
 
+// 理由の最後に添える確率。待ったほうが早く着く確率を優先し、無ければ期限、目盛りの順に使う
+function buildChanceText(breakEven: BreakEvenToolResult): ChanceTextInput | null {
+  const chance = breakEven.resumeChance ?? null;
+  if (!chance) return null;
+  const key = selectKeyTick(chance.ticks);
+  return {
+    waitFaster: chance.waitFaster,
+    waitOnTime: chance.waitOnTime,
+    keyTick: key ? { time: key.time, tenths: key.tenths } : null,
+  };
+}
+
 export function decideDeterministically(
   session: JudgeSession,
   results: JudgmentToolResults,
@@ -209,6 +222,7 @@ export function decideDeterministically(
     deadline: results.breakEven.deadline,
     bestOption,
     flow: buildFlowText(results.estimate),
+    chance: buildChanceText(results.breakEven),
     trainQueue: buildTrainQueueText(results.estimate, bestOption),
   });
   return {

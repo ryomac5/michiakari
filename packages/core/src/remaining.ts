@@ -72,13 +72,14 @@ function sampleTotalRemaining(
   return samples;
 }
 
-// 段階と段階内の経過分から、残り時間の p50・p80（分、整数）を返す
-export function estimateRemaining(
+// 段階と段階内の経過分から、残り時間の標本（分、昇順）を返す。estimateRemaining はこの標本の分位点を取る
+// 確率の計算（resume-chance.ts）も同じ標本を使う
+export function sampleRemaining(
   knowledge: Knowledge,
   phaseId: string,
   elapsedInPhaseMinutes: number,
   options: RemainingOptions = {},
-): DurationDist {
+): number[] {
   if (!Number.isFinite(elapsedInPhaseMinutes) || elapsedInPhaseMinutes < 0) {
     throw new RangeError(`経過時間は 0 以上の有限値: ${elapsedInPhaseMinutes}`);
   }
@@ -90,15 +91,53 @@ export function estimateRemaining(
   const models = knowledge.phases.map((p) => fitDurationModel(p.duration_minutes));
   const current = models[index];
   if (current === undefined) throw new RangeError(`段階 ${phaseId} のモデルがありません`);
-  const samples = sampleTotalRemaining(
+  return sampleTotalRemaining(
     current,
     models.slice(index + 1),
     fitDurationModel(getFirstTrainWait(knowledge)),
     elapsedInPhaseMinutes,
     resumeFloorMinutes,
   ).sort((a, b) => a - b);
+}
+
+// 昇順の標本から p50・p80（分、整数）を取る
+export function summarizeSamples(sorted: readonly number[]): DurationDist {
   return {
-    p50: Math.round(computeQuantile(samples, 0.5)),
-    p80: Math.round(computeQuantile(samples, 0.8)),
+    p50: Math.round(computeQuantile(sorted, 0.5)),
+    p80: Math.round(computeQuantile(sorted, 0.8)),
   };
+}
+
+// 段階と段階内の経過分から、残り時間の p50・p80（分、整数）を返す
+export function estimateRemaining(
+  knowledge: Knowledge,
+  phaseId: string,
+  elapsedInPhaseMinutes: number,
+  options: RemainingOptions = {},
+): DurationDist {
+  return summarizeSamples(sampleRemaining(knowledge, phaseId, elapsedInPhaseMinutes, options));
+}
+
+// 分布ごとの標本の控え。知見の初列車待ちのように同じ分布を判断のたびに使うので、作り直さない
+const durationSamplesCache = new WeakMap<DurationDist, readonly number[]>();
+
+function sampleDurationDistBase(dist: DurationDist): readonly number[] {
+  const cached = durationSamplesCache.get(dist);
+  if (cached) return cached;
+  const model = fitDurationModel(dist);
+  const random = createMulberry32(MONTE_CARLO_SEED);
+  const samples: number[] = new Array(MONTE_CARLO_SAMPLE_COUNT);
+  for (let i = 0; i < MONTE_CARLO_SAMPLE_COUNT; i++) samples[i] = sampleDuration(model, random);
+  samples.sort((a, b) => a - b);
+  durationSamplesCache.set(dist, samples);
+  return samples;
+}
+
+// 所要時間の分布から標本（分、昇順）を作る。offsetMinutes を足して返す
+// 発表された見込み時刻までの分に初列車待ちを足す場合や、再開後の初列車待ちだけが残る場合に使う
+export function sampleDurationDist(dist: DurationDist, offsetMinutes = 0): number[] {
+  if (!Number.isFinite(offsetMinutes) || offsetMinutes < 0) {
+    throw new RangeError(`足す分は 0 以上の有限値: ${offsetMinutes}`);
+  }
+  return sampleDurationDistBase(dist).map((v) => v + offsetMinutes);
 }

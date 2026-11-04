@@ -114,6 +114,8 @@ const recommendedBubbleHeight = 130;
 const blockedTagMeters = [900, 750, 650, 500, 380, 260, 180];
 // 現在地や吹き出しの基準点から、これより近い候補は使わない（px）
 const blockedTagClearance = 70;
+// 札の中心が、吹き出しやボタンの矩形からこれだけ離れるようにする（px）。札の幅と高さの半分に余白を足した値
+const blockedTagMargin = { x: 48, y: 22 } as const;
 // 到達範囲の札を置く向きの候補。先頭が既定で、PC 幅は北西、狭い画面は出典や吹き出しと重なりにくい東
 // 既定の向きで吹き出しや線に重なれば、寄せたあとの画面で次の向きを試す
 const reachLabelBearings = {
@@ -708,14 +710,25 @@ export function MapPanel(props: MapPanelProps) {
     // おすすめの駅が変わると吹き出しの大きさが変わるので、寄せ直す
     const recommendedKey = guide?.stations.find((s) => s.recommended)?.key ?? "";
     const fitKey = JSON.stringify([view, bounds, recommendedKey, top, right, bottom, left, narrow]);
+    let moving = false;
     if (bounds && fitKey !== fittedRef.current) {
       fitView(fittedRef.current === null);
       fittedRef.current = fitKey;
+      moving = map.isMoving();
     }
     setStatus((s) => (s === "ready" ? "updating" : s));
-    const stopWaiting = waitForOwnLayersDrawn(map, () => setStatus("ready"));
-    map.triggerRepaint();
-    return stopWaiting;
+    // 寄せる動きの最中は準備中のままにし、止まってから描き終わりを待つ。札やボタンが動く間に準備ができたと見せないため
+    let stopWaiting = () => {};
+    const startWaiting = () => {
+      stopWaiting = waitForOwnLayersDrawn(map, () => setStatus("ready"));
+      map.triggerRepaint();
+    };
+    if (moving) map.once("moveend", startWaiting);
+    else startWaiting();
+    return () => {
+      map.off("moveend", startWaiting);
+      stopWaiting();
+    };
   }, [map, scene, guide, reachLabels, view, fitView, top, right, bottom, left, narrow]);
 
   // 到達範囲の札を、寄せたあとの画面で吹き出しや線と重ならない向きに置き直す。地図が止まるたびに選び直す
@@ -834,8 +847,13 @@ export function MapPanel(props: MapPanelProps) {
       return;
     }
     const here = guide.here.position;
-    // 地図が止まるたびに、見える範囲に入る点を選び直す
+    // 地図が止まるたびに、見える範囲に入る点を選び直す。動いている間は札を出さず、吹き出しやボタンに重なって見える瞬間を作らない
+    const hide = () => setBlockedTagPosition(null);
     const place = () => {
+      if (map.isMoving()) {
+        hide();
+        return;
+      }
       const anchors = [here, ...guide.stations.map((s) => s.position)].map((p) => map.project(p));
       const canvas = map.getCanvas();
       const width = canvas.clientWidth;
@@ -846,7 +864,7 @@ export function MapPanel(props: MapPanelProps) {
         const p = findPointAtDistance(blockedPath, here, m);
         return p ? [p] : [];
       });
-      // 吹き出しと現在地の札と「全体を見る」のボタンの矩形。札の幅と高さの半分だけ広げて、重なる点を外す
+      // 吹き出しと現在地の札と「全体を見る」のボタンの矩形。札の幅と高さの半分に余白を足して広げ、重なる点を外す
       // 地図に重なる部品（リプレイの発表など）は data-map-obstacle で印を付ける。隠れている部品は大きさが 0 になるので外す
       const origin = canvas.getBoundingClientRect();
       const toggle = viewToggleRef.current;
@@ -863,10 +881,10 @@ export function MapPanel(props: MapPanelProps) {
         if (r.width === 0 || r.height === 0) return [];
         return [
           {
-            left: r.left - origin.left - 44,
-            right: r.right - origin.left + 44,
-            top: r.top - origin.top - 14,
-            bottom: r.bottom - origin.top + 14,
+            left: r.left - origin.left - blockedTagMargin.x,
+            right: r.right - origin.left + blockedTagMargin.x,
+            top: r.top - origin.top - blockedTagMargin.y,
+            bottom: r.bottom - origin.top + blockedTagMargin.y,
           },
         ];
       });
@@ -882,8 +900,10 @@ export function MapPanel(props: MapPanelProps) {
       setBlockedTagPosition(chosen ?? null);
     };
     place();
+    map.on("movestart", hide);
     map.on("moveend", place);
     return () => {
+      map.off("movestart", hide);
       map.off("moveend", place);
     };
   }, [map, blockedPath, view, guide, top, right, bottom, left]);
