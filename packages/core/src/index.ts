@@ -6,6 +6,7 @@ export {
   PREDICTABILITY_HIGH_MAX_RATIO,
   PREDICTABILITY_MEDIUM_MAX_RATIO,
   SHORT_FLOW_MAX_MINUTES,
+  STATED_RESUME_SLACK_MINUTES,
 } from "../params/estimation.ts";
 export * from "../params/routing.ts";
 export {
@@ -73,6 +74,7 @@ export {
   enumeratePhasePaths,
   estimateBranchAwareRemaining,
   estimateStatedRemaining,
+  estimateStatedRemainingWithoutKnowledge,
   findPhasePaths,
   type PhasePaths,
 } from "./remaining-paths.ts";
