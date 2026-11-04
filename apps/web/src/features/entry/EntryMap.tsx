@@ -62,6 +62,8 @@ type EntryMapProps = {
 };
 
 const kansaiCenter: Position = [135.5, 34.75];
+// 様子を聞く段。行き先を選び終えているので、出発と行き先を弧で結び、視点は動かさない
+const situationStages = new Set<EntryStage>(["cause", "elapsed", "resume", "input"]);
 const sourceIds = { lines: "entry-lines", trip: "entry-trip" } as const;
 // 名前の札のぶん、印のまわりに空ける余白（px）
 const labelMargin = { x: 96, y: 44 };
@@ -302,8 +304,7 @@ export function EntryMap(props: EntryMapProps) {
 
   // 行き先を選んだら、出発と行き先を弧で結ぶ
   const origin = place?.position ?? null;
-  const showTrip =
-    (stage === "method" || stage === "input" || stage === "elapsed") && destination !== null;
+  const showTrip = situationStages.has(stage) && destination !== null;
   const destinationPosition = destination?.position ?? null;
   useEffect(() => {
     if (!map) return;
@@ -327,7 +328,7 @@ export function EntryMap(props: EntryMapProps) {
   const { top, right, bottom, left } = insets;
   const stopKey = [...stops.map((s) => s.key), ...focus.map((p) => p.join(":"))].join(",");
   const cameraKey = JSON.stringify([
-    stage === "input" || stage === "elapsed" ? "method" : stage,
+    situationStages.has(stage) ? "situation" : stage,
     area?.id,
     area?.center,
     place?.key,

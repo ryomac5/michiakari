@@ -51,12 +51,19 @@ export const testIds = {
     positionStation: "start-position-station",
     positionTrain: "start-position-train",
     nearStop: (id: string) => `start-near-stop-${id}`,
+    // 様子の 3 つの問い。原因、止まってからの時間、再開の見込み
     cause: (id: string) => `start-cause-${id}`,
     elapsed: (id: string) => `start-elapsed-${id}`,
+    resume: (id: string) => `start-resume-${id}`,
+    // 放送で聞いた再開見込みの時刻。id は HHMM
+    resumeTime: (id: string) => `start-resume-time-${id}`,
+    // 答えたことを示すチップ。押すとその問いへ戻る
+    answer: (kind: "cause" | "elapsed") => `start-answer-${kind}`,
     trip: "start-trip",
     editLine: "start-edit-line",
     editDestination: "start-edit-destination",
-    method: (kind: SituationTab) => `start-method-${kind}`,
+    // 発表文や掲示を持っている人向けの、撮る・貼るの小さな入口
+    method: (kind: Exclude<SituationTab, "select">) => `start-method-${kind}`,
     replayLink: "start-replay-link",
   },
   situation: {

@@ -106,12 +106,15 @@ test("入口で「非常ボタン・急病」を選ぶと、待つの判断と�
   await page.locator("[data-testid^='start-direction-']").first().click();
   await page.getByTestId(testIds.start.destinationUndecided).click();
   await page.getByTestId(testIds.start.positionStation).click();
-  await page.getByTestId(testIds.start.method("select")).click();
 
+  // 様子の段は方式を選ばせず、すぐに原因を聞く。原因、時間、再開見込みの順に答える
   const inCar = page.getByTestId(testIds.start.cause("inCar"));
   await expect(inCar).toHaveText("非常ボタン・急病");
   await inCar.click();
-  await page.getByTestId(testIds.start.elapsed("m5")).click();
+  await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText("非常ボタン・急病");
+  await page.getByTestId(testIds.start.elapsed("now")).click();
+  await expect(page.getByTestId(testIds.start.answer("elapsed"))).toContainText("いま止まった");
+  await page.getByTestId(testIds.start.resume("unknown")).click();
 
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
   const conclusion = page.getByTestId(testIds.judgment.conclusion);

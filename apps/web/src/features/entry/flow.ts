@@ -1,9 +1,10 @@
 import type { OriginLine } from "@/features/judgment/session";
-import type { SituationTab } from "@/features/judgment/testids";
+import type { ElapsedOption } from "@/features/situation/plain-questions";
 import type { EntryArea, EntryPlace } from "./entry-places";
 
-// 入口の段。関西 → エリア → 駅（路線） → 方面 → 行き先 → いまどこ → 入力の方法 → 入力 の順に進む
-// 選んで答えるときは、入力の段で原因を聞き、経過の段で止まってからの時間を聞く
+// 入口の段。関西 → エリア → 駅（路線） → 方面 → 行き先 → いまどこ → 原因 → 経過 → 再開見込み の順に進む
+// 様子は原因・経過・再開見込みの 3 つの問いで聞き、最後の答えでそのまま判断を始める
+// 発表文や掲示を持っている人は、原因の段から撮る・貼るの入力の段へ横に入る
 // 戻る操作で 1 段ずつ引く
 
 export type EntryStage =
@@ -13,9 +14,13 @@ export type EntryStage =
   | "direction"
   | "destination"
   | "position"
-  | "method"
-  | "input"
-  | "elapsed";
+  | "cause"
+  | "elapsed"
+  | "resume"
+  | "input";
+
+// 撮る・貼るの入力の方法
+export type EntryMethod = "photo" | "paste";
 
 // 原因の答え。eventType は知見の id。聞き取れなかったときは null
 export type CauseAnswer = { eventType: string | null };
@@ -29,8 +34,10 @@ export type EntryState = {
   direction: string | null;
   // 方面が 1 つしか無く、聞かずに決めたか。戻る操作で方面の段を飛ばす
   directionAuto: boolean;
-  method: SituationTab | null;
+  method: EntryMethod | null;
   cause: CauseAnswer | null;
+  // 止まってからの時間の答え
+  elapsed: ElapsedOption["id"] | null;
 };
 
 export type EntryAction =
@@ -41,8 +48,9 @@ export type EntryAction =
   | { type: "chooseDirection"; direction: string }
   | { type: "chooseDestination" }
   | { type: "choosePosition" }
-  | { type: "chooseMethod"; method: SituationTab }
+  | { type: "chooseMethod"; method: EntryMethod }
   | { type: "chooseCause"; cause: CauseAnswer }
+  | { type: "chooseElapsed"; elapsed: ElapsedOption["id"] }
   | { type: "back" }
   // 端末の戻る操作や、行き先・路線の選び直しで、その深さの段まで引く
   | { type: "backTo"; depth: number }
@@ -57,23 +65,26 @@ export const initialEntryState: EntryState = {
   directionAuto: false,
   method: null,
   cause: null,
+  elapsed: null,
 };
 
-const stageOrder: EntryStage[] = [
-  "kansai",
-  "area",
-  "station",
-  "direction",
-  "destination",
-  "position",
-  "method",
-  "input",
-  "elapsed",
-];
+// 段の深さ。関西が 0、再開見込みが 8。端末の履歴の深さと対応させる
+// 撮る・貼るの入力は原因の段から横に入るので、経過と同じ深さにする
+const stageDepths: Record<EntryStage, number> = {
+  kansai: 0,
+  area: 1,
+  station: 2,
+  direction: 3,
+  destination: 4,
+  position: 5,
+  cause: 6,
+  elapsed: 7,
+  input: 7,
+  resume: 8,
+};
 
-// 段の深さ。関西が 0、経過が 8。端末の履歴の深さと対応させる
 export function stageDepth(stage: EntryStage): number {
-  return stageOrder.indexOf(stage);
+  return stageDepths[stage];
 }
 
 // 進み具合の印。路線・方面・行き先・いまどこ・様子の 5 つ。駅より前の段は -1
@@ -99,12 +110,14 @@ function stepBack(state: EntryState): EntryState {
         : { ...state, stage: "direction", direction: null };
     case "position":
       return { ...state, stage: "destination" };
-    case "method":
-      return { ...state, stage: "position", method: null };
+    case "cause":
+      return { ...state, stage: "position", method: null, cause: null, elapsed: null };
     case "input":
-      return { ...state, stage: "method", method: null, cause: null };
+      return { ...state, stage: "cause", method: null };
     case "elapsed":
-      return { ...state, stage: "input", cause: null };
+      return { ...state, stage: "cause", cause: null, elapsed: null };
+    case "resume":
+      return { ...state, stage: "elapsed", elapsed: null };
   }
 }
 
@@ -125,6 +138,7 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
         directionAuto: auto !== null,
         method: null,
         cause: null,
+        elapsed: null,
       };
     }
     case "chooseDirection":
@@ -132,12 +146,18 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
     case "chooseDestination":
       return state.direction ? { ...state, stage: "position" } : state;
     case "choosePosition":
-      return state.direction ? { ...state, stage: "method", method: null } : state;
+      return state.direction
+        ? { ...state, stage: "cause", method: null, cause: null, elapsed: null }
+        : state;
     case "chooseMethod":
-      return state.direction ? { ...state, stage: "input", method: action.method } : state;
+      return state.stage === "cause" ? { ...state, stage: "input", method: action.method } : state;
     case "chooseCause":
-      return state.stage === "input" && state.method === "select"
-        ? { ...state, stage: "elapsed", cause: action.cause }
+      return state.stage === "cause"
+        ? { ...state, stage: "elapsed", cause: action.cause, elapsed: null }
+        : state;
+    case "chooseElapsed":
+      return state.stage === "elapsed" && state.cause
+        ? { ...state, stage: "resume", elapsed: action.elapsed }
         : state;
     case "back":
       return stepBack(state);
