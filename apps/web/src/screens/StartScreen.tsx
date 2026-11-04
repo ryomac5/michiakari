@@ -55,6 +55,11 @@ import {
   stageDepth,
 } from "@/features/entry/flow";
 import { buildLineObservation } from "@/features/entry/seed";
+import {
+  buildDefaultBetweenPosition,
+  buildStationPosition,
+  NEXT_STATION_CANDIDATE_LIMIT,
+} from "@/features/entry/train-position-defaults";
 import { useEntryHistory } from "@/features/entry/use-entry-history";
 import { type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { testIds } from "@/features/judgment/testids";
@@ -131,6 +136,8 @@ export function StartScreen() {
     setOriginNearest,
     setTripContext,
     tripContext,
+    trainPosition,
+    setTrainPosition,
     rememberStationName,
     stationNames,
     catalog,
@@ -156,6 +163,10 @@ export function StartScreen() {
   const [onTrain, setOnTrain] = useState(false);
   // 電車の中で選んだ近い駅。出発の駅をこの駅で近似する
   const [nearStop, setNearStop] = useState<DirectionStop | null>(null);
+  // 駅と駅の間と答えたか。次の駅を出発の駅にし、前提は判断の画面のチップで直す
+  const between = trainPosition?.kind === "between_stations";
+  // 前の列車の既定の並びを、運転パターンから推し量ったか
+  const [betweenFromPattern, setBetweenFromPattern] = useState(false);
   const [destinationBasis, setDestinationBasis] =
     useState<TripContext["destinationBasis"]>("chosen");
   // 再開見込みの問いで押した答え。判断を始めるまでその札に印を出す
@@ -194,9 +205,21 @@ export function StartScreen() {
     if (depth >= stageDepth("position")) return;
     // いまどこの段より前に引いたら、電車の中の答えを捨てて出発を選んだ駅に戻す
     setOnTrain(false);
-    if (nearStop && entry.line) setOrigin({ kind: "station", name: entry.line.stationName });
+    if ((nearStop || between) && entry.line) {
+      setOrigin({ kind: "station", name: entry.line.stationName });
+    }
     setNearStop(null);
-  }, [entry.stage, entry.line, depth, nearStop, setOrigin, setOriginLine]);
+    setTrainPosition(null);
+  }, [
+    entry.stage,
+    entry.line,
+    depth,
+    nearStop,
+    between,
+    setOrigin,
+    setOriginLine,
+    setTrainPosition,
+  ]);
 
   // 判断の画面から戻ったときは、選んだ駅・路線・行き先の状態に戻す
   useEffect(() => {
@@ -215,12 +238,16 @@ export function StartScreen() {
     if (!auto) dispatch({ type: "chooseDirection", direction: chosen.key });
     dispatch({ type: "chooseDestination" });
     setDestinationBasis(tripContext.destinationBasis);
-    if (tripContext.onTrain) {
+    if (tripContext.position === "trainAtStation") {
       const stop = listNearbyStops(data, originLine, lineDirections, chosen).find(
         (s) => s.choice.name === origin.name,
       );
       setOnTrain(true);
       setNearStop(stop ?? null);
+    }
+    // 駅と駅の間の前提は session の trainPosition に残っている。出どころの印だけ戻す
+    if (tripContext.position === "betweenStations") {
+      setBetweenFromPattern(tripContext.trainsAheadFromPattern ?? false);
     }
     dispatch({ type: "choosePosition" });
     // 様子の段で答えたところまで進め、最後に答えた問いから選び直せるようにする
@@ -321,14 +348,39 @@ export function StartScreen() {
     setOnTrain(false);
     setNearStop(null);
     setOrigin({ kind: "station", name: entry.line.stationName });
+    setTrainPosition(buildStationPosition("at_station"));
     dispatch({ type: "choosePosition" });
   }
 
-  // 電車の中なら、選んだ近い駅にいるとみなす
+  // 駅に止まっている車内なら、選んだ駅にいるとみなす
   function chooseNearStop(stop: DirectionStop) {
     rememberStationName(stop.choice.name, stop.choice.nameEn);
     setNearStop(stop);
     setOrigin({ kind: "station", name: stop.choice.name });
+    setTrainPosition(buildStationPosition("on_train_at_station"));
+    dispatch({ type: "choosePosition" });
+  }
+
+  // 駅と駅の間なら、問いを重ねずに既定値で進む。次の駅を出発の駅にし、前提は判断の画面で直せる
+  function chooseBetween() {
+    if (!entry.line || !direction) return;
+    const defaults = buildDefaultBetweenPosition(entry.line, direction);
+    if (!defaults) {
+      chooseStation();
+      return;
+    }
+    const next = direction.stops[0];
+    if (next) rememberStationName(next.choice.name, next.choice.nameEn);
+    setOnTrain(false);
+    setNearStop(null);
+    setBetweenFromPattern(defaults.trainsAheadFromPattern);
+    setTrainPosition(defaults.position, {
+      edited: { nextStation: false, ownTrainType: false, trainsAhead: false },
+      trainsAheadFromPattern: defaults.trainsAheadFromPattern,
+    });
+    if (defaults.position.nextStation) {
+      setOrigin({ kind: "station", name: defaults.position.nextStation });
+    }
     dispatch({ type: "choosePosition" });
   }
 
@@ -353,7 +405,13 @@ export function StartScreen() {
       directionKey: direction.key,
       directionLabel: direction.label,
       destinationBasis,
-      onTrain: nearStop !== null,
+      onTrain: nearStop !== null || between,
+      position: between ? "betweenStations" : nearStop ? "trainAtStation" : "station",
+      nextStationCandidates: direction.stops
+        .slice(0, NEXT_STATION_CANDIDATE_LIMIT)
+        .map((s) => ({ name: s.choice.name, nameEn: s.choice.nameEn })),
+      directionStopNames: direction.stops.map((s) => s.choice.name),
+      trainsAheadFromPattern: betweenFromPattern,
       entryAnswers: { method: entry.method, cause: entry.cause, elapsed: entry.elapsed },
       ...(answers
         ? { elapsedMinutes: answers.elapsedMinutes, causeUnknown: answers.causeUnknown }
@@ -657,13 +715,20 @@ export function StartScreen() {
                 hereId={entry.line.stationName}
                 onStation={chooseStation}
                 onTrainChosen={() => setOnTrain(true)}
+                onBetween={chooseBetween}
                 onNearStop={chooseNearStop}
               />
             )}
             {entry.stage === "cause" && entry.line && (
               <TripCard
                 originName={lineOriginName}
-                originNote={nearStop ? t("entry.positionTrain") : null}
+                originNote={
+                  between
+                    ? t("entry.positionBetweenTrip")
+                    : nearStop
+                      ? t("entry.positionTrain")
+                      : null
+                }
                 destinationName={destinationLabel}
                 destinationNote={destinationNote}
                 line={entry.line}

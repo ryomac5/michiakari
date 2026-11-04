@@ -1,6 +1,6 @@
 "use client";
 
-import type { Observation, Place, RawInput } from "@repo/schema";
+import type { Observation, Place, RawInput, TrainPosition } from "@repo/schema";
 import { useLocale } from "next-intl";
 import {
   createContext,
@@ -47,6 +47,13 @@ type JudgmentSession = {
   // 入口で選んだ方面と、行き先・出発の決め方。判断の画面で前提として示し、入口に戻ったときに復元する
   tripContext: TripContext | null;
   setTripContext: (context: TripContext | null) => void;
+  // 車内の位置。駅と駅の間なら、次の駅・自分の種別・前の列車の並びを持つ
+  trainPosition: TrainPosition | null;
+  // 既定値のままか、利用者が判断の画面で直したか
+  trainPositionMeta: TrainPositionMeta;
+  setTrainPosition: (position: TrainPosition | null, meta?: TrainPositionMeta) => void;
+  // 車内の前提を直し、同じ観測で判断を出し直す。次の駅を変えたら出発の駅も変える
+  updateTrainPosition: (position: TrainPosition, meta: TrainPositionMeta) => void;
   observations: Observation[];
   state: JudgmentState;
   catalog: KnowledgeCatalog;
@@ -77,8 +84,16 @@ export type TripContext = {
   directionLabel: { ja: string; en: string };
   // chosen は利用者が選んだ駅。hub と terminal は方面だけで進んだときの仮の行き先
   destinationBasis: "chosen" | "hub" | "terminal";
-  // 電車の中にいて、近い駅を出発の駅とみなした
+  // 電車の中にいて、近い駅か次の駅を出発の駅とみなした
   onTrain: boolean;
+  // いまどこの答え。駅にいる、駅に止まっている車内、駅と駅の間
+  position: "station" | "trainAtStation" | "betweenStations";
+  // 方面の先の駅。駅と駅の間なら、次の駅の候補にする
+  nextStationCandidates?: { name: string; nameEn: string | null }[];
+  // 方面の先の駅の名前。前の列車の既定の並びを運転パターンから推し量る手がかりにする
+  directionStopNames?: string[];
+  // 前の列車の既定の並びを運転パターンから推し量ったか。入口に戻ったときに復元する
+  trainsAheadFromPattern?: boolean;
   // 止まってからの分。分からなければ null。選んで答えたときだけ持つ
   elapsedMinutes?: number | null;
   // 原因を聞き取れなかった。選んで答えたときだけ持つ
@@ -91,6 +106,18 @@ export type EntryAnswers = {
   method: EntryMethod | null;
   cause: CauseAnswer | null;
   elapsed: ElapsedOption["id"] | null;
+};
+
+// 車内の前提のうち、利用者が判断の画面で直した項目と、前の列車の並びの出どころ
+export type TrainPositionMeta = {
+  edited: { nextStation: boolean; ownTrainType: boolean; trainsAhead: boolean };
+  // 前の列車の並びを運転パターンから推し量ったか
+  trainsAheadFromPattern: boolean;
+};
+
+export const defaultTrainPositionMeta: TrainPositionMeta = {
+  edited: { nextStation: false, ownTrainType: false, trainsAhead: false },
+  trainsAheadFromPattern: false,
 };
 
 const JudgmentSessionContext = createContext<JudgmentSession | null>(null);
@@ -109,20 +136,34 @@ export function JudgmentSessionProvider({
   const [originNearest, setOriginNearest] = useState<NearestStationLabel | null>(null);
   const [originLine, setOriginLine] = useState<OriginLine | null>(null);
   const [tripContext, setTripContext] = useState<TripContext | null>(null);
+  const [trainPosition, setTrainPositionState] = useState<TrainPosition | null>(null);
+  const [trainPositionMeta, setTrainPositionMeta] =
+    useState<TrainPositionMeta>(defaultTrainPositionMeta);
   const [observations, setObservations] = useState<Observation[]>([]);
   const [state, setState] = useState<JudgmentState>(createJudgmentState);
   const [mockEnabled, setMockEnabled] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
   const lastInputRef = useRef<RawInput | null>(null);
+  // 判断の要求は、入口で決めた直後にも出す。state の反映を待たずに読めるよう ref にも持つ
+  const trainPositionRef = useRef<TrainPosition | null>(null);
 
   useEffect(() => {
     setMockEnabled(isMockRequested(window.location.search));
     return () => controllerRef.current?.abort();
   }, []);
 
+  const setTrainPosition = useCallback(
+    (position: TrainPosition | null, meta: TrainPositionMeta = defaultTrainPositionMeta) => {
+      trainPositionRef.current = position;
+      setTrainPositionState(position);
+      setTrainPositionMeta(meta);
+    },
+    [],
+  );
+
   const runJudgment = useCallback(
-    async (input: RawInput | null, known: Observation[]) => {
-      if (origin === null || destination === null) return;
+    async (input: RawInput | null, known: Observation[], from: Place | null = origin) => {
+      if (from === null || destination === null) return;
       controllerRef.current?.abort();
       const controller = new AbortController();
       controllerRef.current = controller;
@@ -131,10 +172,11 @@ export function JudgmentSessionProvider({
       const request = buildJudgeRequest({
         observations: known,
         newInput: input,
-        origin,
+        origin: from,
         destination,
         language: locale,
         now: new Date(),
+        trainPosition: trainPositionRef.current,
       });
       const stream: JudgmentStream = mockEnabled ? streamMockJudgment : streamJudgment;
 
@@ -182,6 +224,20 @@ export function JudgmentSessionProvider({
     void runJudgment(lastInputRef.current, observations);
   }, [runJudgment, observations]);
 
+  // 駅と駅の間の前提を直したら、次の駅を出発の駅にして、同じ観測で判断を出し直す
+  const updateTrainPosition = useCallback(
+    (position: TrainPosition, meta: TrainPositionMeta) => {
+      setTrainPosition(position, meta);
+      const from: Place | null =
+        position.kind === "between_stations" && position.nextStation
+          ? { kind: "station", name: position.nextStation }
+          : origin;
+      setOrigin(from);
+      void runJudgment(null, observations, from);
+    },
+    [setTrainPosition, runJudgment, observations, origin],
+  );
+
   const rememberStationName = useCallback((name: string, nameEn: string | null) => {
     setStationNames((prev) => (prev[name] === nameEn ? prev : { ...prev, [name]: nameEn }));
   }, []);
@@ -206,6 +262,10 @@ export function JudgmentSessionProvider({
       setOriginLine,
       tripContext,
       setTripContext,
+      trainPosition,
+      trainPositionMeta,
+      setTrainPosition,
+      updateTrainPosition,
       observations,
       state,
       catalog: effectiveCatalog,
@@ -223,6 +283,10 @@ export function JudgmentSessionProvider({
       originNearest,
       originLine,
       tripContext,
+      trainPosition,
+      trainPositionMeta,
+      setTrainPosition,
+      updateTrainPosition,
       observations,
       state,
       effectiveCatalog,

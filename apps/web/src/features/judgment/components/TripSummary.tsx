@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { describePlace } from "@/features/stations/describe";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { useJudgmentSession } from "../session";
 
 // 上部の帯に置く「大阪 → 京都」。押すと開始画面に戻って選び直せる
@@ -19,12 +20,27 @@ export function TripSummary({
 }) {
   const t = useTranslations();
   const locale = useLocale();
-  const { stationNames, originNearest } = useJudgmentSession();
+  const { stationNames, originNearest, trainPosition } = useJudgmentSession();
   const current = t("start.currentLocation");
-  const from = describePlace(origin, locale, current, stationNames, originNearest).label;
+  const nameOf = (name: string) =>
+    describePlace({ kind: "station", name }, locale, current, stationNames).label;
+  // 駅と駅の間の車内なら、出発の駅ではなく「大阪〜塚本」のように駅の間にいることを出す
+  const between =
+    trainPosition?.kind === "between_stations" &&
+    trainPosition.previousStation &&
+    trainPosition.nextStation
+      ? { from: trainPosition.previousStation, to: trainPosition.nextStation }
+      : null;
+  const from = between
+    ? t("judgment.tripBetween", { from: nameOf(between.from), to: nameOf(between.to) })
+    : describePlace(origin, locale, current, stationNames, originNearest).label;
   const to = describePlace(destination, locale, current, stationNames).label;
+  // 狭い画面では「大阪〜塚本 → 三ノ宮」が見合わせの札と並ばないので、出発と行き先を 2 段に重ねる
+  const narrow = useMediaQuery("(max-width: 639px)");
 
-  return <TripChip testId={testId} from={from} to={to} href="/" />;
+  return (
+    <TripChip testId={testId} from={from} to={to} href="/" stacked={between !== null && narrow} />
+  );
 }
 
 export function TripChip({
@@ -32,14 +48,28 @@ export function TripChip({
   to,
   testId,
   href = null,
+  stacked = false,
 }: {
   from: string;
   to: string;
   testId?: string;
   href?: string | null;
+  // 出発と行き先を 2 段に重ねて、横幅を抑える
+  stacked?: boolean;
 }) {
   const t = useTranslations();
-  const content = (
+  const content = stacked ? (
+    <span className="flex h-8 min-w-0 items-center rounded-full bg-foreground/[0.06] px-2.5 text-[11px] leading-[1.15] font-semibold whitespace-nowrap">
+      <span className="sr-only">{t("judgment.trip", { origin: from, destination: to })}</span>
+      <span aria-hidden className="flex min-w-0 flex-col">
+        <span className="truncate">{from}</span>
+        <span className="flex min-w-0 items-center gap-0.5">
+          <ArrowRight className="size-3 shrink-0 text-muted" aria-hidden />
+          <span className="truncate">{to}</span>
+        </span>
+      </span>
+    </span>
+  ) : (
     <span className="flex h-8 min-w-0 items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 text-[13px] font-semibold whitespace-nowrap">
       <span className="sr-only">{t("judgment.trip", { origin: from, destination: to })}</span>
       <span aria-hidden className="truncate">

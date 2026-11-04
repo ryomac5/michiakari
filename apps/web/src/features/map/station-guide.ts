@@ -77,6 +77,8 @@ export type StationGuide = {
     // 推奨の選択肢が現在地の駅で乗る路線
     recommendedLineId: string | null;
   };
+  // 駅間の車内の人が降りる駅。現在地の印は駅間の線路の上に置き、この駅を別の印で目立たせる
+  alight: { position: Position; name: string } | null;
   stations: GuideStation[];
   // 現在地から各駅への徒歩の道。直線の点線で示す
   walkPaths: FeatureCollection<
@@ -107,6 +109,10 @@ export type StationGuideInput = {
   origin: Place;
   options: readonly RouteOption[];
   recommendedOptionId: string | null;
+  // 駅間の車内。現在地の印を来た側の駅と次の駅のあいだの線路の上に置く。label は「大阪〜塚本の間」
+  between?: { previousStation: string; nextStation: string; label: string } | null;
+  // 止まっている区間の折れ線。駅間の現在地を線路の上に置くのに使う
+  blockedPath?: readonly Position[] | null;
   // 止まっている路線。地図の止まっている区間から求めたもの
   blockedLineIds: readonly string[];
   // 止まっている路線の呼び方（観測の line）。現在地の札に使う
@@ -379,7 +385,19 @@ export function buildStationGuide(
     ];
   });
 
-  const herePosition = toPosition(originNode.lonLat);
+  // 出発の駅の位置。徒歩の道と到達範囲はこの駅から引く
+  const originPosition = toPosition(originNode.lonLat);
+  // 現在地の印。駅間の車内なら、来た側の駅と次の駅のあいだの線路の上に置く
+  const previousNode = input.between
+    ? resolveStationByName(geo.index, input.between.previousStation, input.blockedLineIds)
+    : undefined;
+  const herePosition = previousNode
+    ? findMidpointAlongPath(
+        input.blockedPath ?? [],
+        toPosition(previousNode.lonLat),
+        originPosition,
+      )
+    : originPosition;
   const hereLines = uniqueLines(
     groupNodes.map((n) => buildGuideLine(geo, n.lineId, input, transferLineIds)),
   )
@@ -409,16 +427,17 @@ export function buildStationGuide(
     optionMarks,
     here: {
       position: herePosition,
-      name: area.hereName[lang],
+      name: previousNode && input.between ? input.between.label : area.hereName[lang],
       lines: hereLines,
       recommendedLineId: recommended?.kind === "wait" ? null : recommendedLineId,
     },
+    alight: previousNode ? { position: originPosition, name: area.hereName[lang] } : null,
     stations,
     walkPaths: {
       type: "FeatureCollection",
       features: stations.map((s) => ({
         type: "Feature",
-        geometry: { type: "LineString", coordinates: [herePosition, s.position] },
+        geometry: { type: "LineString", coordinates: [originPosition, s.position] },
         properties: { key: s.key, recommended: s.recommended },
       })),
     },
@@ -429,8 +448,8 @@ export function buildStationGuide(
         geometry: {
           type: "Point",
           coordinates: [
-            (herePosition[0] + s.position[0]) / 2,
-            (herePosition[1] + s.position[1]) / 2,
+            (originPosition[0] + s.position[0]) / 2,
+            (originPosition[1] + s.position[1]) / 2,
           ],
         },
         properties: {
@@ -443,8 +462,57 @@ export function buildStationGuide(
     relevantLineIds: [
       ...new Set([...hereLines, ...stations.flatMap((s) => s.lines)].map((l) => l.lineId)),
     ],
-    bounds: computeFitBounds([herePosition, ...stations.map((s) => s.position)], 0.004),
+    bounds: computeFitBounds(
+      [herePosition, originPosition, ...stations.map((s) => s.position)],
+      0.004,
+    ),
   };
+}
+
+// 折れ線の上で、2 点にいちばん近い頂点のあいだの道のりの中ほどの点。駅間の現在地を線路の上に置くのに使う
+// 折れ線が無いか、2 点が同じ頂点に寄るときは、2 点の直線の中点にする
+export function findMidpointAlongPath(
+  path: readonly Position[],
+  a: Position,
+  b: Position,
+): Position {
+  const straight: Position = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  if (path.length < 2) return straight;
+  const nearestIndex = (p: Position) => {
+    let best = 0;
+    let bestMeters = Number.POSITIVE_INFINITY;
+    path.forEach((vertex, i) => {
+      const meters = computeDistanceMeters(vertex, p);
+      if (meters < bestMeters) {
+        bestMeters = meters;
+        best = i;
+      }
+    });
+    return best;
+  };
+  const ia = nearestIndex(a);
+  const ib = nearestIndex(b);
+  if (ia === ib) return straight;
+  const segment = path.slice(Math.min(ia, ib), Math.max(ia, ib) + 1);
+  const cumulative = [0];
+  for (let i = 1; i < segment.length; i++) {
+    const prev = segment[i - 1] as Position;
+    const next = segment[i] as Position;
+    cumulative.push((cumulative[i - 1] ?? 0) + computeDistanceMeters(prev, next));
+  }
+  const total = cumulative.at(-1) ?? 0;
+  if (total === 0) return straight;
+  const half = total / 2;
+  for (let i = 1; i < segment.length; i++) {
+    const end = cumulative[i] ?? 0;
+    if (end < half) continue;
+    const start = cumulative[i - 1] ?? 0;
+    const prev = segment[i - 1] as Position;
+    const next = segment[i] as Position;
+    const t = end === start ? 0 : (half - start) / (end - start);
+    return [prev[0] + (next[0] - prev[0]) * t, prev[1] + (next[1] - prev[1]) * t];
+  }
+  return straight;
 }
 
 // 折れ線の上で、起点からの直線距離が meters を初めて超える点。止まっている区間の札を置くのに使う
