@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { HeaderBackButton } from "@/components/HeaderBackButton";
 import { MapSheet } from "@/components/MapSheet";
 import { SheetSection, useMapChrome } from "@/components/SheetSection";
 import { selectTimelineBasis } from "@/features/judgment/break-even-timeline";
@@ -110,7 +111,17 @@ export function JudgmentScreen() {
 
   return (
     <div data-testid={testIds.judgment.screen} data-status={state.status} className="h-dvh">
-      <AppHeader variant="map">
+      {/* 戻るは端末の戻る操作と同じ道を通し、入口の最後に答えた段へ戻る。更新中と失敗時にも押せる */}
+      <AppHeader
+        variant="map"
+        leading={
+          <HeaderBackButton
+            label={t("back")}
+            testId={testIds.judgment.backButton}
+            onClick={() => router.back()}
+          />
+        }
+      >
         <TripSummary
           origin={origin}
           destination={destination}

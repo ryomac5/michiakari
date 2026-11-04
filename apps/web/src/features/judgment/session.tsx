@@ -12,7 +12,9 @@ import {
   useRef,
   useState,
 } from "react";
+import type { CauseAnswer, EntryMethod } from "@/features/entry/flow";
 import { type KnowledgeCatalog, mergeCatalogs } from "@/features/knowledge/catalog";
+import type { ElapsedOption } from "@/features/situation/plain-questions";
 import type { NearestStationLabel, StationNames } from "@/features/stations/describe";
 import { personAccidentCatalog } from "./fixtures/person-accident";
 import { isMockRequested, streamMockJudgment } from "./mock";
@@ -81,6 +83,14 @@ export type TripContext = {
   elapsedMinutes?: number | null;
   // 原因を聞き取れなかった。選んで答えたときだけ持つ
   causeUnknown?: boolean;
+  // 様子の段で答えたこと。入口に戻ったとき、最後に答えた問いから再開する
+  entryAnswers?: EntryAnswers;
+};
+
+export type EntryAnswers = {
+  method: EntryMethod | null;
+  cause: CauseAnswer | null;
+  elapsed: ElapsedOption["id"] | null;
 };
 
 const JudgmentSessionContext = createContext<JudgmentSession | null>(null);
