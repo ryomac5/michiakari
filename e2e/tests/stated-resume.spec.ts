@@ -70,6 +70,13 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
   const breakEvenText = await page.getByTestId(testIds.judgment.breakEvenTime).textContent();
   expect(toMinuteOfDay(statedLabel)).toBeLessThan(toMinuteOfDay(breakEvenText ?? ""));
 
+  // 見出しの「あと23分」と分岐点の行の「あと 23 分」は、同じ基準時刻から数えて同じ数字になる
+  const headlineText = await page.getByTestId(testIds.judgment.conclusionHeadline).textContent();
+  const headlineMinutes = Number(/あと(\d+)分/.exec(headlineText ?? "")?.[1]);
+  await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(
+    new RegExp(`あと\\s*${headlineMinutes}\\s*分`),
+  );
+
   // 理由は、発表の時刻をもとにした推定だと分かる言い方にする
   await openSheet(page, "half");
   const reason = page.getByTestId(testIds.judgment.conclusionReason);

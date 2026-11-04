@@ -139,6 +139,7 @@ export function ReplayPlayer({
     known: display.breakEvenKnown,
     stale: display.breakEvenStale,
     now,
+    judgedAt: display.settled?.at ?? null,
     timeline: selectTimelineBasis(display.settled, catalog, deadline),
   };
   const switchStep = selectSwitchStep(display.judgment ?? null);
