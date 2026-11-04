@@ -57,14 +57,11 @@ expectations:
     evidence_includes: [vf_failure_announced]
     break_even_shown: true
     note: 短く終わるか長引くかはまだ分からない。分岐点を示して様子を見る。
-  # obs_2 の期待は wait から switch に変えた（2026-11-05）
-  # 他社線へ回ると 9 時に間に合わないので、勧める代替手段はタクシーになり、分岐点もタクシーの到着で出す
-  # 再開見込みの幅は p80 が 2 時間と大きく、中央（8時06分頃）が分岐点（7時57分）より後なので、タクシーへ切り替える
   - after: obs_2
-    action: switch
+    action: wait
     phase: onsite_repair
     evidence_includes: [vf_repair_in_progress]
-    note: 救援の文言が無く、現場で処置している。他社線へ回ると 9 時に間に合わず、タクシーなら間に合う。再開見込みが分岐点より後なので、タクシーへ切り替える。
+    note: 救援の文言が無く、現場で処置している。他社線へ回ると大きく遠回りになるので待つ。
   - after: obs_3
     action: wait
     phase: resuming

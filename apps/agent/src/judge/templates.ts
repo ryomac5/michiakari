@@ -53,6 +53,33 @@ export function buildPassedSentence(time: string, label: string, language: Lang)
     : `The break-even time of ${formatClock(time, language)} has passed. Even if service resumed now, ${route} would be faster.`;
 }
 
+// 期限が理由でタクシーを勧めるときの分岐点の文。分岐点は、待っても期限に間に合う最後の再開の時刻
+// 「8時10分までに動かなければ、タクシーでないと9時00分に間に合いません」
+export function buildDeadlineBreakEvenSentence(
+  time: string,
+  deadline: string,
+  label: string,
+  language: Lang,
+): string {
+  const route = formatLabelInSentence(label, language);
+  return language === "ja"
+    ? `${formatClock(time, language)}までに動かなければ、${route}でないと${formatClock(deadline, language)}に間に合いません。`
+    : `If service has not resumed by ${formatClock(time, language)}, only ${route} will get you there by ${formatClock(deadline, language)}.`;
+}
+
+// 期限から求めた分岐点を過ぎたとき。いま再開しても、待って期限には間に合わない
+export function buildDeadlinePassedSentence(
+  time: string,
+  deadline: string,
+  label: string,
+  language: Lang,
+): string {
+  const route = formatLabelInSentence(label, language);
+  return language === "ja"
+    ? `分岐点の${formatClock(time, language)}を過ぎました。いま再開しても、${route}でないと${formatClock(deadline, language)}に間に合いません。`
+    : `The break-even time of ${formatClock(time, language)} has passed. Even if service resumed now, only ${route} would get you there by ${formatClock(deadline, language)}.`;
+}
+
 export function buildNoAlternativeSentence(language: Lang): string {
   return language === "ja"
     ? "近くの代わりの経路より、運転再開を待つほうが確実です。"
@@ -127,6 +154,8 @@ export type DecisionTextInput = {
   resumeP80: string | null;
   marginP50Minutes: number | null;
   deadline: string | null;
+  // 期限が理由でタクシーを勧めるときだけ、分岐点を求めた期限。分岐点は、待っても期限に間に合う最後の再開の時刻になる
+  deadlineBasis?: string | null;
   bestOption: Pick<RouteOption, "kind" | "label" | "isTransferService"> | null;
   // 見込みが立てやすい事象のよくある流れ。inReason は理由の頭に流れの一文を置くか
   flow?: { outlook: FlowOutlook; sentence: string; inReason: boolean } | null;
@@ -288,8 +317,53 @@ function nameSwitchTarget(option: DecisionTextInput["bestOption"], language: Lan
   return ja ? "別の路線" : "another line";
 }
 
+// 期限が理由でタクシーを勧めるときの理由。分岐点は、待っても期限に間に合う最後の再開の時刻なので、
+// 「分岐点を過ぎるとタクシーのほうが早く着く」ではなく、待っては期限に間に合わないと書く。当てはまらない理由は null
+function buildDeadlineBasisReason(input: DecisionTextInput): string | null {
+  const ja = input.language === "ja";
+  const clock = (iso: string | null | undefined) => (iso ? formatClock(iso, input.language) : null);
+  const be = clock(input.breakEvenTime);
+  const limit = clock(input.deadlineBasis);
+  if (!be || !limit) return null;
+  const p50 = clock(input.resumeP50);
+  const p80 = clock(input.resumeP80);
+  switch (input.reason) {
+    case "unknown_event":
+      return ja
+        ? `${be}を過ぎると、待っては期限の${limit}に間に合いません。放送で原因が分かれば、もっと確かに言えます。`
+        : `After ${be}, waiting will miss your ${limit} deadline. Hearing the cause will sharpen this.`;
+    case "low_confidence":
+      if (!p50 || !p80) {
+        return ja
+          ? `見込みの幅が大きく、${be}を過ぎると待っては期限の${limit}に間に合いません。`
+          : `The outlook is still wide. After ${be}, waiting will miss your ${limit} deadline.`;
+      }
+      return ja
+        ? `再開見込みは${p50}〜${p80}頃と幅があり、${be}を過ぎると待っては期限の${limit}に間に合いません。`
+        : `Resumption is expected between ${p50} and ${p80}. After ${be}, waiting will miss your ${limit} deadline.`;
+    case "break_even_passed":
+      return ja
+        ? `分岐点の${be}を過ぎ、いま再開しても待っては期限の${limit}に間に合わないためです。`
+        : `The break-even time of ${be} has passed, so waiting would miss your ${limit} deadline even if service resumes now.`;
+    case "stated_resume_after_break_even":
+      if (!p50) return null;
+      return ja
+        ? `発表の再開見込み${p50}が分岐点${be}より遅く、見込みどおりでも待っては期限の${limit}に間に合わないためです。`
+        : `The announced restart of ${p50} is after the break-even time of ${be}, so waiting misses your ${limit} deadline even if it holds.`;
+    case "stated_resume_before_break_even":
+      if (!p50 || (input.marginP50Minutes ?? 0) < 0) return null;
+      return ja
+        ? `発表の再開見込み${p50}が分岐点${be}より早く、見込みどおりなら待って期限の${limit}に間に合います。`
+        : `The announced restart of ${p50} is before the break-even time of ${be}, so waiting makes your ${limit} deadline if it holds.`;
+    default:
+      return null;
+  }
+}
+
 // 決定論モードの理由。判断の根拠を、時刻どうしの比較の形で 1〜2 文にする
 function buildDecisionReason(input: DecisionTextInput): string {
+  const byDeadline = buildDeadlineBasisReason(input);
+  if (byDeadline !== null) return byDeadline;
   const ja = input.language === "ja";
   const clock = (iso: string | null) => (iso ? formatClock(iso, input.language) : null);
   const be = clock(input.breakEvenTime);

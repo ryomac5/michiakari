@@ -19,6 +19,8 @@ import { collectAllowedNumbers, type JudgmentToolResults, validateJudgment } fro
 import type { EventSink, JudgmentEventBody } from "./event-sink.ts";
 import {
   buildBreakEvenSentence,
+  buildDeadlineBreakEvenSentence,
+  buildDeadlinePassedSentence,
   buildNoAlternativeSentence,
   buildPassedSentence,
   buildProgressMessage,
@@ -100,8 +102,13 @@ export function buildComputedBreakEven(
   const r = breakEven.result;
   if (r.kind === "no_route" || r.kind === "no_alternative") return null;
   const label = findOptionLabel(alternatives, r.bestAlternativeId);
-  const explanation =
-    r.kind === "passed"
+  // 期限が理由でタクシーを勧めるときは、待っても期限に間に合う最後の再開の時刻として説明する
+  const deadline = r.deadlineBasis;
+  const explanation = deadline
+    ? r.kind === "passed"
+      ? buildDeadlinePassedSentence(r.time, deadline, label, language)
+      : buildDeadlineBreakEvenSentence(r.time, deadline, label, language)
+    : r.kind === "passed"
       ? buildPassedSentence(r.time, label, language)
       : buildBreakEvenSentence(r.time, label, language);
   const resumeChance = breakEven.resumeChance ?? null;

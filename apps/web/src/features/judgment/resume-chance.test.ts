@@ -68,6 +68,13 @@ describe("buildChanceLayout", () => {
     expect(deadline?.iconSide).toBe("right");
   });
 
+  it("期限が理由でタクシーを勧め、分岐点が期限から求めた時刻と同じなら、印は分岐点の 1 つだけ", () => {
+    // 期限に間に合うために動いていなければならない時刻 23:45 が、そのまま分岐点になる
+    const layout = buildChanceLayout({ chance, breakEvenTime: at("23:45"), nowMs: ms("22:10") });
+    expect(layout.marks.map((m) => m.kind)).toEqual(["breakEven"]);
+    expect(layout.marks[0]?.time).toBe(at("23:45"));
+  });
+
   it("日本語の短い文字なら、英語では置けない隙間にも置ける", () => {
     // 全部の棒が高いとき、22:38 の印の右の隙間は日本語の文字だけが収まる
     const narrow = { ...chance, ticks: chance.ticks.map((t) => ({ ...t, tenths: 8 })) };

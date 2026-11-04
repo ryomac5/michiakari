@@ -4,6 +4,8 @@ import { headlineLimits, reasonLimits } from "../src/config.ts";
 import { checkDecisiveWording } from "../src/judge/assemble.ts";
 import {
   buildBreakEvenSentence,
+  buildDeadlineBreakEvenSentence,
+  buildDeadlinePassedSentence,
   buildDecisionText,
   buildPassedSentence,
   buildWeatherSummary,
@@ -200,6 +202,79 @@ describe("分岐点の説明文", () => {
         buildPassedSentence(time, label, "en"),
       ]) {
         expect(sentence).not.toMatch(/.\b(Via|Transfer service)\b/);
+      }
+    }
+  });
+});
+
+describe("期限が理由でタクシーを勧めるときの文", () => {
+  const time = "2026-11-06T08:10:00+09:00";
+  const deadline = "2026-11-06T09:00:00+09:00";
+
+  it("分岐点の説明は、動かなければタクシーでないと期限に間に合わない形で書く", () => {
+    expect(buildDeadlineBreakEvenSentence(time, deadline, "タクシー", "ja")).toBe(
+      "8時10分までに動かなければ、タクシーでないと9時00分に間に合いません。",
+    );
+    expect(buildDeadlineBreakEvenSentence(time, deadline, "Taxi", "en")).toBe(
+      "If service has not resumed by 08:10, only a taxi will get you there by 09:00.",
+    );
+  });
+
+  it("分岐点を過ぎたときは、いま再開しても期限に間に合わないと書く", () => {
+    expect(buildDeadlinePassedSentence(time, deadline, "タクシー", "ja")).toBe(
+      "分岐点の8時10分を過ぎました。いま再開しても、タクシーでないと9時00分に間に合いません。",
+    );
+    expect(buildDeadlinePassedSentence(time, deadline, "Taxi", "en")).toBe(
+      "The break-even time of 08:10 has passed. Even if service resumed now, only a taxi would get you there by 09:00.",
+    );
+  });
+
+  it("理由は、タクシーのほうが早く着くではなく、待っては期限に間に合わないと書く", () => {
+    const taxi = { kind: "taxi", label: "タクシー", isTransferService: false } as const;
+    const base = {
+      language: "ja",
+      breakEvenMinutesFromNow: 45,
+      breakEvenTime: time,
+      resumeP50: "2026-11-06T08:06:00+09:00",
+      resumeP80: "2026-11-06T09:37:00+09:00",
+      marginP50Minutes: 16,
+      deadline,
+      deadlineBasis: deadline,
+      bestOption: taxi,
+    } as const;
+    const hold = buildDecisionText({ ...base, reason: "low_confidence" });
+    expect(hold.reason).toBe(
+      "再開見込みは8時06分〜9時37分頃と幅があり、8時10分を過ぎると待っては期限の9時00分に間に合いません。",
+    );
+    const passed = buildDecisionText({ ...base, reason: "break_even_passed" });
+    expect(passed.reason).toBe(
+      "分岐点の8時10分を過ぎ、いま再開しても待っては期限の9時00分に間に合わないためです。",
+    );
+    for (const reason of ["unknown_event", "low_confidence", "break_even_passed"] as const) {
+      expect(buildDecisionText({ ...base, reason }).reason).not.toContain("のほうが早く着きます");
+    }
+    // 期限が理由でなければ、これまでどおり代替手段のほうが早く着くと書く
+    const plain = buildDecisionText({ ...base, deadlineBasis: null, reason: "low_confidence" });
+    expect(plain.reason).toContain("タクシーのほうが早く着きます");
+  });
+
+  it("期限が理由の理由の文は、見出しと理由の上限に収まる", () => {
+    const taxi = { kind: "taxi", label: "タクシー", isTransferService: false } as const;
+    for (const language of ["ja", "en"] as const) {
+      for (const reason of REASONS) {
+        const text = buildDecisionText({
+          reason,
+          language,
+          breakEvenMinutesFromNow: 45,
+          breakEvenTime: time,
+          resumeP50: "2026-11-06T08:06:00+09:00",
+          resumeP80: "2026-11-06T09:37:00+09:00",
+          marginP50Minutes: 16,
+          deadline,
+          deadlineBasis: deadline,
+          bestOption: taxi,
+        });
+        expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits[language].max);
       }
     }
   });

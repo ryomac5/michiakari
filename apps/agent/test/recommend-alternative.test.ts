@@ -76,6 +76,17 @@ function withoutRail(provider: AlternativesProvider): AlternativesProvider {
   };
 }
 
+// タクシーを取り除いた探索。鉄道の代替だけが残る
+function withoutTaxi(provider: AlternativesProvider): AlternativesProvider {
+  return {
+    ...provider,
+    async findAlternatives(query) {
+      const result = await provider.findAlternatives(query);
+      return { ...result, options: result.options.filter((o) => o.kind !== "taxi") };
+    },
+  };
+}
+
 const provider = createGeoProvider();
 const app = createTestApp();
 
@@ -121,6 +132,19 @@ describe("塚本から三ノ宮への判断: 鉄道の代替がある", () => {
     expect(railBreakEven - taxiBreakEven).toBe(railArrival - taxiArrival);
   });
 
+  it("待ったほうが早く着く確率は、勧める鉄道の代替の到着で出る。タクシーの有無で変わらない", async () => {
+    const withTaxi = findJudgment(await postJudge(app, buildRequest()));
+    const railApp = createTestApp(createTestDeps({ provider: withoutTaxi(provider) }));
+    const railOnly = findJudgment(await postJudge(railApp, buildRequest()));
+    expect(recommendedOf(withTaxi)?.id).toBe(recommendedOf(railOnly)?.id);
+    const chance = withTaxi.breakEven?.resumeChance;
+    expect(chance?.waitFaster).not.toBeNull();
+    // タクシーは到着が早いが、確率も分岐点も、勧める鉄道の代替の到着から出ている
+    expect(chance?.waitFaster).toBe(railOnly.breakEven?.resumeChance?.waitFaster);
+    expect(withTaxi.breakEven?.time).toBe(railOnly.breakEven?.time);
+    expect(chance?.resumeByForDeadline).toBeNull();
+  });
+
   it("鉄道の代替が期限に間に合うなら、タクシーのほうが早くても鉄道の代替を勧める", async () => {
     const base = findJudgment(await postJudge(app, buildRequest()));
     const rail = base.options.find((o) => o.kind === "transfer");
@@ -154,6 +178,42 @@ describe("塚本から三ノ宮への判断: タクシーを勧める", () => {
     expect(recommendedOf(judgment)?.kind).toBe("taxi");
     expect(judgment.headline).toContain("タクシー");
     expect(judgment.options.some((o) => o.kind === "transfer")).toBe(true);
+  });
+
+  it("期限が理由でタクシーを勧めるときは、分岐点を期限から求め、待って期限に間に合う確率で示す", async () => {
+    const base = findJudgment(await postJudge(app, buildRequest()));
+    const taxi = base.options.find((o) => o.kind === "taxi");
+    const deadline = addMinutesToIso(taxi?.arrivalTime ?? now, 1);
+    const judgment = findJudgment(await postJudge(app, buildRequest(deadline)));
+    const breakEven = judgment.breakEven;
+    const chance = breakEven?.resumeChance;
+    // 待っても期限に間に合う最後の再開の時刻。確率の「動いていなければならない時刻」と同じ
+    expect(breakEven?.time).toBe(chance?.resumeByForDeadline);
+    // タクシーの到着から求めた分岐点より、期限とタクシーの到着の差の 1 分だけ後ろになる
+    const noRailApp = createTestApp(createTestDeps({ provider: withoutRail(provider) }));
+    const fromTaxi = findJudgment(await postJudge(noRailApp, buildRequest()));
+    expect(Date.parse(breakEven?.time ?? "") - Date.parse(fromTaxi.breakEven?.time ?? "")).toBe(
+      60_000,
+    );
+    expect(breakEven?.explanation).toMatch(
+      /までに動かなければ、タクシーでないと.+に間に合いません。$/,
+    );
+    // タクシーより早く着くかは比べない
+    expect(chance?.waitFaster).toBeNull();
+    expect(chance?.waitOnTime).not.toBeNull();
+    expect(judgment.reason ?? "").not.toContain("待ったほうが早く着く");
+  });
+
+  it("タクシーしか無ければ、期限があっても、分岐点はタクシーの到着から求め、待ったほうが早く着く確率も出す", async () => {
+    const noRail = createTestApp(createTestDeps({ provider: withoutRail(provider) }));
+    const plain = findJudgment(await postJudge(noRail, buildRequest()));
+    const taxi = plain.options.find((o) => o.kind === "taxi");
+    const deadline = addMinutesToIso(taxi?.arrivalTime ?? now, 30);
+    const judgment = findJudgment(await postJudge(noRail, buildRequest(deadline)));
+    expect(judgment.breakEven?.time).toBe(plain.breakEven?.time);
+    expect(judgment.breakEven?.explanation).toBe(plain.breakEven?.explanation);
+    expect(judgment.breakEven?.explanation).toContain("タクシーのほうが早く着きます");
+    expect(judgment.breakEven?.resumeChance?.waitFaster).not.toBeNull();
   });
 
   it("鉄道の代替もタクシーも期限に間に合わないときは、鉄道の代替を勧める", async () => {
@@ -201,14 +261,20 @@ describe("computeBreakEvenForOptions", () => {
     expect(computed.comparison.map((c) => c.optionId)).toContain("taxi");
   });
 
-  it("期限に間に合うのがタクシーだけなら、タクシーで分岐点を求める", () => {
+  it("期限に間に合うのがタクシーだけなら、タクシーを勧め、分岐点は期限から求める", () => {
     const computed = computeBreakEvenForOptions({
       ...base,
       options,
       deadline: "2026-11-05T23:20:00+09:00",
     });
     expect(computed.basisOptionIds).toEqual(["taxi"]);
-    expect(computed.result).toMatchObject({ kind: "future", bestAlternativeId: "taxi" });
+    // 期限 23:20 − 乗車 20 分 − 初列車待ち 5 分 = 22:55。タクシーの到着 23:10 から求めた 22:45 ではない
+    expect(computed.result).toMatchObject({
+      kind: "future",
+      bestAlternativeId: "taxi",
+      time: "2026-11-05T22:55:00+09:00",
+      deadlineBasis: "2026-11-05T23:20:00+09:00",
+    });
   });
 
   it("代替手段が無ければ分岐点は無い", () => {

@@ -220,6 +220,7 @@ export function decideDeterministically(
     resumeP80: hasBreakEven ? (r.resumeOutlook?.resumeP80 ?? null) : null,
     marginP50Minutes: hasBreakEven ? (r.resumeOutlook?.marginP50Minutes ?? null) : null,
     deadline: results.breakEven.deadline,
+    deadlineBasis: hasBreakEven ? (r.deadlineBasis ?? null) : null,
     bestOption,
     flow: buildFlowText(results.estimate),
     chance: buildChanceText(results.breakEven),
