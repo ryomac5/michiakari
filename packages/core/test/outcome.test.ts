@@ -49,6 +49,30 @@ describe("compareReplayOutcome", () => {
     });
   });
 
+  it("切り替え、待つ、切り替えと変わったら、最後に切り替えへ変わった時点で移る", () => {
+    const outcome = compareReplayOutcome({
+      decisions: [
+        decide("2026-11-05T22:10:00+09:00", "switch", "2026-11-05T23:25:00+09:00"),
+        decide("2026-11-05T22:18:00+09:00", "switch", "2026-11-05T23:30:00+09:00"),
+        decide("2026-11-05T22:32:00+09:00", "wait", "2026-11-06T00:05:00+09:00"),
+        decide("2026-11-05T22:45:00+09:00", "switch", "2026-11-05T23:58:00+09:00"),
+        decide("2026-11-05T23:05:00+09:00", "switch", "2026-11-06T00:15:00+09:00"),
+        decide("2026-11-05T23:35:00+09:00", "wait", "2026-11-06T00:30:00+09:00"),
+      ],
+      resumeOffsetMinutes: 90,
+      startTime: START,
+      firstTrainWaitMinutes: 10,
+      deadline: "2026-11-06T00:25:00+09:00",
+    });
+    expect(outcome?.followed).toEqual({
+      switchedAt: "2026-11-05T22:45:00+09:00",
+      arrival: "2026-11-05T23:58:00+09:00",
+      deadline: { onTime: true, marginMinutes: 27 },
+    });
+    expect(outcome?.counterpart.switchedAt).toBeNull();
+    expect(outcome?.verdict).toBe("followed_earlier");
+  });
+
   it("switch が一度も出なければ、待ち続けた従った人を、最初の観測で切り替えた人と比べる", () => {
     const outcome = compareReplayOutcome({
       decisions: [

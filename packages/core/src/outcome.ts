@@ -44,6 +44,7 @@ export type ReplayOutcomeVerdict = "followed_earlier" | "counterpart_earlier" | 
 
 export type ReplayOutcome = {
   resumedAt: string;
+  // 判断に従った人。切り替えの判断があれば、判断が最後に切り替えへ変わった時点で移った人
   followed: OutcomeTraveler;
   // 比べる相手。切り替えた判断なら待ち続けた人、最後まで待つ判断なら最初の観測で切り替えた人
   // 待つ判断で代替手段が無ければ待ち続けた人とし、従った人と同じ時刻に着く
@@ -69,18 +70,23 @@ function pickWaitRideMinutes(
   return (beforeResume.at(-1) ?? known[0])?.waitRideMinutesAfterResume ?? null;
 }
 
-// 最初に switch が出た判断。再開した後の判断は、従った人がすでに乗れているので数えない
-function findFirstSwitch(
+// 判断が最後に切り替えへ変わった時点。切り替えが続くあいだは、最初に変わった時点を使う
+// 従った人は、その時点で推奨した経路に移る。再開した後の判断は、すでに乗れているので数えない
+function findLastSwitchTurn(
   decisions: readonly ReplayDecision[],
   resumedMs: number,
 ): SwitchPoint | null {
+  let turn: SwitchPoint | null = null;
+  let previousAction: Action | null = null;
   for (const d of decisions) {
     if (parseIsoToMs(d.observedAt) >= resumedMs) break;
-    if (d.action === "switch" && d.recommendedArrival !== null) {
-      return { observedAt: d.observedAt, arrival: d.recommendedArrival };
+    const turned = d.action === "switch" && previousAction !== "switch";
+    if (turned && d.recommendedArrival !== null) {
+      turn = { observedAt: d.observedAt, arrival: d.recommendedArrival };
     }
+    previousAction = d.action;
   }
-  return null;
+  return turn;
 }
 
 // 最初の観測で、最も早い代替手段へ切り替えた場合。代替手段が無ければ null
@@ -128,10 +134,10 @@ export function compareReplayOutcome(input: ReplayOutcomeInput): ReplayOutcome |
     input.deadline,
   );
   // 切り替えた判断なら待ち続けた人と比べ、最後まで待つ判断なら最初に切り替えた人と比べる
-  const firstSwitch = findFirstSwitch(decisions, resumedMs);
-  const switchAtStart = firstSwitch ? null : findSwitchAtStart(decisions);
-  const followed = firstSwitch
-    ? buildTraveler(firstSwitch.observedAt, firstSwitch.arrival, input.deadline)
+  const switchTurn = findLastSwitchTurn(decisions, resumedMs);
+  const switchAtStart = switchTurn ? null : findSwitchAtStart(decisions);
+  const followed = switchTurn
+    ? buildTraveler(switchTurn.observedAt, switchTurn.arrival, input.deadline)
     : waited;
   const counterpart = switchAtStart
     ? buildTraveler(switchAtStart.observedAt, switchAtStart.arrival, input.deadline)

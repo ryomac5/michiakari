@@ -5,9 +5,17 @@ import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import type { Scenario } from "../../packages/schema/src/scenario.ts";
 import { webUrl } from "../servers.ts";
 import {
+  createRecordingMarks,
+  markFirstScreen,
+  markScene,
+  type RecordingMarks,
+  saveRecordingMarks,
+} from "../support/recording-marks.ts";
+import {
   loadReplayScenarios,
   openSheet,
   type SheetSnap,
+  waitForFiniteAnimations,
   waitForJudged,
 } from "../support/replay.ts";
 
@@ -81,7 +89,8 @@ async function showSheet(page: Page, snap: SheetSnap, holdMs: number): Promise<v
 }
 
 // 一覧からシナリオを選び、再生の前の画面で止める
-async function pickScenario(page: Page, scenario: Scenario): Promise<void> {
+// 一覧の背景の地図と札を描き終えたら知らせる。最初の呼び出しでは、動画をそこから切り出す
+async function pickScenario(page: Page, scenario: Scenario, onDrawn?: () => void): Promise<void> {
   await page.goto("/replay");
   await expect(page.getByTestId(testIds.replay.scenario(scenario.id))).toBeVisible({
     timeout: 60_000,
@@ -91,6 +100,11 @@ async function pickScenario(page: Page, scenario: Scenario): Promise<void> {
   if (scheme === "dark" || scheme === "light") {
     await expect(page.locator("html")).toHaveClass(new RegExp(`\\b${scheme}\\b`));
   }
+  await expect(page.getByTestId(testIds.app.backdropMap)).toHaveAttribute("data-state", "ready", {
+    timeout: 60_000,
+  });
+  await waitForFiniteAnimations(page);
+  onDrawn?.();
   await page.waitForTimeout(1500);
   await page.getByTestId(testIds.replay.scenario(scenario.id)).click();
   await expect(page.getByTestId(testIds.replay.screen)).toHaveAttribute("data-state", "idle");
@@ -135,13 +149,23 @@ async function finishReplay(page: Page, scenario: Scenario): Promise<void> {
   await expect(page.getByTestId(testIds.replay.outcome)).toBeVisible();
 }
 
+// 結末のカードが落ち着いた時点を静止画の目印にする
+async function markOutcome(page: Page, marks: RecordingMarks, name: string): Promise<void> {
+  await expect(page.getByTestId(testIds.replay.outcome)).toBeVisible();
+  await waitForFiniteAnimations(page);
+  markScene(marks, name);
+}
+
 test("デモ: リプレイで判断と地図が変わる様子を録画する", async ({ page }) => {
+  // 録画の時刻の目印。頁は作られた直後で、録画の最初のフレームと同じころ
+  // 終わったら動画と同じ場所に書き、trim-recording.ts が読む
+  const marks = createRecordingMarks();
   const scenarios = loadReplayScenarios();
   const scenario = selectDemoScenario(scenarios);
   const contrast = selectContrastScenario(scenarios, scenario);
 
   await hideHandleFocusRing(page);
-  await pickScenario(page, scenario);
+  await pickScenario(page, scenario, () => markFirstScreen(marks));
   await showFirstJudgment(page, scenario);
 
   // 速度を上げて再生し、結論が変わるたびに一時停止して、結論とシートの上部を見せる
@@ -169,20 +193,27 @@ test("デモ: リプレイで判断と地図が変わる様子を録画する", 
 
   // 残りの観測は次へで送り、結末のカードへつなぐ。終わるとシートは半分まで開く
   await finishReplay(page, scenario);
-  await page.waitForTimeout(7000);
+  await page.waitForTimeout(1500);
+  await markOutcome(page, marks, "outcome-main");
+  await page.waitForTimeout(5500);
 
   // 対比: 同じ「止まった」でも、慌てず待てば数分で動く事象。最初から待つと言い切る
-  if (!contrast) return;
-  await pickScenario(page, contrast);
-  await showFirstJudgment(page, contrast);
-  await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
-    "data-action",
-    "wait",
-  );
-  await page.getByTestId(testIds.replay.playButton).click();
-  await expect(page.getByTestId(testIds.replay.screen)).toHaveAttribute("data-state", "ended", {
-    timeout: 5 * 60_000,
-  });
-  await page.waitForTimeout(2500);
-  await showSheet(page, "half", 5000);
+  if (contrast) {
+    await pickScenario(page, contrast);
+    await showFirstJudgment(page, contrast);
+    await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
+      "data-action",
+      "wait",
+    );
+    await page.getByTestId(testIds.replay.playButton).click();
+    await expect(page.getByTestId(testIds.replay.screen)).toHaveAttribute("data-state", "ended", {
+      timeout: 5 * 60_000,
+    });
+    await page.waitForTimeout(2500);
+    await showSheet(page, "half", 1500);
+    await markOutcome(page, marks, "outcome-contrast");
+    await page.waitForTimeout(3500);
+  }
+
+  await saveRecordingMarks(test.info().outputDir, marks);
 });

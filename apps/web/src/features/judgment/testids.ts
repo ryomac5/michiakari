@@ -17,6 +17,8 @@ export const testIds = {
     mockBadge: "app-mock-badge",
     menuButton: "app-menu-button",
     menu: "app-menu",
+    // 入口やリプレイの一覧の背景の地図。data-state が ready なら路線を描き終えている
+    backdropMap: "app-backdrop-map",
   },
   // 入口。地図で駅を選び、同じ地図の上のシートで状況まで入れる。data-stage に段を出す
   start: {
