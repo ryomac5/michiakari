@@ -1,4 +1,4 @@
-import type { BreakEven, Evidence, Lang, ProgressStage } from "@repo/schema";
+import type { BreakEven, Evidence, Lang, ProgressStage, ResumeChance } from "@repo/schema";
 import type { z } from "zod";
 import { selectEventType } from "../domain/phase.ts";
 import { ComputeBreakEvenInputSchema, runComputeBreakEven } from "../tools/compute-break-even.ts";
@@ -23,6 +23,7 @@ import {
   buildPassedSentence,
   buildProgressMessage,
   buildWeatherSummary,
+  formatChance,
   formatClock,
 } from "./templates.ts";
 
@@ -62,8 +63,10 @@ function formatOptional(iso: string | null, language: Lang): string | null {
 }
 
 function presentEstimate(r: EstimateToolResult, language: Lang) {
+  // 確率の標本は大きいので Claude には渡さない。確率は compute_break_even が表示にして返す
+  const { remainingSamples: _samples, ...rest } = r;
   return {
-    ...r,
+    ...rest,
     labels: {
       phaseStartedAt: formatOptional(r.phaseStartedAt, language),
       statedResumeTime: formatOptional(r.statedResumeTime, language),
@@ -85,6 +88,7 @@ function findOptionLabel(alternatives: AlternativesToolResult | null, id: string
 }
 
 // break_even_computed で送る分岐点。説明は定型文で、確定した判断では Claude の説明に置き換わる
+// 時刻ごとの再開の見込みも一緒に送るので、画面は判断の確定を待たずに帯を描ける
 export function buildComputedBreakEven(
   breakEven: BreakEvenToolResult,
   alternatives: AlternativesToolResult | null,
@@ -97,7 +101,29 @@ export function buildComputedBreakEven(
     r.kind === "passed"
       ? buildPassedSentence(r.time, label, language)
       : buildBreakEvenSentence(r.time, label, language);
-  return { time: r.time, explanation };
+  const resumeChance = breakEven.resumeChance ?? null;
+  return { time: r.time, explanation, ...(resumeChance ? { resumeChance } : {}) };
+}
+
+// Claude に渡す確率の表示。文にはこの表示をそのまま写させ、数値から言い換えさせない
+function presentResumeChance(chance: ResumeChance | null | undefined, language: Lang) {
+  if (!chance) return null;
+  const label = (tenths: number | null) =>
+    tenths === null ? null : formatChance(tenths, language);
+  return {
+    waitFaster: label(chance.waitFaster),
+    waitOnTime: label(chance.waitOnTime),
+    resumeByForDeadline: formatOptional(chance.resumeByForDeadline, language),
+    ticks: chance.ticks.map((t) => ({
+      time: formatClock(t.time, language),
+      sinceOnsetMinutes: t.sinceOnsetMinutes,
+      chance: label(t.tenths),
+    })),
+    note:
+      language === "ja"
+        ? "確率はこの表示をそのまま文に写す。自分で計算しない。sinceOnsetMinutes は最初の観測を発生とみなした分"
+        : "Copy these labels verbatim; do not compute probabilities yourself. sinceOnsetMinutes counts from the first observation, treated as the onset",
+  };
 }
 
 function presentBreakEven(
@@ -106,8 +132,13 @@ function presentBreakEven(
   language: Lang,
 ) {
   const result = r.result;
+  const resumeChance = presentResumeChance(r.resumeChance, language);
   if (result.kind === "no_route" || result.kind === "no_alternative") {
-    return { ...r, explanationTemplate: buildNoAlternativeSentence(language) };
+    return {
+      ...r,
+      labels: { resumeChance },
+      explanationTemplate: buildNoAlternativeSentence(language),
+    };
   }
   return {
     ...r,
@@ -122,6 +153,7 @@ function presentBreakEven(
         ? formatClock(result.resumeOutlook.resumeP80, language)
         : null,
       deadline: formatOptional(r.deadline, language),
+      resumeChance,
     },
     explanationTemplate: buildComputedBreakEven(r, alternatives, language)?.explanation ?? null,
   };

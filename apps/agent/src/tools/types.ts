@@ -4,6 +4,7 @@ import type {
   Estimate,
   JudgeRequest,
   Observation,
+  ResumeChance,
   RouteOption,
   Scenario,
   TypicalFlow,
@@ -51,6 +52,10 @@ export type EstimateToolResult = {
   flowOutlook: FlowOutlook | null;
   // 結論の理由の頭に置く一文。flowOutlook が null なら null
   flowSentence: string | null;
+  // 確率の計算に使う、乗れるまでの残り時間の標本（分、昇順）。remaining が null なら null。Claude には渡さない
+  remainingSamples?: readonly number[] | null;
+  // 発生とみなした時刻。最初の観測の時刻
+  onsetTime?: string | null;
 };
 
 export type AlternativesToolResult = {
@@ -66,6 +71,8 @@ export type BreakEvenToolResult = {
   comparison: ComparisonRow[];
   basisOptionIds: string[];
   deadline: string | null;
+  // 時刻ごとの再開の見込みと、待ったほうが早く着く確率。残り時間の見込みが無ければ null
+  resumeChance?: ResumeChance | null;
 };
 
 export type WeatherToolResult = {

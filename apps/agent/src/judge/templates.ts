@@ -74,6 +74,47 @@ export type DecisionReason =
   | "stated_resume_after_break_even"
   | "stated_resume_before_break_even";
 
+// 1 割単位の確率の表示。0 は 1 割未満、10 は 9 割以上で、0 割と 10 割は書かない
+export function formatChance(tenths: number, language: Lang): string {
+  if (tenths <= 0) return language === "ja" ? "1割未満" : "under 10%";
+  if (tenths >= 10) return language === "ja" ? "9割以上" : "over 90%";
+  return language === "ja" ? `${tenths}割` : `${tenths * 10}%`;
+}
+
+export type ChanceTextInput = {
+  // 待ったほうが早く着く確率。代替手段が無ければ null
+  waitFaster: number | null;
+  // 待って期限に間に合う確率。期限が無ければ null
+  waitOnTime: number | null;
+  // 代替手段も期限も無いときに使う目盛り。5 割に達する最初の目盛り
+  keyTick: { time: string; tenths: number } | null;
+};
+
+// 確率の 1 文。「待ったほうが早く着く見込みは3割です。」。数値はツールの結果からそのまま渡す
+export function buildChanceSentence(chance: ChanceTextInput, language: Lang): string | null {
+  const ja = language === "ja";
+  if (chance.waitFaster !== null) {
+    const c = formatChance(chance.waitFaster, language);
+    return ja
+      ? `待ったほうが早く着く見込みは${c}です。`
+      : `The chance that waiting gets you there sooner is ${c}.`;
+  }
+  if (chance.waitOnTime !== null) {
+    const c = formatChance(chance.waitOnTime, language);
+    return ja
+      ? `待って期限に間に合う見込みは${c}です。`
+      : `The chance of making your deadline by waiting is ${c}.`;
+  }
+  if (chance.keyTick) {
+    const c = formatChance(chance.keyTick.tenths, language);
+    const clock = formatClock(chance.keyTick.time, language);
+    return ja
+      ? `${clock}には${c}の見込みで動いています。`
+      : `By ${clock}, the chance that trains are moving is ${c}.`;
+  }
+  return null;
+}
+
 export type DecisionTextInput = {
   reason: DecisionReason;
   language: Lang;
@@ -89,6 +130,8 @@ export type DecisionTextInput = {
   bestOption: Pick<RouteOption, "kind" | "label" | "isTransferService"> | null;
   // 見込みが立てやすい事象のよくある流れ。inReason は理由の頭に流れの一文を置くか
   flow?: { outlook: FlowOutlook; sentence: string; inReason: boolean } | null;
+  // 待ったほうが早く着く確率など。理由の最後に 1 文で添える。無ければ添えない
+  chance?: ChanceTextInput | null;
 };
 
 // 見出しは結論だけの短い一言。理由は比較の形で reason に分ける
@@ -299,14 +342,23 @@ function buildFlowFollowUp(input: DecisionTextInput, outlook: FlowOutlook): stri
   return buildDecisionReason(input);
 }
 
-// 見込みが立てやすい事象では、理由の頭に流れの一文を置く。上限を超えるなら流れの一文を外す
+// 見込みが立てやすい事象では、理由の頭に流れの一文を置き、確率があれば最後に 1 文で添える
+// 上限を超えるなら、流れの一文、確率の一文の順に外す
 function composeReason(input: DecisionTextInput): string {
   const base = buildDecisionReason(input);
-  const flow = input.flow;
-  if (!flow?.inReason) return base;
   const glue = input.language === "ja" ? "" : " ";
-  const combined = `${flow.sentence}${glue}${buildFlowFollowUp(input, flow.outlook)}`;
-  return [...combined].length <= reasonLimits[input.language].max ? combined : base;
+  const flow = input.flow;
+  const withFlow = flow?.inReason
+    ? `${flow.sentence}${glue}${buildFlowFollowUp(input, flow.outlook)}`
+    : null;
+  const chance = input.chance ? buildChanceSentence(input.chance, input.language) : null;
+  const candidates = [
+    withFlow && chance ? `${withFlow}${glue}${chance}` : null,
+    chance ? `${base}${glue}${chance}` : null,
+    withFlow,
+  ].filter((text): text is string => text !== null);
+  const max = reasonLimits[input.language].max;
+  return candidates.find((text) => [...text].length <= max) ?? base;
 }
 
 // 決定論モードの見出しと理由

@@ -32,13 +32,19 @@ export function assembleJudgment(
 ): Judgment {
   const r = results.breakEven.result;
   const typicalFlow = results.estimate.typicalFlow;
+  // 時刻ごとの再開の見込みと、待ったほうが早く着く確率。分岐点の計算で求め、分岐点と一緒に届ける
+  const resumeChance = results.breakEven.resumeChance ?? null;
   return {
     action: decision.action,
     headline: decision.headline,
     reason: decision.reason,
     breakEven:
       r.kind === "future" || r.kind === "passed"
-        ? { time: r.time, explanation: decision.breakEvenExplanation }
+        ? {
+            time: r.time,
+            explanation: decision.breakEvenExplanation,
+            ...(resumeChance ? { resumeChance } : {}),
+          }
         : null,
     estimate: results.estimate.estimate,
     options: results.alternatives.options,
@@ -53,12 +59,14 @@ export function assembleJudgment(
   };
 }
 
-// 文中の数値。時刻（日本時間の 0 時からの分）、時刻の時だけの表記、分、円に分けて拾う
+// 文中の数値。時刻（日本時間の 0 時からの分）、時刻の時だけの表記、分、円、割合に分けて拾う
 export type TextNumbers = {
   clocks: { raw: string; minuteOfDay: number }[];
   hours: { raw: string; hour: number }[];
   minutes: { raw: string; value: number }[];
   yen: { raw: string; value: number }[];
+  // 「3割」「30%」。1 割単位に直した値。「1割未満」は 1、「9割以上」は 9 として拾う
+  shares: { raw: string; tenths: number }[];
 };
 
 const CLOCK_PATTERN = /(\d{1,2})時(\d{1,2})分|(\d{1,2}):(\d{2})/g;
@@ -67,6 +75,7 @@ const HOUR_ONLY_PATTERN = /(\d{1,2})時/g;
 const MINUTES_PATTERN =
   /(\d+)\s*分|(\d+)\s*(?:(?:more|another|additional|extra)\s+)?(?:minutes|minute|mins|min)\b/gi;
 const YEN_PATTERN = /(\d[\d,]*)\s*円|¥\s*(\d[\d,]*)|(\d[\d,]*)\s*yen\b/gi;
+const SHARE_PATTERN = /(\d{1,2})\s*割|(\d{1,3})\s*(?:%|％|percent|per cent)/gi;
 
 const parseNumber = (raw: string) => Number(raw.replaceAll(",", ""));
 
@@ -79,7 +88,7 @@ function takeMatches(text: string, pattern: RegExp, take: (m: RegExpMatchArray) 
 }
 
 export function extractTextNumbers(text: string): TextNumbers {
-  const found: TextNumbers = { clocks: [], hours: [], minutes: [], yen: [] };
+  const found: TextNumbers = { clocks: [], hours: [], minutes: [], yen: [], shares: [] };
   let rest = text.normalize("NFKC");
   rest = takeMatches(rest, CLOCK_PATTERN, (m) => {
     const minuteOfDay = (Number(m[1] ?? m[3]) % 24) * 60 + Number(m[2] ?? m[4]);
@@ -94,6 +103,10 @@ export function extractTextNumbers(text: string): TextNumbers {
   rest = takeMatches(rest, YEN_PATTERN, (m) => {
     found.yen.push({ raw: m[0], value: parseNumber(m[1] ?? m[2] ?? m[3] ?? "0") });
   });
+  rest = takeMatches(rest, SHARE_PATTERN, (m) => {
+    const tenths = m[1] !== undefined ? Number(m[1]) : Number(m[2]) / 10;
+    found.shares.push({ raw: m[0], tenths });
+  });
   takeMatches(rest, MINUTES_PATTERN, (m) => {
     found.minutes.push({ raw: m[0], value: Number(m[1] ?? m[2]) });
   });
@@ -106,7 +119,14 @@ export type AllowedNumbers = {
   hours: Set<number>;
   minutes: Set<number>;
   yen: Set<number>;
+  // 1 割単位の確率。ツールの resumeChance の値。1 割未満は 1、9 割以上は 9 として許す
+  shares: Set<number>;
 };
+
+// 「1割未満」は「1割」、「9割以上」は「9割」と書かれるので、その数字で許す
+function toWrittenTenths(tenths: number): number {
+  return tenths <= 0 ? 1 : tenths >= 10 ? 9 : tenths;
+}
 
 export type AllowedNumbersInput = {
   results: JudgmentToolResults;
@@ -120,6 +140,7 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
   const { results, observations, now, knowledge } = input;
   const r = results.breakEven.result;
   const hasBreakEven = r.kind === "future" || r.kind === "passed";
+  const chance = results.breakEven.resumeChance ?? null;
   const isoTimes: (string | null)[] = [
     now,
     results.estimate.statedResumeTime,
@@ -127,6 +148,10 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
     results.estimate.boardableP80,
     results.estimate.phaseStartedAt,
     results.breakEven.deadline,
+    // 確率の目盛りの時刻、期限に間に合うために動いていなければならない時刻、発生とみなした時刻
+    ...(chance
+      ? [chance.resumeByForDeadline, chance.onsetTime, ...chance.ticks.map((t) => t.time)]
+      : []),
     ...results.alternatives.options.map((o) => o.arrivalTime),
     ...results.breakEven.comparison.map((c) => c.arrivalTime),
     ...observations.flatMap((o) => [o.observedAt, o.statedResumeTime]),
@@ -160,6 +185,16 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
     ...(hasBreakEven
       ? [r.minutesFromNow, r.resumeOutlook?.marginP50Minutes, r.resumeOutlook?.marginP80Minutes]
       : []),
+    // 目盛りの発生からの分と、いまからの分。「1時間後」の言い方に使う
+    ...(chance
+      ? [
+          chance.stepMinutes,
+          ...chance.ticks.flatMap((t) => [
+            t.sinceOnsetMinutes,
+            Math.round(diffMinutes(now, t.time)),
+          ]),
+        ]
+      : []),
     ...(knowledge
       ? [
           ...knowledge.phases.flatMap((p) => [p.duration_minutes.p50, p.duration_minutes.p80]),
@@ -175,6 +210,11 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
     yen: new Set(
       results.alternatives.options.flatMap((o) => (o.fareYen === null ? [] : [o.fareYen])),
     ),
+    shares: new Set(
+      (chance ? [chance.waitFaster, chance.waitOnTime, ...chance.ticks.map((t) => t.tenths)] : [])
+        .filter((v): v is number => v !== null)
+        .map(toWrittenTenths),
+    ),
   };
   const sources = [
     ...observations.map((o) => o.rawText ?? ""),
@@ -186,6 +226,7 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
     for (const h of numbers.hours) allowed.hours.add(h.hour);
     for (const m of numbers.minutes) allowed.minutes.add(m.value);
     for (const y of numbers.yen) allowed.yen.add(y.value);
+    for (const share of numbers.shares) allowed.shares.add(share.tenths);
   }
   for (const minute of allowed.clockMinutes) allowed.hours.add(Math.floor(minute / 60));
   return allowed;
@@ -199,6 +240,7 @@ function findUnknownNumbers(field: string, text: string, allowed: AllowedNumbers
     ...n.hours.filter((h) => !allowed.hours.has(h.hour)).map((h) => h.raw),
     ...n.minutes.filter((m) => !allowed.minutes.has(m.value)).map((m) => m.raw),
     ...n.yen.filter((y) => !allowed.yen.has(y.value)).map((y) => y.raw),
+    ...n.shares.filter((s) => !allowed.shares.has(s.tenths)).map((s) => s.raw),
   ];
   return unknown.map(
     (raw) =>

@@ -7,8 +7,9 @@ import {
   estimateStatedRemainingWithoutKnowledge,
   getFirstTrainWait,
   parseIsoToMs,
+  sampleDurationDist,
 } from "@repo/core";
-import type { Estimate } from "@repo/schema";
+import type { DurationDist, Estimate } from "@repo/schema";
 import { z } from "zod";
 import { confidenceParams } from "../config.ts";
 import {
@@ -34,10 +35,12 @@ export const estimatePhaseDefinition = {
 } as const;
 
 // 事象が分からないときの結果。発表の再開見込みが先にあれば、その時刻だけを根拠に残り時間を置く
+// 確率の標本は、その見込み（発表の時刻を p50、延びる余地を p80）に当てた分布から作る
 function buildUnknownEstimate(
   now: string,
   stated: StatedResume | null,
   statedIsFuture: boolean,
+  onsetTime: string,
 ): EstimateToolResult {
   const remaining =
     stated && statedIsFuture ? estimateStatedRemainingWithoutKnowledge(stated.time, now) : null;
@@ -63,7 +66,25 @@ function buildUnknownEstimate(
     typicalFlow: null,
     flowOutlook: null,
     flowSentence: null,
+    remainingSamples: remaining ? sampleDurationDist(remaining) : null,
+    onsetTime,
   };
+}
+
+// 確率の計算に使う標本。残り時間の p50・p80 と同じ根拠から作る
+// 知見から見積もるときは分岐と下限を考えた標本、発表の時刻があるときはその時刻に初列車待ちを足した標本、再開の後は初列車待ちだけの標本
+function sampleRemainingByBasis(input: {
+  basis: "knowledge" | "stated" | "resumed";
+  remaining: DurationDist;
+  firstTrainWait: DurationDist;
+  knowledgeSamples: readonly number[];
+}): readonly number[] {
+  if (input.basis === "knowledge") return input.knowledgeSamples;
+  if (input.basis === "resumed") return sampleDurationDist(input.firstTrainWait);
+  return sampleDurationDist(
+    input.firstTrainWait,
+    Math.max(0, input.remaining.p50 - input.firstTrainWait.p50),
+  );
 }
 
 export function runEstimatePhase(
@@ -73,13 +94,14 @@ export function runEstimatePhase(
   const now = ctx.request.now;
   const stated = findLatestStatedResume(ctx.observations);
   const statedIsFuture = stated !== null && parseIsoToMs(stated.time) > parseIsoToMs(now);
+  // 発生時刻は観測から分からないので、最初の観測の時刻を発生とみなす
+  const onsetAt = findOnsetTime(ctx.observations, now);
   const knowledge = input.eventType ? ctx.content.knowledge.get(input.eventType) : undefined;
-  if (!knowledge) return buildUnknownEstimate(now, stated, statedIsFuture);
+  if (!knowledge) return buildUnknownEstimate(now, stated, statedIsFuture, onsetAt);
 
   const detection = detectPhase(knowledge, ctx.observations, now);
   const firstTrainWait = getFirstTrainWait(knowledge);
-  // 知見の下限は発生からの分。発生は最初の観測の時刻とみなす
-  const onsetAt = findOnsetTime(ctx.observations, now);
+  // 知見の下限は発生からの分
   const fromKnowledge = estimateBranchAwareRemaining(
     knowledge,
     detection.phaseId,
@@ -129,5 +151,12 @@ export function runEstimatePhase(
     flowSentence: flowOutlook
       ? buildFlowSentence(typicalFlow, eventName, flowOutlook, language)
       : null,
+    remainingSamples: sampleRemainingByBasis({
+      basis,
+      remaining,
+      firstTrainWait,
+      knowledgeSamples: fromKnowledge.samples,
+    }),
+    onsetTime: onsetAt,
   };
 }
