@@ -4,7 +4,6 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { computeDistanceMeters } from "@repo/geo";
 import { ArrowUp } from "lucide-react";
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
-import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -12,6 +11,7 @@ import { testIds } from "@/features/judgment/testids";
 import type { MapGeoData } from "@/features/map/geo-data";
 import { selectMapLabels } from "@/features/map/labels";
 import { buildBaseStyle, type MapPalette, mapPalettes } from "@/features/map/layers";
+import { MapAttribution, mapAttributionHeight } from "@/features/map/MapAttribution";
 import { loadMapLibre, type MapInsets, useMarkerHosts } from "@/features/map/MapPanel";
 import { prefersReducedMotion, useDocumentTheme } from "@/lib/use-document-theme";
 import type { LabelSide } from "./areas";
@@ -187,6 +187,8 @@ function buildPadding(
 ): { top: number; right: number; bottom: number; left: number } {
   const canvas = map.getCanvas();
   const minVisible = 96;
+  // 余白を詰めても最低限残す描ける範囲（px）
+  const minFit = 24;
   const padding = {
     top: insets.top + margin.y,
     right: insets.right + margin.x,
@@ -195,9 +197,17 @@ function buildPadding(
   };
   const overY = padding.top + padding.bottom - (canvas.clientHeight - minVisible);
   if (overY > 0) {
-    const cut = Math.min(overY, padding.bottom - 8);
-    padding.bottom -= cut;
-    padding.top = Math.max(8, padding.top - (overY - cut));
+    // 下はシートの上の出典の帯まで詰め、上はピンと駅名の札の分を残す
+    // ピンや弧が出典の文字に掛からず、札が上部の帯に隠れないようにする
+    padding.bottom -= Math.max(
+      0,
+      Math.min(overY, padding.bottom - insets.bottom - mapAttributionHeight),
+    );
+    // それでも描ける範囲が無ければ、上部の帯の下まで上を詰め、最後は出典の帯にも掛けて下を詰める
+    const overflow = padding.top + padding.bottom - (canvas.clientHeight - minFit);
+    if (overflow > 0) padding.top = Math.max(insets.top + 8, padding.top - overflow);
+    const rest = padding.top + padding.bottom - (canvas.clientHeight - minFit);
+    if (rest > 0) padding.bottom = Math.max(8, padding.bottom - rest);
   }
   const overX = padding.left + padding.right - (canvas.clientWidth - minVisible);
   if (overX > 0) {
@@ -577,29 +587,7 @@ export function EntryMap(props: EntryMapProps) {
           key,
         );
       })}
-      {/* 出典は隅に 1 行で常設する */}
-      <div
-        style={{ bottom, left, right }}
-        className="pointer-events-none absolute z-10 flex items-end px-3 text-[10px] leading-snug text-muted transition-[bottom] duration-200"
-      >
-        <p
-          aria-hidden
-          className="min-w-0 flex-1 truncate py-0.5 tracking-tight opacity-80 [text-shadow:0_0_3px_var(--background)]"
-        >
-          {labels.attribution.short}
-        </p>
-        <ul className="sr-only">
-          {labels.attribution.full.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-        <Link
-          href="/about"
-          className="pointer-events-auto flex h-11 shrink-0 items-end pb-0.5 pl-2 font-medium underline underline-offset-2 [text-shadow:0_0_3px_var(--background)]"
-        >
-          {labels.attribution.link}
-        </Link>
-      </div>
+      <MapAttribution labels={labels.attribution} insets={{ bottom, left, right }} />
     </section>
   );
 }

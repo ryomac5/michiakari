@@ -11,7 +11,7 @@ import { splitAroundClock } from "../break-even-text";
 import type { TimelineBasis } from "../break-even-timeline";
 import type { SwitchStep } from "../switch-step";
 import { testIds } from "../testids";
-import { type Countdown, computeCountdown, formatClockTime } from "../time";
+import { type Countdown, computeCountdown, computeCountdownFrom, formatClockTime } from "../time";
 import { useNow } from "../use-now";
 import { BreakEvenTimeline, ResumeCaption } from "./BreakEvenTimeline";
 import { NoBreakText } from "./NoBreakText";
@@ -27,6 +27,8 @@ type BreakEvenProps = {
   timeline?: TimelineBasis | null;
   // リプレイではシナリオ内の時刻で残り時間を数える。省略時は端末の時計
   now?: Date | null;
+  // 判断の基準時刻。見出しの「あと23分」と同じ丸め方で残り時間を数え、2 つの数字をそろえる
+  judgedAt?: string | null;
   // 結論のカードが理由を出すときは、分岐点の意味の一文を省いて閉じたシートを短く保つ
   hideMeaning?: boolean;
 };
@@ -43,8 +45,13 @@ type BreakEvenState = "pending" | "none" | "passed" | "soon" | "open";
 function useBreakEvenState(props: BreakEvenProps) {
   const deviceNow = useNow();
   const now = props.now === undefined ? deviceNow : props.now;
-  const { breakEven, known } = props;
-  const countdown = breakEven && now ? computeCountdown(breakEven.time, now) : null;
+  const { breakEven, known, judgedAt = null } = props;
+  const countdown =
+    breakEven && now
+      ? judgedAt
+        ? computeCountdownFrom(breakEven.time, judgedAt, now)
+        : computeCountdown(breakEven.time, now)
+      : null;
   const soon =
     countdown !== null && !countdown.passed && countdown.totalSeconds <= soonThresholdSeconds;
   const state: BreakEvenState = !known

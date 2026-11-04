@@ -46,6 +46,22 @@ export function computeCountdown(targetIso: string, now: Date): Countdown {
   return { totalSeconds, passed, kind, hours, minutes };
 }
 
+// 判断の基準時刻から数えた残り時間。見出しの「あと23分」は基準時刻からの分を四捨五入した値なので、
+// 同じ丸め方で基準時刻からの分を出し、基準時刻から経った分だけ減らす。見出しと表示の数字がそろう
+export function computeCountdownFrom(targetIso: string, basisIso: string, now: Date): Countdown {
+  const targetMs = Date.parse(targetIso);
+  const basisMs = Date.parse(basisIso);
+  const totalSeconds = Math.floor((targetMs - now.getTime()) / 1000);
+  const passed = totalSeconds <= 0;
+  const basisMinutes = Math.round((targetMs - basisMs) / 60_000);
+  const elapsedMinutes = Math.max(0, Math.floor((now.getTime() - basisMs) / 60_000));
+  const remaining = Math.max(0, basisMinutes - elapsedMinutes);
+  const hours = Math.floor(remaining / 60);
+  const minutes = remaining % 60;
+  const kind = passed ? "passed" : remaining < 1 ? "imminent" : hours > 0 ? "hours" : "minutes";
+  return { totalSeconds, passed, kind, hours, minutes };
+}
+
 // 運賃の表示。null は「—」
 export function formatFare(fareYen: number | null, locale: string): string {
   if (fareYen === null) return "—";

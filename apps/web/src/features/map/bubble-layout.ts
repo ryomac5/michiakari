@@ -32,7 +32,7 @@ export function placeBox(item: LayoutItem, placement: BubblePlacement): Rect {
   }
 }
 
-function overlapArea(a: Rect, b: Rect): number {
+export function overlapArea(a: Rect, b: Rect): number {
   const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
   const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
   return w > 0 && h > 0 ? w * h : 0;

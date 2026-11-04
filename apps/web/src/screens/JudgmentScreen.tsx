@@ -103,6 +103,7 @@ export function JudgmentScreen() {
     breakEven: display.breakEven,
     known: display.breakEvenKnown,
     stale: display.breakEvenStale,
+    judgedAt: display.settled?.at ?? null,
     timeline: selectTimelineBasis(display.settled, catalog, null),
   };
   const switchStep = selectSwitchStep(display.judgment ?? null);

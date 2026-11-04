@@ -285,6 +285,34 @@ test("入力を終えると、選んだ路線を見合わせとして判断の�
   await expectStage(page, "destination");
 });
 
+test("判断が出たあとの端末の戻る操作は、1 回で直前の段に戻る", async ({ page }) => {
+  await openEntry(page, false);
+  await page.getByTestId(testIds.start.hub("umeda")).click();
+  await page.getByTestId(testIds.start.place("osaka")).click();
+  await page.getByTestId(testIds.start.line(kobeLine)).click();
+  await page.getByTestId(testIds.start.direction(toKobe)).click();
+  await page.getByTestId(testIds.start.destinationCandidate("三ノ宮")).click();
+  await page.getByTestId(testIds.start.positionStation).click();
+  await page.getByTestId(testIds.start.cause("unknown")).click();
+  await page.getByTestId(testIds.start.elapsed("m10")).click();
+  await page.getByTestId(testIds.start.resume("unknown")).click();
+  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  // 判断が届き、地図が描けてから戻る
+  await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
+    timeout: 30_000,
+  });
+
+  // 1 回目の戻るで様子の問いに戻り、2 回目でいまどこの問いに戻る
+  await page.goBack();
+  await expectStage(page, "cause");
+  await expect(page).toHaveURL(/\/$/);
+  await page.goBack();
+  await expectStage(page, "position");
+  await page.goBack();
+  await expectStage(page, "destination");
+});
+
 test("端末の戻る操作でも、入口の段を 1 段ずつ引ける", async ({ page }) => {
   await openEntry(page);
   await page.getByTestId(testIds.start.hub("umeda")).click();
