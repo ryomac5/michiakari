@@ -1,4 +1,5 @@
 import type { DurationDist, Knowledge } from "@repo/schema";
+import { STATED_RESUME_SLACK_MINUTES } from "../params/estimation.ts";
 import {
   computeResumeFloorRemaining,
   estimateRemaining,
@@ -113,13 +114,28 @@ export function estimateBranchAwareRemaining(
   return { remaining: { p50: short.p50, p80: Math.max(long.p80, short.p80) }, skippedPhaseIds };
 }
 
-// 発表された再開見込み時刻までの分（切り上げ、0 以上）に、再開後の初列車待ちを足す
+// 発表された再開見込み時刻までの分（切り上げ、0 以上）
+function computeMinutesUntilStated(statedResumeTime: string, now: string): number {
+  return Math.max(0, Math.ceil(diffMinutes(now, statedResumeTime)));
+}
+
+// 発表された再開見込み時刻までの分に、再開後の初列車待ちを足す
 export function estimateStatedRemaining(
   knowledge: Knowledge,
   statedResumeTime: string,
   now: string,
 ): DurationDist {
-  const untilResume = Math.max(0, Math.ceil(diffMinutes(now, statedResumeTime)));
+  const untilResume = computeMinutesUntilStated(statedResumeTime, now);
   const wait = getFirstTrainWait(knowledge);
   return { p50: untilResume + wait.p50, p80: untilResume + wait.p80 };
+}
+
+// 原因が分からず知見が無いときの、発表された再開見込み時刻からの残り時間
+// p50 は発表の時刻どおり、p80 は STATED_RESUME_SLACK_MINUTES だけ延びる余地を持たせる
+export function estimateStatedRemainingWithoutKnowledge(
+  statedResumeTime: string,
+  now: string,
+): DurationDist {
+  const untilResume = computeMinutesUntilStated(statedResumeTime, now);
+  return { p50: untilResume, p80: untilResume + STATED_RESUME_SLACK_MINUTES };
 }

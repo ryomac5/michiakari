@@ -34,22 +34,28 @@ function buildInput(input: {
   result: BreakEvenResult;
   flowOutlook?: FlowOutlook | null;
   remainingBasis?: "knowledge" | "stated";
+  statedResumeTime?: string | null;
 }): RuleInput {
+  const stated = input.statedResumeTime ?? null;
   return {
     estimate: {
       estimate: {
         eventType: input.eventType,
         phaseId: input.eventType ? "initial" : null,
         elapsedMinutes: input.eventType ? 3 : null,
-        remaining: input.eventType ? { p50: 50, p80: 125 } : null,
+        remaining: input.eventType || stated ? { p50: 50, p80: 125 } : null,
         confidence: input.confidence,
       },
       phaseName: null,
       phaseGuidance: null,
       phaseStartedAt: null,
-      statedResumeTime: null,
+      statedResumeTime: stated,
       statedExtended: false,
-      remainingBasis: input.eventType ? (input.remainingBasis ?? "knowledge") : null,
+      remainingBasis: input.eventType
+        ? (input.remainingBasis ?? "knowledge")
+        : stated
+          ? "stated"
+          : null,
       skippedPhaseIds: [],
       firstTrainWait: null,
       boardableP50: null,
@@ -166,6 +172,97 @@ describe("保留より先に切り替えを返す規則", () => {
     const result = { ...nambaLate, resumeOutlook: null };
     const outcome = applyDecisionRules(buildInput({ eventType: null, confidence: "low", result }));
     expect(outcome).toEqual({ action: "hold", reason: "unknown_event", recommendedOptionId: null });
+  });
+});
+
+// 原因が分からなくても、放送で聞いた再開見込みの時刻があれば、その時刻と分岐点を比べて言い切る
+describe("原因が分からず、発表の再開見込みがある規則", () => {
+  const stated = "2026-11-05T22:20:00+09:00";
+
+  it("発表の時刻が分岐点より前なら、分岐点まで時間があっても待つ", () => {
+    const result = buildResult({
+      minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
+      marginP50Minutes: 21,
+      marginP80Minutes: 11,
+    });
+    const outcome = applyDecisionRules(
+      buildInput({ eventType: null, confidence: "medium", result, statedResumeTime: stated }),
+    );
+    expect(outcome).toEqual({
+      action: "wait",
+      reason: "stated_resume_before_break_even",
+      recommendedOptionId: "wait",
+    });
+  });
+
+  it("発表の時刻が分岐点より十分に後なら、分岐点まで時間があっても切り替える", () => {
+    const result = buildResult({
+      minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
+      marginP50Minutes: -(decisionParams.switchMarginMinutes + 1),
+      marginP80Minutes: -(decisionParams.switchMarginMinutes + 11),
+    });
+    const outcome = applyDecisionRules(
+      buildInput({ eventType: null, confidence: "medium", result, statedResumeTime: stated }),
+    );
+    expect(outcome).toEqual({
+      action: "switch",
+      reason: "stated_resume_after_break_even",
+      recommendedOptionId: "alt_1",
+    });
+  });
+
+  it("発表の時刻が無ければ、分岐点まで時間があるときは従来どおり保留する", () => {
+    const result = buildResult({
+      minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
+      marginP50Minutes: -24,
+      marginP80Minutes: -82,
+    });
+    const outcome = applyDecisionRules(buildInput({ eventType: null, confidence: "low", result }));
+    expect(outcome).toEqual({ action: "hold", reason: "unknown_event", recommendedOptionId: null });
+  });
+});
+
+describe("発表の再開見込みで比べたときの文言", () => {
+  const base = {
+    language: "ja" as const,
+    breakEvenMinutesFromNow: 36,
+    breakEvenTime: "2026-11-05T22:41:00+09:00",
+    resumeP50: "2026-11-05T22:20:00+09:00",
+    resumeP80: "2026-11-05T22:30:00+09:00",
+    deadline: null,
+    bestOption: {
+      kind: "transfer" as const,
+      label: "Osaka Metro 四つ橋線",
+      isTransferService: false,
+    },
+  };
+
+  it("待つときは、発表の時刻と分岐点を並べ、見込みどおりならと添える", () => {
+    const text = buildDecisionText({
+      ...base,
+      reason: "stated_resume_before_break_even",
+      marginP50Minutes: 21,
+    });
+    expect(text.headline).toBe("あと36分は待てます");
+    expect(text.reason).toBe(
+      "発表の再開見込み22時20分が分岐点22時41分より早く、見込みどおりなら待つほうが早く着きます。",
+    );
+    expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
+  });
+
+  it("切り替えるときは、発表の時刻が分岐点より遅いことを書く", () => {
+    const text = buildDecisionText({
+      ...base,
+      reason: "stated_resume_after_break_even",
+      resumeP50: "2026-11-05T22:50:00+09:00",
+      resumeP80: "2026-11-05T23:00:00+09:00",
+      marginP50Minutes: -9,
+    });
+    expect(text.headline).toBe("いま別の路線に切り替えてください");
+    expect(text.reason).toBe(
+      "発表の再開見込み22時50分が分岐点22時41分より遅く、見込みどおりでも別の路線のほうが早く着くためです。",
+    );
+    expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });
 });
 

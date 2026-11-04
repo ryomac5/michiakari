@@ -20,3 +20,9 @@ export const PREDICTABILITY_MEDIUM_MAX_RATIO = 1.6;
 // agent は慌てず待つと言い切り、画面は次に確かめることを発車の放送に変える
 // 出典: 開発者の推定（仮）
 export const SHORT_FLOW_MAX_MINUTES = 15;
+
+// 原因が分からず、放送で聞いた再開見込みの時刻だけがあるときの延びる余地（分）
+// p50 は発表の時刻どおりとし、p80 はこの分だけ後ろに置く
+// 放送の見込みは 10 分刻みの切りのよい時刻で言われることが多く、原因が分からないと延びる余地を知見から見積もれないので、その 1 刻み分を余地とする
+// 出典: 開発者の推定（仮）
+export const STATED_RESUME_SLACK_MINUTES = 10;

@@ -86,6 +86,8 @@ export const confidenceParams = {
   predictableLevel: "high",
   // そのときの確信度の下限。発表の見込みがまだ無くても、流れが読めるので言い切れる
   floorWhenPredictable: "medium",
+  // 原因が分からず、放送で聞いた再開見込みの時刻だけで見込むときの確信度。発表はあるが、延びる余地を知見で測れない
+  whenStatedWithoutEvent: "medium",
 } as const;
 
 // 結論の一言（headline）の長さ。target は書き方の目安、max を超えたら検証エラーにする
