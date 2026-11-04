@@ -71,6 +71,7 @@
   },
   "judgment": {
     "heading": "Advice",
+    "back": "Back",
     "trip": "{origin} → {destination}",
     "reasoning": {
       "title": "Thinking it through",

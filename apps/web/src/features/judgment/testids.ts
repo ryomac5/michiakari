@@ -85,6 +85,8 @@ export const testIds = {
   },
   judgment: {
     screen: "judgment-screen",
+    // 上部の帯の左端の「戻る」。入口の最後に答えた段へ戻る
+    backButton: "judgment-back-button",
     tripSummary: "judgment-trip-summary",
     // 上部の帯の「JR京都線 見合わせ」
     statusChip: "judgment-status-chip",
