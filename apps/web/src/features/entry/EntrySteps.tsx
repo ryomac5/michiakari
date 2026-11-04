@@ -5,7 +5,6 @@ import {
   ArrowUp,
   BellRing,
   Camera,
-  Check,
   ChevronRight,
   ClipboardPaste,
   Clock,
@@ -682,8 +681,9 @@ export type AnsweredItem = { kind: "cause" | "elapsed"; label: string; onEdit: (
 function AnswerChips({ items }: { items: AnsweredItem[] }) {
   const t = useTranslations("entry");
   if (items.length === 0) return null;
+  // 横に並べ、収まらなければ折り返す。押せる高さは 44px のまま、見える札は低くして場所を取らない
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-x-1.5">
       {items.map((item) => (
         <button
           key={item.kind}
@@ -691,11 +691,12 @@ function AnswerChips({ items }: { items: AnsweredItem[] }) {
           data-testid={testIds.start.answer(item.kind)}
           onClick={item.onEdit}
           aria-label={`${t(`answers.${item.kind}`)} ${item.label}・${t("change")}`}
-          className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full bg-focus/[0.10] pr-3 pl-2.5 text-[14px] leading-none font-semibold text-focus transition-[transform,background-color] duration-150 hover:bg-focus/[0.16] active:scale-[0.97]"
+          className="group -my-1.5 inline-flex h-11 max-w-full min-w-0 items-center"
         >
-          <Check className="size-3.5 shrink-0" strokeWidth={3} aria-hidden />
-          <span className="truncate">{item.label}</span>
-          <Pencil className="size-3 shrink-0 opacity-70" strokeWidth={2.25} aria-hidden />
+          <span className="inline-flex h-8 max-w-full min-w-0 items-center gap-1 rounded-full bg-focus/[0.10] px-2.5 text-[12px] leading-none font-semibold text-focus transition-[transform,background-color] duration-150 group-hover:bg-focus/[0.16] group-active:scale-[0.97]">
+            <span className="truncate">{item.label}</span>
+            <Pencil className="size-3 shrink-0 opacity-70" strokeWidth={2.25} aria-hidden />
+          </span>
         </button>
       ))}
     </div>
