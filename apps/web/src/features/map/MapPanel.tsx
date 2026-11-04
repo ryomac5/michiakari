@@ -119,6 +119,20 @@ const labelSlides = [
 ] as const;
 // 「全体を見る」のボタンの置き場所とおおよその大きさ（px）。札がボタンの下に入らないよう、置き場所の計算で避ける
 const viewToggleBox = { right: 12, bottom: 40, w: 140, h: 44, margin: 6 } as const;
+
+// 「全体を見る」のボタンが動き終えたあとの矩形。地図の左上が原点
+// 下の余白が変わるとボタンは 200ms かけて動く。動いている途中の矩形は測らず、余白から求める
+function computeSettledToggleRect(
+  canvas: { clientWidth: number; clientHeight: number },
+  insets: { right: number; bottom: number },
+  button: { offsetWidth: number; offsetHeight: number },
+): Rect | null {
+  if (button.offsetWidth === 0 || button.offsetHeight === 0) return null;
+  const right = canvas.clientWidth - insets.right - viewToggleBox.right;
+  const bottom = canvas.clientHeight - insets.bottom - viewToggleBox.bottom;
+  return { left: right - button.offsetWidth, right, top: bottom - button.offsetHeight, bottom };
+}
+
 // 止まっている路線の札は、現在地からこの距離の線上に置く
 // 近い順に試し、見える範囲に入り、現在地と吹き出しから離れた最初の点に置く
 const blockedTagMeters = [900, 750, 650, 500, 380, 260, 180];
@@ -822,13 +836,15 @@ export function MapPanel(props: MapPanelProps) {
       const canvas = map.getCanvas();
       const origin = canvas.getBoundingClientRect();
       const toggle = viewToggleRef.current;
+      const settledToggle = toggle
+        ? computeSettledToggleRect(canvas, { right, bottom }, toggle)
+        : null;
       const boxes: Rect[] = [
         ...map
           .getContainer()
           .querySelectorAll<HTMLElement>(
             `[data-testid^="judgment-map-station-"], [data-testid="${mapTestIds.here}"] > div, [data-testid="${mapTestIds.alight}"] > p, [data-testid="${mapTestIds.blockedTag}"]`,
           ),
-        ...(toggle ? [toggle] : []),
       ].flatMap((el) => {
         const r = el.getBoundingClientRect();
         if (r.width === 0 || r.height === 0) return [];
@@ -841,6 +857,7 @@ export function MapPanel(props: MapPanelProps) {
           },
         ];
       });
+      if (settledToggle) boxes.push(settledToggle);
       const toScreen = (p: Position) => {
         const { x, y } = map.project(p);
         return { x, y };
@@ -952,13 +969,15 @@ export function MapPanel(props: MapPanelProps) {
       // 地図に重なる部品（リプレイの発表など）は data-map-obstacle で印を付ける。隠れている部品は大きさが 0 になるので外す
       const origin = canvas.getBoundingClientRect();
       const toggle = viewToggleRef.current;
+      const settledToggle = toggle
+        ? computeSettledToggleRect(canvas, { right, bottom }, toggle)
+        : null;
       const boxes = [
         ...map
           .getContainer()
           .querySelectorAll<HTMLElement>(
             `[data-testid^="judgment-map-station-"], [data-testid="${mapTestIds.here}"] > div, [data-testid="${mapTestIds.alight}"] > p`,
           ),
-        ...(toggle ? [toggle] : []),
         ...document.querySelectorAll<HTMLElement>("[data-map-obstacle]"),
       ].flatMap((el) => {
         const r = el.getBoundingClientRect();
@@ -972,6 +991,14 @@ export function MapPanel(props: MapPanelProps) {
           },
         ];
       });
+      if (settledToggle) {
+        boxes.push({
+          left: settledToggle.left - blockedTagMargin.x,
+          right: settledToggle.right + blockedTagMargin.x,
+          top: settledToggle.top - blockedTagMargin.y,
+          bottom: settledToggle.bottom + blockedTagMargin.y,
+        });
+      }
       const chosen = points.find((p) => {
         const { x, y } = map.project(p);
         return (
@@ -1151,7 +1178,7 @@ export function MapPanel(props: MapPanelProps) {
             fittedRef.current = null;
             setViewChoice(view === "focus" ? "overview" : "focus");
           }}
-          style={{ bottom: bottom + 40, right: right + 12 }}
+          style={{ bottom: bottom + viewToggleBox.bottom, right: right + viewToggleBox.right }}
           className="glass absolute z-10 flex h-11 items-center gap-1.5 rounded-full px-4 text-[13px] font-semibold text-foreground transition-[bottom] duration-200"
         >
           {view === "focus" ? (
@@ -1168,7 +1195,7 @@ export function MapPanel(props: MapPanelProps) {
           aria-label={labels.recenter}
           title={labels.recenter}
           disabled={!scene?.bounds}
-          style={{ bottom: bottom + 40, right: right + 12 }}
+          style={{ bottom: bottom + viewToggleBox.bottom, right: right + viewToggleBox.right }}
           className="glass absolute z-10 flex size-11 items-center justify-center rounded-full text-foreground transition-[bottom] duration-200 disabled:opacity-0"
         >
           <LocateFixed className="size-5" strokeWidth={1.75} aria-hidden />

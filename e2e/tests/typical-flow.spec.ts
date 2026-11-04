@@ -71,7 +71,10 @@ async function expectBlockedTagClearOfToggle(page: Page): Promise<void> {
   if (!a || !b) return;
   const overlaps =
     a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
-  expect(overlaps, "見合わせの札が全体を見るのボタンに重なる").toBe(false);
+  expect(
+    overlaps,
+    `見合わせの札が全体を見るのボタンに重なる 札 ${JSON.stringify(a)} ボタン ${JSON.stringify(b)}`,
+  ).toBe(false);
 }
 
 test("人身事故のリプレイでは、よくある流れで再開まで 1 時間ほどと伝える", async ({ page }) => {
