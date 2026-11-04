@@ -118,17 +118,26 @@ export function estimateRemaining(
   return summarizeSamples(sampleRemaining(knowledge, phaseId, elapsedInPhaseMinutes, options));
 }
 
+// 分布ごとの標本の控え。知見の初列車待ちのように同じ分布を判断のたびに使うので、作り直さない
+const durationSamplesCache = new WeakMap<DurationDist, readonly number[]>();
+
+function sampleDurationDistBase(dist: DurationDist): readonly number[] {
+  const cached = durationSamplesCache.get(dist);
+  if (cached) return cached;
+  const model = fitDurationModel(dist);
+  const random = createMulberry32(MONTE_CARLO_SEED);
+  const samples: number[] = new Array(MONTE_CARLO_SAMPLE_COUNT);
+  for (let i = 0; i < MONTE_CARLO_SAMPLE_COUNT; i++) samples[i] = sampleDuration(model, random);
+  samples.sort((a, b) => a - b);
+  durationSamplesCache.set(dist, samples);
+  return samples;
+}
+
 // 所要時間の分布から標本（分、昇順）を作る。offsetMinutes を足して返す
 // 発表された見込み時刻までの分に初列車待ちを足す場合や、再開後の初列車待ちだけが残る場合に使う
 export function sampleDurationDist(dist: DurationDist, offsetMinutes = 0): number[] {
   if (!Number.isFinite(offsetMinutes) || offsetMinutes < 0) {
     throw new RangeError(`足す分は 0 以上の有限値: ${offsetMinutes}`);
   }
-  const model = fitDurationModel(dist);
-  const random = createMulberry32(MONTE_CARLO_SEED);
-  const samples: number[] = new Array(MONTE_CARLO_SAMPLE_COUNT);
-  for (let i = 0; i < MONTE_CARLO_SAMPLE_COUNT; i++) {
-    samples[i] = offsetMinutes + sampleDuration(model, random);
-  }
-  return samples.sort((a, b) => a - b);
+  return sampleDurationDistBase(dist).map((v) => v + offsetMinutes);
 }
