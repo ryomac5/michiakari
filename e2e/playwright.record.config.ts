@@ -3,6 +3,7 @@ import { buildWebServers, webUrl } from "./servers.ts";
 
 // デモ動画の録画用。pnpm --filter e2e record で動かす。CI の test には含めない
 // 動画は recordings/<テスト名>/video.webm に出る（git 管理外）
+// 録画は頁を読む前の暗い画面から始まるので、support/trim-recording.ts が最初の画面を描き終えた時点から demo.webm に切り出す
 
 // 録画の色。画面は端末の設定ではなく cookie の theme で色を決めるので、両方をそろえる
 // RECORD_THEME=light で明るい画面でも撮れる

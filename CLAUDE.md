@@ -72,7 +72,7 @@ pnpm dev:demo            # web と agent をダミーの知見・シナリオと
 pnpm build               # 全パッケージをビルド
 pnpm test                # 全パッケージの単体テスト
 pnpm test:e2e            # シナリオの振る舞いテスト（Playwright）。決定論モードの agent とダミー内容で動く
-pnpm --filter e2e record # デモ動画を録画。出力は e2e/recordings/（git 管理外）
+pnpm --filter e2e record # デモ動画を録画。出力は e2e/recordings/（git 管理外）。最初の画面から切り出した demo.webm と結末の静止画も同じ場所に出る
 pnpm lint && pnpm typecheck
 pnpm format              # Biome で整形
 pnpm validate            # knowledge/ と scenarios/ の YAML と雛形の整合を検証

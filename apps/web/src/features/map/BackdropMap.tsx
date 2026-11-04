@@ -5,11 +5,13 @@ import type { Place } from "@repo/schema";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { useLocale } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { testIds } from "@/features/judgment/testids";
 import { prefersReducedMotion, useDocumentTheme } from "@/lib/use-document-theme";
 import { loadMapGeoData, type MapGeoData } from "./geo-data";
 import { selectMapLabels } from "./labels";
 import { buildBaseStyle, listPaintValues, mapPalettes, sourceIds } from "./layers";
 import { loadMapLibre } from "./MapPanel";
+import { waitForOwnLayersDrawn } from "./ready";
 import { computeFitBounds, type Position, resolvePlacePosition } from "./scene";
 
 // 開始画面やリプレイの一覧の背景に敷く、関西の路線の淡い地図。操作はできない
@@ -37,6 +39,8 @@ export function BackdropMap({
   paletteRef.current = palette;
   const [geo, setGeo] = useState<MapGeoData | null>(null);
   const [map, setMap] = useState<MapLibreMap | null>(null);
+  // 路線を描き終えたか。録画は ready になってから撮り始める
+  const [drawn, setDrawn] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,8 +104,14 @@ export function BackdropMap({
       disposed = true;
       instance?.remove();
       setMap(null);
+      setDrawn(false);
     };
   }, [geo]);
+
+  useEffect(() => {
+    if (!map) return;
+    return waitForOwnLayersDrawn(map, () => setDrawn(true));
+  }, [map]);
 
   const positions = useMemo(
     () =>
@@ -161,7 +171,11 @@ export function BackdropMap({
   }, [map, palette]);
 
   return (
-    <div className="fixed inset-0 z-0 bg-background">
+    <div
+      data-testid={testIds.app.backdropMap}
+      data-state={drawn ? "ready" : "loading"}
+      className="fixed inset-0 z-0 bg-background"
+    >
       <div ref={containerRef} aria-hidden className="h-full w-full" />
       {/* 地図を淡くし、上に載せるカードを読みやすくする */}
       <div
