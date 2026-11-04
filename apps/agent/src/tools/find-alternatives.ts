@@ -36,6 +36,18 @@ function findLatest<T>(
   return null;
 }
 
+// 駅間の車内なら、来た側の駅から先は確かに止まっている
+// 観測に区間が無ければ、来た側の駅から行き先までを止まっている区間にする。行き先が駅でなければ次の駅まで
+// 出発地は次の駅なので、これが無いと来た側の駅へ戻る経路を代替手段に数えてしまう
+function buildBetweenStationsSection(ctx: ToolContext): Section | null {
+  const position = ctx.request.trainPosition;
+  if (position?.kind !== "between_stations" || !position.previousStation) return null;
+  const destination = ctx.request.destination;
+  const toStation =
+    destination.kind === "station" ? destination.name : (position.nextStation ?? null);
+  return toStation ? { fromStation: position.previousStation, toStation } : null;
+}
+
 export async function runFindAlternatives(
   ctx: ToolContext,
   estimate: EstimateToolResult,
@@ -43,7 +55,9 @@ export async function runFindAlternatives(
 ): Promise<AlternativesToolResult> {
   const blockedLine = input.blockedLine ?? findLatest(ctx.observations, (o) => o.line);
   const blockedSection: Section | null =
-    input.blockedSection ?? findLatest(ctx.observations, (o) => o.section);
+    input.blockedSection ??
+    findLatest(ctx.observations, (o) => o.section) ??
+    buildBetweenStationsSection(ctx);
   const result = await ctx.provider.findAlternatives({
     origin: ctx.request.origin,
     destination: ctx.request.destination,
