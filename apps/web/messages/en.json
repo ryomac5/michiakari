@@ -159,6 +159,42 @@
         }
       }
     },
+    "resumeChance": {
+      "title": "Chance of moving again",
+      "waitFaster": "Waiting gets you there sooner",
+      "waitOnTime": "Waiting and still on time",
+      "chance": {
+        "under": "under 10%",
+        "over": "over 90%",
+        "tenths": "{n}0%"
+      },
+      "bar": {
+        "under": "<10%",
+        "over": ">90%",
+        "tenths": "{n}0%"
+      },
+      "lead": {
+        "fromNow": "At {time}, {fromNow} from now, the chance that trains are moving is {chance}",
+        "sinceOnset": "At {time}, {since} after it stopped, the chance that trains are moving is {chance}",
+        "both": "At {time}, {fromNow} from now and {since} after it stopped, the chance that trains are moving is {chance}",
+        "plain": "At {time}, the chance that trains are moving is {chance}"
+      },
+      "duration": {
+        "minutes": "{minutes} min",
+        "hours": "{hours} h",
+        "hoursMinutes": "{hours} h {minutes} min"
+      },
+      "marks": {
+        "breakEven": "Decision",
+        "deadline": "Deadline"
+      },
+      "sr": {
+        "ticks": "Chance of moving by each time: {items}.",
+        "tick": "{time} {chance}",
+        "waitFaster": "The chance that waiting gets you there sooner is {chance}.",
+        "waitOnTime": "To make your deadline, trains must be moving by {time}. The chance of making it by waiting is {chance}."
+      }
+    },
     "switchStep": {
       "title": "Switch to",
       "walkTo": "Walk {minutes} min to {station}",

@@ -106,6 +106,9 @@ export function JudgmentScreen() {
     stale: display.breakEvenStale,
     judgedAt: display.settled?.at ?? null,
     timeline: selectTimelineBasis(display.settled, catalog, null),
+    // 時刻ごとの再開の見込み。入口で止まってからの時間を答えたときだけ「発生から」を出す
+    chance: display.breakEven?.resumeChance ?? null,
+    showOnset: typeof tripContext?.elapsedMinutes === "number",
   };
   const switchStep = selectSwitchStep(display.judgment ?? null);
 
