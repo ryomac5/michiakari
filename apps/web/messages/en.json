@@ -286,7 +286,8 @@
       "destinationTerminal": "Destination is set to {station}, the end of the line",
       "onTrain": "You're on the train, so we start from {station}",
       "elapsedUnknown": "We count the stop as starting now",
-      "causeUnknown": "We don't assume a cause and use the decision point as your cue"
+      "causeUnknown": "We don't assume a cause and use the decision point as your cue",
+      "betweenStations": "You're between stations, so we plan what to do once you reach {station}"
     },
     "nextCheck": {
       "title": "What to check next",
@@ -296,7 +297,37 @@
       "transfer": "When transfer service is announced, enter it again",
       "signals": "If you notice any of these, enter it again",
       "action": "Update what you see"
-    }
+    },
+    "trainPosition": {
+      "title": "On the train",
+      "next": "Next: {station}",
+      "own": "On a {type}",
+      "aheadNone": "No trains stuck ahead",
+      "aheadUnknown": "Trains ahead: not sure",
+      "ahead": "Trains stuck ahead: {types}",
+      "aheadPattern": "Trains ahead: usual spacing (estimated)",
+      "estimated": "estimated",
+      "edit": "change",
+      "nextQuestion": "Which station is next?",
+      "ownQuestion": "What kind of train are you on?",
+      "aheadQuestion": "Tap the trains stopped ahead, nearest first",
+      "aheadQueue": "Nearest first",
+      "aheadEmpty": "Nothing added yet",
+      "removeLast": "Remove the last one",
+      "apply": "Judge again with this",
+      "checkHint": "You can check this on the train location page",
+      "patternHint": "Knowing the trains ahead makes the arrival time more certain",
+      "close": "Close"
+    },
+    "trainTypes": {
+      "local": "local",
+      "rapid": "rapid",
+      "special_rapid": "special rapid",
+      "limited_express": "limited express",
+      "unknown": "not sure",
+      "unknownType": "type unknown"
+    },
+    "tripBetween": "{from}–{to}"
   },
   "replay": {
     "heading": "Watch the demo",
@@ -395,7 +426,9 @@
     "viewOverview": "Whole route",
     "viewFocus": "Around you",
     "changeAt": "change at {station}",
-    "transferShort": "Transfer"
+    "transferShort": "Transfer",
+    "between": "between {from} and {to}",
+    "alight": "Get off at"
   },
   "about": {
     "title": "About MatsuKaeru",
@@ -526,10 +559,10 @@
     "positionQuestion": "Where are you right now?",
     "positionStation": "At {station}",
     "positionStationNote": "Platform or gates",
-    "positionTrain": "On the train",
-    "positionTrainNote": "Even between stations",
-    "positionNearQuestion": "Which station is closest?",
-    "positionNearHint": "Between stations? Tap the closer one",
+    "positionTrain": "On a train, stopped at a station",
+    "positionTrainNote": "At a platform",
+    "positionNearQuestion": "Which station are you stopped at?",
+    "positionNearHint": "Tap the station you're stopped at",
     "progress": "{current} of {total}: {step}",
     "steps": {
       "line": "Line",
@@ -568,7 +601,10 @@
       "cause": "Announcement",
       "elapsed": "Stopped for"
     },
-    "nextStation": "Next: {station}"
+    "nextStation": "Next: {station}",
+    "positionBetween": "On a train, between stations",
+    "positionBetweenNote": "We plan from the next station",
+    "positionBetweenTrip": "Between stations. Planning from the next station"
   },
   "status": {
     "notFound": {

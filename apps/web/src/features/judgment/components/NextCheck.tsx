@@ -32,7 +32,11 @@ function usePremises(): string[] {
   } else if (tripContext.destinationBasis === "terminal") {
     items.push(t("destinationTerminal", { station: label(destination) }));
   }
-  if (tripContext.onTrain) items.push(t("onTrain", { station: label(origin) }));
+  if (tripContext.position === "betweenStations") {
+    items.push(t("betweenStations", { station: label(origin) }));
+  } else if (tripContext.onTrain) {
+    items.push(t("onTrain", { station: label(origin) }));
+  }
   if (tripContext.elapsedMinutes === null) items.push(t("elapsedUnknown"));
   if (tripContext.causeUnknown) items.push(t("causeUnknown"));
   return items;

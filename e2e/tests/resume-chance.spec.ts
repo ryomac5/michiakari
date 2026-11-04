@@ -156,6 +156,49 @@ async function startFromEntry(page: Page, elapsed: "m10" | "unknown"): Promise<v
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
 }
 
+// 大阪から JR 神戸線で三ノ宮へ向かう途中、駅と駅の間で止まった想定。人身事故・10 分くらい・見込みは言っていない
+async function startBetweenStations(page: Page): Promise<void> {
+  const kobeLine = "大阪|jr-west.東海道線|JR神戸線";
+  await page.goto("/");
+  await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
+    timeout: 30_000,
+  });
+  await page.getByTestId(testIds.start.originSearch).fill("大阪");
+  await page.getByTestId(testIds.start.originOption("大阪")).click();
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "station");
+  await page.getByTestId(testIds.start.line(kobeLine)).click();
+  await page.getByTestId(testIds.start.direction(`${kobeLine}>jr-west.東海道線.神戸`)).click();
+  await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
+  await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+  await page.getByTestId(testIds.start.positionBetween).click();
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
+  await page.getByTestId(testIds.start.cause("person")).click();
+  await page.getByTestId(testIds.start.elapsed("m10")).click();
+  await page.getByTestId(testIds.start.resume("unknown")).click();
+  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
+}
+
+test("駅と駅の間にいる人の判断にも、確率の帯と待ったほうが早く着く見込みが出る", async ({
+  page,
+}) => {
+  await startBetweenStations(page);
+  const band = page.getByTestId(testIds.judgment.resumeChance);
+  await expect(band).toBeVisible();
+  await expect(band).toHaveAttribute("data-onset", "known");
+  await expect(page.getByTestId(testIds.judgment.resumeChanceWaitFaster)).toContainText(/割/);
+  await expect(page.getByTestId(testIds.judgment.resumeChanceLead)).toContainText(
+    "見込みで動いています",
+  );
+  const ticks = await readTicks(page);
+  expect(ticks.length).toBeGreaterThanOrEqual(4);
+  // 前提のチップが増えても、閉じたシートに注意書きまで収まる
+  await waitForFiniteAnimations(page);
+  const box = await page.getByTestId(testIds.judgment.disclaimer).boundingBox();
+  expect(box, "注意書きが見つからない").not.toBeNull();
+  expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(844);
+});
+
 test("入口から判断しても帯が出て、止まってからの時間を答えたときだけ「発生から」が付く", async ({
   page,
 }) => {

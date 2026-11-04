@@ -72,6 +72,9 @@ function presentEstimate(r: EstimateToolResult, language: Lang) {
       statedResumeTime: formatOptional(r.statedResumeTime, language),
       boardableP50: formatOptional(r.boardableP50, language),
       boardableP80: formatOptional(r.boardableP80, language),
+      // 駅間の車内なら、ホームに着ける駅に着く見込みの時刻
+      alightArrivalP50: formatOptional(r.trainQueue?.arrival?.p50 ?? null, language),
+      alightArrivalP80: formatOptional(r.trainQueue?.arrival?.p80 ?? null, language),
     },
   };
 }

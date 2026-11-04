@@ -17,6 +17,21 @@ export {
   type TaxiFareSource,
 } from "../params/taxi.ts";
 export {
+  ALL_TRAIN_TYPES,
+  DEFAULT_STATION_PLATFORM,
+  DEFAULT_TRAIN_QUEUE_PARAMS,
+  FALLBACK_RIDE_MINUTES_TO_NEXT_STATION,
+  type LineOperationPattern,
+  OPERATION_PATTERNS,
+  type OperationPattern,
+  STATION_PLATFORMS_BY_LINE,
+  type StationPlatform,
+  TRAIN_QUEUE_PARAMS_BY_OPERATOR,
+  TRAIN_QUEUE_PARAMS_SOURCE,
+  TRAINS_AHEAD_COUNT,
+  type TrainQueueParams,
+} from "../params/train-queue.ts";
+export {
   LINE_TYPES,
   type LineType,
   TIMES_OF_DAY,
@@ -112,6 +127,22 @@ export {
   getJstMinuteOfDay,
   parseIsoToMs,
 } from "./time.ts";
+export {
+  type ConcreteTrainType,
+  computeTrackHeadwayMinutes,
+  countTrainsAhead,
+  estimateTrainQueueArrival,
+  findOperationPattern,
+  inferDefaultOwnTrainType,
+  inferTrainsAheadFromPattern,
+  normalizeTrainType,
+  resolveStationPlatform,
+  resolveTrainQueueParams,
+  type StationAhead,
+  type TrainQueueDelay,
+  type TrainQueueInput,
+  type TrainQueueOutcome,
+} from "./train-queue.ts";
 export {
   classifyTimeOfDay,
   computeRideMinutes,

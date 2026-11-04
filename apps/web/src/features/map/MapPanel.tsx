@@ -1,7 +1,8 @@
 "use client";
 
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { Action, Place, RouteOption, Section } from "@repo/schema";
+import { formatStationName } from "@repo/geo";
+import type { Action, Place, RouteOption, Section, TrainPosition } from "@repo/schema";
 import { LocateFixed, Route } from "lucide-react";
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useLocale, useTranslations } from "next-intl";
@@ -40,7 +41,7 @@ import {
   fitsInView,
 } from "./reach-label";
 import { waitForOwnLayersDrawn } from "./ready";
-import { BlockedTag, HereMarker, StationBubble } from "./StationBubble";
+import { AlightMarker, BlockedTag, HereMarker, StationBubble } from "./StationBubble";
 import {
   type BlockedDirection,
   buildMapScene,
@@ -49,6 +50,7 @@ import {
   type Position,
   type ReachSource,
   resolvePlacePosition,
+  resolveStationByName,
 } from "./scene";
 import {
   buildStationGuide,
@@ -74,6 +76,8 @@ export type MapPanelProps = {
   blockedLine?: string | null;
   // 入口で選んだ路線と方面。観測に区間が無いとき、その方面を止まっている区間として描く
   blockedDirection?: BlockedDirection | null;
+  // 車内の位置。駅と駅の間なら、現在地の印を駅間の線路の上に置き、次の駅を降りる駅として目立たせる
+  trainPosition?: TrainPosition | null;
   insets: MapInsets;
   onReachSourceChange?: (source: ReachSource | null) => void;
   // 現在地のまわりの案内。シートの選択肢の行に同じ印を添えるのに使う
@@ -447,6 +451,7 @@ export function MapPanel(props: MapPanelProps) {
     blockedSection,
     blockedLine,
     blockedDirection,
+    trainPosition,
   } = props;
   const tone = selectRouteTone(options, recommendedOptionId);
 
@@ -591,6 +596,22 @@ export function MapPanel(props: MapPanelProps) {
     sceneDestination?.[1],
     boardingKey,
   ]);
+  // 駅間の車内なら、現在地の印を来た側の駅と次の駅のあいだに置き、「大阪〜塚本の間」と呼ぶ
+  const between = useMemo(() => {
+    if (trainPosition?.kind !== "between_stations" || !geo) return null;
+    const { previousStation, nextStation } = trainPosition;
+    if (!previousStation || !nextStation) return null;
+    const nameOf = (name: string) => {
+      if (locale !== "en") return name;
+      const node = resolveStationByName(geo.index, name);
+      return node ? formatStationName(node, "en") : name;
+    };
+    return {
+      previousStation,
+      nextStation,
+      label: t("between", { from: nameOf(previousStation), to: nameOf(nextStation) }),
+    };
+  }, [trainPosition, geo, locale, t]);
   const guide = useMemo(
     () =>
       geo && scene && area
@@ -602,9 +623,11 @@ export function MapPanel(props: MapPanelProps) {
             blockedLineName: blockedLine ?? null,
             language: locale === "en" ? "en" : "ja",
             formatWalk: labels.walkLabel,
+            between,
+            blockedPath: scene.blocked.features[0]?.geometry.coordinates ?? null,
           })
         : null,
-    [geo, scene, area, origin, options, recommendedOptionId, blockedLine, locale, labels],
+    [geo, scene, area, origin, options, recommendedOptionId, blockedLine, locale, labels, between],
   );
   const view: MapView = guide ? viewChoice : "overview";
 
@@ -687,14 +710,25 @@ export function MapPanel(props: MapPanelProps) {
     // おすすめの駅が変わると吹き出しの大きさが変わるので、寄せ直す
     const recommendedKey = guide?.stations.find((s) => s.recommended)?.key ?? "";
     const fitKey = JSON.stringify([view, bounds, recommendedKey, top, right, bottom, left, narrow]);
+    let moving = false;
     if (bounds && fitKey !== fittedRef.current) {
       fitView(fittedRef.current === null);
       fittedRef.current = fitKey;
+      moving = map.isMoving();
     }
     setStatus((s) => (s === "ready" ? "updating" : s));
-    const stopWaiting = waitForOwnLayersDrawn(map, () => setStatus("ready"));
-    map.triggerRepaint();
-    return stopWaiting;
+    // 寄せる動きの最中は準備中のままにし、止まってから描き終わりを待つ。札やボタンが動く間に準備ができたと見せないため
+    let stopWaiting = () => {};
+    const startWaiting = () => {
+      stopWaiting = waitForOwnLayersDrawn(map, () => setStatus("ready"));
+      map.triggerRepaint();
+    };
+    if (moving) map.once("moveend", startWaiting);
+    else startWaiting();
+    return () => {
+      map.off("moveend", startWaiting);
+      stopWaiting();
+    };
   }, [map, scene, guide, reachLabels, view, fitView, top, right, bottom, left, narrow]);
 
   // 到達範囲の札を、寄せたあとの画面で吹き出しや線と重ならない向きに置き直す。地図が止まるたびに選び直す
@@ -708,7 +742,7 @@ export function MapPanel(props: MapPanelProps) {
         ...map
           .getContainer()
           .querySelectorAll<HTMLElement>(
-            `[data-testid^="judgment-map-station-"], [data-testid="${mapTestIds.here}"] > div, [data-testid="${mapTestIds.blockedTag}"]`,
+            `[data-testid^="judgment-map-station-"], [data-testid="${mapTestIds.here}"] > div, [data-testid="${mapTestIds.alight}"] > p, [data-testid="${mapTestIds.blockedTag}"]`,
           ),
         ...(toggle ? [toggle] : []),
       ].flatMap((el) => {
@@ -833,7 +867,7 @@ export function MapPanel(props: MapPanelProps) {
         ...map
           .getContainer()
           .querySelectorAll<HTMLElement>(
-            `[data-testid^="judgment-map-station-"], [data-testid="${mapTestIds.here}"] > div`,
+            `[data-testid^="judgment-map-station-"], [data-testid="${mapTestIds.here}"] > div, [data-testid="${mapTestIds.alight}"] > p`,
           ),
         ...(toggle ? [toggle] : []),
         ...document.querySelectorAll<HTMLElement>("[data-map-obstacle]"),
@@ -897,6 +931,16 @@ export function MapPanel(props: MapPanelProps) {
         anchor: "center" as const,
         offset: [0, 0] as [number, number],
       },
+      ...(guide.alight
+        ? [
+            {
+              key: "alight",
+              position: guide.alight.position,
+              anchor: "center" as const,
+              offset: [0, 0] as [number, number],
+            },
+          ]
+        : []),
       ...guide.stations.map((s) => ({
         key: `station:${s.key}`,
         position: s.position,
@@ -963,6 +1007,9 @@ export function MapPanel(props: MapPanelProps) {
             element,
             key,
           );
+        }
+        if (key === "alight" && guide?.alight) {
+          return createPortal(<AlightMarker alight={guide.alight} />, element, key);
         }
         const station = guide?.stations.find((s) => `station:${s.key}` === key);
         if (!station) return null;

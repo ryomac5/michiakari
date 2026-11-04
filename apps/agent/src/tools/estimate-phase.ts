@@ -5,8 +5,14 @@ import {
   estimateBranchAwareRemaining,
   estimateStatedRemaining,
   estimateStatedRemainingWithoutKnowledge,
+  estimateTrainQueueArrival,
+  FALLBACK_RIDE_MINUTES_TO_NEXT_STATION,
   getFirstTrainWait,
+  normalizeTrainType,
   parseIsoToMs,
+  resolveStationPlatform,
+  resolveTrainQueueParams,
+  type StationAhead,
   sampleDurationDist,
 } from "@repo/core";
 import type { DurationDist, Estimate } from "@repo/schema";
@@ -21,7 +27,70 @@ import {
   type StatedResume,
 } from "../domain/phase.ts";
 import { buildFlowSentence, classifyFlowOutlook } from "../domain/typical-flow.ts";
-import type { EstimateToolResult, ToolContext } from "./types.ts";
+import type { EstimateToolResult, ToolContext, TrainQueueToolResult } from "./types.ts";
+
+// 先の駅を何駅まで追うか。詰める動きで前の列車が進める範囲
+const STATIONS_AHEAD_LIMIT = 4;
+
+// 新しい観測から順に、事業者を探す
+function findOperator(ctx: ToolContext): string | null {
+  const sorted = [...ctx.observations].sort(
+    (a, b) => Date.parse(b.observedAt) - Date.parse(a.observedAt),
+  );
+  return sorted.find((o) => o.operator !== null)?.operator ?? null;
+}
+
+// 駅間の車内にいる利用者が、ホームに着ける駅に着く見込み。駅間でなければ null
+// 再開までの残りは、乗れるまでの残りから初列車待ちを引いた分とする。車内の人は列車を待たないため
+function estimateTrainQueue(
+  ctx: ToolContext,
+  remaining: DurationDist | null,
+  firstTrainWait: DurationDist | null,
+): TrainQueueToolResult | null {
+  const position = ctx.request.trainPosition;
+  if (position?.kind !== "between_stations" || !position.nextStation) return null;
+  const now = ctx.request.now;
+  const line = ctx.observations.findLast((o) => o.line !== null)?.line ?? null;
+  const ahead = position.previousStation
+    ? ctx.provider.listStationsAhead({
+        line,
+        previousStation: position.previousStation,
+        nextStation: position.nextStation,
+        limit: STATIONS_AHEAD_LIMIT,
+        departureTime: now,
+      })
+    : null;
+  const lineId = ahead?.lineId ?? null;
+  const stationsAhead: StationAhead[] = (
+    ahead?.stations ?? [
+      {
+        name: position.nextStation,
+        rideMinutesFromPrevious: FALLBACK_RIDE_MINUTES_TO_NEXT_STATION,
+      },
+    ]
+  ).map((s) => ({ ...s, platform: resolveStationPlatform(lineId, s.name) }));
+  const wait = firstTrainWait?.p50 ?? 0;
+  const untilResume = remaining
+    ? { p50: Math.max(0, remaining.p50 - wait), p80: Math.max(0, remaining.p80 - wait) }
+    : null;
+  const outcome = estimateTrainQueueArrival({
+    now,
+    untilResume,
+    ownTrainType: position.ownTrainType,
+    trainsAhead: position.trainsAhead,
+    trainsAheadCount: position.trainsAheadCount,
+    trainsAheadHeadwayMinutes: position.trainsAheadHeadwayMinutes ?? null,
+    stationsAhead,
+    params: resolveTrainQueueParams(findOperator(ctx)),
+  });
+  return {
+    ...outcome,
+    nextStation: position.nextStation,
+    ownTrainType: normalizeTrainType(position.ownTrainType),
+    sequenceKnown: position.trainsAhead !== null,
+    lineId,
+  };
+}
 
 export const EstimatePhaseInputSchema = z.object({
   eventType: z.string().nullable().describe("事象種別（知見の id）。特定できなければ null"),
@@ -37,11 +106,12 @@ export const estimatePhaseDefinition = {
 // 事象が分からないときの結果。発表の再開見込みが先にあれば、その時刻だけを根拠に残り時間を置く
 // 確率の標本は、その見込み（発表の時刻を p50、延びる余地を p80）に当てた分布から作る
 function buildUnknownEstimate(
-  now: string,
+  ctx: ToolContext,
   stated: StatedResume | null,
   statedIsFuture: boolean,
   onsetTime: string,
 ): EstimateToolResult {
+  const now = ctx.request.now;
   const remaining =
     stated && statedIsFuture ? estimateStatedRemainingWithoutKnowledge(stated.time, now) : null;
   const estimate: Estimate = {
@@ -53,6 +123,7 @@ function buildUnknownEstimate(
   };
   return {
     estimate,
+    trainQueue: estimateTrainQueue(ctx, remaining, null),
     phaseName: null,
     phaseGuidance: null,
     phaseStartedAt: null,
@@ -97,7 +168,7 @@ export function runEstimatePhase(
   // 発生時刻は観測から分からないので、最初の観測の時刻を発生とみなす
   const onsetAt = findOnsetTime(ctx.observations, now);
   const knowledge = input.eventType ? ctx.content.knowledge.get(input.eventType) : undefined;
-  if (!knowledge) return buildUnknownEstimate(now, stated, statedIsFuture, onsetAt);
+  if (!knowledge) return buildUnknownEstimate(ctx, stated, statedIsFuture, onsetAt);
 
   const detection = detectPhase(knowledge, ctx.observations, now);
   const firstTrainWait = getFirstTrainWait(knowledge);
@@ -136,6 +207,7 @@ export function runEstimatePhase(
         identified: checkEventIdentified(knowledge.id, detection, ctx.observations),
       }),
     },
+    trainQueue: estimateTrainQueue(ctx, remaining, firstTrainWait),
     phaseName: phase ? (phase.name[language] ?? phase.name.ja) : null,
     phaseGuidance: phase ? (phase.guidance[language] ?? phase.guidance.ja) : null,
     phaseStartedAt: detection.phaseStartedAt,

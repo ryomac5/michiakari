@@ -10,10 +10,29 @@ export type AlternativesQuery = {
   blockedLine: string | null;
   blockedSection: Section | null;
   now: string;
+  // 代替手段に乗り出せる時刻。駅間の車内なら次の駅に着く見込み。省略すれば now
+  departureTime?: string;
+  // 再開後に、乗ったまま待つ側の到着へ足す分。駅間の車内なら、前の列車が先に発車するぶんの遅れ
+  extraWaitMinutesAfterResume?: number;
   // 再開して乗れるまでの残り時間。待つ選択肢に使う。不明なら null
   remaining: DurationDist | null;
   transferServiceActive: boolean | null;
   language: Lang;
+};
+
+// 駅間の車内から見た前の駅。次の駅から順に並べる
+export type StationsAheadQuery = {
+  line: string | null;
+  previousStation: string;
+  nextStation: string;
+  limit: number;
+  // 時間帯の判定に使う時刻
+  departureTime: string;
+};
+
+export type StationsAhead = {
+  lineId: string;
+  stations: { name: string; rideMinutesFromPrevious: number }[];
 };
 
 export type AlternativesResult = {
@@ -41,4 +60,6 @@ export interface AlternativesProvider {
   resolvePlace(place: Place): ResolvedPlace | null;
   // 文章から路線名を拾うための一覧
   listLines(): readonly LineInfo[];
+  // 来た側の駅と次の駅から、その先の駅と駅間の走行時間を並べる。路線上で結べなければ null
+  listStationsAhead(query: StationsAheadQuery): StationsAhead | null;
 }

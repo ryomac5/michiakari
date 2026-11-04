@@ -147,6 +147,9 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
     results.estimate.boardableP50,
     results.estimate.boardableP80,
     results.estimate.phaseStartedAt,
+    // 駅間の車内なら、ホームに着ける駅に着く見込みの時刻
+    results.estimate.trainQueue?.arrival?.p50 ?? null,
+    results.estimate.trainQueue?.arrival?.p80 ?? null,
     results.breakEven.deadline,
     // 確率の目盛りの時刻、期限に間に合うために動いていなければならない時刻、発生とみなした時刻
     ...(chance

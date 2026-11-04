@@ -51,7 +51,10 @@ export const testIds = {
     // 方面の先の行き先の候補。data-operator に事業者名を出す
     destinationCandidate: (id: string) => `start-destination-candidate-${id}`,
     positionStation: "start-position-station",
+    // 電車の中・駅に止まっている。押すと止まっている駅を聞く
     positionTrain: "start-position-train",
+    // 電車の中・駅と駅の間。押すと既定値で先へ進む
+    positionBetween: "start-position-between",
     nearStop: (id: string) => `start-near-stop-${id}`,
     // 様子の 3 つの問い。原因、止まってからの時間、再開の見込み
     cause: (id: string) => `start-cause-${id}`,
@@ -98,6 +101,19 @@ export const testIds = {
     reasoningProgress: (id: string) => `judgment-reasoning-progress-${id}`,
     // 判断が出たあとに全部開いた状態で見せる推論の過程
     reasoningLog: "judgment-reasoning-log",
+    // 駅と駅の間の人の前提のチップ。data-source に default / user を出す
+    trainPosition: "judgment-train-position",
+    trainPositionChip: (kind: "next" | "own" | "ahead") => `judgment-train-position-chip-${kind}`,
+    trainPositionEditor: "judgment-train-position-editor",
+    trainPositionNext: (id: string) => `judgment-train-position-next-${id}`,
+    trainPositionType: (id: string) => `judgment-train-position-type-${id}`,
+    trainPositionAheadAdd: (id: string) => `judgment-train-position-ahead-add-${id}`,
+    trainPositionAheadItem: (id: string) => `judgment-train-position-ahead-item-${id}`,
+    trainPositionAheadRemove: "judgment-train-position-ahead-remove",
+    trainPositionAheadNone: "judgment-train-position-ahead-none",
+    trainPositionAheadUnknown: "judgment-train-position-ahead-unknown",
+    trainPositionApply: "judgment-train-position-apply",
+    trainPositionHint: "judgment-train-position-hint",
     conclusion: "judgment-conclusion",
     conclusionHeadline: "judgment-conclusion-headline",
     conclusionReason: "judgment-conclusion-reason",
