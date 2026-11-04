@@ -67,6 +67,9 @@ export {
   findPhaseIndex,
   getFirstTrainWait,
   type RemainingOptions,
+  sampleDurationDist,
+  sampleRemaining,
+  summarizeSamples,
 } from "./remaining.ts";
 export {
   type BranchAwareOptions,
@@ -76,8 +79,25 @@ export {
   estimateStatedRemaining,
   estimateStatedRemainingWithoutKnowledge,
   findPhasePaths,
+  mergeBranchSamples,
   type PhasePaths,
 } from "./remaining-paths.ts";
+export {
+  CHANCE_FLOOR,
+  CHANCE_NEARLY_CERTAIN,
+  CHANCE_TICK_COUNT,
+  CHANCE_TICK_END_QUANTILE,
+  CHANCE_TICK_STEPS_MINUTES,
+  computeChanceWithin,
+  computeMovingProbability,
+  computeResumeChance,
+  computeWaitFasterProbability,
+  computeWaitOnTimeProbability,
+  listChanceTickTimes,
+  type ResumeChanceInput,
+  roundChanceTenths,
+  selectKeyTick,
+} from "./resume-chance.ts";
 export {
   checkNightSurcharge,
   computeTaxiFare,
