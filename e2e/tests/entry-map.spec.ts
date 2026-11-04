@@ -274,11 +274,16 @@ test("入力を終えると、選んだ路線を見合わせとして判断の�
   // 選んで答える入力は路線を含まない。上部の帯の路線は、入口で選んだ路線から来る
   await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("JR京都線");
 
-  // 判断の画面から戻ると、選んだ駅・路線・方面・行き先の状態から再開する
+  // 判断の画面から戻ると、選んだ駅・路線・方面・行き先と様子の答えの状態から再開する
+  await page.goBack();
+  await expectStage(page, "resume");
+  await expect(page.getByTestId(testIds.start.editDestination)).toContainText("京都");
+  // 再開したあとも、端末の戻る操作は 1 段ずつ引く
+  await page.goBack();
+  await expectStage(page, "elapsed");
   await page.goBack();
   await expectStage(page, "cause");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("京都");
-  // 再開したあとも、端末の戻る操作は 1 段ずつ引く
   await page.goBack();
   await expectStage(page, "position");
   await page.goBack();
@@ -303,14 +308,62 @@ test("判断が出たあとの端末の戻る操作は、1 回で直前の段に
     timeout: 30_000,
   });
 
-  // 1 回目の戻るで様子の問いに戻り、2 回目でいまどこの問いに戻る
+  // 1 回目の戻るで最後に答えた再開見込みの問いに戻り、そのあとは 1 回ごとに 1 段ずつ引く
+  await page.goBack();
+  await expectStage(page, "resume");
+  await expect(page).toHaveURL(/\/$/);
+  await page.goBack();
+  await expectStage(page, "elapsed");
   await page.goBack();
   await expectStage(page, "cause");
-  await expect(page).toHaveURL(/\/$/);
   await page.goBack();
   await expectStage(page, "position");
   await page.goBack();
   await expectStage(page, "destination");
+});
+
+test("判断の画面の戻るを押すと、様子の 3 問目に答えを残したまま戻る", async ({ page }) => {
+  await openEntry(page);
+  await page.getByTestId(testIds.start.hub("umeda")).click();
+  await page.getByTestId(testIds.start.place("osaka")).click();
+  await page.getByTestId(testIds.start.line(kobeLine)).click();
+  await page.getByTestId(testIds.start.direction(toKobe)).click();
+  await page.getByTestId(testIds.start.destinationCandidate("三ノ宮")).click();
+  await page.getByTestId(testIds.start.positionStation).click();
+  await page.getByTestId(testIds.start.cause("person")).click();
+  await page.getByTestId(testIds.start.elapsed("m10")).click();
+  await page.getByTestId(testIds.start.resume("unknown")).click();
+  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+
+  // 戻るは上部の帯の左端にあり、判断の更新中でも押せる大きさで見えている
+  const back = page.getByTestId(testIds.judgment.backButton);
+  await expect(back).toBeVisible();
+  await expect(back).toHaveAttribute("aria-label", "戻る");
+  const box = await back.boundingBox();
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
+
+  // 押すと様子の 3 問目に戻り、答えた原因と時間のチップが残っている
+  await back.click();
+  await expect(page).toHaveURL(/\/\?mock=1$/);
+  await expectStage(page, "resume");
+  await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText("人身事故");
+  await expect(page.getByTestId(testIds.start.answer("elapsed"))).toContainText("10分くらい");
+  await expect(page.getByTestId(testIds.start.editDestination)).toContainText("三ノ宮");
+
+  // 履歴は二重にならず、端末の戻る操作は 1 回で 1 段引く
+  await page.goBack();
+  await expectStage(page, "elapsed");
+  await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText("人身事故");
+
+  // 選び直して判断を出し、もう一度戻ると、選び直した答えが残っている
+  await page.getByTestId(testIds.start.elapsed("m30")).click();
+  await page.getByTestId(testIds.start.resume("unknown")).click();
+  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  await back.click();
+  await expectStage(page, "resume");
+  await expect(page.getByTestId(testIds.start.answer("elapsed"))).toContainText("30分以上");
 });
 
 test("端末の戻る操作でも、入口の段を 1 段ずつ引ける", async ({ page }) => {

@@ -223,6 +223,12 @@ export function StartScreen() {
       setNearStop(stop ?? null);
     }
     dispatch({ type: "choosePosition" });
+    // 様子の段で答えたところまで進め、最後に答えた問いから選び直せるようにする
+    const answers = tripContext.entryAnswers;
+    if (!answers) return;
+    if (answers.cause) dispatch({ type: "chooseCause", cause: answers.cause });
+    else if (answers.method) dispatch({ type: "chooseMethod", method: answers.method });
+    if (answers.elapsed) dispatch({ type: "chooseElapsed", elapsed: answers.elapsed });
   }, [data, restored, origin, originLine, destination, tripContext]);
 
   const openPlace = useCallback(
@@ -348,6 +354,7 @@ export function StartScreen() {
       directionLabel: direction.label,
       destinationBasis,
       onTrain: nearStop !== null,
+      entryAnswers: { method: entry.method, cause: entry.cause, elapsed: entry.elapsed },
       ...(answers
         ? { elapsedMinutes: answers.elapsedMinutes, causeUnknown: answers.causeUnknown }
         : {}),

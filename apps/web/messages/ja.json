@@ -71,6 +71,7 @@
   },
   "judgment": {
     "heading": "判断",
+    "back": "戻る",
     "trip": "{origin} → {destination}",
     "reasoning": {
       "title": "判断しています",
