@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>関西鉄道データ源の利用条件調査</title>
+<style>
+:root {
+  --bg: #fbfaf7;
+  --fg: #1d1d1b;
+  --muted: #5d5d58;
+  --line: #d9d6cf;
+  --panel: #f1efe9;
+  --accent: #1f5f8b;
+  --ok-bg: #dff3e3; --ok-fg: #155d2b;
+  --work-bg: #fdf0cf; --work-fg: #7a4d00;
+  --ng-bg: #f9dcdc; --ng-fg: #8a1c1c;
+  --unk-bg: #e6e4ee; --unk-fg: #3c3a55;
+  --fact-bg: #dfeaf3; --fact-fg: #1d4b6b;
+  --guess-bg: #efe3f4; --guess-fg: #5a2e6e;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171a;
+    --fg: #e8e6e1;
+    --muted: #a7a49c;
+    --line: #363a40;
+    --panel: #1f2226;
+    --accent: #7fb6dd;
+    --ok-bg: #1d3b26; --ok-fg: #a9e3b6;
+    --work-bg: #3f3010; --work-fg: #f3d28a;
+    --ng-bg: #44201f; --ng-fg: #f0a8a8;
+    --unk-bg: #2b2a38; --unk-fg: #c9c6e6;
+    --fact-bg: #1c3344; --fact-fg: #b7d7ee;
+    --guess-bg: #35253f; --guess-fg: #dcc1ea;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171a; --fg: #e8e6e1; --muted: #a7a49c; --line: #363a40; --panel: #1f2226; --accent: #7fb6dd;
+  --ok-bg: #1d3b26; --ok-fg: #a9e3b6; --work-bg: #3f3010; --work-fg: #f3d28a; --ng-bg: #44201f; --ng-fg: #f0a8a8;
+  --unk-bg: #2b2a38; --unk-fg: #c9c6e6; --fact-bg: #1c3344; --fact-fg: #b7d7ee; --guess-bg: #35253f; --guess-fg: #dcc1ea;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  margin: 0; padding: 0 16px 64px; background: var(--bg); color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
+  line-height: 1.75; font-size: 15px;
+}
+main { max-width: 1120px; margin: 0 auto; }
+header { padding: 40px 0 16px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
+h1 { font-size: 26px; margin: 0 0 8px; letter-spacing: .02em; }
+h2 { font-size: 20px; margin: 44px 0 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 24px 0 8px; }
+p { margin: 8px 0; }
+.lead { color: var(--muted); }
+table { border-collapse: collapse; width: 100%; margin: 12px 0 8px; font-size: 13.5px; }
+th, td { border: 1px solid var(--line); padding: 7px 9px; vertical-align: top; text-align: left; }
+th { background: var(--panel); font-weight: 600; white-space: nowrap; }
+td.num { white-space: nowrap; }
+.wrap { overflow-x: auto; }
+a { color: var(--accent); word-break: break-all; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; line-height: 1.6; }
+.ok { background: var(--ok-bg); color: var(--ok-fg); }
+.work { background: var(--work-bg); color: var(--work-fg); }
+.ng { background: var(--ng-bg); color: var(--ng-fg); }
+.unk { background: var(--unk-bg); color: var(--unk-fg); }
+.fact { background: var(--fact-bg); color: var(--fact-fg); }
+.guess { background: var(--guess-bg); color: var(--guess-fg); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; margin: 12px 0; }
+ul, ol { padding-left: 1.4em; }
+li { margin: 4px 0; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+pre { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+.toc { columns: 2; column-gap: 32px; font-size: 14px; }
+@media (max-width: 720px) { .toc { columns: 1; } body { font-size: 14px; } }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 12px; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>関西鉄道データ源の利用条件調査</h1>
+  <p class="lead">確認日は 2026-11-04 である。提出の締め切りは 2026-11-08 である。</p>
+  <p>対象は、輸送障害時に「待つか切り替えるか」を示す Web アプリである。リポジトリは公開される。</p>
+  <p>開発者の問いは「ライセンスの情報は使えないのか、作業がいるのか」である。本書はその問いに答える。</p>
+  <p>
+    <span class="badge fact">確認</span> は一次情報を読んで確かめた事実である。
+    <span class="badge guess">推測</span> は筆者の判断である。両者を分けて書く。
+  </p>
+</header>
+
+<div class="panel">
+  <p><strong>欲しい情報の番号</strong></p>
+  <ol>
+    <li>列車の時刻表。前を走る列車の種別の並びを推し量る</li>
+    <li>路線ごとの運転パターン。種別の停車駅を含む</li>
+    <li>駅ごとのホームの数と長さ</li>
+    <li>運行情報と列車の走行位置</li>
+  </ol>
+  <p><strong>判定の種類</strong>
+    <span class="badge ok">いま使える</span>
+    <span class="badge work">開発者の作業で使える</span>
+    <span class="badge ng">使えない</span>
+    <span class="badge unk">不明</span>
+  </p>
+</div>
+
+<nav class="toc">
+  <ol>
+    <li><a href="#summary">結論の表</a></li>
+    <li><a href="#points">結論の要点</a></li>
+    <li><a href="#odpt">公共交通オープンデータセンター</a></li>
+    <li><a href="#ksj">国土数値情報</a></li>
+    <li><a href="#operators">事業者の規約と公開データ</a></li>
+    <li><a href="#local">自治体のオープンデータ</a></li>
+    <li><a href="#osm">OpenStreetMap</a></li>
+    <li><a href="#others">その他の候補</a></li>
+    <li><a href="#timetable-law">時刻表の著作物性</a></li>
+    <li><a href="#work">開発者の作業の手順と日数</a></li>
+    <li><a href="#recommend">欲しい情報ごとの推し</a></li>
+    <li><a href="#proposal">data-sources.md への追記案</a></li>
+    <li><a href="#gaps">調べきれなかったこと</a></li>
+  </ol>
+</nav>
+
+<h2 id="summary">結論の表</h2>
+<p>全 25 件である。根拠の URL は 2026-11-04 に読んだページである。</p>
+<div class="wrap">
+<table>
+  <thead>
+    <tr><th>No.</th><th>データ源</th><th>欲しい情報</th><th>判定</th><th>根拠の URL</th><th>確かめた日</th></tr>
+  </thead>
+  <tbody>
+    <tr><td class="num">1</td><td>ODPT の関西の鉄道事業者。JR西日本、Osaka Metro、阪急、阪神、京阪、近鉄、南海、北大阪急行、大阪モノレール、神戸市交通局</td><td>1〜4</td><td><span class="badge ng">使えない</span></td><td>組織一覧 138 件を 7 ページ全部確認。<a href="https://ckan.odpt.org/organization/">https://ckan.odpt.org/organization/</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">2</td><td>ODPT 京都市営地下鉄 GTFS-JP。チャレンジ 2026 期間限定公開</td><td>1, 2</td><td><span class="badge work">開発者の作業で使える</span></td><td><a href="https://ckan.odpt.org/dataset/kyoto_municipal_transportation_kyoto_city_subway_gtfs">https://ckan.odpt.org/dataset/kyoto_municipal_transportation_kyoto_city_subway_gtfs</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">3</td><td>ODPT 基本ライセンスと開発者登録</td><td>1, 2 の前提</td><td><span class="badge work">開発者の作業で使える</span></td><td><a href="https://developer.odpt.org/terms">https://developer.odpt.org/terms</a>。本文は JavaScript 描画のため配信バンドルから条文を読んだ</td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">4</td><td>公共交通オープンデータチャレンジ 2026 の限定ライセンスデータ</td><td>1, 2</td><td><span class="badge ng">使えない</span></td><td><a href="https://challenge2026.odpt.org/">https://challenge2026.odpt.org/</a>。関西の鉄道は京都市営地下鉄のみ</td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">5</td><td>国土数値情報 N02 鉄道 2024 年度版と 2025 年度版</td><td>2 の路線形状のみ</td><td><span class="badge ok">いま使える</span></td><td><a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N02-2024.html">N02-2024</a>、<a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N02-2025.html">N02-2025</a>、<a href="https://nlftp.mlit.go.jp/ksj/other/agreement_01.html">使用許諾条件</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">6</td><td>国土数値情報 S12 駅別乗降客数 2024 年度版</td><td>補助</td><td><span class="badge ok">いま使える</span></td><td><a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-S12-2024.html">S12-2024</a>、<a href="https://nlftp.mlit.go.jp/ksj/other/agreement.html">利用規約</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">7</td><td>JR西日本のサイトと JRおでかけネットの時刻表・停車駅</td><td>1, 2</td><td><span class="badge ng">使えない</span></td><td><a href="https://www.westjr.co.jp/guide/site_policy.html">サイトポリシー</a>、<a href="https://www.jr-odekake.net/use/about.html">JRおでかけネット</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">8</td><td>JR西日本 列車走行位置</td><td>4</td><td><span class="badge ng">使えない</span></td><td><a href="https://www.train-guide.westjr.co.jp/terms.html">https://www.train-guide.westjr.co.jp/terms.html</a>。規約のページだけを読んだ</td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">9</td><td>Osaka Metro の公式サイト</td><td>1, 2, 4</td><td><span class="badge ng">使えない</span></td><td><a href="https://www.osakametro.co.jp/site_info.php">https://www.osakametro.co.jp/site_info.php</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">10</td><td>阪急電鉄の公式サイト</td><td>1, 2, 4</td><td><span class="badge ng">使えない</span></td><td><a href="https://www.hankyu.co.jp/sitepolicy/index.html">https://www.hankyu.co.jp/sitepolicy/index.html</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">11</td><td>阪神電気鉄道の公式サイト</td><td>1, 2, 4</td><td><span class="badge ng">使えない</span></td><td><a href="https://www.hanshin.co.jp/terms/">https://www.hanshin.co.jp/terms/</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">12</td><td>京阪電気鉄道の公式サイト</td><td>1, 2, 4</td><td><span class="badge ng">使えない</span></td><td><a href="https://www.keihan.co.jp/terms.html">https://www.keihan.co.jp/terms.html</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">13</td><td>近畿日本鉄道の公式サイトと列車走行位置</td><td>1, 2, 4</td><td><span class="badge ng">使えない</span></td><td><a href="https://www.kintetsu.co.jp/toppage/annai.html">ご利用案内</a>、<a href="https://tid.kintetsu.co.jp/LocationWeb/terms_of_service.html">列車走行位置 利用規約</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">14</td><td>南海電気鉄道の公式サイト</td><td>1, 2, 4</td><td><span class="badge ng">使えない</span></td><td><a href="https://www.nankai.co.jp/terms.html">https://www.nankai.co.jp/terms.html</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">15</td><td>北大阪急行電鉄の公式サイト</td><td>1, 2, 4</td><td><span class="badge ng">使えない</span></td><td><a href="https://www.kita-kyu.co.jp/term/">https://www.kita-kyu.co.jp/term/</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">16</td><td>大阪モノレールの公式サイト</td><td>1, 2, 4</td><td><span class="badge ng">使えない</span></td><td><a href="https://www.osaka-monorail.co.jp/siteguide/">https://www.osaka-monorail.co.jp/siteguide/</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">17</td><td>神戸市交通局 地下鉄オープンデータ。時刻表 CSV と駅所在地</td><td>1, 2</td><td><span class="badge ok">いま使える</span></td><td><a href="https://kotsu.city.kobe.lg.jp/company/overview/open-data/subway-opendata/">交通局ページ</a>、<a href="https://catalog.city.kobe.lg.jp/dataset/f2d416e9-7dae-4938-b62e-7c717002d715">神戸市オープンデータポータル</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">18</td><td>京都市交通局 バス・地下鉄ガイドの時刻表</td><td>1</td><td><span class="badge ng">使えない</span></td><td><a href="https://www2.city.kyoto.lg.jp/kotsu/webguide/ja/terms.html">https://www2.city.kyoto.lg.jp/kotsu/webguide/ja/terms.html</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">19</td><td>大阪府オープンデータカタログ</td><td>1〜3</td><td><span class="badge ng">使えない</span></td><td>検索語「鉄道」で 0 件。<a href="https://data.bodik.jp/dataset?q=%E9%89%84%E9%81%93&amp;organization=270008">https://data.bodik.jp/dataset?q=鉄道&amp;organization=270008</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">20</td><td>大阪市と京都市のオープンデータポータル</td><td>1〜3</td><td><span class="badge unk">不明</span></td><td>当日は接続できなかった。<a href="https://data.city.osaka.lg.jp/">https://data.city.osaka.lg.jp/</a>、<a href="https://data.city.kyoto.lg.jp/">https://data.city.kyoto.lg.jp/</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">21</td><td>OpenStreetMap のホーム。railway=platform</td><td>3</td><td><span class="badge ok">いま使える</span></td><td><a href="https://wiki.openstreetmap.org/wiki/JA:Tag:railway%3Dplatform">タグの定義</a>、<a href="https://osmfoundation.org/wiki/Licence/Attribution_Guidelines">出典表示の指針</a>、<a href="https://osmfoundation.org/wiki/Licence/Community_Guidelines/Produced_Work_-_Guideline">Produced Work の指針</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">22</td><td>Wikidata のホーム数 P1103</td><td>3</td><td><span class="badge ok">いま使える</span></td><td><a href="https://www.wikidata.org/wiki/Wikidata:Copyright">ライセンス</a>、<a href="https://query.wikidata.org/">SPARQL で付与状況を確認</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">23</td><td>Wikipedia の駅記事のホーム数</td><td>3</td><td><span class="badge work">開発者の作業で使える</span></td><td><a href="https://ja.wikipedia.org/wiki/Wikipedia:%E3%82%A6%E3%82%A3%E3%82%AD%E3%83%9A%E3%83%87%E3%82%A3%E3%82%A2%E3%82%92%E4%BA%8C%E6%AC%A1%E5%88%A9%E7%94%A8%E3%81%99%E3%82%8B">Wikipedia:ウィキペディアを二次利用する</a></td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">24</td><td>駅データ.jp。駅・路線・接続駅</td><td>補助</td><td><span class="badge ok">いま使える</span></td><td><a href="https://ekidata.jp/agreement.php">https://ekidata.jp/agreement.php</a>。時刻表とホームは含まない</td><td class="num">2026-11-04</td></tr>
+    <tr><td class="num">25</td><td>駅すぱあと API フリープラン</td><td>1</td><td><span class="badge ng">使えない</span></td><td>API 一覧に時刻表がない。<a href="https://docs.ekispert.com/v1/le/api/">https://docs.ekispert.com/v1/le/api/</a>、<a href="https://api-info.ekispert.com/plan/">プラン</a></td><td class="num">2026-11-04</td></tr>
+  </tbody>
+</table>
+</div>
+<p>GTFS データリポジトリは今回は直接確かめていない。判定は <span class="badge unk">不明</span> とし、第 13 節に書く。</p>
+
+<h2 id="points">結論の要点</h2>
+<ul>
+  <li><span class="badge fact">確認</span> ODPT に関西の民鉄と JR西日本、Osaka Metro は参加していない。登録しても関西の鉄道データは京都市営地下鉄だけである。</li>
+  <li><span class="badge fact">確認</span> ODPT 基本ライセンスは営利利用を認める。一方で再配布と派生データの公開を禁じる。</li>
+  <li><span class="badge fact">確認</span> 国土数値情報の N02 と S12 は 2020 年以降 CC BY 4.0 である。N02 に種別、停車駅、ホームの属性はない。</li>
+  <li><span class="badge fact">確認</span> 民鉄 9 社と JR西日本の規約は、無断の複製と転載を禁じる。GTFS やオープンデータの提供はない。</li>
+  <li><span class="badge fact">確認</span> 神戸市交通局だけが地下鉄の時刻表を CSV で公開している。ライセンスは CC BY 2.1 JP である。</li>
+  <li><span class="badge fact">確認</span> OSM のホームは面で描かれ、ref で番線が分かる。length タグは 51 件中 0 件である。</li>
+  <li><span class="badge guess">推測</span> 締め切りまでに新たな許諾は得られない。既存方針の自作パラメータと利用者の持ち込みを続けるのが現実的である。</li>
+</ul>
+
+<h2 id="odpt">公共交通オープンデータセンター</h2>
+
+<h3>関西の事業者の有無</h3>
+<p><span class="badge fact">確認</span> データカタログの組織一覧は 138 件で、7 ページある。全ページを読んだ。</p>
+<p><span class="badge fact">確認</span> 関西に関わる組織は 4 つだけである。京都市交通局が 2 件、京都バスが 4 件、阪九フェリーが 1 件、名門大洋フェリーが 1 件である。</p>
+<p><span class="badge fact">確認</span> JR西日本、Osaka Metro、阪急、阪神、京阪、近鉄、南海、北大阪急行、大阪モノレール、神戸市交通局は一覧にない。</p>
+<p><span class="badge fact">確認</span> カタログで「関西 OR 大阪 OR 京阪 OR 阪急 OR 阪神 OR 近鉄 OR 南海 OR 神戸」を検索した結果は 0 件である。</p>
+
+<h3>データセットとライセンスの内訳</h3>
+<p><span class="badge fact">確認</span> データセットは 386 件である。ライセンスの内訳は次のとおりである。</p>
+<div class="wrap">
+<table>
+  <thead><tr><th>ライセンス</th><th>件数</th></tr></thead>
+  <tbody>
+    <tr><td>公共交通オープンデータ基本ライセンス</td><td class="num">166</td></tr>
+    <tr><td>CC BY 4.0</td><td class="num">118</td></tr>
+    <tr><td>公共交通オープンデータチャレンジ限定ライセンス</td><td class="num">80</td></tr>
+    <tr><td>公共データ利用規約 第 1.0 版</td><td class="num">12</td></tr>
+    <tr><td>その他ライセンス 認証なし</td><td class="num">5</td></tr>
+    <tr><td>CC0 1.0</td><td class="num">3</td></tr>
+    <tr><td>CC BY 4.0, ODC BY 1.0, ODbL 1.0</td><td class="num">1</td></tr>
+  </tbody>
+</table>
+</div>
+<p><span class="badge fact">確認</span> 京都市交通局の 2 件は次のとおりである。</p>
+<div class="wrap">
+<table>
+  <thead><tr><th>データセット</th><th>形式</th><th>ライセンス表記</th><th>説明文</th></tr></thead>
+  <tbody>
+    <tr><td><a href="https://ckan.odpt.org/dataset/kyoto_municipal_transportation_kyoto_city_bus_gtfs">京都市営バス</a></td><td>GTFS/GTFS-JP</td><td>基本ライセンス</td><td>市営バスのバス関連情報。期間の限定はない</td></tr>
+    <tr><td><a href="https://ckan.odpt.org/dataset/kyoto_municipal_transportation_kyoto_city_subway_gtfs">京都市営地下鉄</a></td><td>GTFS/GTFS-JP。リソース名は 20260703</td><td>基本ライセンス</td><td>「チャレンジ 2026 期間中のみの限定公開」と明記</td></tr>
+  </tbody>
+</table>
+</div>
+<p><span class="badge guess">推測</span> 京都市営地下鉄はライセンス表記が基本ライセンスで、公開期間だけが限定されている。応募を前提とする限定ライセンスとは別物と読める。どのアクセストークンで取れるかは未確認である。</p>
+
+<h3>基本ライセンスの条文</h3>
+<p><span class="badge fact">確認</span> 規約ページは JavaScript で描画され、通常の取得では本文が出ない。配信されている JavaScript から条文を読んだ。2021-06-01 改定版である。</p>
+<div class="wrap">
+<table>
+  <thead><tr><th>条</th><th>要旨</th><th>本アプリへの意味</th></tr></thead>
+  <tbody>
+    <tr><td>第 3 条</td><td>非独占的な利用権を許諾する。ガイドラインと特定利用条件に従うことが条件である</td><td>許諾は取り消されうる前提で設計する</td></tr>
+    <tr><td>第 4 条 2 項</td><td>元の意味を損なう分解や修正をしない。データが更新されたら成果物を直ちに更新する</td><td>取り込みを自動化し、古い版を使い続けない</td></tr>
+    <tr><td>第 4 条 8 項</td><td>営利、非営利を問わず利用できる</td><td>ハッカソン作品でも商用でも使える</td></tr>
+    <tr><td>第 8 条 4 項</td><td>データ、複製物、元データを復元できる派生データの公開、再配布、公衆送信を禁じる。書面の承諾があれば例外である</td><td>公開リポジトリに GTFS や変換結果を置けない</td></tr>
+    <tr><td>第 10 条 3 項</td><td>正確性と完全性を保証しない旨を一般ユーザに通知する。アプリには問い合わせ先を書く</td><td>「このアプリについて」に定型文と連絡先を置く</td></tr>
+    <tr><td>第 13 条</td><td>センターはいつでも提供を変更、停止、中止できる</td><td>データなしでも動く作りを保つ</td></tr>
+  </tbody>
+</table>
+</div>
+<p><span class="badge fact">確認</span> 開発者サイトは、基本ライセンスのアプリに次の 3 点の表示を求めている。出典がセンターであること、正確性と完全性が保証されないこと、問い合わせ先が開発者であることである。</p>
+
+<h3>チャレンジ限定ライセンスとの違い</h3>
+<p><span class="badge fact">確認</span> 限定ライセンスのデータは、チャレンジ開催期間中に、作品応募を前提として使える。FAQ は終了後の継続提供を予定していないと書く。</p>
+<p><span class="badge fact">確認</span> チャレンジ 2026 の実施期間は 2026-07-01 から 2027-03-12 である。応募期間は 2026-10-01 から 2027-01-11 である。</p>
+<p><span class="badge fact">確認</span> 限定ライセンスのデータは「チャレンジ 2026 専用アクセストークン」で取る。基本ライセンスのデータは「ODPT センター用アクセストークン」で取る。</p>
+<p><span class="badge fact">確認</span> 2026 年のチャレンジで提供される鉄道データは、JR東日本、東武、西武、京王、京急、小田急、相鉄、東急、京都市営地下鉄、都営大江戸線の構内図、とさでん交通である。</p>
+
+<h3>登録と API キーで使える範囲</h3>
+<p><span class="badge fact">確認</span> 登録は無料である。必須項目は氏名、フリガナ、年齢、性別、郵便番号、住所、電話番号、学生か一般か、所属、職種、知ったきっかけである。</p>
+<p><span class="badge fact">確認</span> 流れはメールアドレスの確認、事務局の内容確認、承認メールの順である。承認は最大 2 営業日程度と書かれている。</p>
+<p><span class="badge fact">確認</span> 承認後に発行されるアクセストークン ConsumerKey を API の URL に入れて使う。CC BY 4.0 のデータも同じ API で提供される。</p>
+<p><span class="badge guess">推測</span> 登録で開くのは、基本ライセンスと CC BY 4.0 の全データである。関西の鉄道で増えるのは京都市営地下鉄 1 件だけである。デモ区間が大阪周辺なら効果は小さい。</p>
+
+<h2 id="ksj">国土数値情報</h2>
+
+<h3>利用条件</h3>
+<div class="wrap">
+<table>
+  <thead><tr><th>データ</th><th>最新版と基準日</th><th>使用条件</th><th>備考</th></tr></thead>
+  <tbody>
+    <tr><td>N02 鉄道 2024 年度版</td><td>基準日 2024-12-31。2025 年 6 月に公開</td><td>2020 年以降の版はオープンデータ CC BY 4.0</td><td>開発者が挙げた版である。2025 年度版と属性は同じである</td></tr>
+    <tr><td>N02 鉄道 2025 年度版</td><td>基準日 2025-12-31。2026 年 4 月に公開</td><td>CC BY 4.0</td><td>基準日までの開業と新駅を反映すると書かれている</td></tr>
+    <tr><td>S12 駅別乗降客数 2024 年度版</td><td>2011 年度から 2024 年度の年度別値。2026 年 4 月に公開</td><td>CC BY 4.0</td><td>各社の数値は算出方法が統一されていないと注記がある</td></tr>
+  </tbody>
+</table>
+</div>
+<p><span class="badge fact">確認</span> 使用許諾条件のページは政府標準利用規約 第 2.0 版に準拠する。商用利用、複製、翻案を認め、CC BY 4.0 と互換と明記する。</p>
+<p><span class="badge fact">確認</span> 加工して使う場合の出典の書き方は「"国土数値情報（○○データ）"（国土交通省）（当該ページの URL）をもとに○○作成」である。</p>
+<p><span class="badge fact">確認</span> 利用規約のページは 2026-03-23 施行で、権利表記のないコンテンツに公共データ利用規約 PDL 1.0 を適用する。N02 と S12 は CC BY 4.0 の表記がある。</p>
+<p><span class="badge guess">推測</span> いまの data-sources.md の記述と矛盾はない。2024 年度版に切り替える理由はなく、2025 年度版のままでよい。</p>
+
+<h3>種別とホームの有無</h3>
+<p><span class="badge fact">確認</span> N02 の属性は、鉄道区分、事業者種別、路線名、運営会社、駅名、駅コード、グループコードである。</p>
+<p><span class="badge fact">確認</span> 鉄道区分は普通鉄道やモノレールの区別である。事業者種別は JR 在来線や民営鉄道の区別である。列車種別、停車駅、ホームの属性はない。</p>
+<p><span class="badge fact">確認</span> S12 にもホームの属性はない。原典は鉄道事業者の提供資料である。</p>
+
+<h2 id="operators">事業者の規約と公開データ</h2>
+<p>対象は 11 社局である。規約とオープンデータの提供ページを読んだ。運行情報と走行位置の本体ページと API には触れていない。</p>
+<div class="wrap">
+<table>
+  <thead><tr><th>事業者</th><th>規約の URL</th><th>二次利用の条項の要旨</th><th>自動取得の条項</th><th>オープンデータ・GTFS・ODPT</th><th>窓口</th></tr></thead>
+  <tbody>
+    <tr><td>JR西日本</td><td><a href="https://www.westjr.co.jp/guide/site_policy.html">サイトポリシー</a>、<a href="https://www.jr-odekake.net/use/about.html">JRおでかけネット</a></td><td>権利者の許可なき複製、転記、配布を禁じる。RSS は個人の非営利利用に限る</td><td>明示なし</td><td>いずれもなし</td><td><a href="https://www.jr-odekake.net/info/info.html">お問い合わせ</a></td></tr>
+    <tr><td>JR西日本 列車走行位置</td><td><a href="https://www.train-guide.westjr.co.jp/terms.html">利用規約</a></td><td>承認していない方法での利用と営利目的の利用を禁じる。無断の複製、解析、公開を禁じる</td><td>明示なし。「承認した以外の方法」に含まれうる</td><td>なし。提供時間は 5 時から翌 1 時</td><td>同上</td></tr>
+    <tr><td>Osaka Metro</td><td><a href="https://www.osakametro.co.jp/site_info.php">当サイトについて</a></td><td>無断の使用と転載を禁じる。私的複製と引用以外は事前に相談する</td><td>明示なし</td><td>いずれもなし。駅別乗降人員は PDF 公開</td><td><a href="https://contact.osakametro.co.jp/inquiry">ご意見フォーム</a></td></tr>
+    <tr><td>阪急電鉄</td><td><a href="https://www.hankyu.co.jp/sitepolicy/index.html">サイトポリシー</a></td><td>法的に認められる範囲を超える利用には著作権者の事前の許諾が要る</td><td>明示なし</td><td>いずれもなし</td><td>サイト内 /inquiry/index.html</td></tr>
+    <tr><td>阪神電気鉄道</td><td><a href="https://www.hanshin.co.jp/terms/">当サイトのご利用にあたって</a></td><td>事前の許諾なく複製、改変、販売、配布することを禁じる</td><td>明示なし</td><td>いずれもなし</td><td>サイト内 /inquiry/</td></tr>
+    <tr><td>京阪電気鉄道</td><td><a href="https://www.keihan.co.jp/terms.html">利用規約</a></td><td>私的利用の範囲を超える複製、販売、出版を禁じる。営利目的の利用は承認制</td><td>明示なし。無権限アクセスと運営妨害を禁じる</td><td>いずれもなし</td><td>サイト内 /contact/</td></tr>
+    <tr><td>近畿日本鉄道</td><td><a href="https://www.kintetsu.co.jp/toppage/annai.html">ご利用案内</a>、<a href="https://tid.kintetsu.co.jp/LocationWeb/terms_of_service.html">列車走行位置 利用規約</a></td><td>私的使用の範囲外の使用を禁じる。走行位置は本サービス利用以外の目的での利用を禁じる</td><td>明示なし。運営に支障を及ぼす行為を禁じる</td><td>いずれもなし</td><td>サイト内 /cs/otoiawase.html</td></tr>
+    <tr><td>南海電気鉄道</td><td><a href="https://www.nankai.co.jp/terms.html">サイトのご利用について</a></td><td>無断の複製、配布、販売などの二次利用を禁じる</td><td>明示なし</td><td>いずれもなし</td><td>サイト内 /contact.html</td></tr>
+    <tr><td>北大阪急行電鉄</td><td><a href="https://www.kita-kyu.co.jp/term/">サイトのご利用にあたって</a></td><td>事前の許諾なく複製、改変、再配布、転載することを禁じる</td><td>明示なし</td><td>いずれもなし</td><td>ページに記載なし</td></tr>
+    <tr><td>大阪モノレール</td><td><a href="https://www.osaka-monorail.co.jp/siteguide/">サイトのご利用にあたって</a></td><td>無許可の複製と各種媒体への転載を禁じる</td><td>明示なし</td><td>いずれもなし</td><td>広報室 06-6170-4825</td></tr>
+    <tr><td>神戸市交通局</td><td><a href="https://kotsu.city.kobe.lg.jp/company/overview/open-data/">オープンデータ</a></td><td>地下鉄の時刻表と駅所在地を CC BY 2.1 JP で提供する</td><td>該当なし</td><td>地下鉄は CSV。市バスは GTFS-JP を公共交通データ HUB で登録制提供</td><td>サイト内 お問い合わせ</td></tr>
+    <tr><td>京都市交通局</td><td><a href="https://www2.city.kyoto.lg.jp/kotsu/webguide/ja/terms.html">バス・地下鉄ガイド 利用規約</a></td><td>私的使用の範囲外の使用を禁じる</td><td>明示なし</td><td>ODPT に市営バスと市営地下鉄。地下鉄は期間限定</td><td>京都市代表 075-222-3111</td></tr>
+  </tbody>
+</table>
+</div>
+<p><span class="badge fact">確認</span> 11 社局のうち、自動取得やスクレイピングを名指しで禁じる条項を持つサイトはなかった。</p>
+<p><span class="badge guess">推測</span> 名指しがなくても、無断複製の禁止と運営妨害の禁止で自動取得は規約違反と判断されうる。本プロジェクトの禁止方針は妥当である。</p>
+<p><span class="badge fact">確認</span> 停車駅の案内と駅構内図は各社とも公式サイトに載る。画像と文章は上の規約の対象である。</p>
+<p><span class="badge guess">推測</span> 停車駅という事実は自作の定義として書ける。公式図の画像や文面を写さなければ、規約には触れないと考える。法的な断言はしない。</p>
+
+<h3>神戸市交通局 地下鉄オープンデータの中身</h3>
+<p><span class="badge fact">確認</span> 西神・山手線と北神線は 2025-03-15 改正、海岸線は 2026-03-14 改正の時刻表である。平日と土休日、東行と西行の 8 ファイルがある。</p>
+<p><span class="badge fact">確認</span> 形式は CSV である。駅所在地と電話番号の一覧が 1 ファイル付く。ポータルの最終更新は 2026-03-05 である。</p>
+<p><span class="badge fact">確認</span> 交通局ページは「CC-BY 2.1 JP」と書く。ポータルは「CC BY」と表示し、最新は交通局ページで確認するよう注記する。</p>
+<p><span class="badge fact">確認</span> 神戸市オープンデータポータルは「必ず神戸市の著作物あるいはデータを使用した旨を記載してください」と求める。</p>
+<p><span class="badge guess">推測</span> 出典は「神戸市交通局 地下鉄オープンデータ」を CC BY 2.1 JP の表示で載せれば足りる。市営地下鉄は全列車が各駅停車なので、種別の並びの検証には向かない。</p>
+
+<h2 id="local">自治体のオープンデータ</h2>
+<div class="wrap">
+<table>
+  <thead><tr><th>自治体</th><th>確認した URL</th><th>結果</th></tr></thead>
+  <tbody>
+    <tr><td>神戸市</td><td><a href="https://data.city.kobe.lg.jp/policy/">利用について</a>、<a href="https://catalog.city.kobe.lg.jp/dataset/f2d416e9-7dae-4938-b62e-7c717002d715">地下鉄オープンデータ</a></td><td>CC ライセンス 2.1 日本版の 6 種を使い分ける。地下鉄の時刻表が CC BY で載る</td></tr>
+    <tr><td>大阪府</td><td><a href="https://data.bodik.jp/dataset?q=%E9%89%84%E9%81%93&amp;organization=270008">BODIK 内の大阪府</a></td><td>検索語「鉄道」で 0 件。全体は 18,630 件</td></tr>
+    <tr><td>大阪市</td><td><a href="https://data.city.osaka.lg.jp/">ポータル</a></td><td>当日は 3 回とも接続できなかった。判定は不明</td></tr>
+    <tr><td>京都市</td><td><a href="https://data.city.kyoto.lg.jp/">ポータル</a>、<a href="https://www.city.kyoto.lg.jp/main/site_policy/0000000005.html">著作権・リンク等</a></td><td>ポータルは接続できなかった。市サイトは無断の複製と転用を禁じる</td></tr>
+  </tbody>
+</table>
+</div>
+<p><span class="badge fact">確認</span> 神戸市のウェブサイト利用規約のページは、方針の詳細を PDF に委ねる。PDF の本文は今回読んでいない。</p>
+<p><span class="badge guess">推測</span> 交通局サイトのフッターは All Rights Reserved で、市サイトの規約が及ぶかは不明である。オープンデータページの CC BY 表記だけを根拠にする。</p>
+
+<h2 id="osm">OpenStreetMap</h2>
+
+<h3>ホームの描かれ方</h3>
+<p><span class="badge fact">確認</span> Overpass API に 2 回問い合わせた。範囲は大阪・梅田、神戸三宮、京都の 3 か所である。</p>
+<p><span class="badge fact">確認</span> railway=platform の way は 51 件あった。タグの付与数は次のとおりである。</p>
+<div class="wrap">
+<table>
+  <thead><tr><th>タグ</th><th>付与数</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td>public_transport, railway</td><td class="num">51</td><td>全件にある</td></tr>
+    <tr><td>ref</td><td class="num">39</td><td>番線。「3;4」のように島式を 1 面で表す例が多い</td></tr>
+    <tr><td>operator</td><td class="num">27</td><td>事業者名。表記ゆれがある</td></tr>
+    <tr><td>area=yes</td><td class="num">25</td><td>面として描かれている</td></tr>
+    <tr><td>name</td><td class="num">9</td><td>阪神梅田と阪急神戸三宮に名前がある</td></tr>
+    <tr><td>length</td><td class="num">0</td><td>長さのタグはない</td></tr>
+  </tbody>
+</table>
+</div>
+<p><span class="badge fact">確認</span> 梅田周辺の 26 件は形状も取った。頂点間の最長距離を長さの代わりに測った。</p>
+<div class="wrap">
+<table>
+  <thead><tr><th>事業者</th><th>件数</th><th>概算の長さ</th><th>備考</th></tr></thead>
+  <tbody>
+    <tr><td>阪神電気鉄道</td><td class="num">8</td><td>133 から 140 m</td><td>乗車と降車のホームが別の線で描かれる</td></tr>
+    <tr><td>西日本旅客鉄道</td><td class="num">2</td><td>211 と 218 m</td><td>21 から 24 番線。地下の面</td></tr>
+    <tr><td>operator なし</td><td class="num">16</td><td>184 から 400 m</td><td>JR 大阪駅の地上ホームと阪急大阪梅田駅と推定</td></tr>
+  </tbody>
+</table>
+</div>
+<p><span class="badge guess">推測</span> 形状から長さを概算でき、ref で番線数が分かる。面の対角線は実長より長く出るので、中心線の長さで測り直す必要がある。</p>
+<p><span class="badge fact">確認</span> タグの定義ページは ref と name と width を推奨する。length は推奨タグに含まれない。</p>
+
+<h3>ODbL の義務</h3>
+<p><span class="badge fact">確認</span> 出典表示は「OpenStreetMap」で、ODbL で提供されていることが分かる必要がある。「© OpenStreetMap contributors」も認められる。</p>
+<p><span class="badge fact">確認</span> 地図の隅、起動時の画面、About のいずれかに表示する。消える表示でも、後から見つけられる場所が要る。</p>
+<p><span class="badge fact">確認</span> OSM データを抽出したデータベースは派生データベースである。公開するなら ODbL で提供し、加えた変更を公開する。</p>
+<p><span class="badge fact">確認</span> 画像や描画結果は Produced Work である。公開する場合は基となるデータベースも公開する。</p>
+<p><span class="badge guess">推測</span> 駅ごとのホーム長の表を OSM から作って公開すれば、派生データベースに当たる。リポジトリでは ODbL のファイルとして置き、出典を README に書く。</p>
+
+<h2 id="others">その他の候補</h2>
+<div class="wrap">
+<table>
+  <thead><tr><th>候補</th><th>確認した URL</th><th>分かったこと</th><th>判定</th></tr></thead>
+  <tbody>
+    <tr><td>Wikidata P1103 ホーム数</td><td><a href="https://www.wikidata.org/wiki/Wikidata:Copyright">Copyright</a>、<a href="https://query.wikidata.org/">SPARQL</a></td><td>構造化データは CC0 である。大阪市内の駅で P1103 を持つものは 40 行の問い合わせで 22 駅ほどあった。大阪梅田 4、京橋 10 などで、網羅性は低い</td><td><span class="badge ok">いま使える</span></td></tr>
+    <tr><td>Wikipedia 駅記事</td><td><a href="https://ja.wikipedia.org/wiki/Wikipedia:%E3%82%A6%E3%82%A3%E3%82%AD%E3%83%9A%E3%83%87%E3%82%A3%E3%82%A2%E3%82%92%E4%BA%8C%E6%AC%A1%E5%88%A9%E7%94%A8%E3%81%99%E3%82%8B">二次利用の規則</a></td><td>文章は CC BY-SA 4.0 である。頒布には著者表示が要り、改変物は同じライセンスで提供する。事実の抜き出しについての記述はない</td><td><span class="badge work">開発者の作業で使える</span></td></tr>
+    <tr><td>駅データ.jp</td><td><a href="https://ekidata.jp/agreement.php">利用規約</a></td><td>商用、非商用を問わず利用と加工ができる。第三者提供は可能だが非加工なら無償に限る。出典表示は任意である。時刻表とホームは含まない</td><td><span class="badge ok">いま使える</span></td></tr>
+    <tr><td>駅すぱあと API</td><td><a href="https://docs.ekispert.com/v1/le/api/">フリープラン API 一覧</a>、<a href="https://api-info.ekispert.com/plan/">プラン</a></td><td>フリープランは駅情報、路線情報、会社情報のみで、時刻表 API はない。全機能の評価版は 90 日無料とある。規約と再配布条件は見つからなかった</td><td><span class="badge ng">使えない</span></td></tr>
+    <tr><td>公共交通オープンデータチャレンジ 2026</td><td><a href="https://challenge2026.odpt.org/">公式サイト</a></td><td>関西の鉄道は京都市営地下鉄のみである。限定データは応募前提である</td><td><span class="badge ng">使えない</span></td></tr>
+    <tr><td>GTFS データリポジトリ</td><td><a href="https://gtfs-data.jp/">トップ</a></td><td>今回は検索のみで直接の確認をしていない。data-sources.md の 11-02 の確認では関西の鉄道の登録はない</td><td><span class="badge unk">不明</span></td></tr>
+  </tbody>
+</table>
+</div>
+<p><span class="badge guess">推測</span> Wikipedia から数値だけを手で転記し、出典の URL を記録する運用なら負担は小さい。文を写さないので継承の義務は限定的と考えるが、法的な断言はしない。</p>
+
+<h2 id="timetable-law">時刻表の著作物性</h2>
+<p>ここでは法的な結論を出さない。論点と許諾の道筋だけを書く。</p>
+<ul>
+  <li><span class="badge fact">確認</span> 著作権法 12 条は、素材の選択または配列に創作性がある編集物を保護する。12 条の 2 は情報の選択または体系的な構成に創作性があるデータベースを保護する。文化庁の<a href="https://www.bunka.go.jp/seisaku/chosakuken/textbook/pdf/94081601_01.pdf">著作権テキスト 令和 6 年度版</a>が解説する。</li>
+  <li><span class="badge fact">確認</span> 自動車データベース事件では、東京地裁がデータベースの著作物性を否定し、複製を不法行為と認めた。<a href="https://atmarkit.itmedia.co.jp/ait/spv/1701/25/news012.html">@IT の解説</a>がある。</li>
+  <li><span class="badge guess">推測</span> 時刻という事実そのものは著作物ではないという見解が一般的である。一方で、一括の複製は編集著作権や不法行為の論点を残す。</li>
+  <li><span class="badge guess">推測</span> 各社の規約は著作物性と無関係に無断複製を禁じている。規約への同意と契約の問題として扱うのが安全である。</li>
+</ul>
+<h3>許諾を取る道筋</h3>
+<ol>
+  <li>各社の問い合わせ窓口に、目的、利用範囲、表示方法、期間、公開先を書いて依頼する。窓口は第 5 節の表にある。</li>
+  <li>ODPT への参加を依頼する選択肢もある。センターは事業者への直接の問い合わせを控えるよう求めている。</li>
+  <li><span class="badge guess">推測</span> 回答の日数は不明で、11-08 には間に合わない。本提出ではデータなしの設計を保ち、許諾後に差し替える前提にする。</li>
+</ol>
+
+<h2 id="work">開発者の作業の手順と日数</h2>
+
+<h3>ODPT の登録と京都市営地下鉄 GTFS-JP</h3>
+<ol>
+  <li>開発者サイトでユーザ登録を申請する。<a href="https://developer.odpt.org/">https://developer.odpt.org/</a></li>
+  <li>利用規約、基本ライセンス、開発者ガイドラインに同意する。</li>
+  <li>確認メールのリンクを開く。事務局の承認メールを待つ。</li>
+  <li>ログイン後に「ODPT センター用アクセストークン」を控える。</li>
+  <li>サーバー側の取り込み処理でだけトークンを使う。取得したファイルはコミットしない。</li>
+  <li>「このアプリについて」に出典、無保証、問い合わせ先の 3 点を書く。</li>
+</ol>
+<p><span class="badge fact">確認</span> 承認は最大 2 営業日程度と書かれている。</p>
+<p><span class="badge guess">推測</span> 11-04 に申請すれば 11-06 までに承認される見込みである。11-08 に間に合う。組み込みに 1 日を見込む。</p>
+<p><span class="badge guess">推測</span> 得られるのは京都市営地下鉄だけで、2027-03-12 以降は止まる前提になる。デモが大阪周辺なら、登録の効果は小さい。</p>
+
+<h3>Wikipedia からのホーム数の転記</h3>
+<ol>
+  <li>対象駅の記事を開き、ホームの数と形式の数値だけを自作の表に写す。</li>
+  <li>記事の URL と閲覧日を表に残す。</li>
+  <li>「このアプリについて」に CC BY-SA 4.0 の表示と記事へのリンクを置く。</li>
+</ol>
+<p><span class="badge guess">推測</span> デモ区間の 20 駅程度なら半日で終わる。即日で間に合う。</p>
+
+<h3>事業者への許諾依頼</h3>
+<p>手順は第 9 節のとおりである。</p>
+<p><span class="badge guess">推測</span> 日数は読めず、11-08 には間に合わない。判定は「使えない」のままとし、依頼だけ先に出す価値はある。</p>
+
+<h2 id="recommend">欲しい情報ごとの推し</h2>
+<div class="wrap">
+<table>
+  <thead><tr><th>欲しい情報</th><th>いちばん現実的な手段</th><th>理由</th></tr></thead>
+  <tbody>
+    <tr><td>1. 列車の時刻表</td><td>自作の運転間隔と種別構成のパラメータを続ける。神戸市営地下鉄の CSV を検証用に使う</td><td>関西の民鉄と JR の時刻表は許諾がない。ODPT は京都市営地下鉄のみで期間限定である</td></tr>
+    <tr><td>2. 運転パターンと停車駅</td><td>停車駅を自作の定義として入力する。路線形状は N02 を使う</td><td>停車駅は事実で、公式図を写さなければ規約に触れないと考える。N02 に停車駅はない</td></tr>
+    <tr><td>3. ホームの数と長さ</td><td>OSM の railway=platform の ref と形状から求める。欠けは Wikidata P1103 と Wikipedia の転記で補う</td><td>OSM は面で描かれ ref がある。length タグはないが形状から概算できる。ODbL の出典表示で済む</td></tr>
+    <tr><td>4. 運行情報と走行位置</td><td>利用者の持ち込みを続ける</td><td>JR西日本と近鉄の走行位置は規約で目的外利用を禁じる。ODPT に関西のリアルタイムはない</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="proposal">data-sources.md への追記案</h2>
+<p>判断は開発者が行う。本書は data-sources.md を変更していない。</p>
+<h3>「使用するデータ」に足す行の案</h3>
+<pre>| 神戸市営地下鉄の時刻表 | 神戸市交通局 地下鉄オープンデータ | 神戸市交通局 | CC BY 2.1 JP。出典に神戸市交通局のデータを使用した旨を書く。検証用に限る | 利用可 |
+| 駅のホーム数と概算の長さ | OpenStreetMap の railway=platform | OpenStreetMap contributors | ODbL。ref で番線、形状から長さを概算する。作った表は ODbL で公開する | 作成予定 |
+| ホーム数の補完 | Wikidata P1103 | Wikidata contributors | CC0。付与は一部の駅に限る | 作成予定 |</pre>
+<h3>「使用しないデータ」に足す行の案</h3>
+<pre>| ODPT の関西データ | 関西の鉄道は京都市営地下鉄のみで、チャレンジ 2026 期間限定の公開。基本ライセンスは再配布を禁じるため、公開リポジトリに置けない |
+| 駅すぱあと API フリープラン | 時刻表の API がない。再配布条件が未確認 |</pre>
+<h3>注に足す行の案</h3>
+<pre>- ODPT: https://ckan.odpt.org/organization/ を 2026-11-04 に全 7 ページ確認した。138 組織に JR西日本、Osaka Metro、阪急、阪神、京阪、近鉄、南海、北大阪急行、大阪モノレール、神戸市交通局はない
+- 神戸市交通局 地下鉄オープンデータ: https://kotsu.city.kobe.lg.jp/company/overview/open-data/subway-opendata/ 。CC BY 2.1 JP。西神・山手線と北神線は 2025-03-15 改正、海岸線は 2026-03-14 改正
+- OSM のホーム: 2026-11-04 に Overpass で梅田、三宮、京都の 51 件を確認した。length タグは 0 件、ref は 39 件</pre>
+<h3>出典表示に足す行の案</h3>
+<pre>地下鉄の時刻表: 神戸市交通局「地下鉄オープンデータ」を加工して作成。CC BY 2.1 JP
+ホームの情報: © OpenStreetMap contributors。Wikidata のデータを含む</pre>
+
+<h2 id="gaps">調べきれなかったこと</h2>
+<ul>
+  <li>大阪市と京都市のオープンデータポータルは当日接続できなかった。日を改めて「地下鉄」「時刻表」で検索する。</li>
+  <li>GTFS データリポジトリの関西の鉄道の登録は直接確かめていない。data-sources.md の 11-02 の確認に依拠した。</li>
+  <li>ODPT の京都市営地下鉄がどちらのアクセストークンで取れるかは、登録しないと分からない。</li>
+  <li>神戸市ウェブサイト利用規約の PDF の本文は読んでいない。交通局サイトへの適用範囲は不明である。</li>
+  <li>駅すぱあと API の利用規約と再配布条件は見つからなかった。</li>
+  <li>Wikidata の P1103 の付与率は数えていない。40 行上限の問い合わせで傾向を見ただけである。</li>
+  <li>子エージェントに依頼した事業者調査と自治体調査は、利用上限で止まった。本書は根が直接確かめた範囲で書いた。</li>
+</ul>
+
+<footer>
+  <p>作成日 2026-11-04。置き場所は docs/guides/data-license-survey-2026-11-04.html である。外部の CSS と JavaScript は使っていない。</p>
+</footer>
+</main>
+</body>
+</html>
