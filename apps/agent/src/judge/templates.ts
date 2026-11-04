@@ -69,7 +69,10 @@ export type DecisionReason =
   | "resume_after_break_even"
   | "resume_mostly_after_break_even"
   | "deadline_risk"
-  | "resume_before_break_even";
+  | "resume_before_break_even"
+  // 原因が分からず、発表の再開見込みの時刻だけを根拠に分岐点と比べた
+  | "stated_resume_after_break_even"
+  | "stated_resume_before_break_even";
 
 export type DecisionTextInput = {
   reason: DecisionReason;
@@ -207,6 +210,30 @@ function buildDecisionReason(input: DecisionTextInput): string {
       return ja
         ? `再開見込み${p50}頃が、分岐点${be}より早いためです。`
         : `Resumption is expected around ${p50}, earlier than the break-even time of ${be}.`;
+    // 発表の時刻をもとにした推定であることが分かるよう、発表の見込みと「見込みどおりなら」を書く
+    case "stated_resume_after_break_even":
+      if (!p50 || !be) {
+        return ja
+          ? `発表の再開見込みが分岐点より遅く、見込みどおりでも${target}のほうが早く着くためです。`
+          : `The announced restart is after the break-even time, so ${target} gets you there sooner even if it holds.`;
+      }
+      return ja
+        ? `発表の再開見込み${p50}が分岐点${be}より遅く、見込みどおりでも${target}のほうが早く着くためです。`
+        : `The announced restart of ${p50} is after the break-even time of ${be}, so ${target} gets you there sooner even if it holds.`;
+    case "stated_resume_before_break_even":
+      if (!p50 || !be || input.marginP50Minutes === null) {
+        return ja
+          ? "発表の再開見込みどおりなら、待つほうが早く着く見込みです。"
+          : "If the announced restart holds, waiting gets you there sooner.";
+      }
+      if (input.marginP50Minutes < 0) {
+        return ja
+          ? `発表の再開見込み${p50}と分岐点${be}の差が小さく、乗り換えるほどの差がないためです。`
+          : `The announced restart of ${p50} is close to the break-even time of ${be}, too close to justify switching.`;
+      }
+      return ja
+        ? `発表の再開見込み${p50}が分岐点${be}より早く、見込みどおりなら待つほうが早く着きます。`
+        : `The announced restart of ${p50} is before the break-even time of ${be}, so waiting gets you there sooner if it holds.`;
   }
 }
 
@@ -244,8 +271,10 @@ function buildDecisionHeadline(input: DecisionTextInput): string {
     case "resume_after_break_even":
     case "resume_mostly_after_break_even":
     case "deadline_risk":
+    case "stated_resume_after_break_even":
       return switchHeadline;
-    case "resume_before_break_even": {
+    case "resume_before_break_even":
+    case "stated_resume_before_break_even": {
       const minutes = input.breakEvenMinutesFromNow;
       if (input.flow?.outlook === "short") return waitHeadline;
       if (minutes === null || minutes <= 0) return waitHeadline;

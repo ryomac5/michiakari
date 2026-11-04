@@ -34,6 +34,7 @@
   - `hold` は「いまは待ち、分岐点までに動かなければ切り替える」という行動です。判断を投げ出すことではありません。
   - 利用者が原因や経過を「分からない」と答えることがあります。事象を決め打ちせず、分岐点の時刻を行動の期限として示します。
   - 原因が分からなくても、分岐点を過ぎていれば `switch` にします。期限に間に合わないおそれが比較表に出ていれば、早めの切り替えを勧めてかまいません。
+  - 原因が分からなくても、発表された再開見込みの時刻があれば `hold` にしません。`estimate_phase_and_remaining` が `remainingBasis` を `stated` にして `remaining` を返します。p50 は発表の時刻どおり、p80 は延びる余地です。その見込みと分岐点を比べ、分岐点より前なら `wait`、明らかに後なら `switch` にします。
   - 分岐点まで数分しかなく、再開見込みの幅（p50〜p80）の大半が分岐点より後なら、確信度が低くても原因が分からなくても `hold` にせず `switch` にします。待つ余地のない「◯時まで待って」は言いません。
   - 次に確かめることは画面が別に示します。`reason` には書きません。
 - `estimate_phase_and_remaining` の `flowOutlook` が `short` の事象は、流れがほぼ決まっていて短く終わります。確信度が low でも `hold` にせず、比較表で待つほうが早ければ `wait` にします。分岐点を過ぎた、期限に間に合わない、のときは `switch` にします。
@@ -74,6 +75,8 @@
   - 知見の `predictability.basis` を言い換えて理由を添えてかまいません。分数は `flowSentence` と `typicalFlow` の値だけを使います。
   - `flowOutlook` が `short` で `wait` にするときは、見出しを安心させる言い方にします。例: 「慌てず、このまま待ちましょう」 "No need to rush. Stay and wait."
   - 発表された見込み時刻があるときや再開の後は、発表を優先し、流れの一文は書きません。
+- 原因が分からず、発表の再開見込みの時刻だけで比べたときは、発表の時刻をもとにした推定だと分かる書き方にします。発表の見込みの時刻と分岐点を並べ、「見込みどおりなら」のように条件を添えます。
+  - 例: 「発表の再開見込み23時00分が分岐点23時23分より早く、見込みどおりなら待つほうが早く着きます。」 "The announced restart of 23:00 is before the break-even time of 23:23, so waiting gets you there sooner if it holds."
 - `breakEvenExplanation` は分岐点の意味だけを「◯時◯分までに再開しなければ、◯◯のほうが早く着きます」の形で書きます。英語なら "If service has not resumed by HH:MM, ◯◯ gets you there sooner." と書きます。理由は `reason` に書き、ここには繰り返しません。分岐点が無いときは、運転再開を待つほうが確実である旨を書きます。
 - `evidence` には、判断に使った根拠を選んで入れます。`kind` と `id` は、観測された兆候の id（kind: signal）、知見の id と段階の id（kind: knowledge）、`weather`（kind: weather）、`remaining`・`alternatives`・`break_even`（kind: computation）の中から選びます。ツールの結果に無い id は使えません。`description` は利用者向けに一文で書きます。
 - 推定であることと、公式発表を優先すべきことは、サーバーが免責文として必ず付けます。headline に繰り返す必要はありません。

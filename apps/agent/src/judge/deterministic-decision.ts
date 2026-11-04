@@ -42,6 +42,39 @@ function decideSwitchInsteadOfHold(
   return null;
 }
 
+// 待つと期限に間に合わず、代替手段なら間に合うか
+function checkDeadlineRisk(breakEven: BreakEvenToolResult, bestAlternativeId: string): boolean {
+  const waitRow = breakEven.comparison.find((c) => c.scenario === "wait_p50");
+  const bestRow = breakEven.comparison.find((c) => c.optionId === bestAlternativeId);
+  return waitRow?.deadline?.onTime === false && bestRow?.deadline?.onTime === true;
+}
+
+// 原因が分からなくても、発表の再開見込みがあれば、その時刻と分岐点を比べて待つか切り替えるかを言い切る
+// 見込みは発表の時刻どおりを p50、延びる余地を p80 とする。保留にはしない
+function decideByStatedResume(
+  input: RuleInput,
+  r: Extract<BreakEvenToolResult["result"], { kind: "future" | "passed" }>,
+): RuleOutcome {
+  const switchTo = { recommendedOptionId: r.bestAlternativeId };
+  const outlook = r.resumeOutlook;
+  if (outlook) {
+    if (input.estimate.statedExtended && outlook.marginP80Minutes < 0) {
+      return { action: "switch", reason: "estimate_extended", ...switchTo };
+    }
+    if (outlook.marginP50Minutes < -decisionParams.switchMarginMinutes) {
+      return { action: "switch", reason: "stated_resume_after_break_even", ...switchTo };
+    }
+  }
+  if (checkDeadlineRisk(input.breakEven, r.bestAlternativeId)) {
+    return { action: "switch", reason: "deadline_risk", ...switchTo };
+  }
+  return {
+    action: "wait",
+    reason: "stated_resume_before_break_even",
+    recommendedOptionId: input.alternatives.waitOptionId,
+  };
+}
+
 // 規則は上から順に当てはめる
 export function applyDecisionRules(input: RuleInput): RuleOutcome {
   const { estimate, breakEven } = input;
@@ -53,6 +86,15 @@ export function applyDecisionRules(input: RuleInput): RuleOutcome {
         action: "switch",
         reason: "break_even_passed",
         recommendedOptionId: r.bestAlternativeId,
+      };
+    }
+    // 発表の再開見込みがあるときは、その時刻を見込みとして分岐点と比べる
+    if (estimate.remainingBasis === "stated") {
+      if (r.kind === "future") return decideByStatedResume(input, r);
+      return {
+        action: "wait",
+        reason: "no_alternative",
+        recommendedOptionId: input.alternatives.waitOptionId,
       };
     }
     const late = decideSwitchInsteadOfHold(r);
@@ -99,9 +141,7 @@ export function applyDecisionRules(input: RuleInput): RuleOutcome {
     return { action: "switch", reason: "resume_after_break_even", ...switchTo };
   }
   // 待つと期限に間に合わず、代替手段なら間に合う
-  const waitRow = breakEven.comparison.find((c) => c.scenario === "wait_p50");
-  const bestRow = breakEven.comparison.find((c) => c.optionId === r.bestAlternativeId);
-  if (waitRow?.deadline?.onTime === false && bestRow?.deadline?.onTime === true) {
+  if (checkDeadlineRisk(breakEven, r.bestAlternativeId)) {
     return { action: "switch", reason: "deadline_risk", ...switchTo };
   }
   return {
