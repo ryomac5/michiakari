@@ -88,6 +88,9 @@
     - 様子の段で答えたことを `tripContext.entryAnswers` に残し、入口へ戻ると最後に答えた問いまで復元する
     - 判断から戻った先は、原因の問いから最後に答えた問いに変わった。`entry-map.spec.ts` の 2 本の段の順をそろえた
     - ← を押して 3 問目に戻り、答えたチップが残ることを e2e に足した
+  - 審査基準の記録
+    - ハッカソンの審査基準の全文を `docs/judging-criteria.md` に記録した
+    - `CLAUDE.md` と `docs/vision.md` から辿れるようにした
 - 確認結果:
   - typecheck、lint、test、guard、web の build が exit 0 で、build の警告は 0 件
   - e2e の全体が通った

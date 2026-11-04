@@ -12,6 +12,7 @@ Built with Claude: Japan 2026 ハッカソン（2026/11/2〜11/8）の提出作�
 | 文書 | 内容 |
 |---|---|
 | `docs/vision.md` | 製品仕様。何を、誰のために、なぜ作るか。作らないもの |
+| `docs/judging-criteria.md` | ハッカソンの審査基準。4 つの観点と配点 |
 | `docs/architecture.md` | 構成、データの流れ、エージェント設計、ツールとイベントの仕様、検証方法 |
 | `docs/data-sources.md` | 使ってよいデータ、ライセンス、出典表示 |
 | `docs/ux.md` | 画面構成、地図仕様、設計原則 |
