@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
   agentRules: false,
   // 録画とスクリーンショットに開発用の表示を写さない
   devIndicators: false,
+  // 同じネットワークのスマホから dev サーバーを開くときに許すホスト。カンマ区切り
+  allowedDevOrigins: process.env.ALLOWED_DEV_ORIGINS?.split(",").map((s) => s.trim()) ?? [],
   // @repo/geo の路線データ（.geojson）を JSON として読み込む
   turbopack: { rules: { "*.geojson": { type: "json" } } },
   // Vercel のサーバー関数に知見・シナリオ・路線データを同梱する
