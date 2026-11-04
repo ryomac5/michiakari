@@ -85,25 +85,37 @@ async function readJudgments(page: Page): Promise<RecordedJudgment[]> {
   });
 }
 
+function earliestArrival(options: readonly Judgment["options"][number][]): string | null {
+  const sorted = options.map((o) => o.arrivalTime).sort((a, b) => Date.parse(a) - Date.parse(b));
+  return sorted[0] ?? null;
+}
+
+// 切り替えた場合の比較先。分岐点と同じ規則で、公共交通のうち最も早い到着を取る
+// 公共交通が期限に間に合わず、タクシーなら間に合うときだけタクシーを取る。公共交通が無ければタクシーにする
+function pickAlternativeArrival(
+  options: readonly Judgment["options"][number][],
+  deadline: string | null,
+): string | null {
+  const rail = earliestArrival(options.filter((o) => o.kind === "transfer" || o.kind === "walk"));
+  const taxi = earliestArrival(options.filter((o) => o.kind === "taxi"));
+  if (rail === null) return taxi;
+  if (taxi === null || deadline === null) return rail;
+  const limit = Date.parse(deadline);
+  return Date.parse(rail) > limit && Date.parse(taxi) <= limit ? taxi : rail;
+}
+
 // 判断 1 件を結末の計算に渡す形にする。画面の実装とは独立に、応答の値から組み立てる
-function toDecision({ now, judgment }: RecordedJudgment): ReplayDecision {
+function toDecision({ now, judgment }: RecordedJudgment, deadline: string | null): ReplayDecision {
   const recommended = judgment.options.find((o) => o.id === judgment.recommendedOptionId);
   const rideLegs =
     judgment.options.find((o) => o.kind === "wait")?.legs.filter((l) => l.mode !== "wait") ?? [];
-  // 切り替えた場合の比較は分岐点と同じく公共交通で行い、無ければタクシーにする
-  const publicOptions = judgment.options.filter((o) => o.kind === "transfer" || o.kind === "walk");
-  const basis =
-    publicOptions.length > 0 ? publicOptions : judgment.options.filter((o) => o.kind === "taxi");
-  const alternatives = basis
-    .map((o) => o.arrivalTime)
-    .sort((a, b) => Date.parse(a) - Date.parse(b));
   return {
     observedAt: now,
     action: judgment.action,
     recommendedArrival: recommended?.arrivalTime ?? null,
     waitRideMinutesAfterResume:
       rideLegs.length === 0 ? null : rideLegs.reduce((total, l) => total + l.minutes, 0),
-    bestAlternativeArrival: alternatives[0] ?? null,
+    bestAlternativeArrival: pickAlternativeArrival(judgment.options, deadline),
   };
 }
 
@@ -192,13 +204,15 @@ for (const scenario of scenarios) {
         (a, b) => Date.parse(a.now) - Date.parse(b.now),
       );
       expect(recorded.map((r) => r.now)).toHaveLength(scenario.timeline.length);
-      const deadline = scenario.user.constraints.deadline;
+      const deadline = scenario.user.constraints.deadline
+        ? resolveDeadline(scenario.start_time, scenario.user.constraints.deadline)
+        : null;
       const expected = compareReplayOutcome({
-        decisions: recorded.map(toDecision),
+        decisions: recorded.map((r) => toDecision(r, deadline)),
         resumeOffsetMinutes: scenario.ground_truth.resume_offset_minutes,
         startTime: scenario.start_time,
         firstTrainWaitMinutes: findFirstTrainWait(recorded),
-        deadline: deadline ? resolveDeadline(scenario.start_time, deadline) : null,
+        deadline,
       });
       expect(expected, "core の計算で結末を求められる").not.toBeNull();
       if (!expected) return;
