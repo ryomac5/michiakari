@@ -90,6 +90,14 @@ describe("buildReplayDecision", () => {
     expect(buildReplayDecision(taxiOnly, "2026-11-05T22:10:00+09:00").bestAlternativeArrival).toBe(
       "2026-11-05T22:50:00+09:00",
     );
+
+    // 期限に鉄道の代替が間に合わず、タクシーなら間に合うときだけ、タクシーの到着を取る。core の決まりと同じ
+    const late = (deadline: string | null) =>
+      buildReplayDecision(withTaxi, "2026-11-05T22:10:00+09:00", deadline).bestAlternativeArrival;
+    expect(late("2026-11-06T00:25:00+09:00")).toBe("2026-11-06T00:10:00+09:00");
+    expect(late("2026-11-05T23:00:00+09:00")).toBe("2026-11-05T22:50:00+09:00");
+    expect(late("2026-11-05T22:30:00+09:00")).toBe("2026-11-06T00:10:00+09:00");
+    expect(late(null)).toBe("2026-11-06T00:10:00+09:00");
   });
 
   it("待つ選択肢に乗車の区間が無ければ乗車分は null", () => {

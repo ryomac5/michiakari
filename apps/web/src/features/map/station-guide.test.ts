@@ -1,11 +1,12 @@
-import { estimateWalkMinutes } from "@repo/core";
+import { ACCESS_WALK_MAX_MINUTES, estimateWalkMinutes } from "@repo/core";
 import type { NetworkData } from "@repo/geo";
-import { computeDistanceMeters } from "@repo/geo";
+import { computeDistanceMeters, listWalkAccessStations } from "@repo/geo";
 import network from "@repo/geo/data/network.json";
 import type { RouteOption } from "@repo/schema";
 import { describe, expect, it } from "vitest";
-import { MAX_FOCUS_STATIONS } from "./focus-areas";
+import { focusAreas, MAX_FOCUS_STATIONS } from "./focus-areas";
 import { createMapGeo } from "./geo-data";
+import { resolveStationByName } from "./scene";
 import {
   buildStationGuide,
   findFocusArea,
@@ -169,6 +170,30 @@ describe("findFocusArea", () => {
     expect(findFocusArea({ kind: "station", name: "大阪駅" })?.id).toBe("umeda");
     expect(findFocusArea({ kind: "station", name: "三ノ宮" })).toBeNull();
     expect(findFocusArea({ kind: "coord", lon: 135.5, lat: 34.7 })).toBeNull();
+  });
+});
+
+describe("手で整えた範囲の吹き出し", () => {
+  it("どの駅も、代替手段の探索が通常の上限の中で乗る駅の候補にする駅に入る", () => {
+    for (const area of focusAreas) {
+      const origin = resolveStationByName(geo.index, area.originNames[0] as string, [tokaido]);
+      if (!origin) throw new Error(`${area.id} の現在地がありません`);
+      const searchable = new Set(
+        listWalkAccessStations({
+          nodes: geo.nodes,
+          graph: geo.graph,
+          origin,
+          blockedLineIds: [tokaido],
+          maxWalkMinutes: ACCESS_WALK_MAX_MINUTES,
+        }).map((w) => w.station.stationId),
+      );
+      for (const station of area.stations) {
+        expect(
+          station.stationIds.some((id) => searchable.has(id)),
+          `${area.id}/${station.key}`,
+        ).toBe(true);
+      }
+    }
   });
 });
 

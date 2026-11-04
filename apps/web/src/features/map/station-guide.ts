@@ -4,7 +4,9 @@ import {
   findMainRideLeg,
   formatLineName,
   formatStationName,
+  listWalkAccessStations,
   type StationNode,
+  type WalkAccessSource,
 } from "@repo/geo";
 import type { Lang, Place, RouteOption } from "@repo/schema";
 import {
@@ -219,16 +221,22 @@ function findOptionWalkMinutes(
   return null;
 }
 
-// 現在地の駅から、この駅への乗換の徒歩（路線データ）の最短
-function findTransferWalkMinutes(
+// 選択肢の徒歩が無い駅の徒歩の分。代替手段の探索と同じ関数で、乗換の徒歩（路線データ）か概算を求める
+// 同じ駅の路線違いは、近いほうを使う
+function findAccessWalkMinutes(
   geo: MapGeo,
   originNode: StationNode,
   stationIds: readonly string[],
-): number | null {
-  const minutes = (geo.graph.get(originNode.stationId) ?? [])
-    .filter((link) => link.kind === "transfer" && stationIds.includes(link.to))
-    .map((link) => (link.kind === "transfer" ? link.walkMinutes : Number.POSITIVE_INFINITY));
-  return minutes.length > 0 ? Math.min(...minutes) : null;
+): { minutes: number; source: WalkAccessSource } | null {
+  const nodes = stationIds.flatMap((id) => geo.index.getStation(id) ?? []);
+  const nearest = listWalkAccessStations({
+    nodes,
+    graph: geo.graph,
+    origin: originNode,
+    blockedLineIds: [],
+    maxWalkMinutes: Number.POSITIVE_INFINITY,
+  })[0];
+  return nearest ? { minutes: nearest.walkMinutes, source: nearest.source } : null;
 }
 
 export function resolveWalkMinutes(
@@ -241,8 +249,8 @@ export function resolveWalkMinutes(
 ): { minutes: number; source: WalkSource } {
   const fromOption = findOptionWalkMinutes(options, originIds, station.stationIds);
   if (fromOption !== null) return { minutes: fromOption, source: "option" };
-  const fromTransfer = findTransferWalkMinutes(geo, originNode, station.stationIds);
-  if (fromTransfer !== null) return { minutes: fromTransfer, source: "transfer" };
+  const access = findAccessWalkMinutes(geo, originNode, station.stationIds);
+  if (access !== null) return access;
   return { minutes: estimateWalkMinutes(originNode.lonLat, position), source: "estimate" };
 }
 

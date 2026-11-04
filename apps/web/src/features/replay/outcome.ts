@@ -1,4 +1,9 @@
-import { compareReplayOutcome, type ReplayDecision, type ReplayOutcome } from "@repo/core";
+import {
+  compareReplayOutcome,
+  type ReplayDecision,
+  type ReplayOutcome,
+  selectBestAlternative,
+} from "@repo/core";
 import { type Judgment, resolveDeadline } from "@repo/schema";
 import { findCatalogEvent, type KnowledgeCatalog } from "@/features/knowledge/catalog";
 import type { ReplayScenario } from "./scenario";
@@ -7,19 +12,14 @@ import type { ReplayScenario } from "./scenario";
 
 export type ReplayDecisionRecord = ReplayDecision & { eventType: string | null };
 
-function findEarliestArrival(options: Judgment["options"]): string | null {
-  let best: string | null = null;
-  for (const o of options) {
-    if (best === null || Date.parse(o.arrivalTime) < Date.parse(best)) best = o.arrivalTime;
-  }
-  return best;
-}
-
-// 切り替えた場合に比べる代替手段。分岐点と同じく公共交通を使い、無ければタクシーにする
-// 切り替えの判断で推奨されるのも、この中で最も早いもの
-export function selectSwitchBasis(options: Judgment["options"]): Judgment["options"] {
-  const publicOptions = options.filter((o) => o.kind === "transfer" || o.kind === "walk");
-  return publicOptions.length > 0 ? publicOptions : options.filter((o) => o.kind === "taxi");
+// 切り替えた場合に比べる代替手段の到着。分岐点と同じく、core が勧める代替手段の到着を使う
+// 鉄道の代替のうちいちばん早いものを勧め、タクシーは鉄道の代替が無いときと期限に間に合わないときだけ
+export function findSwitchArrival(
+  options: Judgment["options"],
+  deadline: string | null,
+): string | null {
+  const alternatives = options.filter((o) => o.kind !== "wait");
+  return selectBestAlternative(alternatives, deadline)?.arrivalTime ?? null;
 }
 
 // 待つ選択肢の再開後の乗車分 = 待つ区間以外の区間の和。経路を引けず乗車の区間が無ければ null
@@ -30,15 +30,19 @@ function sumWaitRideMinutes(judgment: Judgment): number | null {
   return legs.reduce((total, l) => total + l.minutes, 0);
 }
 
-// 観測 1 件の判断を、結末の計算に渡す記録にする
-export function buildReplayDecision(judgment: Judgment, observedAt: string): ReplayDecisionRecord {
+// 観測 1 件の判断を、結末の計算に渡す記録にする。期限は勧める代替手段を選ぶのに使う
+export function buildReplayDecision(
+  judgment: Judgment,
+  observedAt: string,
+  deadline: string | null = null,
+): ReplayDecisionRecord {
   const recommended = judgment.options.find((o) => o.id === judgment.recommendedOptionId);
   return {
     observedAt,
     action: judgment.action,
     recommendedArrival: recommended?.arrivalTime ?? null,
     waitRideMinutesAfterResume: sumWaitRideMinutes(judgment),
-    bestAlternativeArrival: findEarliestArrival(selectSwitchBasis(judgment.options)),
+    bestAlternativeArrival: findSwitchArrival(judgment.options, deadline),
     eventType: judgment.estimate.eventType,
   };
 }
