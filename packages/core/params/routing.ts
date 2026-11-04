@@ -29,5 +29,5 @@ export const OTHER_LINE_PENALTY_MINUTES = 15;
 export const ACCESS_WALK_MAX_MINUTES = 15;
 
 // 通常の上限の中に鉄道の代替が 1 つも無いときに、乗る駅までの徒歩の上限を広げる先（分）。
-// 地図の徒歩の到達範囲（10 分・20 分の輪）の外縁に出す駅までを含める。出典: 開発者の推定（仮）
+// 地図が歩ける駅として出す範囲に合わせる。10 分と 20 分の到達範囲の輪の外にある駅も含む。出典: 開発者の推定（仮）
 export const ACCESS_WALK_MAX_MINUTES_EXTENDED = 25;
