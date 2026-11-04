@@ -12,6 +12,7 @@
         "CONTENT_DIR",
         "JUDGE_MODE",
         "NEXT_PUBLIC_AGENT_URL",
+        "ALLOWED_DEV_ORIGINS",
         "ANTHROPIC_API_KEY",
         "PORT",
         "CORS_ORIGINS",
