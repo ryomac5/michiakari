@@ -52,10 +52,15 @@ function resolvePredictability(
   return { level: inferPredictabilityLevel(untilResume), source: "inferred", basis: null };
 }
 
+// 知見ごとの結果の控え。知見だけで決まり、判断のたびに標本を作り直す必要が無いため
+const typicalFlowCache = new WeakMap<Knowledge, TypicalFlow>();
+
 // 知見から段階の列、再開までの見込み、見込みの立てやすさ、目安の下限を返す
 export function describeTypicalFlow(knowledge: Knowledge): TypicalFlow {
+  const cached = typicalFlowCache.get(knowledge);
+  if (cached) return cached;
   const untilResume = estimateUntilResume(knowledge);
-  return {
+  const flow: TypicalFlow = {
     eventType: knowledge.id,
     phases: knowledge.phases.map((p) => ({ id: p.id, name: p.name, duration: p.duration_minutes })),
     untilResume,
@@ -63,6 +68,8 @@ export function describeTypicalFlow(knowledge: Knowledge): TypicalFlow {
     predictability: resolvePredictability(knowledge, untilResume),
     typicalFloorMinutes: knowledge.predictability?.typical_floor_minutes ?? null,
   };
+  typicalFlowCache.set(knowledge, flow);
+  return flow;
 }
 
 // short: 短く終わり、慌てず待てる。long: 時間はかかるが、見込みは立てやすい

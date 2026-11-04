@@ -74,6 +74,47 @@ export type DecisionReason =
   | "stated_resume_after_break_even"
   | "stated_resume_before_break_even";
 
+// 1 割単位の確率の表示。0 は 1 割未満、10 は 9 割以上で、0 割と 10 割は書かない
+export function formatChance(tenths: number, language: Lang): string {
+  if (tenths <= 0) return language === "ja" ? "1割未満" : "under 10%";
+  if (tenths >= 10) return language === "ja" ? "9割以上" : "over 90%";
+  return language === "ja" ? `${tenths}割` : `${tenths * 10}%`;
+}
+
+export type ChanceTextInput = {
+  // 待ったほうが早く着く確率。代替手段が無ければ null
+  waitFaster: number | null;
+  // 待って期限に間に合う確率。期限が無ければ null
+  waitOnTime: number | null;
+  // 代替手段も期限も無いときに使う目盛り。5 割に達する最初の目盛り
+  keyTick: { time: string; tenths: number } | null;
+};
+
+// 確率の 1 文。「待ったほうが早く着く見込みは3割です。」。数値はツールの結果からそのまま渡す
+export function buildChanceSentence(chance: ChanceTextInput, language: Lang): string | null {
+  const ja = language === "ja";
+  if (chance.waitFaster !== null) {
+    const c = formatChance(chance.waitFaster, language);
+    return ja
+      ? `待ったほうが早く着く見込みは${c}です。`
+      : `The chance that waiting gets you there sooner is ${c}.`;
+  }
+  if (chance.waitOnTime !== null) {
+    const c = formatChance(chance.waitOnTime, language);
+    return ja
+      ? `待って期限に間に合う見込みは${c}です。`
+      : `The chance of making your deadline by waiting is ${c}.`;
+  }
+  if (chance.keyTick) {
+    const c = formatChance(chance.keyTick.tenths, language);
+    const clock = formatClock(chance.keyTick.time, language);
+    return ja
+      ? `${clock}には${c}の見込みで動いています。`
+      : `By ${clock}, the chance that trains are moving is ${c}.`;
+  }
+  return null;
+}
+
 export type DecisionTextInput = {
   reason: DecisionReason;
   language: Lang;
@@ -89,6 +130,8 @@ export type DecisionTextInput = {
   bestOption: Pick<RouteOption, "kind" | "label" | "isTransferService"> | null;
   // 見込みが立てやすい事象のよくある流れ。inReason は理由の頭に流れの一文を置くか
   flow?: { outlook: FlowOutlook; sentence: string; inReason: boolean } | null;
+  // 待ったほうが早く着く確率など。理由の最後に 1 文で添える。無ければ添えない
+  chance?: ChanceTextInput | null;
   // 駅間の車内にいる利用者。結論は次の駅に着いてからの行動で書く
   trainQueue?: TrainQueueText | null;
 };
@@ -453,8 +496,9 @@ function buildFlowFollowUp(input: DecisionTextInput, outlook: FlowOutlook): stri
   return buildDecisionReason(input);
 }
 
-// 見込みが立てやすい事象では、理由の頭に流れの一文を置く。上限を超えるなら流れの一文を外す
+// 見込みが立てやすい事象では、理由の頭に流れの一文を置き、確率があれば最後に 1 文で添える
 // 駅間の車内では、次の駅に着く見込みの一文を頭に置く。上限を超えるなら短い形にし、それでも超えれば外す
+// 駅間の一文は確率の一文より先に残し、確率の一文は流れの一文より先に残す
 function composeReason(input: DecisionTextInput): string {
   const base = buildDecisionReason(input);
   const flow = input.flow;
@@ -463,21 +507,30 @@ function composeReason(input: DecisionTextInput): string {
   const withFlow = flow?.inReason
     ? `${flow.sentence}${glue}${buildFlowFollowUp(input, flow.outlook)}`
     : null;
+  const chance = input.chance ? buildChanceSentence(input.chance, input.language) : null;
+  const withChance = (text: string | null): string | null =>
+    text !== null && chance !== null ? `${text}${glue}${chance}` : null;
+  const present = (texts: (string | null)[]): string[] =>
+    texts.filter((text): text is string => text !== null);
   const queue = input.trainQueue;
   if (queue) {
     const note = buildTrainQueueNote(queue, input.language);
     const short = buildShortTrainQueueNote(queue, input.language);
-    const candidates = [
-      ...(note && withFlow ? [`${note}${glue}${withFlow}`] : []),
-      ...(note ? [`${note}${glue}${base}`] : []),
-      ...(short ? [`${short}${glue}${base}`] : []),
-      ...(withFlow ? [withFlow] : []),
+    const bodies = present([
+      note && withFlow ? `${note}${glue}${withFlow}` : null,
+      note ? `${note}${glue}${base}` : null,
+      short ? `${short}${glue}${base}` : null,
+      withFlow,
       base,
-    ];
-    return pickFitting(candidates, max);
+    ]);
+    // 各段で確率を添えた形を先に試し、収まらなければ確率だけを外して次の段へ進む
+    return pickFitting(
+      bodies.flatMap((body) => present([withChance(body), body])),
+      max,
+    );
   }
-  if (!withFlow) return base;
-  return [...withFlow].length <= max ? withFlow : base;
+  const candidates = present([withChance(withFlow), withChance(base), withFlow]);
+  return candidates.find((text) => [...text].length <= max) ?? base;
 }
 
 // 決定論モードの見出しと理由

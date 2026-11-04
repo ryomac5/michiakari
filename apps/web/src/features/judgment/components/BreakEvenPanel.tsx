@@ -1,6 +1,6 @@
 "use client";
 
-import type { BreakEven } from "@repo/schema";
+import type { BreakEven, ResumeChance } from "@repo/schema";
 import { AlarmClock, GitFork, LoaderCircle, TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
@@ -8,13 +8,14 @@ import { useLineTranslator } from "@/features/map/use-line-label";
 import { cn } from "@/lib/utils";
 import { optionIcons } from "../action-style";
 import { splitAroundClock } from "../break-even-text";
-import type { TimelineBasis } from "../break-even-timeline";
+import { buildBreakEvenTimeline, type TimelineBasis } from "../break-even-timeline";
 import type { SwitchStep } from "../switch-step";
 import { testIds } from "../testids";
 import { type Countdown, computeCountdown, computeCountdownFrom, formatClockTime } from "../time";
 import { useNow } from "../use-now";
 import { BreakEvenTimeline, ResumeCaption } from "./BreakEvenTimeline";
 import { NoBreakText } from "./NoBreakText";
+import { ResumeChanceBand } from "./ResumeChanceBand";
 
 // 分岐点がこの秒数を切ったら「まもなく」と知らせる
 const soonThresholdSeconds = 5 * 60;
@@ -25,6 +26,10 @@ type BreakEvenProps = {
   stale: boolean;
   // 時間軸の図に使う値。再開見込みが分からなければ null で、図を出さない
   timeline?: TimelineBasis | null;
+  // 時刻ごとの再開の見込みと、待ったほうが早く着く確率。無ければ従来の 1 行の見込みを出す
+  chance?: ResumeChance | null;
+  // 「発生から」の言い方を出すか。入口で止まってからの時間を答えていないときは出さない
+  showOnset?: boolean;
   // リプレイではシナリオ内の時刻で残り時間を数える。省略時は端末の時計
   now?: Date | null;
   // 判断の基準時刻。見出しの「あと23分」と同じ丸め方で残り時間を数え、2 つの数字をそろえる
@@ -70,8 +75,17 @@ function useBreakEvenState(props: BreakEvenProps) {
 export function BreakEvenSummary(props: BreakEvenSummaryProps) {
   const t = useTranslations("judgment.breakEven");
   const locale = useLocale();
-  const { breakEven, stale, timeline = null, switchStep = null } = props;
+  const {
+    breakEven,
+    stale,
+    timeline = null,
+    switchStep = null,
+    chance = null,
+    showOnset = true,
+  } = props;
   const { now, countdown, state, urgent } = useBreakEvenState(props);
+  const relation =
+    breakEven && timeline && now ? buildBreakEvenTimeline({ ...timeline, now }).relation : null;
 
   return (
     <section
@@ -82,6 +96,16 @@ export function BreakEvenSummary(props: BreakEvenSummaryProps) {
       data-mode={switchStep ? "switch" : "break-even"}
       className={cn("flex flex-col gap-2", stale && "opacity-60")}
     >
+      {/* 見出しのすぐ下に、待ったほうが早く着く見込みと、時刻ごとの再開の見込みの帯を置く */}
+      {chance && (
+        <ResumeChanceBand
+          chance={chance}
+          breakEvenTime={breakEven?.time ?? null}
+          now={now}
+          showOnset={showOnset}
+          relation={relation}
+        />
+      )}
       {switchStep ? (
         <SwitchStepRow step={switchStep} lineColor={props.switchLineColor ?? null} />
       ) : (
@@ -132,7 +156,8 @@ export function BreakEvenSummary(props: BreakEvenSummaryProps) {
           {t("meaning")}
         </p>
       )}
-      {breakEven && timeline && now && <ResumeCaption basis={timeline} now={now} />}
+      {/* 確率の帯が無いときだけ、従来の 1 行の見込みを出す */}
+      {!chance && breakEven && timeline && now && <ResumeCaption basis={timeline} now={now} />}
       {!switchStep && state === "soon" && (
         <p role="status" className="text-[13px] font-semibold text-switch">
           {t("soon")}

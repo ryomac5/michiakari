@@ -126,8 +126,20 @@ export const testIds = {
     breakEvenCountdown: "judgment-break-even-countdown",
     // 切り替えの判断で、分岐点と残り時間の代わりに出す「阪急京都線 大阪梅田まで徒歩 9 分・00:14 着」
     switchStep: "judgment-switch-step",
-    // 閉じたシートの「おおよその再開 23:43〜23:58 は分岐点より後」。data-relation を出す
+    // 閉じたシートの再開の見込み。確率の帯があれば帯と要点の一文、無ければ「おおよその再開 23:43〜23:58 は分岐点より後」。data-relation を出す
     breakEvenResume: "judgment-break-even-resume",
+    // 時刻ごとの再開の見込みの帯。data-step・data-wait-faster・data-wait-on-time・data-onset を出す
+    resumeChance: "judgment-resume-chance",
+    // 「1時間20分後の 23:30 には、6割の見込みで動いています」。data-time に目盛りの時刻を出す
+    resumeChanceLead: "judgment-resume-chance-lead",
+    // 帯の目盛り。id は日本時間の HHMM。data-tenths・data-since-onset・data-side を出す
+    resumeChanceTick: (hhmm: string) => `judgment-resume-chance-tick-${hhmm}`,
+    // 待ったほうが早く着く見込みと、待って期限に間に合う見込み。data-tenths を出す
+    resumeChanceWaitFaster: "judgment-resume-chance-wait-faster",
+    resumeChanceWaitOnTime: "judgment-resume-chance-wait-on-time",
+    // 帯の上の分岐点と期限の印。data-time と data-label-side を出す
+    resumeChanceBreakEven: "judgment-resume-chance-break-even",
+    resumeChanceDeadline: "judgment-resume-chance-deadline",
     // 「21:40 までに再開しなければ…」の文
     breakEvenSentence: "judgment-break-even-sentence",
     // 分岐点の時間軸。data-relation に before / straddle / after を出す

@@ -1,10 +1,12 @@
 import type { DurationDist, Knowledge } from "@repo/schema";
 import { STATED_RESUME_SLACK_MINUTES } from "../params/estimation.ts";
 import {
+  computeQuantile,
   computeResumeFloorRemaining,
-  estimateRemaining,
   findPhaseIndex,
   getFirstTrainWait,
+  sampleRemaining,
+  summarizeSamples,
 } from "./remaining.ts";
 import { diffMinutes } from "./time.ts";
 
@@ -14,6 +16,9 @@ export type BranchAwareRemaining = {
   remaining: DurationDist;
   // 短い経路で省いた段階の id
   skippedPhaseIds: string[];
+  // 確率の計算に使う、乗れるまでの残り時間の標本（分、昇順）。再開までの下限を当ててある
+  // 分岐しない知見では estimateRemaining と同じ標本。分岐する知見では mergeBranchSamples でつなぐ
+  samples: number[];
 };
 
 function findSignalPhaseIndex(knowledge: Knowledge, signalId: string): number {
@@ -81,6 +86,35 @@ export type BranchAwareOptions = {
   elapsedSinceOnsetMinutes?: number;
 };
 
+// 分岐する知見の 2 つの経路の標本を 1 つにつなぐ
+// p50 までは最短の経路の標本に従い、p80 からは p80 が大きいほうの経路の標本に従う。あいだは時間に対して直線で結ぶ
+// つないだ標本の p50 と p80 は estimateBranchAwareRemaining の値と一致するので、確率が分岐点の比べ方と食い違わない
+export function mergeBranchSamples(
+  shortest: readonly number[],
+  longest: readonly number[],
+): number[] {
+  const median = computeQuantile(shortest, 0.5);
+  const upper =
+    computeQuantile(longest, 0.8) >= computeQuantile(shortest, 0.8) ? longest : shortest;
+  const p80 = computeQuantile(upper, 0.8);
+  const count = shortest.length;
+  const merged: number[] = new Array(count);
+  for (let i = 0; i < count; i++) {
+    const q = (i + 0.5) / count;
+    merged[i] =
+      q <= 0.5
+        ? computeQuantile(shortest, q)
+        : q >= 0.8
+          ? computeQuantile(upper, q)
+          : median + ((q - 0.5) / 0.3) * (p80 - median);
+  }
+  return merged;
+}
+
+function isSamePath(a: readonly number[], b: readonly number[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
 // p50 は p50 の合計が最小の経路で、p80 は最大の経路で求める
 // 段階が分岐しない知見では estimateRemaining と同じ値になる
 // 段階を飛ばす短い経路でも、再開までが知見の下限を下回らないようにする
@@ -100,18 +134,25 @@ export function estimateBranchAwareRemaining(
     .slice(index)
     .filter((_, offset) => !shortest.includes(index + offset))
     .map((p) => p.id);
-  const short = estimateRemaining(
+  const shortSamples = sampleRemaining(
     selectPhases(knowledge, shortest),
     phaseId,
     elapsedInPhaseMinutes,
-    {
-      resumeFloorMinutes,
-    },
+    { resumeFloorMinutes },
   );
-  const long = estimateRemaining(selectPhases(knowledge, longest), phaseId, elapsedInPhaseMinutes, {
-    resumeFloorMinutes,
-  });
-  return { remaining: { p50: short.p50, p80: Math.max(long.p80, short.p80) }, skippedPhaseIds };
+  const samePath = isSamePath(shortest, longest);
+  const longSamples = samePath
+    ? shortSamples
+    : sampleRemaining(selectPhases(knowledge, longest), phaseId, elapsedInPhaseMinutes, {
+        resumeFloorMinutes,
+      });
+  const short = summarizeSamples(shortSamples);
+  const long = summarizeSamples(longSamples);
+  return {
+    remaining: { p50: short.p50, p80: Math.max(long.p80, short.p80) },
+    skippedPhaseIds,
+    samples: samePath ? shortSamples : mergeBranchSamples(shortSamples, longSamples),
+  };
 }
 
 // 発表された再開見込み時刻までの分（切り上げ、0 以上）
