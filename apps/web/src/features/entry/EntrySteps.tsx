@@ -18,6 +18,7 @@ import {
   Siren,
   Timer,
   TrainFront,
+  TrainTrack,
   Wrench,
   Zap,
 } from "lucide-react";
@@ -421,7 +422,8 @@ export function DestinationStep({
   );
 }
 
-// いまどこにいるか。駅か電車の中かを聞き、電車の中なら近い駅を道順に並べて聞く
+// いまどこにいるか。駅にいる、駅に止まっている車内、駅と駅の間の 3 つを聞く
+// 駅に止まっている車内なら、止まっている駅を道順に並べて聞く。駅と駅の間は既定値で先へ進む
 export function PositionStep({
   originName,
   line,
@@ -430,6 +432,7 @@ export function PositionStep({
   hereId,
   onStation,
   onTrainChosen,
+  onBetween,
   onNearStop,
 }: {
   originName: string;
@@ -439,6 +442,7 @@ export function PositionStep({
   hereId: string;
   onStation: () => void;
   onTrainChosen: () => void;
+  onBetween: () => void;
   onNearStop: (stop: DirectionStop) => void;
 }) {
   const t = useTranslations("entry");
@@ -460,7 +464,7 @@ export function PositionStep({
             type="button"
             data-testid={testIds.start.positionStation}
             onClick={onStation}
-            className={cn(cardBase, softChip)}
+            className={cn(cardBase, softChip, "col-span-2 min-h-[64px]")}
           >
             <MapPin className="size-6 shrink-0 text-focus" strokeWidth={2} aria-hidden />
             <span className="flex min-w-0 flex-col gap-0.5">
@@ -474,12 +478,28 @@ export function PositionStep({
             type="button"
             data-testid={testIds.start.positionTrain}
             onClick={onTrainChosen}
-            className={cn(cardBase, softChip)}
+            className={cn(cardBase, "flex-col items-start gap-2", softChip)}
           >
             <TrainFront className="size-6 shrink-0" strokeWidth={2} aria-hidden />
             <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-[15px] leading-snug font-bold">{t("positionTrain")}</span>
+              <span className="text-[15px] leading-snug font-bold text-balance">
+                {t("positionTrain")}
+              </span>
               <span className="text-[12px] text-muted">{t("positionTrainNote")}</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            data-testid={testIds.start.positionBetween}
+            onClick={onBetween}
+            className={cn(cardBase, "flex-col items-start gap-2", softChip)}
+          >
+            <TrainTrack className="size-6 shrink-0" strokeWidth={2} aria-hidden />
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-[15px] leading-snug font-bold text-balance">
+                {t("positionBetween")}
+              </span>
+              <span className="text-[12px] text-muted">{t("positionBetweenNote")}</span>
             </span>
           </button>
         </div>

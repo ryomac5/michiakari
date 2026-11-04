@@ -22,6 +22,7 @@ import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { NextCheckSection, PremiseSection } from "@/features/judgment/components/NextCheck";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
+import { TrainPositionChips } from "@/features/judgment/components/TrainPositionChips";
 import { StatusChip, TripSummary } from "@/features/judgment/components/TripSummary";
 import { TypicalFlowSection } from "@/features/judgment/components/TypicalFlow";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
@@ -156,6 +157,8 @@ export function JudgmentScreen() {
           onCollapsedHeightChange={chrome.setCollapsedHeight}
           summary={
             <div className="flex flex-col gap-3">
+              {/* 駅と駅の間の人には、次の駅・種別・前の列車の前提をチップで出し、その場で直せるようにする */}
+              <TrainPositionChips busy={streaming} />
               {streaming && <ReasoningProgress state={state} catalog={catalog} />}
               {state.status === "error" && state.error && (
                 <JudgmentError

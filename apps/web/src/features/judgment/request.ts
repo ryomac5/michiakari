@@ -5,6 +5,7 @@ import {
   type Observation,
   type Place,
   type RawInput,
+  type TrainPosition,
   type UserConstraints,
 } from "@repo/schema";
 import { formatIsoWithOffset } from "./time";
@@ -25,6 +26,8 @@ export type JudgeRequestParams = {
   language: Lang;
   now: Date;
   constraints?: UserConstraints;
+  // 車内の位置。無ければ送らず、駅にいるとみなされる
+  trainPosition?: TrainPosition | null;
 };
 
 export function buildJudgeRequest(params: JudgeRequestParams): JudgeRequest {
@@ -36,5 +39,6 @@ export function buildJudgeRequest(params: JudgeRequestParams): JudgeRequest {
     constraints: params.constraints ?? defaultConstraints,
     language: params.language,
     now: formatIsoWithOffset(params.now),
+    ...(params.trainPosition ? { trainPosition: params.trainPosition } : {}),
   });
 }

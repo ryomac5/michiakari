@@ -250,7 +250,8 @@
       "destinationTerminal": "行き先は終点の{station}で考えています",
       "onTrain": "電車の中なので、{station}駅にいるとして考えています",
       "elapsedUnknown": "止まった時刻は、いまとして数えています",
-      "causeUnknown": "原因は決めつけず、分岐点を動く目安にしています"
+      "causeUnknown": "原因は決めつけず、分岐点を動く目安にしています",
+      "betweenStations": "駅と駅の間なので、{station}に着いてからの行動で考えています"
     },
     "nextCheck": {
       "title": "次に確かめること",
@@ -260,6 +261,35 @@
       "transfer": "「振替輸送」の案内が出たら、もう一度入れてください",
       "signals": "次の様子が見えたら、もう一度入れてください",
       "action": "いまの様子を入れ直す"
+    },
+    "trainPosition": {
+      "title": "車内の前提",
+      "next": "次は{station}",
+      "own": "{type}に乗車",
+      "aheadNone": "前に列車はいない",
+      "aheadUnknown": "前の列車 分からない",
+      "ahead": "前の列車 {types}",
+      "aheadPattern": "前の列車 {types}（ふだんの運転から推定）",
+      "estimated": "推定",
+      "edit": "直す",
+      "nextQuestion": "次に着く駅はどこですか",
+      "ownQuestion": "乗っている電車の種別はどれですか",
+      "aheadQuestion": "前に止まっている列車を、近い順に押してください",
+      "aheadQueue": "近い順",
+      "aheadEmpty": "まだ押していません",
+      "removeLast": "最後の 1 つを消す",
+      "apply": "この前提で判断し直す",
+      "checkHint": "列車走行位置の画面で確かめられます",
+      "patternHint": "前の列車の種類が分かると、着く時刻がより確かになります",
+      "close": "閉じる"
+    },
+    "trainTypes": {
+      "local": "普通",
+      "rapid": "快速",
+      "special_rapid": "新快速",
+      "limited_express": "特急",
+      "unknown": "分からない",
+      "unknownType": "種別は分からない"
     }
   },
   "replay": {
@@ -490,10 +520,10 @@
     "positionQuestion": "いまどこにいますか",
     "positionStation": "{station}駅にいる",
     "positionStationNote": "ホームや改札",
-    "positionTrain": "電車の中",
-    "positionTrainNote": "駅と駅の間も",
-    "positionNearQuestion": "いちばん近い駅はどこですか",
-    "positionNearHint": "駅と駅の間なら、近いほうを押してください",
+    "positionTrain": "電車の中・駅に止まっている",
+    "positionTrainNote": "ホームに着いている",
+    "positionNearQuestion": "どの駅に止まっていますか",
+    "positionNearHint": "止まっている駅を押してください",
     "progress": "{current} / {total}・{step}",
     "steps": {
       "line": "路線",
@@ -532,7 +562,10 @@
       "cause": "放送の原因",
       "elapsed": "止まってから"
     },
-    "nextStation": "次は{station}"
+    "nextStation": "次は{station}",
+    "positionBetween": "電車の中・駅と駅の間",
+    "positionBetweenNote": "次の駅に着いてから考えます",
+    "positionBetweenTrip": "駅と駅の間。次に着く駅で考えます"
   },
   "status": {
     "notFound": {
