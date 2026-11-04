@@ -91,7 +91,14 @@ function Editor({
   );
 }
 
-export function TrainPositionChips({ busy }: { busy: boolean }) {
+export function TrainPositionChips({
+  busy,
+  onOpenEditor,
+}: {
+  busy: boolean;
+  // 直す選択を開いたときに呼ぶ。閉じたシートでは下が切れるので、呼び出し側がシートを開く
+  onOpenEditor?: () => void;
+}) {
   const t = useTranslations("judgment.trainPosition");
   const tType = useTranslations("judgment.trainTypes");
   const locale = useLocale();
@@ -139,6 +146,7 @@ export function TrainPositionChips({ busy }: { busy: boolean }) {
       setQueue(base.map((type) => ({ id: nextIdRef.current++, type })));
     }
     setOpen(kind);
+    onOpenEditor?.();
   }
 
   function apply(

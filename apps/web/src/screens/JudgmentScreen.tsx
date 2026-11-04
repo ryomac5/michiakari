@@ -158,7 +158,12 @@ export function JudgmentScreen() {
           summary={
             <div className="flex flex-col gap-3">
               {/* 駅と駅の間の人には、次の駅・種別・前の列車の前提をチップで出し、その場で直せるようにする */}
-              <TrainPositionChips busy={streaming} />
+              <TrainPositionChips
+                busy={streaming}
+                onOpenEditor={() => {
+                  if (chrome.snap === "collapsed") chrome.setSnap("half");
+                }}
+              />
               {streaming && <ReasoningProgress state={state} catalog={catalog} />}
               {state.status === "error" && state.error && (
                 <JudgmentError

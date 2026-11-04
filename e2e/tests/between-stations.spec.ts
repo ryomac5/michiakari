@@ -97,8 +97,9 @@ for (const theme of ["light", "dark"] as const) {
       });
       await capture(page, theme, "02-judgment-chips-closed");
 
-      // チップを押すと、その場で直せる選択が開く
+      // チップを押すと、その場で直せる選択が開く。閉じたシートでは下が切れるので、半分まで開く
       await ahead.click();
+      await expect(page.getByTestId(testIds.judgment.sheet)).toHaveAttribute("data-snap", "half");
       const editor = page.getByTestId(testIds.judgment.trainPositionEditor);
       await expect(editor).toHaveAttribute("data-kind", "ahead");
       await expect(editor).toContainText("列車走行位置の画面で確かめられます");
@@ -115,6 +116,7 @@ test("判断の画面で前の列車のチップを押し、快速と普通を�
 
   // 近い順に快速、普通と押して並べ、この前提で判断し直す
   await page.getByTestId(testIds.judgment.trainPositionChip("ahead")).click();
+  await expect(page.getByTestId(testIds.judgment.sheet)).toHaveAttribute("data-snap", "half");
   await page.getByTestId(testIds.judgment.trainPositionAheadAdd("rapid")).click();
   await page.getByTestId(testIds.judgment.trainPositionAheadAdd("local")).click();
   await expect(page.locator("[data-testid^='judgment-train-position-ahead-item-']")).toHaveCount(2);
