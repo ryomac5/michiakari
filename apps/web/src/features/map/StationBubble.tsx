@@ -101,6 +101,9 @@ export function StationBubble({
 
   const body = compact ? (
     <span className="flex items-center gap-1.5">
+      {station.recommended && (
+        <Star className="size-3 shrink-0 fill-current text-switch" aria-hidden />
+      )}
       <span className="flex gap-0.5">
         {station.lines.slice(0, 3).map((line) => (
           <LineSwatch key={line.lineId} line={line} />
@@ -208,6 +211,7 @@ export function StationBubble({
     "data-recommended": station.recommended,
     "data-status": station.suspended ? "suspended" : "running",
     "data-walk-minutes": station.walkMinutes,
+    "data-placement": placement,
     "data-transfer-service": station.transferService,
     "data-variant": variant,
     "data-route-line": station.route?.first.lineId ?? "",
@@ -235,9 +239,40 @@ export function StationBubble({
   );
 }
 
-// 現在地。脈打つ丸と「いま 大阪駅」の札に、止まっている路線と動いている路線を添える
-// 降りる駅の印。駅間の車内の人に、代替手段へ移る駅を目立たせる。札は駅の下に出す
-export function AlightMarker({ alight }: { alight: NonNullable<StationGuide["alight"]> }) {
+// 札を印のどの側に置くか。クラスは Tailwind が拾えるよう、すべて文字列で書く
+// 現在地の札は印から 10px、降りる駅の札は印から 8px 離す
+const hereLabelSide: Record<BubblePlacement, string> = {
+  left: "right-[calc(100%+10px)] top-1/2 -translate-y-1/2",
+  right: "left-[calc(100%+10px)] top-1/2 -translate-y-1/2",
+  top: "bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2",
+  bottom: "top-[calc(100%+10px)] left-1/2 -translate-x-1/2",
+};
+const alightLabelSide: Record<BubblePlacement, string> = {
+  left: "right-[calc(100%+8px)] top-1/2 -translate-y-1/2",
+  right: "left-[calc(100%+8px)] top-1/2 -translate-y-1/2",
+  top: "bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2",
+  bottom: "top-[calc(100%+8px)] left-1/2 -translate-x-1/2",
+};
+
+// 辺の方向へのずらし（px）。上下に置くなら横へ、左右に置くなら縦へずらす
+// 駅の印や、ほかの札に重ならない置き場所とずらし量を、地図の置き場所の計算が選ぶ
+function buildSlideStyle(placement: BubblePlacement, slide: number) {
+  if (slide === 0) return undefined;
+  return placement === "top" || placement === "bottom"
+    ? { marginLeft: slide }
+    : { marginTop: slide };
+}
+
+// 降りる駅の印。駅間の車内の人に、代替手段へ移る駅を目立たせる。札は既定で駅の下に出す
+export function AlightMarker({
+  alight,
+  placement = "bottom",
+  slide = 0,
+}: {
+  alight: NonNullable<StationGuide["alight"]>;
+  placement?: BubblePlacement;
+  slide?: number;
+}) {
   const t = useTranslations("map");
   return (
     <div data-testid={mapTestIds.alight} className="relative size-4">
@@ -246,7 +281,14 @@ export function AlightMarker({ alight }: { alight: NonNullable<StationGuide["ali
         aria-hidden
         className="absolute inset-0 rounded-full border-[3px] border-focus bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.3)]"
       />
-      <p className="absolute top-[calc(100%+8px)] left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full bg-focus px-2 py-0.5 text-[12px] leading-tight font-bold whitespace-nowrap text-white shadow-[0_1px_6px_rgb(0_0_0/0.25)]">
+      <p
+        data-placement={placement}
+        style={buildSlideStyle(placement, slide)}
+        className={cn(
+          "absolute flex items-center gap-1 rounded-full bg-focus px-2 py-0.5 text-[12px] leading-tight font-bold whitespace-nowrap text-white shadow-[0_1px_6px_rgb(0_0_0/0.25)]",
+          alightLabelSide[placement],
+        )}
+      >
         <span className="font-semibold opacity-90">{t("alight")}</span>
         {alight.name}
       </p>
@@ -254,25 +296,21 @@ export function AlightMarker({ alight }: { alight: NonNullable<StationGuide["ali
   );
 }
 
+// 現在地。脈打つ丸と「いま 大阪駅」の札に、止まっている路線と動いている路線を添える
 export function HereMarker({
   here,
   placement,
   compact,
+  slide = 0,
 }: {
   here: StationGuide["here"];
   placement: BubblePlacement;
   // 狭い画面では、路線を色の印だけにして 1 行に収める
   compact: boolean;
+  slide?: number;
 }) {
   const t = useTranslations("map");
-  const side =
-    placement === "left"
-      ? "right-[calc(100%+10px)] top-1/2 -translate-y-1/2"
-      : placement === "right"
-        ? "left-[calc(100%+10px)] top-1/2 -translate-y-1/2"
-        : placement === "top"
-          ? "bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2"
-          : "top-[calc(100%+10px)] left-1/2 -translate-x-1/2";
+  const side = hereLabelSide[placement];
 
   return (
     <div data-testid={mapTestIds.here} className="relative size-5">
@@ -282,8 +320,12 @@ export function HereMarker({
         className="absolute inset-0 rounded-full border-[3px] border-white bg-focus shadow-[0_1px_6px_rgb(0_0_0/0.35)]"
       />
       <div
+        data-placement={placement}
+        style={buildSlideStyle(placement, slide)}
         className={cn(
-          "absolute flex w-max max-w-[220px] flex-col gap-1 rounded-xl bg-surface px-2.5 py-2 shadow-[0_2px_10px_rgb(0_0_0/0.16)]",
+          "absolute flex w-max flex-col gap-1 rounded-xl bg-surface px-2.5 py-2 shadow-[0_2px_10px_rgb(0_0_0/0.16)]",
+          // 狭い画面では、英語の長い名前を折り返して、札を細く保つ
+          compact ? "max-w-[176px]" : "max-w-[220px]",
           side,
         )}
       >

@@ -205,6 +205,34 @@ describe("validateJudgment", () => {
     const checked = session.checkJudgment(judgment, results);
     expect(checked.errors).toEqual([]);
   });
+
+  it("switch の推奨は、分岐点の計算が勧める代替手段にそろえる。選び直すと指摘する", async () => {
+    const { session, results, signalId } = await prepareSession();
+    const r = results.breakEven.result;
+    if (r.kind !== "future" && r.kind !== "passed") throw new Error("分岐点がありません");
+    const other = results.alternatives.options.find(
+      (o) => o.kind !== "wait" && o.id !== r.bestAlternativeId,
+    );
+    if (!other) throw new Error("ほかの代替手段がありません");
+    const buildSwitch = (recommendedOptionId: string) =>
+      assembleJudgment(
+        results,
+        {
+          action: "switch",
+          headline: "いま切り替えてください",
+          reason: "理由",
+          breakEvenExplanation: "説明",
+          recommendedOptionId,
+          evidence: [{ kind: "signal", id: signalId, description: "根拠" }],
+        },
+        "ja",
+      );
+    const mismatch = "compute_break_even が勧める代替手段";
+    const wrong = session.checkJudgment(buildSwitch(other.id), results).errors;
+    expect(wrong.some((e) => e.includes(mismatch))).toBe(true);
+    const right = session.checkJudgment(buildSwitch(r.bestAlternativeId), results).errors;
+    expect(right.some((e) => e.includes(mismatch))).toBe(false);
+  });
 });
 
 describe("checkHeadlineLength", () => {

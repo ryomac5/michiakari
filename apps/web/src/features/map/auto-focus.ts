@@ -1,20 +1,21 @@
-import { estimateWalkMinutes } from "@repo/core";
-import { computeDistanceMeters, type StationNode } from "@repo/geo";
+import { ACCESS_WALK_MAX_MINUTES, ACCESS_WALK_MAX_MINUTES_EXTENDED } from "@repo/core";
+import {
+  computeDistanceMeters,
+  isSameStation,
+  listWalkAccessStations,
+  SAME_STATION_METERS,
+  type StationNode,
+  type WalkAccessStation,
+} from "@repo/geo";
 import type { Place } from "@repo/schema";
 import type { BubblePlacement, FocusArea, FocusStation } from "./focus-areas";
 import { type MapGeo, type Position, resolveStationByName } from "./scene";
 
 // 手で整えた範囲が無い駅で、乗り換え候補の駅を駅データと路線データから選ぶ。表示用の純関数だけを置く
-// 徒歩の分数は core の概算を使い、新しい判断の数値は作らない
+// 歩いて乗りに行ける駅と徒歩の分数は、代替手段の探索と同じ関数（packages/geo の listWalkAccessStations）と
+// 同じ上限（packages/core の ACCESS_WALK_MAX_MINUTES）で求める。地図に出す駅は、探索の候補の中から選ぶ
+// 新しい判断の数値は作らない
 
-// 候補にする徒歩の上限（分）
-export const AUTO_WALK_MINUTES = 15;
-// 選択肢が最初に乗る駅は、この分数までなら徒歩圏の外でも候補に入れる
-const BOARDING_WALK_MINUTES = 25;
-// 徒歩圏に別の駅が無いときは、この分数まで広げて探す
-const FALLBACK_WALK_MINUTES = 25;
-// 同じ駅の路線違いをまとめる距離
-const SAME_STATION_METERS = 300;
 export const MAX_AUTO_STATIONS = 4;
 
 export type AutoCandidate = {
@@ -40,16 +41,6 @@ export type AutoCandidateInput = {
 };
 
 const toPosition = (p: readonly [number, number]): Position => [p[0], p[1]];
-
-// 同じ駅とみなす組。名前と事業者が同じで近い駅（心斎橋の御堂筋線と長堀鶴見緑地線など）
-// 事業者が違う同名の駅（JR と阪急の宝塚など）は、歩いて乗り換える別の駅として扱う
-function isSameStation(a: StationNode, b: StationNode): boolean {
-  return (
-    a.name === b.name &&
-    a.operator === b.operator &&
-    computeDistanceMeters(a.lonLat, b.lonLat) <= SAME_STATION_METERS
-  );
-}
 
 // 現在地の駅と、同じ駅の路線違い
 export function listOriginGroup(geo: MapGeo, origin: StationNode): StationNode[] {
@@ -100,30 +91,45 @@ function describeOperators(geo: MapGeo, nodes: readonly StationNode[]): { ja: st
   return { ja: ja.join("・"), en: en.join(" / ") };
 }
 
-// 乗り換え候補の駅を選ぶ。止まっている路線の駅を除き、徒歩およそ 15 分以内の別の路線の駅から
+// 吹き出しに出せる駅の集まり。代替手段の探索が乗る駅の候補にする駅の中から選ぶ
+// 通常は、徒歩が通常の上限以内の駅と、選択肢が最初に乗る駅。探索は鉄道の代替が無いときだけ上限を広げるので、
+// 広げた上限の外の駅から乗る選択肢があれば広げた探索とみなし、広げた上限までの駅を集める
+// 通常の上限の中に駅も選択肢も無いときも、広げた上限までの駅を出す。判断が届く前の地図もこの形になる
+export function listPickableWalkStations(
+  geo: MapGeo,
+  input: Pick<AutoCandidateInput, "origin" | "blockedLineIds" | "boardingIds">,
+): WalkAccessStation[] {
+  const boarding = input.boardingIds ?? new Set<string>();
+  const widest = listWalkAccessStations({
+    nodes: geo.nodes,
+    graph: geo.graph,
+    origin: input.origin,
+    blockedLineIds: input.blockedLineIds,
+    maxWalkMinutes: ACCESS_WALK_MAX_MINUTES_EXTENDED,
+  });
+  const isNear = (w: WalkAccessStation) => w.walkMinutes <= ACCESS_WALK_MAX_MINUTES;
+  const isBoarding = (w: WalkAccessStation) => boarding.has(w.station.stationId);
+  const usual = widest.filter((w) => isNear(w) || isBoarding(w));
+  // 乗換の辺がある駅は、通常の上限の外でも通常の探索が使う。広げた探索の印にはしない
+  const widened = widest.some((w) => isBoarding(w) && !isNear(w) && w.source === "estimate");
+  return widened || usual.length === 0 ? widest : usual;
+}
+
+// 乗り換え候補の駅を選ぶ。止まっている路線の駅を除き、歩いて乗りに行ける別の路線の駅から
 // 行き先の方面へ向かえる路線、乗降客数の多い駅、近い駅の順に重みを付け、多くても 4 駅にする
 export function selectAutoCandidates(geo: MapGeo, input: AutoCandidateInput): AutoCandidate[] {
   const max = input.max ?? MAX_AUTO_STATIONS;
-  const originIds = new Set(listOriginGroup(geo, input.origin).map((n) => n.stationId));
   const boarding = input.boardingIds ?? new Set<string>();
-  const here = toPosition(input.origin.lonLat);
-  const walkOf = (n: StationNode) => estimateWalkMinutes(here, toPosition(n.lonLat));
-  const reachable = geo.nodes.filter(
-    (n) => !originIds.has(n.stationId) && !input.blockedLineIds.includes(n.lineId),
-  );
-  const near = reachable.filter((n) => {
-    const walk = walkOf(n);
-    return (
-      walk <= AUTO_WALK_MINUTES || (boarding.has(n.stationId) && walk <= BOARDING_WALK_MINUTES)
-    );
-  });
-  const pool = near.length > 0 ? near : reachable.filter((n) => walkOf(n) <= FALLBACK_WALK_MINUTES);
+  const pickable = listPickableWalkStations(geo, input);
+  const walkOf = new Map(pickable.map((w) => [w.station.stationId, w.walkMinutes]));
 
-  const candidates = groupStations(pool).map((nodes): AutoCandidate => {
+  const candidates = groupStations(pickable.map((w) => w.station)).map((nodes): AutoCandidate => {
     const first = nodes[0] as StationNode;
     const position = toPosition(first.lonLat);
     const lineIds = [...new Set(nodes.map((n) => n.lineId))];
-    const walkMinutes = Math.min(...nodes.map(walkOf));
+    const walkMinutes = Math.min(
+      ...nodes.map((n) => walkOf.get(n.stationId) ?? Number.POSITIVE_INFINITY),
+    );
     const progress = Math.max(
       ...lineIds.map((id) => measureProgress(geo, id, position, input.destination)),
     );
@@ -133,7 +139,7 @@ export function selectAutoCandidates(geo: MapGeo, input: AutoCandidateInput): Au
       (used ? 10 : 0) +
       2 * progress +
       0.15 * Math.log10(1 + passengers) -
-      (0.8 * walkMinutes) / AUTO_WALK_MINUTES;
+      (0.8 * walkMinutes) / ACCESS_WALK_MAX_MINUTES;
     return {
       stationIds: nodes.map((n) => n.stationId),
       name: { ja: first.name, en: nodes.find((n) => n.nameEn)?.nameEn ?? first.name },

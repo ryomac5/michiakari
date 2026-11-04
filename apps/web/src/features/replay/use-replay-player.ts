@@ -52,6 +52,7 @@ function buildHistoryEntry(
   entry: TimelineEntry,
   judgment: Judgment,
   observedAt: string,
+  deadline: string | null,
 ): ReplayHistoryEntry {
   return {
     observationId: entry.id,
@@ -59,7 +60,7 @@ function buildHistoryEntry(
     phaseId: judgment.estimate.phaseId,
     evidenceIds: judgment.evidence.map((e) => e.id),
     breakEvenShown: judgment.breakEven !== null,
-    decision: buildReplayDecision(judgment, observedAt),
+    decision: buildReplayDecision(judgment, observedAt, deadline),
   };
 }
 
@@ -152,7 +153,7 @@ export function useReplayPlayer(
         setObservations(observationsRef.current);
         setHistory((prev) => [
           ...prev.filter((h) => h.observationId !== entry.id),
-          buildHistoryEntry(entry, confirmed, request.now),
+          buildHistoryEntry(entry, confirmed, request.now, request.constraints.deadline),
         ]);
         setNextIndex(index + 1);
       } else {

@@ -291,6 +291,8 @@ export type JudgmentCheckInput = {
   language: Lang;
   evidenceRefs: readonly Evidence[];
   allowedNumbers: AllowedNumbers;
+  // core が勧める代替手段の id（分岐点の計算に使ったもの）。代替手段が無ければ null か省く
+  recommendedAlternativeId?: string | null;
 };
 
 // スキーマ、ID 参照、根拠の出どころ、文中の数値を検査し、問題を文字列で返す
@@ -325,6 +327,16 @@ export function validateJudgment(input: JudgmentCheckInput): {
   }
   if (j.action === "wait" && recommended && recommended.kind !== "wait") {
     errors.push("action が wait のときは recommendedOptionId を待つ選択肢か null にしてください");
+  }
+  // 勧める代替手段は core が決める。タクシーは鉄道の代替が無いときと、期限に間に合わないときだけ
+  if (
+    j.action === "switch" &&
+    input.recommendedAlternativeId &&
+    j.recommendedOptionId !== input.recommendedAlternativeId
+  ) {
+    errors.push(
+      `action が switch のときの recommendedOptionId は、compute_break_even が勧める代替手段 ${input.recommendedAlternativeId} にしてください。タクシーを勧めるのは、鉄道の代替が無いときと、鉄道の代替では期限に間に合わないときだけです`,
+    );
   }
   const texts: [string, string][] = [
     ["headline", j.headline],

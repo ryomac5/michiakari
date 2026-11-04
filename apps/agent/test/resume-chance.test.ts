@@ -104,9 +104,36 @@ describe("人身事故のリプレイの再開の見込み", () => {
     expect(keys.size).toBeGreaterThan(1);
     for (const step of steps) {
       const judgment = findJudgment(step.events);
+      // 期限が理由でタクシーを勧める観測は、タクシーより早いかを比べず、待って期限に間に合う見込みを言う
+      const byDeadline = requireChance(judgment).waitFaster === null;
       expect(judgment.reason, step.entry.id).toMatch(
-        /待ったほうが早く着く見込みは(\d割|1割未満|9割以上)です。$/,
+        byDeadline
+          ? /待って期限に間に合う見込みは(\d割|1割未満|9割以上)です。$/
+          : /待ったほうが早く着く見込みは(\d割|1割未満|9割以上)です。$/,
       );
+    }
+  });
+
+  it("期限が理由でタクシーを勧める観測では、分岐点と同じ時刻の確率だけを出す", async () => {
+    // obs_5: 振替では期限 00:25 に間に合わず、タクシーなら間に合う
+    const steps = await stepsPromise;
+    const judgment = findJudgment(steps.find((s) => s.entry.id === "obs_5")?.events ?? []);
+    const chance = requireChance(judgment);
+    const taxi = judgment.options.find((o) => o.kind === "taxi");
+    expect(judgment.action).toBe("switch");
+    expect(judgment.recommendedOptionId).toBe(taxi?.id);
+    // 待ったほうが早く着く確率は、タクシーの到着と比べるものなので出さない
+    expect(chance.waitFaster).toBeNull();
+    expect(chance.waitOnTime).not.toBeNull();
+    // 分岐点は、待っても期限に間に合う最後の再開の時刻。期限に間に合う確率の「動いていなければならない時刻」と同じ
+    expect(chance.resumeByForDeadline).toBe(judgment.breakEven?.time);
+    expect(judgment.breakEven?.explanation).toMatch(
+      /までに動かなければ、タクシーでないと.+に間に合いません。$/,
+    );
+    // 期限が理由でないほかの観測は、これまでどおり待ったほうが早く着く確率を出す
+    const others = steps.filter((s) => s.entry.id !== "obs_5");
+    for (const step of others) {
+      expect(requireChance(findJudgment(step.events)).waitFaster, step.entry.id).not.toBeNull();
     }
   });
 

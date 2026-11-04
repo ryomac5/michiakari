@@ -5,7 +5,9 @@ import { formatJstIso, parseIsoToMs } from "./time.ts";
 
 const MS_PER_MINUTE = 60_000;
 
-export type AlternativeArrival = Pick<RouteOption, "id" | "arrivalTime">;
+// kind を省いた候補は、タクシー以外の代替（鉄道の乗り継ぎ）として扱う
+export type AlternativeArrival = Pick<RouteOption, "id" | "arrivalTime"> &
+  Partial<Pick<RouteOption, "kind">>;
 
 export type BreakEvenInput = {
   now: string;
@@ -15,7 +17,10 @@ export type BreakEvenInput = {
   waitRouteMinutesAfterResume: number;
   // 運転再開から実際に乗れる列車が来るまでの分（after_resume.first_train_wait_minutes の p50）
   firstTrainWaitMinutes: number;
+  // 待つ選択肢を含めない代替手段
   alternatives: readonly AlternativeArrival[];
+  // 目的地への到着の期限。タクシーを勧めるかの判定に使う。無ければ省くか null
+  deadline?: string | null;
 };
 
 // 運転再開の見込み時刻と境目の差。margin は 境目 − 再開見込み（分）。正なら待つほうが早い見込み
@@ -36,6 +41,9 @@ export type BreakEvenResult =
       bestAlternativeId: string;
       bestAlternativeArrival: string;
       resumeOutlook: ResumeOutlook | null;
+      // 期限が理由でタクシーを勧めるときだけ持つ。time を求めた期限
+      // このとき time は、待っても期限に間に合う最後の再開の時刻で、タクシーの到着から求めたものではない
+      deadlineBasis?: string;
     }
   | { kind: "no_alternative" };
 
@@ -51,17 +59,51 @@ function assertNonNegativeMinutes(minutes: number, name: string): void {
   }
 }
 
-// 到着が最も早い代替手段を返す。同着なら先に並んだもの
-export function selectBestAlternative(
-  alternatives: readonly AlternativeArrival[],
-): AlternativeArrival | null {
-  let best: AlternativeArrival | null = null;
-  for (const alt of alternatives) {
+// 到着が最も早い候補を返す。同着なら先に並んだもの
+function pickEarliest<T extends AlternativeArrival>(candidates: readonly T[]): T | null {
+  let best: T | null = null;
+  for (const alt of candidates) {
     if (best === null || parseIsoToMs(alt.arrivalTime) < parseIsoToMs(best.arrivalTime)) {
       best = alt;
     }
   }
   return best;
+}
+
+// 勧める代替手段を選んだ理由。分岐点の求め方がこれで変わる
+// fastest_rail: 鉄道の代替のうち、到着がいちばん早いもの
+// no_rail: 鉄道の代替が無く、タクシーしか無い
+// rail_misses_deadline: 鉄道の代替では期限に間に合わず、タクシーなら間に合う
+export type AlternativeChoiceReason = "fastest_rail" | "no_rail" | "rail_misses_deadline";
+
+export type AlternativeChoice<T extends AlternativeArrival> = {
+  alternative: T;
+  reason: AlternativeChoiceReason;
+};
+
+// 勧める代替手段を、選んだ理由と一緒に返す。待つ選択肢は渡さない。この決まりは core のここ 1 か所に置く
+// 鉄道の代替（タクシー以外。近距離の全区間徒歩を含む）のうち、いちばん早いものを勧める
+// タクシーを勧めるのは、鉄道の代替が無いときと、鉄道の代替では期限に間に合わずタクシーなら間に合うときだけ
+export function chooseBestAlternative<T extends AlternativeArrival>(
+  alternatives: readonly T[],
+  deadline: string | null = null,
+): AlternativeChoice<T> | null {
+  const rail = pickEarliest(alternatives.filter((a) => a.kind !== "taxi"));
+  const taxi = pickEarliest(alternatives.filter((a) => a.kind === "taxi"));
+  if (rail === null) return taxi === null ? null : { alternative: taxi, reason: "no_rail" };
+  if (taxi !== null && deadline !== null) {
+    const railMisses = !checkDeadline(rail.arrivalTime, deadline).onTime;
+    const taxiMakesIt = checkDeadline(taxi.arrivalTime, deadline).onTime;
+    if (railMisses && taxiMakesIt) return { alternative: taxi, reason: "rail_misses_deadline" };
+  }
+  return { alternative: rail, reason: "fastest_rail" };
+}
+
+export function selectBestAlternative<T extends AlternativeArrival>(
+  alternatives: readonly T[],
+  deadline: string | null = null,
+): T | null {
+  return chooseBestAlternative(alternatives, deadline)?.alternative ?? null;
 }
 
 // 待つ場合の到着時刻 = 現在 + 残り時間 + 再開後の乗車時間
@@ -112,16 +154,20 @@ export function computeLateShare(
   return -m80 / (m50 - m80);
 }
 
-// 境目 = 最良の代替手段の到着 − 再開後の乗車時間 − 初列車待ち（運転再開の期限）
+// 境目 = 勧める代替手段の到着 − 再開後の乗車時間 − 初列車待ち（運転再開の期限）
+// 期限が理由でタクシーを勧めるときは、タクシーの到着ではなく期限を使う。知りたいのは「タクシーより早いか」ではなく
+// 「待っても期限に間に合うか」なので、境目は待っても期限に間に合う最後の再開の時刻になる
 export function computeBreakEven(input: BreakEvenInput): BreakEvenResult {
   assertNonNegativeMinutes(input.waitRouteMinutesAfterResume, "再開後の乗車時間");
   assertNonNegativeMinutes(input.firstTrainWaitMinutes, "初列車待ち");
   const nowMs = parseIsoToMs(input.now);
-  const best = selectBestAlternative(input.alternatives);
-  if (best === null) return { kind: "no_alternative" };
+  const choice = chooseBestAlternative(input.alternatives, input.deadline ?? null);
+  if (choice === null) return { kind: "no_alternative" };
+  const best = choice.alternative;
+  const deadlineBasis = choice.reason === "rail_misses_deadline" ? (input.deadline ?? null) : null;
 
   const breakEvenMs =
-    parseIsoToMs(best.arrivalTime) -
+    parseIsoToMs(deadlineBasis ?? best.arrivalTime) -
     (input.waitRouteMinutesAfterResume + input.firstTrainWaitMinutes) * MS_PER_MINUTE;
   return {
     kind: breakEvenMs > nowMs ? "future" : "passed",
@@ -133,6 +179,7 @@ export function computeBreakEven(input: BreakEvenInput): BreakEvenResult {
       input.remaining === null
         ? null
         : buildResumeOutlook(nowMs, breakEvenMs, input.remaining, input.firstTrainWaitMinutes),
+    ...(deadlineBasis === null ? {} : { deadlineBasis: formatJstIso(parseIsoToMs(deadlineBasis)) }),
   };
 }
 

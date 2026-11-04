@@ -83,10 +83,16 @@ export function buildChanceLayout(input: ChanceLayoutInput): ChanceLayout {
   // 文字は棒の列の上端に置くので、低い棒とは重ならない
   const tallBars = ticks.filter((t) => t.tick.tenths >= tallBarTenths).map((t) => t.position);
   const labelWidth = input.labelWidth ?? markLabelWidths.en;
+  // 期限が理由でタクシーを勧めるときは、分岐点が期限に間に合うために動いていなければならない時刻と同じになる
+  // 同じ位置に 2 つの印と文字を重ねないよう、分岐点の印だけを置く
+  const deadlineIsBreakEven =
+    input.breakEvenTime !== null &&
+    chance.resumeByForDeadline !== null &&
+    Date.parse(input.breakEvenTime) === Date.parse(chance.resumeByForDeadline);
   const candidates: { kind: MarkKind; time: string | null }[] = [
     { kind: "breakEven", time: input.breakEvenTime },
     // 期限の印は、期限に間に合うために動いていなければならない時刻に置く
-    { kind: "deadline", time: chance.resumeByForDeadline },
+    { kind: "deadline", time: deadlineIsBreakEven ? null : chance.resumeByForDeadline },
   ];
   const marks = candidates.flatMap(({ kind, time }): ChanceMarkLayout[] => {
     if (time === null) return [];

@@ -42,9 +42,12 @@ export { WALK_PARAMS_SOURCE } from "../params/walk.ts";
 export { computeArrival, type LegMinutes, sumLegMinutes } from "./arrival.ts";
 export {
   type AlternativeArrival,
+  type AlternativeChoice,
+  type AlternativeChoiceReason,
   type BreakEvenInput,
   type BreakEvenResult,
   checkDeadline,
+  chooseBestAlternative,
   computeBreakEven,
   computeLateShare,
   computeWaitArrival,

@@ -285,3 +285,56 @@ describe("大半が後のときの文言", () => {
     expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });
 });
+
+describe("期限が理由でタクシーを勧めるときの判断", () => {
+  // 分岐点は、待っても期限に間に合う最後の再開の時刻。待って期限に間に合う見込みかで、待つか切り替えるかを決める
+  const deadline = "2026-11-05T23:50:00+09:00";
+  const byDeadline = (input: {
+    kind?: "future" | "passed";
+    minutesFromNow: number;
+    marginP50Minutes: number;
+    marginP80Minutes: number;
+  }): Extract<BreakEvenResult, { kind: "future" | "passed" }> => ({
+    ...buildResult(input),
+    kind: input.kind ?? "future",
+    deadlineBasis: deadline,
+  });
+
+  it("待って期限に間に合う見込みなら、タクシーを勧める場面でも待つ。見込みの幅の後ろが間に合わなくてもよい", () => {
+    const result = byDeadline({ minutesFromNow: 45, marginP50Minutes: 16, marginP80Minutes: -75 });
+    const outcome = applyDecisionRules(
+      buildInput({ eventType: "vehicle_failure", confidence: "medium", result }),
+    );
+    expect(outcome).toEqual({
+      action: "wait",
+      reason: "resume_before_break_even",
+      recommendedOptionId: "wait",
+    });
+  });
+
+  it("待って期限に間に合わない見込みなら、タクシーへ切り替える", () => {
+    const result = byDeadline({ minutesFromNow: 20, marginP50Minutes: -20, marginP80Minutes: -90 });
+    const outcome = applyDecisionRules(
+      buildInput({ eventType: "vehicle_failure", confidence: "medium", result }),
+    );
+    expect(outcome).toEqual({
+      action: "switch",
+      reason: "resume_after_break_even",
+      recommendedOptionId: "alt_1",
+    });
+  });
+
+  it("期限から求めた分岐点を過ぎていれば、いま再開しても間に合わないので切り替える", () => {
+    const result = byDeadline({
+      kind: "passed",
+      minutesFromNow: -10,
+      marginP50Minutes: -40,
+      marginP80Minutes: -90,
+    });
+    const outcome = applyDecisionRules(
+      buildInput({ eventType: "vehicle_failure", confidence: "medium", result }),
+    );
+    expect(outcome.action).toBe("switch");
+    expect(outcome.reason).toBe("break_even_passed");
+  });
+});

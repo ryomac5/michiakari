@@ -11,7 +11,7 @@ import type { DurationDist, RouteOption } from "@repo/schema";
 export type BreakEvenComputation = {
   result: BreakEvenResult;
   comparison: ComparisonRow[];
-  // 分岐点の計算に使った代替手段
+  // 分岐点の計算に使った代替手段。core が勧める代替手段と同じ
   basisOptionIds: string[];
 };
 
@@ -25,26 +25,21 @@ export type BreakEvenRequest = {
   firstTrainWaitMinutes: number | null;
 };
 
-// 公共交通の代替があればそれだけで、無ければタクシーで分岐点を求める。タクシーは費用が大きいため
-export function selectBreakEvenBasis(options: readonly RouteOption[]): RouteOption[] {
-  const publicOptions = options.filter((o) => o.kind === "transfer" || o.kind === "walk");
-  return publicOptions.length > 0 ? publicOptions : options.filter((o) => o.kind === "taxi");
-}
-
+// 勧める代替手段は core が決める。分岐点はその到着時刻で求め、比較表には待つ以外の選択肢をすべて並べる
 export function computeBreakEvenForOptions(request: BreakEvenRequest): BreakEvenComputation {
-  const basis = selectBreakEvenBasis(request.options);
   const base = {
     now: request.now,
     remaining: request.remaining,
     waitRouteMinutesAfterResume: request.waitRouteMinutesAfterResume,
     firstTrainWaitMinutes: request.firstTrainWaitMinutes ?? 0,
-  };
-  const result = computeBreakEven({ ...base, alternatives: basis });
-  const comparison = compareOptions({
-    ...base,
     alternatives: request.options.filter((o) => o.kind !== "wait"),
     deadline: request.deadline,
-    waitOptionId: "wait",
-  });
-  return { result, comparison, basisOptionIds: basis.map((o) => o.id) };
+  };
+  const result = computeBreakEven(base);
+  const comparison = compareOptions({ ...base, waitOptionId: "wait" });
+  return {
+    result,
+    comparison,
+    basisOptionIds: result.kind === "no_alternative" ? [] : [result.bestAlternativeId],
+  };
 }
