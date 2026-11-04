@@ -362,7 +362,15 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
       knowledge: eventType ? (ctx.content.knowledge.get(eventType) ?? null) : null,
       evidenceRefs,
     });
-    return validateJudgment({ judgment, evidenceRefs, allowedNumbers, language });
+    const r = results.breakEven.result;
+    return validateJudgment({
+      judgment,
+      evidenceRefs,
+      allowedNumbers,
+      language,
+      recommendedAlternativeId:
+        r.kind === "future" || r.kind === "passed" ? r.bestAlternativeId : null,
+    });
   }
 
   return {

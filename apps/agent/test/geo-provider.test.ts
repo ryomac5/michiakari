@@ -112,6 +112,42 @@ describe("createGeoProvider", () => {
   });
 });
 
+describe("塚本から三ノ宮へ（JR神戸線の大阪〜三ノ宮が止まっている）", () => {
+  // 塚本は別の鉄道の駅まで歩いて 20 分以上かかる。以前はタクシーしか代替に入らなかった
+  const tsukamoto: AlternativesQuery = {
+    origin: { kind: "station", name: "塚本" },
+    destination: { kind: "station", name: "三ノ宮" },
+    blockedLine: "JR神戸線",
+    blockedSection: { fromStation: "大阪", toStation: "三ノ宮" },
+    now: "2026-11-05T22:00:00+09:00",
+    departureTime: "2026-11-05T22:13:00+09:00",
+    remaining: { p50: 60, p80: 90 },
+    transferServiceActive: null,
+    language: "ja",
+  };
+
+  it("徒歩で別の鉄道の駅へ行く経路が入り、タクシーも運賃つきで残る", async () => {
+    const result = await provider.findAlternatives(tsukamoto);
+    const rails = result.options.filter((o) => o.kind === "transfer");
+    expect(rails.length).toBeGreaterThan(0);
+    const stations = rails.map((o) => o.legs[0]?.to);
+    expect(stations.every((s) => ["御幣島", "姫島", "十三"].includes(s ?? ""))).toBe(true);
+    for (const option of rails) {
+      expect(option.legs[0]?.mode).toBe("walk");
+      expect(option.walkMinutes).toBeGreaterThan(15);
+      expect(option.legs.some((l) => l.mode === "ride")).toBe(true);
+    }
+    expect(result.options.find((o) => o.kind === "taxi")?.fareYen).toBeGreaterThan(0);
+  });
+
+  it("英語の利用者にも、同じ経路を英語の表示名で返す", async () => {
+    const result = await provider.findAlternatives({ ...tsukamoto, language: "en" });
+    const rails = result.options.filter((o) => o.kind === "transfer");
+    expect(rails.length).toBeGreaterThan(0);
+    expect(rails.every((o) => !/[ぁ-んァ-ヶ一-龠]/.test(o.label))).toBe(true);
+  });
+});
+
 describe("findLineNicknameEn", () => {
   it("JR の通称を英語名に直す", () => {
     expect(findLineNicknameEn("JR京都線")).toBe("JR Kyoto Line");
