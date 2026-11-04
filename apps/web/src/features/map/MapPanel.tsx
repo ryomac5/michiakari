@@ -14,8 +14,10 @@ import { prefersReducedMotion, useDocumentTheme } from "@/lib/use-document-theme
 import { useMediaQuery } from "@/lib/use-media-query";
 import { buildAutoFocusArea } from "./auto-focus";
 import {
-  chooseBubblePlacements,
-  type LayoutItem,
+  chooseLabelLayout,
+  type LabelLayout,
+  type LayoutInput,
+  measureLayoutOverlap,
   projectToWorld,
   type Rect,
 } from "./bubble-layout";
@@ -109,6 +111,14 @@ const focusMaxZoom = { configured: 16.2, auto: 15.5 };
 const initialOriginZoom = 15.8;
 // おすすめの吹き出しの高さのおよそ（px）
 const recommendedBubbleHeight = 130;
+// 札の重なりの合計がこの面積（px²）以下なら、重なっていないとみなす。駅の印のまわりの余白のぶんを許す
+const overlapTolerance = 150;
+// 現在地と降りる駅の札を、辺の方向へずらせる量の候補（px）。四方に置いても駅の印や札に重なるとき、ずらして避ける
+const labelSlides = [
+  -64, -56, -48, -40, -32, -24, -16, -8, 0, 8, 16, 24, 32, 40, 48, 56, 64,
+] as const;
+// 「全体を見る」のボタンの置き場所とおおよその大きさ（px）。札がボタンの下に入らないよう、置き場所の計算で避ける
+const viewToggleBox = { right: 12, bottom: 40, w: 140, h: 44, margin: 6 } as const;
 // 止まっている路線の札は、現在地からこの距離の線上に置く
 // 近い順に試し、見える範囲に入り、現在地と吹き出しから離れた最初の点に置く
 const blockedTagMeters = [900, 750, 650, 500, 380, 260, 180];
@@ -256,24 +266,59 @@ function buildGuidePadding(insets: MapInsets, narrow: boolean, guide: StationGui
   });
 }
 
+// 文字列のおおよその幅（px）。全角は 1em、半角は 0.58em で数える
+function estimateTextWidth(text: string, fontPx: number): number {
+  return [...text].reduce(
+    (sum, ch) => sum + ((ch.codePointAt(0) ?? 0) > 0x7f ? fontPx : fontPx * 0.58),
+    0,
+  );
+}
+
 // 吹き出しと現在地の札のおおよその大きさ（px）。重なりを避ける配置に使う
+// compactRecommended なら、おすすめも小さな札で見積もる
 function estimateBubbleSize(
   station: StationGuide["stations"][number],
   narrow: boolean,
+  compactRecommended = false,
 ): { w: number; h: number } {
-  if (station.recommended) return { w: narrow ? 196 : 220, h: 150 };
+  if (station.recommended && !compactRecommended) return { w: narrow ? 196 : 220, h: 150 };
   if (!narrow) return { w: 200, h: 64 };
-  return { w: 12 * [...station.shortName].length + 70, h: 34 };
+  // 路線色の印と分数のぶんを足す。おすすめの小さな札は、星の分だけ広い
+  return {
+    w: estimateTextWidth(station.shortName, 12) + 76 + (station.recommended ? 16 : 0),
+    h: 34,
+  };
 }
 
+// 現在地の札は、いまの文字と駅間の名前を 1 行に並べ、最大幅を超えると折り返して高くなる
+// 最大幅は HereMarker の max-w と同じにする
+const hereLabelMaxWidth = { narrow: 176, wide: 220 } as const;
 function estimateHereSize(guide: StationGuide, narrow: boolean): { w: number; h: number } {
-  const nameWidth = 14 * [...guide.here.name].length;
-  if (narrow) return { w: nameWidth + 70, h: 34 };
-  return { w: Math.max(nameWidth + 60, 170), h: 36 + 28 * Math.min(3, guide.here.lines.length) };
+  const maxWidth = narrow ? hereLabelMaxWidth.narrow : hereLabelMaxWidth.wide;
+  // 狭い画面では路線を色の印だけにして、名前の横に並べる
+  const badges = narrow ? Math.min(3, guide.here.lines.length) * 26 : 0;
+  const inner = 32 + estimateTextWidth(guide.here.name, 13) + badges;
+  const lines = Math.max(1, Math.ceil(inner / (maxWidth - 20)));
+  const w = Math.min(maxWidth, inner + 20);
+  if (narrow) return { w, h: 16 + 16 * lines };
+  return { w: Math.max(w, 170), h: 16 + 16 * lines + 28 * Math.min(3, guide.here.lines.length) };
 }
 
-// 自動で選んだ駅の吹き出しを、寄せたあとの画面の上で重ならない向きに置く
+// 降りる駅の札は「降りる駅」と駅名を 1 行に並べる。印から 8px 離す
+function estimateAlightSize(
+  alight: NonNullable<StationGuide["alight"]>,
+  english: boolean,
+): { w: number; h: number } {
+  const word = english ? estimateTextWidth("Get off at", 12) : 4 * 12;
+  return { w: word + 4 + estimateTextWidth(alight.name, 12) + 16, h: 22 };
+}
+
+// 吹き出しと、現在地と降りる駅の札を、寄せたあとの画面の上で重ならない向きに置く
 // 寄せる範囲の中心が、余白を除いた画面の中心に来るとみなして画面の位置を求める
+// lockStations なら、駅の吹き出しは設定の向きのまま動かさず、現在地と降りる駅の札だけを選ぶ
+// おすすめの大きな札では駅の印や札が重なってしまうときは、おすすめも小さな札にして置き直す
+type AutoLayout = LabelLayout & { compactRecommended: boolean };
+
 function layoutAutoPlacements(
   map: MapLibreMap,
   guide: StationGuide,
@@ -282,7 +327,9 @@ function layoutAutoPlacements(
   herePreferred: BubblePlacement,
   // 札で隠したくない点。到達範囲の札の位置
   avoid: readonly Position[],
-): Record<string, BubblePlacement> | null {
+  lockStations: boolean,
+  english: boolean,
+): AutoLayout | null {
   if (!guide.bounds) return null;
   const padding = buildGuidePadding(insets, narrow, guide);
   const camera = map.cameraForBounds(guide.bounds, { padding, maxZoom: focusMaxZoom.auto });
@@ -304,18 +351,45 @@ function layoutAutoPlacements(
     return { x: screenCenter.x + w.x - center.x, y: screenCenter.y + w.y - center.y };
   };
   const here = toScreen(guide.here.position);
-  const items: LayoutItem[] = [
-    { key: "here", point: here, size: estimateHereSize(guide, narrow), gap: 20 },
-    ...guide.stations.map((s) => ({
-      key: s.key,
-      point: toScreen(s.position),
-      size: estimateBubbleSize(s, narrow),
-      gap: 12,
-    })),
-  ];
   const side = narrow ? "narrow" : "wide";
-  return chooseBubblePlacements({
-    items,
+  const stationPlacements = Object.fromEntries(
+    guide.stations.map((s) => [s.key, s.placement[side]]),
+  );
+  const toggle = {
+    left: width - insets.right - viewToggleBox.right - viewToggleBox.w - viewToggleBox.margin,
+    right: width - insets.right - viewToggleBox.right + viewToggleBox.margin,
+    top: height - insets.bottom - viewToggleBox.bottom - viewToggleBox.h - viewToggleBox.margin,
+    bottom: height - insets.bottom - viewToggleBox.bottom + viewToggleBox.margin,
+  };
+  const buildInput = (compactRecommended: boolean): LayoutInput => ({
+    items: [
+      {
+        key: "here",
+        point: here,
+        size: estimateHereSize(guide, narrow),
+        gap: 20,
+        slides: labelSlides,
+      },
+      ...(guide.alight
+        ? [
+            {
+              key: "alight",
+              point: toScreen(guide.alight.position),
+              size: estimateAlightSize(guide.alight, english),
+              gap: 16,
+              slides: labelSlides,
+              // 印の外の輪（6px）まで札が重ならないようにする
+              dotRadius: 15,
+            },
+          ]
+        : []),
+      ...guide.stations.map((s) => ({
+        key: s.key,
+        point: toScreen(s.position),
+        size: estimateBubbleSize(s, narrow, compactRecommended),
+        gap: 12,
+      })),
+    ],
     here,
     view: {
       left: insets.left + 8,
@@ -323,15 +397,25 @@ function layoutAutoPlacements(
       right: width - insets.right - 8,
       bottom: height - insets.bottom - 8,
     },
-    preferred: Object.fromEntries([
-      ["here", herePreferred],
-      ...guide.stations.map((s) => [s.key, s.placement[side]]),
-    ]),
+    fixed: lockStations ? stationPlacements : undefined,
+    preferred: { here: herePreferred, alight: "bottom", ...stationPlacements },
     obstacles: avoid.map((p) => {
       const { x, y } = toScreen(p);
       return { left: x - 40, right: x + 40, top: y - 11, bottom: y + 11 };
     }),
+    blockers: [toggle],
   });
+  const fullInput = buildInput(false);
+  const full = chooseLabelLayout(fullInput);
+  const fullOverlap = measureLayoutOverlap(fullInput, full);
+  if (!guide.stations.some((s) => s.recommended) || fullOverlap <= overlapTolerance) {
+    return { ...full, compactRecommended: false };
+  }
+  const compactInput = buildInput(true);
+  const compact = chooseLabelLayout(compactInput);
+  return measureLayoutOverlap(compactInput, compact) < fullOverlap
+    ? { ...compact, compactRecommended: true }
+    : { ...full, compactRecommended: false };
 }
 
 // 出発は丸、行き先はピン。色はテーマの文字色に合わせる
@@ -909,9 +993,10 @@ export function MapPanel(props: MapPanelProps) {
   }, [map, blockedPath, view, guide, top, right, bottom, left]);
 
   // 自動で選んだ駅は、寄せたあとの画面で重ならない向きに吹き出しを置く。手で整えた駅は設定に従う
+  // 駅間の車内の人の現在地と降りる駅の札は、手で整えた範囲でも、駅の印やボタンに重ならない置き場所を選ぶ
   const autoPlacements = useMemo(
     () =>
-      map && guide && area?.auto
+      map && guide && area && (area.auto || guide.alight)
         ? layoutAutoPlacements(
             map,
             guide,
@@ -919,13 +1004,15 @@ export function MapPanel(props: MapPanelProps) {
             narrow,
             area.herePlacement[narrow ? "narrow" : "wide"],
             reachLabels.features.map((f) => f.geometry.coordinates),
+            !area.auto,
+            locale === "en",
           )
         : null,
-    [map, guide, area, narrow, top, right, bottom, left, reachLabels],
+    [map, guide, area, narrow, top, right, bottom, left, reachLabels, locale],
   );
   const placeStation = useCallback(
     (s: StationGuide["stations"][number]): BubblePlacement =>
-      autoPlacements?.[s.key] ?? s.placement[narrow ? "narrow" : "wide"],
+      autoPlacements?.placements[s.key] ?? s.placement[narrow ? "narrow" : "wide"],
     [autoPlacements, narrow],
   );
 
@@ -973,7 +1060,8 @@ export function MapPanel(props: MapPanelProps) {
   const entries = useMemo(() => [...tagEntries, ...focusEntries], [tagEntries, focusEntries]);
   const hosts = useMarkerHosts(map, markerClass, entries);
   const herePlacement =
-    autoPlacements?.here ?? (area ? area.herePlacement[narrow ? "narrow" : "wide"] : "left");
+    autoPlacements?.placements.here ??
+    (area ? area.herePlacement[narrow ? "narrow" : "wide"] : "left");
 
   const toggleLabel = view === "focus" ? t("viewOverview") : t("viewFocus");
 
@@ -1010,13 +1098,26 @@ export function MapPanel(props: MapPanelProps) {
         if (key === "blocked") return createPortal(<BlockedTag />, element, key);
         if (key === "here" && guide) {
           return createPortal(
-            <HereMarker here={guide.here} placement={herePlacement} compact={narrow} />,
+            <HereMarker
+              here={guide.here}
+              placement={herePlacement}
+              slide={autoPlacements?.slides.here ?? 0}
+              compact={narrow}
+            />,
             element,
             key,
           );
         }
         if (key === "alight" && guide?.alight) {
-          return createPortal(<AlightMarker alight={guide.alight} />, element, key);
+          return createPortal(
+            <AlightMarker
+              alight={guide.alight}
+              placement={autoPlacements?.placements.alight ?? "bottom"}
+              slide={autoPlacements?.slides.alight ?? 0}
+            />,
+            element,
+            key,
+          );
         }
         const station = guide?.stations.find((s) => `station:${s.key}` === key);
         if (!station) return null;
@@ -1025,7 +1126,13 @@ export function MapPanel(props: MapPanelProps) {
           <StationBubble
             station={station}
             placement={placeStation(station)}
-            variant={station.recommended ? "full" : narrow ? "compact" : "medium"}
+            variant={
+              station.recommended && !autoPlacements?.compactRecommended
+                ? "full"
+                : narrow
+                  ? "compact"
+                  : "medium"
+            }
             onSelect={optionId && onSelectOption ? () => onSelectOption(optionId) : null}
           />,
           element,

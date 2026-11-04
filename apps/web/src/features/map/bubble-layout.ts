@@ -1,7 +1,8 @@
 import type { BubblePlacement } from "./focus-areas";
 
-// 吹き出しの置き場所を、画面の上で互いに重ならないよう選ぶ。表示用の純関数だけを置く
-// 置き場所は 4 通りで、札は多くても 5 つなので、すべての組み合わせを試して最も重なりの少ないものを選ぶ
+// 吹き出しと札の置き場所を、画面の上で互いに重ならないよう選ぶ。表示用の純関数だけを置く
+// 置き場所は 4 通りで、札は多くても 6 つなので、組み合わせを試して最も重なりの少ないものを選ぶ
+// 現在地と降りる駅の札は、辺の方向へ少しずらせる。四方に置いても重なるとき、ずらして駅の印を避ける
 
 export type ScreenPoint = { x: number; y: number };
 export type BoxSize = { w: number; h: number };
@@ -13,22 +14,46 @@ export type LayoutItem = {
   size: BoxSize;
   // 駅から札までの間隔（px）
   gap: number;
+  // 札を辺の方向へずらせる量の候補（px）。上下に置くなら横へ、左右に置くなら縦へずらす。省くとずらさない
+  slides?: readonly number[];
+  // 駅の印の半径（px）。ほかの札が避ける範囲。省くと既定の半径
+  dotRadius?: number;
 };
 
 export const bubblePlacements: readonly BubblePlacement[] = ["top", "right", "bottom", "left"];
 
-// 置き場所ごとの札の矩形。札の尾が点を指すよう、点の反対側に札を置く
-export function placeBox(item: LayoutItem, placement: BubblePlacement): Rect {
+// 置き場所ごとの札の矩形。札の尾が点を指すよう、点の反対側に札を置く。slide は辺の方向へのずらし
+export function placeBox(item: LayoutItem, placement: BubblePlacement, slide = 0): Rect {
   const { point: p, size: s, gap } = item;
   switch (placement) {
     case "top":
-      return { left: p.x - s.w / 2, right: p.x + s.w / 2, top: p.y - gap - s.h, bottom: p.y - gap };
+      return {
+        left: p.x - s.w / 2 + slide,
+        right: p.x + s.w / 2 + slide,
+        top: p.y - gap - s.h,
+        bottom: p.y - gap,
+      };
     case "bottom":
-      return { left: p.x - s.w / 2, right: p.x + s.w / 2, top: p.y + gap, bottom: p.y + gap + s.h };
+      return {
+        left: p.x - s.w / 2 + slide,
+        right: p.x + s.w / 2 + slide,
+        top: p.y + gap,
+        bottom: p.y + gap + s.h,
+      };
     case "left":
-      return { left: p.x - gap - s.w, right: p.x - gap, top: p.y - s.h / 2, bottom: p.y + s.h / 2 };
+      return {
+        left: p.x - gap - s.w,
+        right: p.x - gap,
+        top: p.y - s.h / 2 + slide,
+        bottom: p.y + s.h / 2 + slide,
+      };
     case "right":
-      return { left: p.x + gap, right: p.x + gap + s.w, top: p.y - s.h / 2, bottom: p.y + s.h / 2 };
+      return {
+        left: p.x + gap,
+        right: p.x + gap + s.w,
+        top: p.y - s.h / 2 + slide,
+        bottom: p.y + s.h / 2 + slide,
+      };
   }
 }
 
@@ -45,15 +70,32 @@ function outsideArea(r: Rect, view: Rect): number {
 }
 
 // 駅の点のまわり。札がほかの駅の点を隠さないよう、点も小さな矩形として扱う
-const dotRadius = 12;
-function dotRect(p: ScreenPoint): Rect {
+const defaultDotRadius = 12;
+function dotRect(item: LayoutItem): Rect {
+  const radius = item.dotRadius ?? defaultDotRadius;
   return {
-    left: p.x - dotRadius,
-    right: p.x + dotRadius,
-    top: p.y - dotRadius,
-    bottom: p.y + dotRadius,
+    left: item.point.x - radius,
+    right: item.point.x + radius,
+    top: item.point.y - radius,
+    bottom: item.point.y + radius,
   };
 }
+
+// 重なりと好みの重み。面積（px²）に掛ける。札どうしの重なりと駅の点を隠すことは、ずらして避けるほうを選ぶ
+const weights = {
+  // 見える範囲からはみ出すと札が欠けるので、重なりより重く避ける
+  outside: 10,
+  label: 6,
+  // 駅の点を札で隠さない。ずらす手間（slidePerPx）より十分重くして、わずかな重なりも避ける
+  dot: 60,
+  obstacle: 2,
+  // 札で覆ってはいけないもの。「全体を見る」のボタンなど
+  blocker: 40,
+  // 辺の方向へずらす 1px あたり。同じ重なりなら、ずらさない置き方を選ぶ
+  slidePerPx: 8,
+  preferred: 1,
+  toward: 0.05,
+} as const;
 
 // 札が向く先が現在地の側なら小さく罰する。外へ広がる配置を好む
 function towardPenalty(item: LayoutItem, placement: BubblePlacement, here: ScreenPoint): number {
@@ -64,7 +106,7 @@ function towardPenalty(item: LayoutItem, placement: BubblePlacement, here: Scree
     (placement === "left" && dx > 0) ||
     (placement === "bottom" && dy < 0) ||
     (placement === "top" && dy > 0);
-  return toward ? item.size.w * item.size.h * 0.05 : 0;
+  return toward ? item.size.w * item.size.h * weights.toward : 0;
 }
 
 export type LayoutInput = {
@@ -79,56 +121,131 @@ export type LayoutInput = {
   preferred?: Readonly<Record<string, BubblePlacement>>;
   // 札で隠したくないもの。到達範囲の札など
   obstacles?: readonly Rect[];
+  // 札で覆ってはいけないもの。「全体を見る」のボタンなど。障害物より強く避ける
+  blockers?: readonly Rect[];
 };
 
-export function measureLayoutCost(
-  input: LayoutInput,
-  placements: readonly BubblePlacement[],
-): number {
-  const rects = input.items.map((item, i) => placeBox(item, placements[i] as BubblePlacement));
-  const dots = input.items.map((item) => dotRect(item.point));
-  let cost = 0;
-  rects.forEach((rect, i) => {
-    const item = input.items[i] as LayoutItem;
-    const placement = placements[i] as BubblePlacement;
-    cost += outsideArea(rect, input.view) * 2;
-    cost += towardPenalty(item, placement, input.here);
-    if (input.preferred?.[item.key] && input.preferred[item.key] !== placement) cost += 1;
-    for (let j = i + 1; j < rects.length; j++) cost += overlapArea(rect, rects[j] as Rect) * 4;
-    for (const obstacle of input.obstacles ?? []) cost += overlapArea(rect, obstacle) * 2;
-    dots.forEach((dot, j) => {
-      if (j !== i) cost += overlapArea(rect, dot) * 3;
-    });
+export type LabelChoice = { placement: BubblePlacement; slide: number };
+
+// 札 1 つを 1 つの置き方にしたときの、ほかの札に依らない重さ
+function measureOwnCost(input: LayoutInput, index: number, choice: LabelChoice): number {
+  const item = input.items[index] as LayoutItem;
+  const rect = placeBox(item, choice.placement, choice.slide);
+  let cost = outsideArea(rect, input.view) * weights.outside;
+  cost += towardPenalty(item, choice.placement, input.here);
+  if (input.preferred?.[item.key] && input.preferred[item.key] !== choice.placement) {
+    cost += weights.preferred;
+  }
+  cost += Math.abs(choice.slide) * weights.slidePerPx;
+  for (const obstacle of input.obstacles ?? [])
+    cost += overlapArea(rect, obstacle) * weights.obstacle;
+  for (const blocker of input.blockers ?? []) cost += overlapArea(rect, blocker) * weights.blocker;
+  input.items.forEach((other, j) => {
+    if (j !== index) cost += overlapArea(rect, dotRect(other)) * weights.dot;
   });
   return cost;
 }
 
-// 最も重なりの少ない置き場所の組み合わせを返す
-export function chooseBubblePlacements(input: LayoutInput): Record<string, BubblePlacement> {
-  const choices = input.items.map((item) => {
-    const fixed = input.fixed?.[item.key];
-    return fixed ? [fixed] : bubblePlacements;
+export function measureLayoutCost(
+  input: LayoutInput,
+  placements: readonly BubblePlacement[],
+  slides: readonly number[] = [],
+): number {
+  const choices = input.items.map(
+    (_, i): LabelChoice => ({
+      placement: placements[i] as BubblePlacement,
+      slide: slides[i] ?? 0,
+    }),
+  );
+  const rects = input.items.map((item, i) =>
+    placeBox(item, (choices[i] as LabelChoice).placement, (choices[i] as LabelChoice).slide),
+  );
+  let cost = 0;
+  rects.forEach((rect, i) => {
+    cost += measureOwnCost(input, i, choices[i] as LabelChoice);
+    for (let j = i + 1; j < rects.length; j++) {
+      cost += overlapArea(rect, rects[j] as Rect) * weights.label;
+    }
   });
-  let best: BubblePlacement[] | null = null;
+  return cost;
+}
+
+export type LabelLayout = {
+  placements: Record<string, BubblePlacement>;
+  // 辺の方向へずらした量（px）。ずらさない札は 0
+  slides: Record<string, number>;
+};
+
+// 札ごとの置き方の候補。固定の札は向きを変えず、ずらせる札は向きごとにずらし量を試す
+function listChoices(input: LayoutInput, item: LayoutItem): LabelChoice[] {
+  const fixed = input.fixed?.[item.key];
+  const placements = fixed ? [fixed] : bubblePlacements;
+  const slides = item.slides && item.slides.length > 0 ? item.slides : [0];
+  return placements.flatMap((placement) => slides.map((slide) => ({ placement, slide })));
+}
+
+// 最も重なりの少ない置き場所とずらし量の組み合わせを返す。途中の重さが最良を超えた枝は打ち切る
+export function chooseLabelLayout(input: LayoutInput): LabelLayout {
+  const choices = input.items.map((item) => listChoices(input, item));
+  const own = input.items.map((_, i) =>
+    (choices[i] as LabelChoice[]).map((choice) => measureOwnCost(input, i, choice)),
+  );
+  const rects = input.items.map((item, i) =>
+    (choices[i] as LabelChoice[]).map((c) => placeBox(item, c.placement, c.slide)),
+  );
+  let best: LabelChoice[] | null = null;
   let bestCost = Number.POSITIVE_INFINITY;
-  const current: BubblePlacement[] = [];
-  const visit = (i: number) => {
+  const picked: number[] = [];
+  const visit = (i: number, cost: number) => {
+    if (cost >= bestCost) return;
     if (i === choices.length) {
-      const cost = measureLayoutCost(input, current);
-      if (cost < bestCost) {
-        bestCost = cost;
-        best = [...current];
-      }
+      bestCost = cost;
+      best = picked.map((k, n) => (choices[n] as LabelChoice[])[k] as LabelChoice);
       return;
     }
-    for (const placement of choices[i] as readonly BubblePlacement[]) {
-      current[i] = placement;
-      visit(i + 1);
+    const candidates = choices[i] as LabelChoice[];
+    for (let k = 0; k < candidates.length; k++) {
+      const rect = (rects[i] as Rect[])[k] as Rect;
+      let next = cost + ((own[i] as number[])[k] as number);
+      for (let j = 0; j < i; j++) {
+        const other = (rects[j] as Rect[])[picked[j] as number] as Rect;
+        next += overlapArea(rect, other) * weights.label;
+      }
+      picked[i] = k;
+      visit(i + 1, next);
     }
   };
-  visit(0);
-  const chosen = (best ?? []) as BubblePlacement[];
-  return Object.fromEntries(input.items.map((item, i) => [item.key, chosen[i] ?? "right"]));
+  visit(0, 0);
+  const chosen = (best ?? []) as LabelChoice[];
+  return {
+    placements: Object.fromEntries(
+      input.items.map((item, i) => [item.key, chosen[i]?.placement ?? "right"]),
+    ),
+    slides: Object.fromEntries(input.items.map((item, i) => [item.key, chosen[i]?.slide ?? 0])),
+  };
+}
+
+// 選んだ置き方の重なりの合計（px²）。札どうし、札と駅の点、札と覆ってはいけないもの、見える範囲の外を足す
+// 好みやずらしの重みは含めないので、「この置き方は重なっていると言えるか」の判定に使える
+export function measureLayoutOverlap(input: LayoutInput, layout: LabelLayout): number {
+  const rects = input.items.map((item) =>
+    placeBox(item, layout.placements[item.key] ?? "right", layout.slides[item.key] ?? 0),
+  );
+  let total = 0;
+  rects.forEach((rect, i) => {
+    total += outsideArea(rect, input.view);
+    for (const blocker of input.blockers ?? []) total += overlapArea(rect, blocker);
+    input.items.forEach((other, j) => {
+      if (j !== i) total += overlapArea(rect, dotRect(other));
+      if (j > i) total += overlapArea(rect, rects[j] as Rect);
+    });
+  });
+  return total;
+}
+
+// 最も重なりの少ない置き場所の組み合わせを返す
+export function chooseBubblePlacements(input: LayoutInput): Record<string, BubblePlacement> {
+  return chooseLabelLayout(input).placements;
 }
 
 // 経度・緯度を、指定の拡大率の世界座標（px）にする。MapLibre のタイルの大きさ 512 に合わせる
