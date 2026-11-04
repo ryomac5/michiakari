@@ -466,23 +466,15 @@
     "from": "出発",
     "to": "行き先",
     "change": "選び直す",
-    "methodQuestion": "いまの様子を教えてください",
-    "methodHint": "分からなくても大丈夫です。答えるだけで進めます",
+    "withText": "発表文や掲示があれば",
     "methods": {
       "photo": {
         "title": "撮る",
-        "note": "掲示や画面",
         "heading": "掲示や画面を撮ってください"
       },
       "paste": {
         "title": "貼る",
-        "note": "発表の文章",
         "heading": "発表の文章を貼ってください"
-      },
-      "select": {
-        "title": "答える",
-        "note": "分からなくても大丈夫",
-        "heading": "放送で何と言っていましたか"
       }
     },
     "demoNote": "架空のシナリオで判断の流れを再生",
@@ -511,22 +503,33 @@
     },
     "tripHub": "方面の主な駅で考えます",
     "tripTerminal": "方面の終点で考えます",
-    "causeHint": "聞こえた言葉に近いものを選んでください",
+    "causeQuestion": "放送で何と言っていましたか",
     "causes": {
       "person": "人身事故",
       "inCar": "非常ボタン・急病",
       "vehicle": "車両の点検",
       "signal": "信号",
       "rain": "大雨",
-      "unknown": "聞き取れなかった"
+      "unknown": "聞き取れなかった・言っていない"
     },
     "elapsedQuestion": "止まってどれくらいですか",
-    "elapsedHint": "だいたいで大丈夫です",
     "elapsed": {
-      "m5": "5分くらい",
-      "m15": "15分くらい",
+      "now": "いま止まった",
+      "m10": "10分くらい",
       "m30": "30分以上",
       "unknown": "分からない"
+    },
+    "resumeQuestion": "再開の見込みを言っていましたか",
+    "resume": {
+      "stated": "時刻を言っていた",
+      "statedNote": "押して時刻を選ぶ",
+      "undecided": "見込みは未定と言っていた",
+      "unknown": "言っていない・分からない"
+    },
+    "resumeTimeQuestion": "何時ごろと言っていましたか",
+    "answers": {
+      "cause": "放送の原因",
+      "elapsed": "止まってから"
     },
     "nextStation": "次は{station}"
   },

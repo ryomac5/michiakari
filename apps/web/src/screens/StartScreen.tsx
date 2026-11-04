@@ -18,6 +18,7 @@ import { EntryMap, type EntryMapApi, type MapStop } from "@/features/entry/Entry
 import { DemoDock, PromptCard } from "@/features/entry/EntryOverlays";
 import { EntrySheet } from "@/features/entry/EntrySheet";
 import {
+  type AnsweredItem,
   AreaStep,
   CauseStep,
   computeDirectionAngle,
@@ -26,8 +27,9 @@ import {
   ElapsedStep,
   EntryProgress,
   InputStep,
-  MethodStep,
   PositionStep,
+  type ResumeAnswer,
+  ResumeStep,
   StationStep,
   TripCard,
   TripLine,
@@ -56,10 +58,15 @@ import { buildLineObservation } from "@/features/entry/seed";
 import { useEntryHistory } from "@/features/entry/use-entry-history";
 import { type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { testIds } from "@/features/judgment/testids";
+import { pickLocalized as pickCatalogName } from "@/features/knowledge/catalog";
 import { loadMapGeoData, type MapGeoData } from "@/features/map/geo-data";
 import type { MapInsets } from "@/features/map/MapPanel";
 import { findFocusArea } from "@/features/map/station-guide";
-import { type ElapsedOption, listCauseOptions } from "@/features/situation/plain-questions";
+import {
+  findElapsedOption,
+  listCauseOptions,
+  listResumeTimeOptions,
+} from "@/features/situation/plain-questions";
 import type { StationChoice } from "@/features/stations/catalog";
 import { fetchNearestStations } from "@/features/stations/client";
 import { describePlace, formatDistance, pickStationName } from "@/features/stations/describe";
@@ -151,7 +158,8 @@ export function StartScreen() {
   const [nearStop, setNearStop] = useState<DirectionStop | null>(null);
   const [destinationBasis, setDestinationBasis] =
     useState<TripContext["destinationBasis"]>("chosen");
-  const [pendingElapsed, setPendingElapsed] = useState<ElapsedOption["id"] | null>(null);
+  // 再開見込みの問いで押した答え。判断を始めるまでその札に印を出す
+  const [pendingResume, setPendingResume] = useState<string | null>(null);
   const directions = useMemo(
     () => (data && entry.line ? listEntryDirections(data, entry.line) : []),
     [data, entry.line],
@@ -165,6 +173,11 @@ export function StartScreen() {
     [data, entry.line, directions, direction],
   );
   const causeOptions = useMemo(() => listCauseOptions(catalog), [catalog]);
+  // 再開見込みの時刻の候補。問いに入った時刻から並べる
+  const resumeTimes = useMemo(
+    () => (entry.stage === "resume" ? listResumeTimeOptions(new Date()) : []),
+    [entry.stage],
+  );
 
   // エリアや関西まで引いたら、選んでいた出発の駅と路線を捨てる
   const prevStageRef = useRef(entry.stage);
@@ -177,7 +190,7 @@ export function StartScreen() {
       setNote(null);
     }
     if (depth >= stageDepth(prev)) return;
-    setPendingElapsed(null);
+    setPendingResume(null);
     if (depth >= stageDepth("position")) return;
     // いまどこの段より前に引いたら、電車の中の答えを捨てて出発を選んだ駅に戻す
     setOnTrain(false);
@@ -319,10 +332,15 @@ export function StartScreen() {
   }
 
   // 判断を始め、出発の駅へ寄せてから判断の画面へ移る。地図はそのまま判断の地図に引き継ぐ
-  // 選んで答えたときだけ、止まってからの分と原因が分からないかを前提として残す
+  // 問いに答えたときだけ、止まってからの分と原因が分からないかを前提として残し、
+  // 放送で聞いた再開見込みの時刻を路線の観測に載せる
   async function submit(
     input: RawInput | null,
-    answers: { elapsedMinutes: number | null; causeUnknown: boolean } | null = null,
+    answers: {
+      elapsedMinutes: number | null;
+      causeUnknown: boolean;
+      statedResumeTime: string | null;
+    } | null = null,
   ) {
     if (!entry.line || !direction || origin === null) return;
     setTripContext({
@@ -330,10 +348,17 @@ export function StartScreen() {
       directionLabel: direction.label,
       destinationBasis,
       onTrain: nearStop !== null,
-      ...(answers ?? {}),
+      ...(answers
+        ? { elapsedMinutes: answers.elapsedMinutes, causeUnknown: answers.causeUnknown }
+        : {}),
     });
     startJudgment(input, [
-      buildLineObservation(entry.line, new Date(), answers?.elapsedMinutes ?? null),
+      buildLineObservation(
+        entry.line,
+        new Date(),
+        answers?.elapsedMinutes ?? null,
+        answers?.statedResumeTime ?? null,
+      ),
     ]);
     setHandingOff(true);
     if (findFocusArea(origin)) await mapApi.current?.zoomToOrigin(handoffZoom);
@@ -411,6 +436,47 @@ export function StartScreen() {
         : direction
           ? nameDirection(direction)
           : null;
+
+  // ここまでに答えた原因と時間のチップ。押すとその問いまで引いて選び直す
+  function nameCause(eventType: string | null): string {
+    if (eventType === null) return t("entry.causes.unknown");
+    const option = causeOptions.find((o) => o.eventType === eventType);
+    if (option?.kind === "preset") return t(`entry.causes.${option.id}`);
+    const event = catalog.find((e) => e.id === eventType);
+    return event ? pickCatalogName(event.name, locale) : eventType;
+  }
+  const answered: AnsweredItem[] = [
+    ...(entry.cause
+      ? [
+          {
+            kind: "cause" as const,
+            label: nameCause(entry.cause.eventType),
+            onEdit: () => goToDepth(stageDepth("cause")),
+          },
+        ]
+      : []),
+    ...(entry.elapsed
+      ? [
+          {
+            kind: "elapsed" as const,
+            label: t(`entry.elapsed.${entry.elapsed}`),
+            onEdit: () => goToDepth(stageDepth("elapsed")),
+          },
+        ]
+      : []),
+  ];
+
+  // 3 問目の答えで判断を始める。原因が分からなければ事象の無い観測で判断する
+  function submitAnswers(answer: ResumeAnswer) {
+    const eventType = entry.cause?.eventType ?? null;
+    const elapsed = entry.elapsed ? findElapsedOption(entry.elapsed) : null;
+    setPendingResume(answer.time?.id ?? answer.id);
+    void submit(eventType ? { type: "selection", eventType, signalIds: [] } : null, {
+      elapsedMinutes: elapsed?.minutes ?? null,
+      causeUnknown: eventType === null,
+      statedResumeTime: answer.time?.iso ?? null,
+    });
+  }
 
   // シートの答えと同じものを、地図の札にも置く
   function buildMapStops(): MapStop[] {
@@ -587,7 +653,7 @@ export function StartScreen() {
                 onNearStop={chooseNearStop}
               />
             )}
-            {entry.stage === "method" && entry.line && (
+            {entry.stage === "cause" && entry.line && (
               <TripCard
                 originName={lineOriginName}
                 originNote={nearStop ? t("entry.positionTrain") : null}
@@ -598,10 +664,15 @@ export function StartScreen() {
                 onEditDestination={() => goToDepth(stageDepth("destination"))}
               />
             )}
-            {entry.stage === "method" && (
-              <MethodStep onSelect={(method) => dispatch({ type: "chooseMethod", method })} />
+            {entry.stage === "cause" && (
+              <CauseStep
+                options={causeOptions}
+                catalog={catalog}
+                onSelect={(eventType) => dispatch({ type: "chooseCause", cause: { eventType } })}
+                onMethod={(method) => dispatch({ type: "chooseMethod", method })}
+              />
             )}
-            {entry.stage === "input" && entry.method && entry.method !== "select" && (
+            {entry.stage === "input" && entry.method && (
               <InputStep
                 method={entry.method}
                 trip={tripLine}
@@ -609,27 +680,21 @@ export function StartScreen() {
                 onSubmit={(input) => void submit(input)}
               />
             )}
-            {entry.stage === "input" && entry.method === "select" && (
-              <CauseStep
-                trip={tripLine}
-                options={causeOptions}
-                catalog={catalog}
-                onSelect={(eventType) => dispatch({ type: "chooseCause", cause: { eventType } })}
-              />
-            )}
             {entry.stage === "elapsed" && entry.cause && (
               <ElapsedStep
                 trip={tripLine}
+                answers={answered}
+                onSelect={(option) => dispatch({ type: "chooseElapsed", elapsed: option.id })}
+              />
+            )}
+            {entry.stage === "resume" && entry.cause && entry.elapsed && (
+              <ResumeStep
+                trip={tripLine}
+                answers={answered}
                 busy={handingOff || judgment.status === "streaming"}
-                pending={pendingElapsed}
-                onSelect={(option) => {
-                  const eventType = entry.cause?.eventType ?? null;
-                  setPendingElapsed(option.id);
-                  void submit(eventType ? { type: "selection", eventType, signalIds: [] } : null, {
-                    elapsedMinutes: option.minutes,
-                    causeUnknown: eventType === null,
-                  });
-                }}
+                pending={pendingResume}
+                times={resumeTimes}
+                onSelect={submitAnswers}
               />
             )}
           </EntrySheet>

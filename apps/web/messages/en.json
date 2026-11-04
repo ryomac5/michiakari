@@ -466,23 +466,15 @@
     "from": "From",
     "to": "To",
     "change": "change",
-    "methodQuestion": "Tell us what's going on",
-    "methodHint": "Not sure? That's fine. Just answer two questions",
+    "withText": "Have a notice or sign?",
     "methods": {
       "photo": {
         "title": "Photo",
-        "note": "Signs, screens",
         "heading": "Take a photo of the sign or screen"
       },
       "paste": {
         "title": "Paste",
-        "note": "Announcement",
         "heading": "Paste the announcement text"
-      },
-      "select": {
-        "title": "Answer",
-        "note": "Fine if unsure",
-        "heading": "What did the announcement say?"
       }
     },
     "demoNote": "Replay a fictional disruption",
@@ -511,22 +503,33 @@
     },
     "tripHub": "Using a major station that way",
     "tripTerminal": "Using the end of the line",
-    "causeHint": "Pick what sounds closest",
+    "causeQuestion": "What did the announcement say?",
     "causes": {
       "person": "Person hit by a train",
       "inCar": "Emergency button / illness",
       "vehicle": "Train inspection",
       "signal": "Signal trouble",
       "rain": "Heavy rain",
-      "unknown": "Couldn't catch it"
+      "unknown": "Didn't catch it / nothing said"
     },
     "elapsedQuestion": "How long has it been stopped?",
-    "elapsedHint": "A rough guess is fine",
     "elapsed": {
-      "m5": "About 5 min",
-      "m15": "About 15 min",
+      "now": "Just stopped",
+      "m10": "About 10 min",
       "m30": "30 min or more",
       "unknown": "Not sure"
+    },
+    "resumeQuestion": "Did they give a time to resume?",
+    "resume": {
+      "stated": "Yes, they gave a time",
+      "statedNote": "Tap to pick the time",
+      "undecided": "They said it's undecided",
+      "unknown": "Nothing said / not sure"
+    },
+    "resumeTimeQuestion": "Around what time?",
+    "answers": {
+      "cause": "Announcement",
+      "elapsed": "Stopped for"
     },
     "nextStation": "Next: {station}"
   },

@@ -73,14 +73,15 @@ test("丸を触るとエリア、駅を触ると路線が出て、戻るで 1 �
   await page.getByTestId(testIds.start.destinationCandidate("三ノ宮")).click();
   await expectStage(page, "position");
   await page.getByTestId(testIds.start.positionStation).click();
-  await expectStage(page, "method");
+  await expectStage(page, "cause");
   await expect(page.getByTestId(testIds.start.destinationPin)).toBeVisible();
+  // 発表文や掲示を持っている人は、原因の段の下の小さな入口から撮る・貼るへ入る
   await page.getByTestId(testIds.start.method("photo")).click();
   await expectStage(page, "input");
   await expect(page.getByTestId(testIds.start.progress)).toHaveAttribute("data-step", "4");
 
   for (const stage of [
-    "method",
+    "cause",
     "position",
     "destination",
     "direction",
@@ -142,14 +143,22 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   await page.getByTestId(testIds.start.positionTrain).click();
   await expect(page.locator("[data-testid^='start-near-stop-']")).toHaveCount(3);
   await page.getByTestId(testIds.start.nearStop("本町")).click();
-  await expectStage(page, "method");
+  await expectStage(page, "cause");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("本町");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("方面の主な駅で考えます");
 
-  await page.getByTestId(testIds.start.method("select")).click();
+  // どの問いにも分からないがあり、押せばそのまま次へ進む
   await page.getByTestId(testIds.start.cause("unknown")).click();
   await expectStage(page, "elapsed");
   await page.getByTestId(testIds.start.elapsed("unknown")).click();
+  await expectStage(page, "resume");
+  // 答えのチップを押すと、その問いに戻って選び直せる
+  await page.getByTestId(testIds.start.answer("elapsed")).click();
+  await expectStage(page, "elapsed");
+  await expect(page.getByTestId(testIds.start.answer("cause"))).toBeVisible();
+  await page.getByTestId(testIds.start.elapsed("unknown")).click();
+  await expectStage(page, "resume");
+  await page.getByTestId(testIds.start.resume("unknown")).click();
 
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
@@ -257,9 +266,9 @@ test("入力を終えると、選んだ路線を見合わせとして判断の�
   await page.getByTestId(testIds.start.positionStation).click();
   await expect(page.getByTestId(testIds.start.trip)).toContainText("京都");
 
-  await page.getByTestId(testIds.start.method("select")).click();
   await page.locator("[data-testid^='start-cause-']").first().click();
-  await page.getByTestId(testIds.start.elapsed("m15")).click();
+  await page.getByTestId(testIds.start.elapsed("m10")).click();
+  await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
   await expect(page.getByTestId(testIds.judgment.tripSummary)).toContainText("京都");
   // 選んで答える入力は路線を含まない。上部の帯の路線は、入口で選んだ路線から来る
@@ -267,7 +276,7 @@ test("入力を終えると、選んだ路線を見合わせとして判断の�
 
   // 判断の画面から戻ると、選んだ駅・路線・方面・行き先の状態から再開する
   await page.goBack();
-  await expectStage(page, "method");
+  await expectStage(page, "cause");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("京都");
   // 再開したあとも、端末の戻る操作は 1 段ずつ引く
   await page.goBack();

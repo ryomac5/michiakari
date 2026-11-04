@@ -211,16 +211,25 @@ for (const variant of variants) {
       await page.getByTestId(testIds.start.positionStation).click();
       await expect(page.getByTestId(testIds.start.trip)).toContainText(ja ? "三ノ宮" : "Sannomiya");
       await expect(page.getByTestId(testIds.start.destinationPin)).toBeVisible();
-      await capture(page, variant, "04-situation");
-      await checkScreen(page, "状況の入力");
-      await page.getByTestId(testIds.start.method("select")).click();
-      await capture(page, variant, "05-situation-select");
-      await checkScreen(page, "状況の入力（答える）");
+      // 様子の段は、原因・止まってからの時間・再開の見込みの 3 問を 1 タップずつ聞く
+      await capture(page, variant, "04-situation-cause");
+      await checkScreen(page, "状況の入力（原因）");
       await page.getByTestId(testIds.start.cause("unknown")).click();
+      await expect(page.getByTestId(testIds.start.answer("cause"))).toBeVisible();
       await capture(page, variant, "05a-situation-elapsed");
       await checkScreen(page, "状況の入力（経過）");
+      await page.getByTestId(testIds.start.elapsed("m10")).click();
+      await expect(page.getByTestId(testIds.start.answer("elapsed"))).toBeVisible();
+      await capture(page, variant, "05c-situation-resume");
+      await checkScreen(page, "状況の入力（再開見込み）");
+      // 時刻を言っていたを押すと、その場で時刻の候補が開く
+      await page.getByTestId(testIds.start.resume("stated")).click();
+      await expect(page.locator("[data-testid^='start-resume-time-']")).toHaveCount(8);
+      await capture(page, variant, "05d-situation-resume-time");
+      await checkScreen(page, "状況の入力（再開見込みの時刻）");
       await page.getByTestId(testIds.start.back).click();
       await page.getByTestId(testIds.start.back).click();
+      await expect(page.getByTestId(testIds.start.cause("unknown"))).toBeVisible();
       await page.getByTestId(testIds.start.method("paste")).click();
       await page
         .getByTestId(testIds.situation.pasteInput)

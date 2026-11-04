@@ -3,27 +3,41 @@
 import type { RawInput } from "@repo/schema";
 import {
   ArrowUp,
+  BellRing,
   Camera,
+  Check,
   ChevronRight,
   ClipboardPaste,
+  Clock,
+  CloudRain,
   HelpCircle,
+  Hourglass,
   LoaderCircle,
+  type LucideIcon,
   MapPin,
-  MessageCircleQuestion,
+  Pencil,
+  Siren,
+  Timer,
   TrainFront,
+  Wrench,
+  Zap,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import type { OriginLine } from "@/features/judgment/session";
-import { type SituationTab, testIds } from "@/features/judgment/testids";
+import { testIds } from "@/features/judgment/testids";
+import { formatClockTime } from "@/features/judgment/time";
 import {
   type KnowledgeCatalog,
   pickLocalized as pickCatalogName,
 } from "@/features/knowledge/catalog";
 import {
+  type CauseId,
   type CauseOption,
   type ElapsedOption,
   elapsedOptions,
+  type ResumeOptionId,
+  type ResumeTimeOption,
 } from "@/features/situation/plain-questions";
 import { PastePanel, PhotoPanel } from "@/features/situation/SituationInput";
 import type { StationChoice } from "@/features/stations/catalog";
@@ -34,7 +48,7 @@ import type { DirectionStop, EntryDirection } from "./directions";
 import { SheetTitle } from "./EntrySheet";
 import type { EntryArea, EntryLine, EntryPlace } from "./entry-places";
 import { pickLocalized, pickPlaceName } from "./entry-places";
-import { progressSteps } from "./flow";
+import { type EntryMethod, progressSteps } from "./flow";
 
 // 入口のシートの中身。段ごとに 1 つの問いだけを出し、答えはチップを 1 回押せば進む
 
@@ -519,7 +533,7 @@ export function PositionStep({
   );
 }
 
-// 行き先と出発の札。入力の方法を選ぶ段で、ここまでの答えをまとめて見せる
+// 行き先と出発の札。様子の最初の問いの上で、ここまでの答えをまとめて見せる
 export function TripCard({
   originName,
   originNote,
@@ -585,7 +599,7 @@ export function TripCard({
   );
 }
 
-// 「心斎橋 → 新大阪」。入力の段で、ここまでの答えを 1 行に縮めて添える。押すと行き先を選び直せる
+// 「心斎橋 → 新大阪」。2 問目からは、ここまでの答えを 1 行に縮めて添える。押すと行き先を選び直せる
 export function TripLine({
   originName,
   destinationName,
@@ -618,58 +632,26 @@ export function TripLine({
   );
 }
 
-const methodIcons = {
-  photo: Camera,
-  paste: ClipboardPaste,
-  select: MessageCircleQuestion,
-} as const;
-
-// 答えるを大きく先頭に置き、撮る・貼るはその下に並べる
-export function MethodStep({ onSelect }: { onSelect: (method: SituationTab) => void }) {
+// 発表文や掲示を持っている人向けの、撮る・貼るの控えめな入口
+function MethodLinks({ onSelect }: { onSelect: (method: EntryMethod) => void }) {
   const t = useTranslations("entry");
-  const card = (method: SituationTab, primary: boolean) => {
-    const Icon = methodIcons[method];
-    return (
-      <button
-        key={method}
-        type="button"
-        data-testid={testIds.start.method(method)}
-        onClick={() => onSelect(method)}
-        className={cn(
-          cardBase,
-          primary
-            ? "col-span-2 bg-focus/[0.10] hover:bg-focus/[0.16]"
-            : "min-h-14 bg-foreground/[0.05] py-2 hover:bg-foreground/[0.09]",
-        )}
-      >
-        <span
-          className={cn(
-            "flex shrink-0 items-center justify-center rounded-full bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.12)]",
-            primary ? "size-11" : "size-9",
-          )}
-        >
-          <Icon className={primary ? "size-6" : "size-5"} strokeWidth={1.75} aria-hidden />
-        </span>
-        <span className="flex min-w-0 flex-col gap-0.5">
-          <span className={cn("leading-tight font-bold", primary ? "text-[17px]" : "text-[15px]")}>
-            {t(`methods.${method}.title`)}
-          </span>
-          <span className="text-[12px] leading-tight text-muted">
-            {t(`methods.${method}.note`)}
-          </span>
-        </span>
-      </button>
-    );
-  };
+  const link = (method: EntryMethod, icon: ReactNode) => (
+    <button
+      type="button"
+      data-testid={testIds.start.method(method)}
+      onClick={() => onSelect(method)}
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 font-semibold text-foreground transition-colors hover:bg-foreground/[0.06] active:scale-[0.97]"
+    >
+      {icon}
+      {t(`methods.${method}.title`)}
+    </button>
+  );
   return (
-    <>
-      <SheetTitle title={t("methodQuestion")} hint={t("methodHint")} />
-      <div className="grid grid-cols-2 gap-2">
-        {card("select", true)}
-        {card("photo", false)}
-        {card("paste", false)}
-      </div>
-    </>
+    <div className="mt-1 flex flex-wrap items-center gap-x-1 border-t border-foreground/10 pt-3 text-[13px] text-muted">
+      <span className="py-2.5 pr-1 font-medium">{t("withText")}</span>
+      {link("photo", <Camera className="size-4" strokeWidth={2} aria-hidden />)}
+      {link("paste", <ClipboardPaste className="size-4" strokeWidth={2} aria-hidden />)}
+    </div>
   );
 }
 
@@ -679,7 +661,7 @@ export function InputStep({
   busy,
   onSubmit,
 }: {
-  method: Exclude<SituationTab, "select">;
+  method: EntryMethod;
   trip: ReactNode;
   busy: boolean;
   onSubmit: (input: RawInput) => void;
@@ -694,17 +676,112 @@ export function InputStep({
   );
 }
 
-// 放送で何と言っていたか。知見にある原因と、聞き取れなかったを並べる
+// 答えたことを示すチップ。押すとその問いへ戻って選び直せる
+export type AnsweredItem = { kind: "cause" | "elapsed"; label: string; onEdit: () => void };
+
+function AnswerChips({ items }: { items: AnsweredItem[] }) {
+  const t = useTranslations("entry");
+  if (items.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {items.map((item) => (
+        <button
+          key={item.kind}
+          type="button"
+          data-testid={testIds.start.answer(item.kind)}
+          onClick={item.onEdit}
+          aria-label={`${t(`answers.${item.kind}`)} ${item.label}・${t("change")}`}
+          className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full bg-focus/[0.10] pr-3 pl-2.5 text-[14px] leading-none font-semibold text-focus transition-[transform,background-color] duration-150 hover:bg-focus/[0.16] active:scale-[0.97]"
+        >
+          <Check className="size-3.5 shrink-0" strokeWidth={3} aria-hidden />
+          <span className="truncate">{item.label}</span>
+          <Pencil className="size-3 shrink-0 opacity-70" strokeWidth={2.25} aria-hidden />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// 問いの上に、行き先の 1 行とここまでの答えのチップを重ねる
+function QuestionEyebrow({ trip, answers }: { trip: ReactNode; answers: AnsweredItem[] }) {
+  return (
+    <div className="flex flex-col gap-2">
+      {trip}
+      <AnswerChips items={answers} />
+    </div>
+  );
+}
+
+const causeIcons: Record<CauseId, LucideIcon> = {
+  person: Siren,
+  inCar: BellRing,
+  vehicle: Wrench,
+  signal: Zap,
+  rain: CloudRain,
+};
+
+// 原因や答えの大きな札。左に丸い印、右に言葉
+function AnswerCard({
+  testId,
+  icon,
+  label,
+  tone = "soft",
+  span = false,
+  disabled = false,
+  pending = false,
+  onClick,
+}: {
+  testId: string;
+  icon: ReactNode;
+  label: string;
+  tone?: "soft" | "dashed";
+  span?: boolean;
+  disabled?: boolean;
+  pending?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        cardBase,
+        "min-h-[68px] disabled:opacity-60",
+        tone === "soft"
+          ? softChip
+          : "border-[1.5px] border-dashed border-foreground/25 hover:bg-foreground/[0.05]",
+        span && "col-span-2",
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "flex size-10 shrink-0 items-center justify-center rounded-full",
+          tone === "soft"
+            ? "bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.12)]"
+            : "bg-foreground/[0.05] text-muted",
+        )}
+      >
+        {pending ? <LoaderCircle className="size-5 animate-spin" /> : icon}
+      </span>
+      <span className="text-[15px] leading-snug font-bold text-balance">{label}</span>
+    </button>
+  );
+}
+
+// 1 問目。放送で何と言っていたか。知見にある原因と、聞き取れなかったを同じ重さで並べる
 export function CauseStep({
-  trip,
   options,
   catalog,
   onSelect,
+  onMethod,
 }: {
-  trip: ReactNode;
   options: CauseOption[];
   catalog: KnowledgeCatalog;
   onSelect: (eventType: string | null) => void;
+  onMethod: (method: EntryMethod) => void;
 }) {
   const t = useTranslations("entry");
   const locale = useLocale();
@@ -713,74 +790,179 @@ export function CauseStep({
     const event = catalog.find((e) => e.id === option.eventType);
     return event ? pickCatalogName(event.name, locale) : option.eventType;
   };
+  const iconOf = (option: CauseOption) => {
+    const Icon = option.kind === "preset" ? causeIcons[option.id] : TrainFront;
+    return <Icon className="size-5" strokeWidth={1.75} />;
+  };
   return (
     <>
-      <SheetTitle eyebrow={trip} title={t("methods.select.heading")} hint={t("causeHint")} />
+      <SheetTitle title={t("causeQuestion")} />
       <div className="grid grid-cols-2 gap-2">
         {options.map((option) => (
-          <button
+          <AnswerCard
             key={option.eventType}
-            type="button"
-            data-testid={testIds.start.cause(option.id)}
+            testId={testIds.start.cause(option.id)}
+            icon={iconOf(option)}
+            label={nameOption(option)}
             onClick={() => onSelect(option.eventType)}
-            className={cn(chipBase, softChip, "justify-center text-center")}
-          >
-            {nameOption(option)}
-          </button>
+          />
         ))}
-        <button
-          type="button"
-          data-testid={testIds.start.cause("unknown")}
+        <AnswerCard
+          testId={testIds.start.cause("unknown")}
+          icon={<HelpCircle className="size-5" strokeWidth={1.75} />}
+          label={t("causes.unknown")}
+          tone="dashed"
+          span={options.length % 2 === 0}
           onClick={() => onSelect(null)}
-          className={cn(
-            chipBase,
-            "justify-center border-[1.5px] border-dashed border-foreground/25 text-center hover:bg-foreground/[0.05]",
-            options.length % 2 === 0 && "col-span-2",
-          )}
-        >
-          {t("causes.unknown")}
-        </button>
+        />
       </div>
+      <MethodLinks onSelect={onMethod} />
     </>
   );
 }
 
-// 止まってどれくらいか。押すとそのまま判断を始める
+// 2 問目。止まってどれくらいか
 export function ElapsedStep({
   trip,
-  busy,
-  pending,
+  answers,
   onSelect,
 }: {
   trip: ReactNode;
-  busy: boolean;
-  pending: ElapsedOption["id"] | null;
+  answers: AnsweredItem[];
   onSelect: (option: ElapsedOption) => void;
 }) {
   const t = useTranslations("entry");
   return (
     <>
-      <SheetTitle eyebrow={trip} title={t("elapsedQuestion")} hint={t("elapsedHint")} />
+      <SheetTitle
+        eyebrow={<QuestionEyebrow trip={trip} answers={answers} />}
+        title={t("elapsedQuestion")}
+      />
       <div className="grid grid-cols-2 gap-2">
         {elapsedOptions.map((option) => (
-          <button
+          <AnswerCard
             key={option.id}
-            type="button"
-            data-testid={testIds.start.elapsed(option.id)}
-            disabled={busy}
+            testId={testIds.start.elapsed(option.id)}
+            icon={
+              option.minutes === null ? (
+                <HelpCircle className="size-5" strokeWidth={1.75} />
+              ) : (
+                <Timer className="size-5" strokeWidth={1.75} />
+              )
+            }
+            label={t(`elapsed.${option.id}`)}
+            tone={option.minutes === null ? "dashed" : "soft"}
             onClick={() => onSelect(option)}
-            className={cn(
-              chipBase,
-              "justify-center text-center",
-              option.minutes === null
-                ? "border-[1.5px] border-dashed border-foreground/25 hover:bg-foreground/[0.05]"
-                : softChip,
-            )}
-          >
-            {pending === option.id && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
-            {t(`elapsed.${option.id}`)}
-          </button>
+          />
         ))}
+      </div>
+    </>
+  );
+}
+
+// 再開見込みの答え。時刻を言っていたときだけ time を持つ
+export type ResumeAnswer = { id: ResumeOptionId; time: ResumeTimeOption | null };
+
+// 3 問目。再開の見込みを言っていたか。時刻を言っていたなら、その場で時刻を選ぶ
+// どの答えも押せばそのまま判断を始める
+export function ResumeStep({
+  trip,
+  answers,
+  busy,
+  pending,
+  times,
+  onSelect,
+}: {
+  trip: ReactNode;
+  answers: AnsweredItem[];
+  busy: boolean;
+  // 押した答えの id。時刻なら HHMM
+  pending: string | null;
+  times: ResumeTimeOption[];
+  onSelect: (answer: ResumeAnswer) => void;
+}) {
+  const t = useTranslations("entry");
+  const locale = useLocale();
+  const [statedOpen, setStatedOpen] = useState(false);
+  return (
+    <>
+      <SheetTitle
+        eyebrow={<QuestionEyebrow trip={trip} answers={answers} />}
+        title={t("resumeQuestion")}
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          data-testid={testIds.start.resume("stated")}
+          aria-expanded={statedOpen}
+          disabled={busy}
+          onClick={() => setStatedOpen((v) => !v)}
+          className={cn(
+            cardBase,
+            "col-span-2 min-h-[68px] disabled:opacity-60",
+            statedOpen ? "bg-focus/[0.10] ring-2 ring-focus" : softChip,
+          )}
+        >
+          <span
+            aria-hidden
+            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.12)]"
+          >
+            <Clock className="size-5" strokeWidth={1.75} />
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-[15px] leading-snug font-bold">{t("resume.stated")}</span>
+            <span className="text-[12px] leading-tight text-muted">{t("resume.statedNote")}</span>
+          </span>
+          <ChevronRight
+            className={cn(
+              "size-4 shrink-0 text-muted transition-transform duration-200",
+              statedOpen && "rotate-90",
+            )}
+            aria-hidden
+          />
+        </button>
+        {statedOpen && (
+          <div className="col-span-2 flex animate-step-in flex-col gap-2 rounded-2xl bg-foreground/[0.04] p-3">
+            <p className="text-[13px] font-semibold text-muted">{t("resumeTimeQuestion")}</p>
+            <div className="grid grid-cols-4 gap-2">
+              {times.map((time) => (
+                <button
+                  key={time.id}
+                  type="button"
+                  data-testid={testIds.start.resumeTime(time.id)}
+                  disabled={busy}
+                  onClick={() => onSelect({ id: "stated", time })}
+                  className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl bg-surface text-[15px] font-bold tabular-nums shadow-[0_1px_4px_rgb(0_0_0/0.10)] transition-[transform,background-color] duration-150 hover:bg-focus/[0.10] active:scale-[0.96] disabled:opacity-60"
+                >
+                  {pending === time.id && (
+                    <LoaderCircle className="size-4 animate-spin" aria-hidden />
+                  )}
+                  {formatClockTime(time.iso, locale)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* 言葉が長いので、3 つとも横いっぱいの札にして同じ重さで並べる */}
+        <AnswerCard
+          testId={testIds.start.resume("undecided")}
+          icon={<Hourglass className="size-5" strokeWidth={1.75} />}
+          label={t("resume.undecided")}
+          span
+          disabled={busy}
+          pending={pending === "undecided"}
+          onClick={() => onSelect({ id: "undecided", time: null })}
+        />
+        <AnswerCard
+          testId={testIds.start.resume("unknown")}
+          icon={<HelpCircle className="size-5" strokeWidth={1.75} />}
+          label={t("resume.unknown")}
+          tone="dashed"
+          span
+          disabled={busy}
+          pending={pending === "unknown"}
+          onClick={() => onSelect({ id: "unknown", time: null })}
+        />
       </div>
     </>
   );
