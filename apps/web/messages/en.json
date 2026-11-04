@@ -161,8 +161,8 @@
     },
     "resumeChance": {
       "title": "Chance of moving again",
-      "waitFaster": "Waiting gets you there sooner",
-      "waitOnTime": "Waiting and still on time",
+      "waitFaster": "Faster to wait",
+      "waitOnTime": "On time by waiting",
       "chance": {
         "under": "under 10%",
         "over": "over 90%",
@@ -174,10 +174,10 @@
         "tenths": "{n}0%"
       },
       "lead": {
-        "fromNow": "At {time}, {fromNow} from now, the chance that trains are moving is {chance}",
-        "sinceOnset": "At {time}, {since} after it stopped, the chance that trains are moving is {chance}",
-        "both": "At {time}, {fromNow} from now and {since} after it stopped, the chance that trains are moving is {chance}",
-        "plain": "At {time}, the chance that trains are moving is {chance}"
+        "fromNow": "{chance} chance of moving by {time}, {fromNow} from now",
+        "sinceOnset": "{chance} chance of moving by {time}, {since} after it stopped",
+        "both": "{chance} chance of moving by {time}, {fromNow} from now and {since} after it stopped",
+        "plain": "{chance} chance of moving by {time}"
       },
       "duration": {
         "minutes": "{minutes} min",

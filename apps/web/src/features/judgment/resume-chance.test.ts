@@ -61,6 +61,25 @@ describe("buildChanceLayout", () => {
     expect(breakEven?.position).toBeCloseTo(0.1 + (16 / 30) * 0.2, 5);
     expect(deadline?.position).toBeCloseTo(0.5 + (15 / 30) * 0.2, 5);
     expect(deadline?.time).toBe(at("23:45"));
+    // 低い棒とは重ならないので、分岐点の文字は右に置ける。期限は高い棒に挟まれ、旗だけを右に置く
+    expect(breakEven?.labelSide).toBe("right");
+    expect(breakEven?.iconSide).toBeNull();
+    expect(deadline?.labelSide).toBe("hidden");
+    expect(deadline?.iconSide).toBe("right");
+  });
+
+  it("日本語の短い文字なら、英語では置けない隙間にも置ける", () => {
+    // 全部の棒が高いとき、22:38 の印の右の隙間は日本語の文字だけが収まる
+    const narrow = { ...chance, ticks: chance.ticks.map((t) => ({ ...t, tenths: 8 })) };
+    const en = buildChanceLayout({ chance: narrow, breakEvenTime: at("22:38"), nowMs: null });
+    const ja = buildChanceLayout({
+      chance: narrow,
+      breakEvenTime: at("22:38"),
+      nowMs: null,
+      labelWidth: 0.09,
+    });
+    expect(en.marks[0]?.labelSide).toBe("hidden");
+    expect(ja.marks[0]?.labelSide).toBe("right");
   });
 
   it("軸の外の印は置かず、分岐点が無ければ全部 before になる", () => {

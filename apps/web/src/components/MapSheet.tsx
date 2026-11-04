@@ -27,7 +27,7 @@ const snaps: SheetSnap[] = ["collapsed", "half", "full"];
 // 上部の帯（56px）と余白のぶん。全部開いてもこの高さだけ地図を残す
 export const sheetTopInset = 76;
 // 閉じた状態の高さの範囲。上限は画面の高さに応じて広げ、結論・再開の見込み・分岐点・注意書きが切れないようにする
-const collapsedRange = { min: 180, max: 300, maxShare: 0.44, maxPx: 400 } as const;
+const collapsedRange = { min: 180, max: 300, maxShare: 0.46, maxPx: 400 } as const;
 
 function computeCollapsedMax(viewport: number): number {
   return clamp(

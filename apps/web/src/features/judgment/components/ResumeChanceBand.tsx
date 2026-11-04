@@ -10,6 +10,7 @@ import {
   type ChanceLead,
   type ChanceMarkLayout,
   computeBarHeight,
+  markLabelWidths,
 } from "../resume-chance";
 import { testIds } from "../testids";
 import { formatClockTime } from "../time";
@@ -19,7 +20,7 @@ import { NoBreakText } from "./NoBreakText";
 // 上に、待ったほうが早く着く見込みの数字と、要点の 1 文を置く。帯の中身は読み上げ用の文でも伝える
 // 確率は agent の値をそのまま出し、画面では計算しない
 
-const barMaxPx = 22;
+const barMaxPx = 20;
 const barMotion = "transition-[height] duration-700 ease-out motion-reduce:transition-none";
 
 type Translate = ReturnType<typeof useTranslations<"judgment.resumeChance">>;
@@ -84,7 +85,12 @@ export function ResumeChanceBand({
 }) {
   const t = useTranslations("judgment.resumeChance");
   const locale = useLocale();
-  const layout = buildChanceLayout({ chance, breakEvenTime, nowMs: now?.getTime() ?? null });
+  const layout = buildChanceLayout({
+    chance,
+    breakEvenTime,
+    nowMs: now?.getTime() ?? null,
+    labelWidth: locale === "ja" ? markLabelWidths.ja : markLabelWidths.en,
+  });
   const clock = (iso: string) => formatClockTime(iso, locale);
   const onsetKnown = showOnset && chance.onsetTime !== null;
 
@@ -181,7 +187,7 @@ export function ResumeChanceBand({
                 <span className="text-[11px] leading-[14px] font-semibold whitespace-nowrap tabular-nums">
                   {formatTenths(t, tick.tenths, true)}
                 </span>
-                <span className="flex h-[22px] w-full items-end justify-center">
+                <span className="flex h-[20px] w-full items-end justify-center">
                   <span
                     className={cn(
                       "w-[14px] rounded-t-[3px]",
@@ -209,10 +215,13 @@ export function ResumeChanceBand({
   );
 }
 
-// 分岐点と期限の印。縦線と短い文字。文字は棒に重ならない側に置く
+// 分岐点と期限の印。棒の列に縦線を引き、短い文字を棒に重ならない側に置く
+// 文字を置けなければ、期限は旗だけを置く。分岐点は下の行が時刻を示すので線だけにする
 function Mark({ mark, label }: { mark: ChanceMarkLayout; label: string }) {
   const left = `${(mark.position * 100).toFixed(3)}%`;
   const deadline = mark.kind === "deadline";
+  const side = mark.labelSide !== "hidden" ? mark.labelSide : mark.iconSide;
+  const showLabel = mark.labelSide !== "hidden";
   return (
     <>
       <span
@@ -222,24 +231,24 @@ function Mark({ mark, label }: { mark: ChanceMarkLayout; label: string }) {
         data-time={mark.time}
         data-label-side={mark.labelSide}
         className={cn(
-          "absolute top-0 h-[38px] -translate-x-1/2",
+          "absolute top-[14px] h-[24px] -translate-x-1/2",
           deadline
             ? "border-l-2 border-dotted border-danger"
             : "w-[2px] rounded-full bg-foreground",
         )}
         style={{ left }}
       />
-      {mark.labelSide !== "hidden" && (
+      {side && side !== "hidden" && (
         <span
           className={cn(
-            "absolute top-[15px] flex items-center gap-0.5 text-[10px] leading-[12px] font-semibold whitespace-nowrap",
+            "absolute top-[16px] flex items-center gap-0.5 text-[10px] leading-[12px] font-semibold whitespace-nowrap",
             deadline ? "text-danger" : "text-foreground",
-            mark.labelSide === "right" ? "ml-1.5" : "-ml-1.5 -translate-x-full",
+            side === "right" ? "ml-1.5" : "-ml-1.5 -translate-x-full",
           )}
           style={{ left }}
         >
           {deadline && <Flag className="size-2.5" aria-hidden />}
-          {label}
+          {showLabel && label}
         </span>
       )}
     </>
