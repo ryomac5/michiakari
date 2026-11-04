@@ -47,7 +47,7 @@ function estimateTrainQueue(
   firstTrainWait: DurationDist | null,
 ): TrainQueueToolResult | null {
   const position = ctx.request.trainPosition;
-  if (!position || position.kind !== "between_stations" || !position.nextStation) return null;
+  if (position?.kind !== "between_stations" || !position.nextStation) return null;
   const now = ctx.request.now;
   const line = ctx.observations.findLast((o) => o.line !== null)?.line ?? null;
   const ahead = position.previousStation

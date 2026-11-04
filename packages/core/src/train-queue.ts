@@ -143,7 +143,7 @@ function canStop(platform: StationPlatform, type: ConcreteTrainType): boolean {
 // 自分の種別がホームに着ける最初の駅。無ければ次の駅に置く
 function findAlightIndex(stations: readonly StationAhead[], type: ConcreteTrainType): number {
   const index = stations.findIndex((s) => canStop(s.platform, type));
-  return index < 0 ? 0 : index;
+  return Math.max(0, index);
 }
 
 function sumRideMinutes(stations: readonly StationAhead[], toIndex: number): number {
