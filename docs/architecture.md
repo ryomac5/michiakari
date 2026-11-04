@@ -58,6 +58,10 @@
   - `deterministic`: 文字列照合で解釈し、規則で判断する。写真は読めないので error を返す
   - 原因が分からないときと確信度が低いときは保留する。ただし分岐点までの残りが `holdDecisionWindowMinutes` 以内なら言い切る
   - その場合、再開見込みの幅のうち分岐点より後の割合が `lateShareToSwitch` 以上なら切り替える。閾値は agent の config に置く
+  - 原因が分からなくても、発表された再開見込みの時刻があれば保留しない。その時刻を見込みとして分岐点と比べ、待つか切り替えるかを返す
+  - このときの見込みは core の `estimateStatedRemainingWithoutKnowledge` で求める。p50 は発表の時刻どおり、p80 は `STATED_RESUME_SLACK_MINUTES` だけ後ろに置く
+  - 確信度は `confidenceParams.whenStatedWithoutEvent` にする。結論の理由は、発表の時刻をもとにした推定だと分かる言い方にする
+  - 発表の時刻が無いときの振る舞いは変えない。claude モードもプロンプトで同じ方針にする
   - 見込みが立てやすく、再開までの p80 が core の `SHORT_FLOW_MAX_MINUTES` 以内の事象は「短く終わる」とみなす。確信度が低くても保留せず、比較で決める
   - 見込みが立てやすい事象は、発生直後から言い切る。知見から見積もった再開の見込みが分岐点より後なら、時間の窓を待たずに切り替える
   - 発表された見込み時刻があるときは、発表の時刻で比べる。知見の下限は当てない
@@ -86,6 +90,10 @@
   - 標本ごとに再開までの部分を下限へ切り上げる。長い側の形は変えない
   - 発生時刻は観測から分からないので、agent は最初の観測の時刻を発生とみなす
   - 発表された見込み時刻を使うときは下限を当てない
+- `estimateStatedRemaining`: 発表された見込み時刻までの分に、知見の初列車待ちを足す
+- `estimateStatedRemainingWithoutKnowledge`: 事象が分からないときに、発表された見込み時刻だけから残り時間を返す
+  - p50 は発表の時刻までの分とする。p80 はそれに `STATED_RESUME_SLACK_MINUTES` を足す
+  - 余地の根拠は `packages/core/params/estimation.ts` のコメントに書く
 - `describeTypicalFlow`: 知見から、よくある流れと見込みの立てやすさを返す。詳細は 4.1 に書く
 - `computeArrival`: 経路（徒歩・乗車・待ち）から到着時刻を返す
 - `computeBreakEven`: 待つ場合と各代替手段の到着時刻を比べ、分岐点の時刻を返す。分岐点の time は運転再開の期限である
@@ -313,7 +321,7 @@ M0 では駅名 `{ kind: "station", name }` と座標 `{ kind: "coord", lon, lat
 |---|---|---|---|
 | `lookup_knowledge` | 事象種別 | 段階、兆候、所要時間の目安、利用者への提示方針 | YAML 読み込み |
 | `get_weather` | 区間の座標、時間幅 | 10分ごとの雨量、警報の発表状況 | 気象庁 |
-| `estimate_phase_and_remaining` | 事象種別、観測の列 | 段階 ID、段階の経過時間、残り時間分布、よくある流れと流れの一文 | packages/core |
+| `estimate_phase_and_remaining` | 事象種別、観測の列 | 段階 ID、段階の経過時間、残り時間分布、よくある流れと流れの一文。事象が null でも発表の見込み時刻があれば残り時間を返す | packages/core |
 | `find_alternatives` | 現在地、行き先、止まっている区間、時刻、制約 | 代替手段の一覧（徒歩・乗車・待ち・運賃） | packages/geo + core |
 | `compute_break_even` | 待つ場合の条件、代替手段の到着時刻 | 分岐点の時刻 | packages/core |
 
