@@ -847,8 +847,13 @@ export function MapPanel(props: MapPanelProps) {
       return;
     }
     const here = guide.here.position;
-    // 地図が止まるたびに、見える範囲に入る点を選び直す
+    // 地図が止まるたびに、見える範囲に入る点を選び直す。動いている間は札を出さず、吹き出しやボタンに重なって見える瞬間を作らない
+    const hide = () => setBlockedTagPosition(null);
     const place = () => {
+      if (map.isMoving()) {
+        hide();
+        return;
+      }
       const anchors = [here, ...guide.stations.map((s) => s.position)].map((p) => map.project(p));
       const canvas = map.getCanvas();
       const width = canvas.clientWidth;
@@ -895,8 +900,10 @@ export function MapPanel(props: MapPanelProps) {
       setBlockedTagPosition(chosen ?? null);
     };
     place();
+    map.on("movestart", hide);
     map.on("moveend", place);
     return () => {
+      map.off("movestart", hide);
       map.off("moveend", place);
     };
   }, [map, blockedPath, view, guide, top, right, bottom, left]);
