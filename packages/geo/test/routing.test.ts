@@ -1,11 +1,18 @@
-import { computeArrival, MAX_ROUTE_CANDIDATES } from "@repo/core";
+import {
+  ACCESS_WALK_MAX_MINUTES,
+  ACCESS_WALK_MAX_MINUTES_EXTENDED,
+  computeArrival,
+  MAX_ROUTE_CANDIDATES,
+} from "@repo/core";
 import { type RouteOption, RouteOptionSchema, LINE_TYPES as SCHEMA_LINE_TYPES } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import {
   applyNetworkCorrections,
   type BlockedSection,
+  buildNetworkGraph,
   type FindAlternativeRoutesInput,
   LINE_TYPES,
+  listWalkAccessStations,
 } from "../src/index.ts";
 import { loadNetworkData, loadRouter } from "../src/node.ts";
 
@@ -220,6 +227,75 @@ describe("findAlternativeRoutes: 区間を止めないとき", () => {
     const minutesOf = (o: RouteOption | undefined) =>
       o ? o.legs.reduce((s, l) => s + l.minutes, 0) : 0;
     expect(minutesOf(late[0])).toBeGreaterThan(minutesOf(options[0]));
+  });
+});
+
+describe("findAlternativeRoutes: JR神戸線 大阪〜三ノ宮が止まったとき、塚本から", () => {
+  // 塚本は乗換の辺が無く、別の鉄道の駅まで歩いて 20 分以上かかる。通常の上限の中に駅は無い
+  const section = buildSection("jr-west.東海道線", "大阪", "三ノ宮");
+  const origin = resolveStation("塚本", "JR神戸線");
+  const input: FindAlternativeRoutesInput = {
+    originStationId: origin,
+    destinationStationId: resolveStation("三ノ宮", "JR神戸線"),
+    blockedSection: section,
+    departureTime: DAYTIME,
+    transferServiceActive: false,
+  };
+  const options = router.findAlternativeRoutes(input);
+  const firstWalk = (o: RouteOption) => (o.legs[0]?.mode === "walk" ? o.legs[0] : undefined);
+
+  it("乗る駅までの徒歩の上限を広げ、徒歩で別の鉄道の駅へ行く経路が入る", () => {
+    const rails = options.filter((o) => o.kind === "transfer");
+    expect(rails.length).toBeGreaterThan(0);
+    for (const option of rails) {
+      const walk = firstWalk(option);
+      expect(walk?.minutes).toBeGreaterThan(ACCESS_WALK_MAX_MINUTES);
+      expect(walk?.minutes).toBeLessThanOrEqual(ACCESS_WALK_MAX_MINUTES_EXTENDED);
+      expect(option.legs.some((l) => l.mode === "ride")).toBe(true);
+    }
+  });
+
+  it("歩いて乗りに行く駅は、地図の吹き出しと同じ関数で選んだ候補で、徒歩の分も同じ", () => {
+    const candidates = listWalkAccessStations({
+      nodes: network.nodes,
+      graph: buildNetworkGraph(network),
+      origin: network.nodes.find((n) => n.stationId === origin) as (typeof network.nodes)[number],
+      blockedLineIds: [section.lineId],
+      maxWalkMinutes: ACCESS_WALK_MAX_MINUTES_EXTENDED,
+    });
+    const rails = options.filter((o) => o.kind === "transfer");
+    expect(rails.length).toBeGreaterThan(0);
+    for (const option of rails) {
+      const walk = firstWalk(option);
+      const candidate = candidates.find((c) => c.station.stationId === walk?.toStationId);
+      expect(candidate).toBeDefined();
+      expect(walk?.minutes).toBe(candidate?.walkMinutes);
+    }
+  });
+
+  it("歩いて乗りに行く駅は止まっている路線の駅ではなく、乗るのも止まっている区間の外", () => {
+    for (const option of options.filter((o) => o.kind === "transfer")) {
+      const toId = firstWalk(option)?.toStationId;
+      expect(network.nodes.find((n) => n.stationId === toId)?.lineId).not.toBe(section.lineId);
+      for (const leg of option.legs) expect(checkCoversSection(leg, section)).toBe(false);
+    }
+  });
+
+  it("候補は整合し、重複しない", () => {
+    expectConsistentOptions(options, DAYTIME);
+  });
+
+  it("通常の上限の中に鉄道の代替があるときは、乗る駅までの徒歩の上限を広げない", () => {
+    const kyoto = router.findAlternativeRoutes({
+      originStationId: resolveStation("大阪", "JR京都線"),
+      destinationStationId: resolveStation("京都", "JR京都線"),
+      blockedSection: buildSection("jr-west.東海道線", "高槻", "山崎"),
+      departureTime: DAYTIME,
+      transferServiceActive: true,
+    });
+    const walks = kyoto.flatMap((o) => (o.legs[0]?.mode === "walk" ? [o.legs[0].minutes] : []));
+    expect(walks.length).toBeGreaterThan(0);
+    expect(Math.max(...walks)).toBeLessThanOrEqual(ACCESS_WALK_MAX_MINUTES);
   });
 });
 

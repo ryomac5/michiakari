@@ -42,3 +42,11 @@ export {
 export { normalizeSearchText } from "./text.ts";
 export * from "./types.ts";
 export { getTransferWalkMinutes } from "./walk.ts";
+export {
+  isSameStation,
+  listWalkAccessStations,
+  SAME_STATION_METERS,
+  type WalkAccessQuery,
+  type WalkAccessSource,
+  type WalkAccessStation,
+} from "./walk-access.ts";

@@ -1,4 +1,6 @@
 import {
+  ACCESS_WALK_MAX_MINUTES,
+  ACCESS_WALK_MAX_MINUTES_EXTENDED,
   addMinutesToIso,
   classifyTimeOfDay,
   computeArrival,
@@ -23,10 +25,17 @@ import {
 } from "@repo/core";
 import type { Lang, RouteLeg, RouteOption } from "@repo/schema";
 import { applyNetworkCorrections } from "./corrections.ts";
+import { computeDistanceMeters } from "./distance.ts";
 import { createGeoIndex } from "./geo-index.ts";
-import { buildNetworkGraph, type NetworkGraph } from "./graph.ts";
+import {
+  buildNetworkGraph,
+  type GraphLink,
+  type NetworkGraph,
+  type TransferLink,
+} from "./graph.ts";
 import { normalizeSearchText } from "./text.ts";
 import type { LineInfo, LineType, NetworkData, StationNode } from "./types.ts";
+import { listWalkAccessStations } from "./walk-access.ts";
 
 // 止まっている区間を避けた代替経路の探索。所要時間はすべて packages/core で計算する
 
@@ -117,6 +126,8 @@ type SearchOptions = {
   bannedLines: ReadonlySet<string>;
   walkCostFactor: number;
   transferPenalty: number;
+  // 出発の駅から歩いて別の鉄道の駅へ乗りに行く辺。出発の駅で、まだ乗っていないときだけたどる
+  accessLinks: readonly TransferLink[];
   // 指定すると、この路線以外に乗るたびに罰則を足し、最初にこの路線へ乗る待ちを数えない
   preferredLineId?: string;
 };
@@ -276,6 +287,14 @@ function searchShortestSteps(graph: NetworkGraph, options: SearchOptions): Step[
     heap.push(key, label.cost);
   };
 
+  const listLinks = (stationId: string, phase: Phase): readonly GraphLink[] => {
+    const links = graph.get(stationId) ?? [];
+    const fromOrigin = phase === 0 && stationId === options.originStationId;
+    return fromOrigin && options.accessLinks.length > 0
+      ? [...links, ...options.accessLinks]
+      : links;
+  };
+
   let goalKey: string | null = null;
   for (let item = heap.pop(); item !== undefined; item = heap.pop()) {
     const label = labels.get(item.key) as Label;
@@ -287,7 +306,7 @@ function searchShortestSteps(graph: NetworkGraph, options: SearchOptions): Step[
       break;
     }
 
-    for (const link of graph.get(stationId) ?? []) {
+    for (const link of listLinks(stationId, phase)) {
       if (link.kind === "transfer") {
         const minutes = link.walkMinutes;
         relax(toStateKey(link.to, phase === 0 ? 0 : 2), {
@@ -564,11 +583,84 @@ export function createRouter(input: NetworkData): Router {
       bannedLines: new Set(),
       walkCostFactor: 1,
       transferPenalty: 0,
+      accessLinks: [],
       preferredLineId: input.lineId,
     });
     if (steps === null) return null;
     const legs = buildLegs(steps, input.departureTime, input.lineId);
     return { minutes: sumLegMinutes(legs), legs };
+  };
+
+  // 出発の駅から、歩いて別の鉄道の駅へ乗りに行く辺。地図の吹き出しと同じ関数で駅を選ぶ
+  // 止まっている路線の駅へは行かない。乗換の辺が無い駅（塚本から御幣島など）も候補にするために足す
+  const buildAccessLinks = (
+    input: FindAlternativeRoutesInput,
+    maxWalkMinutes: number,
+  ): TransferLink[] => {
+    const origin = getStation(input.originStationId);
+    return listWalkAccessStations({
+      nodes: network.nodes,
+      graph,
+      origin,
+      blockedLineIds: input.blockedSection ? [input.blockedSection.lineId] : [],
+      maxWalkMinutes,
+    }).map(({ station, walkMinutes }) => ({
+      kind: "transfer",
+      to: station.stationId,
+      walkMeters: Math.round(computeDistanceMeters(origin.lonLat, station.lonLat)),
+      walkMinutes,
+    }));
+  };
+
+  // 乗る駅までの徒歩の辺を決めて、止まっている区間を避けた異なる経路を最大 MAX_ROUTE_CANDIDATES 本集める
+  const collectRouteOptions = (
+    input: FindAlternativeRoutesInput,
+    blockedEdges: ReadonlySet<string>,
+    accessLinks: readonly TransferLink[],
+  ): RouteOption[] => {
+    const constraints = input.constraints ?? {};
+    const bannedLines = new Set<string>();
+    const candidates: Omit<RouteOption, "id">[] = [];
+
+    // 前の候補の主な路線を除いて探し直し、異なる経路を集める
+    for (let i = 0; i < MAX_ROUTE_CANDIDATES; i++) {
+      const steps = searchShortestSteps(graph, {
+        originStationId: input.originStationId,
+        destinationStationId: input.destinationStationId,
+        departureTime: input.departureTime,
+        blockedEdges,
+        bannedLines,
+        walkCostFactor: constraints.reduceWalking ? REDUCED_WALK_COST_FACTOR : 1,
+        transferPenalty: constraints.reduceTransfers ? REDUCED_TRANSFER_PENALTY_MINUTES : 0,
+        accessLinks,
+      });
+      if (steps === null) break;
+      const option = buildRailOption(buildLegs(steps, input.departureTime), input);
+      candidates.push(option);
+      const main = findMainRideLeg(option.legs, input.blockedSection?.lineId);
+      if (main?.lineId === undefined) break;
+      bannedLines.add(main.lineId);
+    }
+    const walkOnly = buildWalkOnlyOption(input);
+    if (walkOnly !== null) candidates.push(walkOnly);
+
+    const totalOf = (o: Omit<RouteOption, "id">) => sumLegMinutes(o.legs);
+    const best = Math.min(...candidates.map(totalOf));
+    const seen = new Set<string>();
+    return (
+      candidates
+        // 全区間徒歩は近距離に限って作るので、遠回りの判定から外す
+        .filter((o) => o === walkOnly || totalOf(o) <= best * MAX_ROUTE_RATIO_TO_BEST)
+        .sort((a, b) => totalOf(a) - totalOf(b))
+        .filter((o) => {
+          const signature = buildLegSignature(o.legs);
+          if (seen.has(signature)) return false;
+          seen.add(signature);
+          return true;
+        })
+        .slice(0, MAX_ROUTE_CANDIDATES)
+        .map((o, index) => ({ id: `${o.kind}_${index + 1}`, ...o }))
+    );
   };
 
   return {
@@ -591,48 +683,12 @@ export function createRouter(input: NetworkData): Router {
       getStation(input.destinationStationId);
       if (input.originStationId === input.destinationStationId) return [];
       const blockedEdges = collectBlockedEdges(input.blockedSection);
-      const constraints = input.constraints ?? {};
-      const bannedLines = new Set<string>();
-      const candidates: Omit<RouteOption, "id">[] = [];
-
-      // 前の候補の主な路線を除いて探し直し、異なる経路を集める
-      for (let i = 0; i < MAX_ROUTE_CANDIDATES; i++) {
-        const steps = searchShortestSteps(graph, {
-          originStationId: input.originStationId,
-          destinationStationId: input.destinationStationId,
-          departureTime: input.departureTime,
-          blockedEdges,
-          bannedLines,
-          walkCostFactor: constraints.reduceWalking ? REDUCED_WALK_COST_FACTOR : 1,
-          transferPenalty: constraints.reduceTransfers ? REDUCED_TRANSFER_PENALTY_MINUTES : 0,
-        });
-        if (steps === null) break;
-        const option = buildRailOption(buildLegs(steps, input.departureTime), input);
-        candidates.push(option);
-        const main = findMainRideLeg(option.legs, input.blockedSection?.lineId);
-        if (main?.lineId === undefined) break;
-        bannedLines.add(main.lineId);
-      }
-      const walkOnly = buildWalkOnlyOption(input);
-      if (walkOnly !== null) candidates.push(walkOnly);
-
-      const totalOf = (o: Omit<RouteOption, "id">) => sumLegMinutes(o.legs);
-      const best = Math.min(...candidates.map(totalOf));
-      const seen = new Set<string>();
-      return (
-        candidates
-          // 全区間徒歩は近距離に限って作るので、遠回りの判定から外す
-          .filter((o) => o === walkOnly || totalOf(o) <= best * MAX_ROUTE_RATIO_TO_BEST)
-          .sort((a, b) => totalOf(a) - totalOf(b))
-          .filter((o) => {
-            const signature = buildLegSignature(o.legs);
-            if (seen.has(signature)) return false;
-            seen.add(signature);
-            return true;
-          })
-          .slice(0, MAX_ROUTE_CANDIDATES)
-          .map((o, index) => ({ id: `${o.kind}_${index + 1}`, ...o }))
-      );
+      const searchWithin = (maxWalkMinutes: number) =>
+        collectRouteOptions(input, blockedEdges, buildAccessLinks(input, maxWalkMinutes));
+      // 通常の上限の中に鉄道の代替が 1 つも無いときだけ、乗る駅までの徒歩の上限を広げて探し直す
+      const usual = searchWithin(ACCESS_WALK_MAX_MINUTES);
+      if (usual.some((o) => o.kind === "transfer")) return usual;
+      return searchWithin(ACCESS_WALK_MAX_MINUTES_EXTENDED);
     },
 
     buildTaxiOption(input) {
