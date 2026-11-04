@@ -23,3 +23,11 @@ export const REDUCED_TRANSFER_PENALTY_MINUTES = 10;
 
 // 再開を待つ経路の探索で、止まっている路線以外に乗るたびに足す分。出典: 開発者の推定（仮）
 export const OTHER_LINE_PENALTY_MINUTES = 15;
+
+// 現在地の駅から歩いて別の鉄道の駅へ乗りに行くときの、徒歩の上限（分）。
+// 地図の吹き出しに出す駅と代替手段の探索の候補は、この値で同じ駅を選ぶ。出典: 開発者の推定（仮）
+export const ACCESS_WALK_MAX_MINUTES = 15;
+
+// 通常の上限の中に鉄道の代替が 1 つも無いときに、乗る駅までの徒歩の上限を広げる先（分）。
+// 地図の徒歩の到達範囲（10 分・20 分の輪）の外縁に出す駅までを含める。出典: 開発者の推定（仮）
+export const ACCESS_WALK_MAX_MINUTES_EXTENDED = 25;
