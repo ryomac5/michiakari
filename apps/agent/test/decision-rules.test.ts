@@ -46,6 +46,7 @@ function buildInput(input: {
         remaining: input.eventType || stated ? { p50: 50, p80: 125 } : null,
         confidence: input.confidence,
       },
+      trainQueue: null,
       phaseName: null,
       phaseGuidance: null,
       phaseStartedAt: null,

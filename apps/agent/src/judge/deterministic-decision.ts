@@ -1,5 +1,5 @@
 import { computeLateShare } from "@repo/core";
-import type { Action, Knowledge } from "@repo/schema";
+import type { Action, Knowledge, RouteOption } from "@repo/schema";
 import { decisionParams } from "../config.ts";
 import type { Decision } from "../tools/emit-judgment.ts";
 import type { BreakEvenToolResult, EstimateToolResult, WeatherToolResult } from "../tools/types.ts";
@@ -10,7 +10,26 @@ import {
   buildNoAlternativeSentence,
   type DecisionReason,
   type DecisionTextInput,
+  type TrainQueueText,
 } from "./templates.ts";
+
+// 駅間の車内の利用者向けの文の材料。切り替え先の路線は、推奨の選択肢が最初に乗る路線
+export function buildTrainQueueText(
+  estimate: EstimateToolResult,
+  bestOption: Pick<RouteOption, "legs"> | null,
+): TrainQueueText | null {
+  const queue = estimate.trainQueue;
+  if (!queue) return null;
+  return {
+    alightStation: queue.alightStation,
+    arrivalP50: queue.arrival?.p50 ?? null,
+    beforeResume: queue.beforeResume,
+    trainsAheadCount: queue.trainsAheadCount,
+    ownTrainType: queue.ownTrainType,
+    delays: queue.delays,
+    switchLine: bestOption?.legs.find((l) => l.mode === "ride")?.line ?? null,
+  };
+}
 
 // 決定論モードの判断規則。API キーが無いときと Claude の失敗時に使う
 
@@ -189,6 +208,7 @@ export function decideDeterministically(
     deadline: results.breakEven.deadline,
     bestOption,
     flow: buildFlowText(results.estimate),
+    trainQueue: buildTrainQueueText(results.estimate, bestOption),
   });
   return {
     action: outcome.action,

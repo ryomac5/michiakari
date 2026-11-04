@@ -1,6 +1,6 @@
-import { getJstMinuteOfDay } from "@repo/core";
+import { type ConcreteTrainType, getJstMinuteOfDay, type TrainQueueDelay } from "@repo/core";
 import type { Lang, ProgressStage, RouteOption, WeatherTrend } from "@repo/schema";
-import { reasonLimits } from "../config.ts";
+import { headlineLimits, reasonLimits } from "../config.ts";
 import type { FlowOutlook } from "../domain/typical-flow.ts";
 
 // 利用者向けの定型文（ja / en）。数値は呼び出し側がツールの結果から渡す
@@ -89,7 +89,133 @@ export type DecisionTextInput = {
   bestOption: Pick<RouteOption, "kind" | "label" | "isTransferService"> | null;
   // 見込みが立てやすい事象のよくある流れ。inReason は理由の頭に流れの一文を置くか
   flow?: { outlook: FlowOutlook; sentence: string; inReason: boolean } | null;
+  // 駅間の車内にいる利用者。結論は次の駅に着いてからの行動で書く
+  trainQueue?: TrainQueueText | null;
 };
+
+export type TrainQueueText = {
+  // ホームに着けて降りられる駅
+  alightStation: string;
+  arrivalP50: string | null;
+  beforeResume: boolean;
+  trainsAheadCount: number;
+  ownTrainType: ConcreteTrainType;
+  delays: readonly TrainQueueDelay[];
+  // 切り替え先で最初に乗る路線名。無ければ手段の種類で呼ぶ
+  switchLine: string | null;
+};
+
+const TRAIN_TYPE_NAMES: Record<ConcreteTrainType, { ja: string; en: string }> = {
+  local: { ja: "普通", en: "local train" },
+  rapid: { ja: "快速", en: "rapid train" },
+  special_rapid: { ja: "新快速", en: "special rapid train" },
+  limited_express: { ja: "特急", en: "limited express" },
+};
+
+export function formatTrainType(type: ConcreteTrainType, language: Lang): string {
+  return TRAIN_TYPE_NAMES[type][language];
+}
+
+// 上限に収まる最初の候補。どれも収まらなければ最後の候補
+function pickFitting(candidates: readonly string[], max: number): string {
+  return candidates.find((c) => [...c].length <= max) ?? candidates.at(-1) ?? "";
+}
+
+// 駅間の車内の見出し。その場で取れる行動の言葉にし、「あと N 分」のような時間の指示は使わない
+function buildTrainQueueHeadline(
+  queue: TrainQueueText,
+  action: "switch" | "wait",
+  target: string,
+  language: Lang,
+): string {
+  const ja = language === "ja";
+  const st = queue.alightStation;
+  const max = headlineLimits[language].max;
+  if (action === "wait") {
+    return pickFitting(
+      ja
+        ? [`${st}に着いても、そのまま乗っていてください`, `${st}でも降りずに、そのまま乗車`]
+        : [`Stay on the train when you reach ${st}.`, `Stay on past ${st}.`],
+      max,
+    );
+  }
+  const line = queue.switchLine;
+  if (line) {
+    return pickFitting(
+      ja
+        ? [
+            `${st}に着いたら降りて、${line}に乗り換えてください`,
+            `${st}で降りて、${line}へ`,
+            `${st}で降りて乗り換えてください`,
+          ]
+        : [
+            `When you reach ${st}, get off and change to the ${line}.`,
+            `Get off at ${st} and take the ${line}.`,
+            `Get off at ${st} and change trains.`,
+          ],
+      max,
+    );
+  }
+  return pickFitting(
+    ja
+      ? [`${st}に着いたら降りて、${target}に切り替えてください`, `${st}で降りて${target}へ`]
+      : [`When you reach ${st}, get off and switch to ${target}.`, `Get off at ${st} and switch.`],
+    max,
+  );
+}
+
+// 次の駅に着く見込みの一文。種別の事情があればそれを先に言う
+function buildTrainQueueNote(queue: TrainQueueText, language: Lang): string | null {
+  if (!queue.arrivalP50) return null;
+  const ja = language === "ja";
+  const st = queue.alightStation;
+  const time = formatClock(queue.arrivalP50, language);
+  const delay = queue.delays[0];
+  const own = formatTrainType(queue.ownTrainType, language);
+  if (delay?.kind === "ahead_cannot_enter") {
+    const type = formatTrainType(delay.trainType, language);
+    return ja
+      ? `前の${type}が${delay.station}に入れないため、${st}に着くのは再開のあと、${time}ごろの見込みです。`
+      : `The ${type} ahead cannot enter ${delay.station}, so you should reach ${st} after service resumes, around ${time}.`;
+  }
+  if (delay?.kind === "own_cannot_stop") {
+    return ja
+      ? `${own}は${delay.station}に止まれないので、降りられるのは${st}で、${time}ごろの見込みです。`
+      : `A ${own} cannot stop at ${delay.station}, so your first stop is ${st}, around ${time}.`;
+  }
+  if (delay?.kind === "station_full") {
+    return ja
+      ? `前の列車で${delay.station}がふさがっているため、${st}に着くのは再開のあと、${time}ごろの見込みです。`
+      : `${delay.station} is full of trains ahead, so you should reach ${st} after service resumes, around ${time}.`;
+  }
+  const n = queue.trainsAheadCount;
+  if (queue.beforeResume) {
+    if (n === 0) {
+      return ja
+        ? `前に列車はいないので、${st}に着くのは${time}ごろの見込みです。`
+        : `With no trains ahead, you should reach ${st} around ${time}.`;
+    }
+    return ja
+      ? `前の列車が順に進めば、${st}に着くのは${time}ごろの見込みです。`
+      : `Once the trains ahead move up, you should reach ${st} around ${time}.`;
+  }
+  if (n === 0) {
+    return ja
+      ? `${st}に着くのは再開のあと、${time}ごろの見込みです。`
+      : `You should reach ${st} after service resumes, around ${time}.`;
+  }
+  return ja
+    ? `前に${n}本つまっているので、${st}に着くのは${time}ごろの見込みです。`
+    : `With ${n} trains ahead, you should reach ${st} around ${time}.`;
+}
+
+function buildShortTrainQueueNote(queue: TrainQueueText, language: Lang): string | null {
+  if (!queue.arrivalP50) return null;
+  const time = formatClock(queue.arrivalP50, language);
+  return language === "ja"
+    ? `${queue.alightStation}に着くのは${time}ごろの見込みです。`
+    : `You should reach ${queue.alightStation} around ${time}.`;
+}
 
 // 見出しは結論だけの短い一言。理由は比較の形で reason に分ける
 export type DecisionText = {
@@ -237,6 +363,16 @@ function buildDecisionReason(input: DecisionTextInput): string {
   }
 }
 
+// 切り替えになる理由
+const SWITCH_REASONS: ReadonlySet<DecisionReason> = new Set([
+  "break_even_passed",
+  "estimate_extended",
+  "resume_after_break_even",
+  "resume_mostly_after_break_even",
+  "deadline_risk",
+  "stated_resume_after_break_even",
+]);
+
 // 見出しは 3 つの形のどれかにする。待つ、切り替える、いまは待ちつつ分岐点を過ぎたら切り替える
 // 情報が足りなくても「判断できない」とは書かず、いまの最善の一手を言い切る
 function buildDecisionHeadline(input: DecisionTextInput): string {
@@ -258,6 +394,11 @@ function buildDecisionHeadline(input: DecisionTextInput): string {
       ? `${be}まで待って、だめなら切り替え`
       : `Wait until ${be}, then switch if still stopped.`
     : waitHeadline;
+  // 駅間の車内では、時刻まで待つ・あと何分の形は実行できない。次の駅に着いてからの行動にする
+  if (input.trainQueue) {
+    const action = SWITCH_REASONS.has(input.reason) ? "switch" : "wait";
+    return buildTrainQueueHeadline(input.trainQueue, action, target, input.language);
+  }
   switch (input.reason) {
     case "unknown_event":
     case "low_confidence":
@@ -300,13 +441,30 @@ function buildFlowFollowUp(input: DecisionTextInput, outlook: FlowOutlook): stri
 }
 
 // 見込みが立てやすい事象では、理由の頭に流れの一文を置く。上限を超えるなら流れの一文を外す
+// 駅間の車内では、次の駅に着く見込みの一文を頭に置く。上限を超えるなら短い形にし、それでも超えれば外す
 function composeReason(input: DecisionTextInput): string {
   const base = buildDecisionReason(input);
   const flow = input.flow;
-  if (!flow?.inReason) return base;
+  const max = reasonLimits[input.language].max;
   const glue = input.language === "ja" ? "" : " ";
-  const combined = `${flow.sentence}${glue}${buildFlowFollowUp(input, flow.outlook)}`;
-  return [...combined].length <= reasonLimits[input.language].max ? combined : base;
+  const withFlow = flow?.inReason
+    ? `${flow.sentence}${glue}${buildFlowFollowUp(input, flow.outlook)}`
+    : null;
+  const queue = input.trainQueue;
+  if (queue) {
+    const note = buildTrainQueueNote(queue, input.language);
+    const short = buildShortTrainQueueNote(queue, input.language);
+    const candidates = [
+      ...(note && withFlow ? [`${note}${glue}${withFlow}`] : []),
+      ...(note ? [`${note}${glue}${base}`] : []),
+      ...(short ? [`${short}${glue}${base}`] : []),
+      ...(withFlow ? [withFlow] : []),
+      base,
+    ];
+    return pickFitting(candidates, max);
+  }
+  if (!withFlow) return base;
+  return [...withFlow].length <= max ? withFlow : base;
 }
 
 // 決定論モードの見出しと理由

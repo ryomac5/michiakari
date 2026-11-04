@@ -6,6 +6,7 @@ import {
   formatStationName,
   type GeoIndex,
   type LineInfo as GeoLineInfo,
+  listLineDirections,
   normalizeSearchText,
   type Router,
   type StationNode,
@@ -19,6 +20,8 @@ import type {
   AlternativesResult,
   LineInfo,
   ResolvedPlace,
+  StationsAhead,
+  StationsAheadQuery,
 } from "./provider.ts";
 
 // 国土数値情報の路線ネットワーク（packages/geo）による代替手段の算出
@@ -270,6 +273,8 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
     });
     const notes: string[] = [];
     if (!blocked) notes.push("止まっている区間を路線ネットワーク上で特定できませんでした");
+    // 代替手段は乗り出せる時刻から探す。駅間の車内なら次の駅に着く見込みの時刻
+    const departureTime = query.departureTime ?? query.now;
 
     const waitOption = waitRoute
       ? router.buildWaitOption({
@@ -284,13 +289,13 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
       originStationId: origin.station.stationId,
       destinationStationId: destination.station.stationId,
       blockedSection: blocked,
-      departureTime: query.now,
+      departureTime,
       transferServiceActive: query.transferServiceActive === true,
     });
     const taxi = router.buildTaxiOption({
       originStationId: origin.station.stationId,
       destinationStationId: destination.station.stationId,
-      departureTime: query.now,
+      departureTime,
     });
 
     const options = [
@@ -333,5 +338,37 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
     );
   }
 
-  return { findAlternatives, resolvePlace, listLines };
+  // 来た側の駅から次の駅へ向かう向きで、同じ路線の先の駅を並べる。走行時間は駅間ごとに経路探索で求める
+  function listStationsAhead(query: StationsAheadQuery): StationsAhead | null {
+    const previous = resolveStation(query.previousStation, query.line);
+    const next = resolveStation(query.nextStation, query.line);
+    if (!previous || !next) return null;
+    const section = findBlockedSection(previous, next, query.line);
+    const line = section ? geo.getLine(section.lineId) : undefined;
+    if (!section || !line) return null;
+    const direction = listLineDirections(line, section.fromStationId).find((d) =>
+      d.stationIds.includes(section.toStationId),
+    );
+    if (!direction) return null;
+    const start = direction.stationIds.indexOf(section.toStationId);
+    const ids = direction.stationIds.slice(start, start + Math.max(1, query.limit));
+    let fromId = section.fromStationId;
+    const stations: StationsAhead["stations"] = [];
+    for (const id of ids) {
+      const station = geo.getStation(id);
+      if (!station) break;
+      const ride = router.computeWaitRouteMinutes({
+        originStationId: fromId,
+        destinationStationId: id,
+        lineId: section.lineId,
+        departureTime: query.departureTime,
+      });
+      if (!ride) break;
+      stations.push({ name: station.name, rideMinutesFromPrevious: ride.minutes });
+      fromId = id;
+    }
+    return stations.length > 0 ? { lineId: section.lineId, stations } : null;
+  }
+
+  return { findAlternatives, resolvePlace, listLines, listStationsAhead };
 }

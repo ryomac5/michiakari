@@ -50,6 +50,8 @@ export async function runFindAlternatives(
     blockedLine,
     blockedSection,
     now: ctx.request.now,
+    // 駅間の車内なら、次の駅に着く見込みの時刻から代替手段に乗り出す
+    departureTime: estimate.trainQueue?.arrival?.p50 ?? ctx.request.now,
     remaining: estimate.estimate.remaining,
     transferServiceActive: findLatest(ctx.observations, (o) => o.transferServiceActive),
     language: ctx.request.language,

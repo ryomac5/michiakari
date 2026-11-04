@@ -1,4 +1,10 @@
-import type { BreakEvenResult, ComparisonRow, LonLat } from "@repo/core";
+import type {
+  BreakEvenResult,
+  ComparisonRow,
+  ConcreteTrainType,
+  LonLat,
+  TrainQueueOutcome,
+} from "@repo/core";
 import type {
   DurationDist,
   Estimate,
@@ -32,8 +38,19 @@ export type ToolContext = {
   fetchRain: RainFetcher;
 };
 
+// 駅間の車内にいる利用者が、ホームに着ける駅に着く見込み。駅間でなければ null
+export type TrainQueueToolResult = TrainQueueOutcome & {
+  nextStation: string;
+  ownTrainType: ConcreteTrainType;
+  // 前の列車の種別の並びが分かっているか。分からなければ本数の目安で置いている
+  sequenceKnown: boolean;
+  // 詰める動きを追った路線。路線上で結べなければ null
+  lineId: string | null;
+};
+
 export type EstimateToolResult = {
   estimate: Estimate;
+  trainQueue: TrainQueueToolResult | null;
   phaseName: string | null;
   phaseGuidance: string | null;
   phaseStartedAt: string | null;

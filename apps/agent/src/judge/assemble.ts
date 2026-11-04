@@ -126,6 +126,9 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
     results.estimate.boardableP50,
     results.estimate.boardableP80,
     results.estimate.phaseStartedAt,
+    // 駅間の車内なら、ホームに着ける駅に着く見込みの時刻
+    results.estimate.trainQueue?.arrival?.p50 ?? null,
+    results.estimate.trainQueue?.arrival?.p80 ?? null,
     results.breakEven.deadline,
     ...results.alternatives.options.map((o) => o.arrivalTime),
     ...results.breakEven.comparison.map((c) => c.arrivalTime),
