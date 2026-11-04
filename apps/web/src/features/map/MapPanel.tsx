@@ -4,7 +4,6 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type { Action, Place, RouteOption, Section } from "@repo/schema";
 import { LocateFixed, Route } from "lucide-react";
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
-import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -13,7 +12,12 @@ import { testIds } from "@/features/judgment/testids";
 import { prefersReducedMotion, useDocumentTheme } from "@/lib/use-document-theme";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { buildAutoFocusArea } from "./auto-focus";
-import { chooseBubblePlacements, type LayoutItem, projectToWorld } from "./bubble-layout";
+import {
+  chooseBubblePlacements,
+  type LayoutItem,
+  projectToWorld,
+  type Rect,
+} from "./bubble-layout";
 import type { BubblePlacement } from "./focus-areas";
 import { loadMapGeoData, type MapGeoData } from "./geo-data";
 import { selectMapLabels } from "./labels";
@@ -27,7 +31,14 @@ import {
   mapPalettes,
   sourceIds,
 } from "./layers";
+import { MapAttribution } from "./MapAttribution";
 import { fetchReachAreas, type ReachArea } from "./reach";
+import {
+  buildReachLabelRect,
+  chooseReachLabelCandidate,
+  estimateReachLabelSize,
+  fitsInView,
+} from "./reach-label";
 import { waitForOwnLayersDrawn } from "./ready";
 import { BlockedTag, HereMarker, StationBubble } from "./StationBubble";
 import {
@@ -99,8 +110,24 @@ const recommendedBubbleHeight = 130;
 const blockedTagMeters = [900, 750, 650, 500, 380, 260, 180];
 // 現在地や吹き出しの基準点から、これより近い候補は使わない（px）
 const blockedTagClearance = 70;
-// 到達範囲の札を置く向き。PC 幅は北西、狭い画面は出典や吹き出しと重なりにくい東
-const reachLabelBearing = { wide: 315, narrow: 75 };
+// 到達範囲の札を置く向きの候補。先頭が既定で、PC 幅は北西、狭い画面は出典や吹き出しと重なりにくい東
+// 既定の向きで吹き出しや線に重なれば、寄せたあとの画面で次の向きを試す
+const reachLabelBearings = {
+  wide: [315, 285, 345, 225, 45, 255, 135, 195, 165, 105, 75, 15],
+  narrow: [75, 105, 45, 135, 15, 165, 255, 285, 225, 315, 195, 345],
+};
+
+// 到達範囲の札の点の列から、地図に渡す形を組み立てる
+function buildReachLabelCollection(items: readonly { label: string; point: Position }[]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: items.map((item) => ({
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: item.point },
+      properties: { label: item.label },
+    })),
+  };
+}
 
 // 推奨経路の色。推奨の選択肢が待つなら青、それ以外は琥珀
 export function selectRouteTone(
@@ -604,6 +631,8 @@ export function MapPanel(props: MapPanelProps) {
   );
 
   const { top, right, bottom, left } = props.insets;
+  // 「全体を見る」のボタン。止まっている路線の札と到達範囲の札は、このボタンを避けて置く
+  const viewToggleRef = useRef<HTMLButtonElement>(null);
   const fitView = useCallback(
     (instant: boolean) => {
       if (!map) return;
@@ -623,35 +652,30 @@ export function MapPanel(props: MapPanelProps) {
   );
 
   // 判断の状態が変わるたびにレイヤーを差し替え、見せ方に合わせて寄せる
-  const reachLabels = useMemo(() => {
-    if (!scene?.origin) return emptyCollection;
+  // 到達範囲の札の候補の点。向きの候補の順に並べ、先頭を既定の置き場所にする
+  const reachLabelCandidates = useMemo(() => {
+    if (!scene?.origin) return [];
     const center = scene.origin;
-    return {
-      type: "FeatureCollection" as const,
-      features: scene.reach.features.flatMap((f) => {
-        const ring =
-          f.geometry.type === "Polygon"
-            ? f.geometry.coordinates[0]
-            : f.geometry.coordinates[0]?.[0];
-        const point = ring
-          ? findRingLabelPoint(
-              ring as Position[],
-              center,
-              narrow ? reachLabelBearing.narrow : reachLabelBearing.wide,
-            )
-          : null;
-        return point
-          ? [
-              {
-                type: "Feature" as const,
-                geometry: { type: "Point" as const, coordinates: point },
-                properties: { label: labels.walkLabel(f.properties.minutes) },
-              },
-            ]
-          : [];
-      }),
-    };
+    const bearings = narrow ? reachLabelBearings.narrow : reachLabelBearings.wide;
+    return scene.reach.features.flatMap((f) => {
+      const ring =
+        f.geometry.type === "Polygon" ? f.geometry.coordinates[0] : f.geometry.coordinates[0]?.[0];
+      if (!ring) return [];
+      const points = bearings.flatMap((bearing) => {
+        const point = findRingLabelPoint(ring as Position[], center, bearing);
+        return point ? [point] : [];
+      });
+      return points.length > 0 ? [{ label: labels.walkLabel(f.properties.minutes), points }] : [];
+    });
   }, [scene, labels, narrow]);
+  // 既定の置き場所の札。吹き出しの配置の計算と、置き直すまでの表示に使う
+  const reachLabels = useMemo(
+    () =>
+      buildReachLabelCollection(
+        reachLabelCandidates.map((c) => ({ label: c.label, point: c.points[0] as Position })),
+      ),
+    [reachLabelCandidates],
+  );
 
   useEffect(() => {
     if (!map || !scene) return;
@@ -670,6 +694,80 @@ export function MapPanel(props: MapPanelProps) {
     map.triggerRepaint();
     return stopWaiting;
   }, [map, scene, guide, reachLabels, view, fitView, top, right, bottom, left, narrow]);
+
+  // 到達範囲の札を、寄せたあとの画面で吹き出しや線と重ならない向きに置き直す。地図が止まるたびに選び直す
+  useEffect(() => {
+    if (!map || !scene || reachLabelCandidates.length === 0) return;
+    const place = () => {
+      const canvas = map.getCanvas();
+      const origin = canvas.getBoundingClientRect();
+      const toggle = viewToggleRef.current;
+      const boxes: Rect[] = [
+        ...map
+          .getContainer()
+          .querySelectorAll<HTMLElement>(
+            `[data-testid^="judgment-map-station-"], [data-testid="${mapTestIds.here}"] > div, [data-testid="${mapTestIds.blockedTag}"]`,
+          ),
+        ...(toggle ? [toggle] : []),
+      ].flatMap((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) return [];
+        return [
+          {
+            left: r.left - origin.left,
+            right: r.right - origin.left,
+            top: r.top - origin.top,
+            bottom: r.bottom - origin.top,
+          },
+        ];
+      });
+      const toScreen = (p: Position) => {
+        const { x, y } = map.project(p);
+        return { x, y };
+      };
+      // 避ける線は、経路と徒歩の道と、路線色で太く描く路線
+      const drawnLineIds = new Set([...mode.relevantLineIds, ...mode.blockedLineIds]);
+      const railLines = (geo?.lines.features ?? [])
+        .filter((f) => drawnLineIds.has(f.properties.lineId))
+        .flatMap((f) =>
+          f.geometry.type === "LineString" ? [f.geometry.coordinates] : f.geometry.coordinates,
+        );
+      const polylines = [
+        ...[
+          ...scene.route.features,
+          ...scene.alternatives.features,
+          ...scene.blocked.features,
+          ...(guide?.walkPaths.features ?? []),
+        ].map((f) => f.geometry.coordinates),
+        ...railLines,
+      ].map((coordinates) => coordinates.map(toScreen));
+      const viewRect = {
+        left: left + 8,
+        top: top + 8,
+        right: canvas.clientWidth - right - 8,
+        bottom: canvas.clientHeight - bottom - 8,
+      };
+      const chosen: { label: string; point: Position }[] = [];
+      for (const candidate of reachLabelCandidates) {
+        const size = estimateReachLabelSize(candidate.label);
+        const pick = chooseReachLabelCandidate(
+          candidate.points.map((p) => ({ key: p, point: toScreen(p) })),
+          { size, view: viewRect, boxes, polylines },
+        );
+        // 見える範囲に収まる向きが無ければ、欠けた札を出すより出さない。範囲の意味は凡例が示す
+        if (!pick || !fitsInView(pick.point, size, viewRect)) continue;
+        chosen.push({ label: candidate.label, point: pick.key });
+        // 20 分の札は 10 分の札とも重ねない
+        boxes.push(buildReachLabelRect(pick.point, size));
+      }
+      setSourceData(map, sourceIds.reachLabels, buildReachLabelCollection(chosen));
+    };
+    place();
+    map.on("moveend", place);
+    return () => {
+      map.off("moveend", place);
+    };
+  }, [map, geo, scene, guide, mode, reachLabelCandidates, top, right, bottom, left]);
 
   // 全体を見るときの出発と行き先のピン
   useEffect(() => {
@@ -703,7 +801,6 @@ export function MapPanel(props: MapPanelProps) {
   // 止まっている路線の札。現在地のまわりでは現在地の近くの線上、全体では区間の中ほど
   const blockedPath = scene?.blocked.features[0]?.geometry.coordinates ?? null;
   const [blockedTagPosition, setBlockedTagPosition] = useState<Position | null>(null);
-  const viewToggleRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!map || !blockedPath || blockedPath.length < 2) {
       setBlockedTagPosition(null);
@@ -914,31 +1011,11 @@ export function MapPanel(props: MapPanelProps) {
           <LocateFixed className="size-5" strokeWidth={1.75} aria-hidden />
         </button>
       )}
-      {/* 出典は隅に 1 行で常設する。文字は小さいまま、押せる高さは 44px にする */}
-      <div
-        data-testid={mapTestIds.attribution}
-        style={{ bottom: bottom, left: left, right: right }}
-        className="pointer-events-none absolute z-10 flex items-end px-3 text-[10px] leading-snug text-muted transition-[bottom] duration-200"
-      >
-        <p
-          aria-hidden
-          data-testid={mapTestIds.attributionLine}
-          className="min-w-0 flex-1 truncate py-0.5 tracking-tight opacity-80 [text-shadow:0_0_3px_var(--background)]"
-        >
-          {labels.attribution.short}
-        </p>
-        <ul className="sr-only">
-          {labels.attribution.full.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-        <Link
-          href="/about"
-          className="pointer-events-auto flex h-11 shrink-0 items-end pb-0.5 pl-2 font-medium underline underline-offset-2 [text-shadow:0_0_3px_var(--background)]"
-        >
-          {labels.attribution.link}
-        </Link>
-      </div>
+      <MapAttribution
+        labels={labels.attribution}
+        insets={{ bottom, left, right }}
+        testIds={{ root: mapTestIds.attribution, line: mapTestIds.attributionLine }}
+      />
     </section>
   );
 }
