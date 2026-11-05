@@ -239,6 +239,9 @@ test("大阪駅では現在地のまわりに寄せ、乗り換え候補の駅�
   await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}map-focus-selected-390x844.png` });
+  // 選んだ経路の乗る駅の吹き出しに「表示中」を添え、地図の上端の札は出さない
+  await expect(selected.locator("[data-shown='true']")).toBeVisible();
+  await expect(page.getByTestId(mapTestIds.selectedRoute)).toHaveCount(0);
 
   // 待つ選択肢を選ぶと、地図の経路と地図の見方の色がどちらも待つ色に変わる
   await openSheet(page, "full");
@@ -246,6 +249,13 @@ test("大阪駅では現在地のまわりに寄せ、乗り換え候補の駅�
   await waitOption.getByRole("button").click();
   await expect(map).toHaveAttribute("data-route-tone", "wait");
   await expect(page.getByTestId(mapTestIds.legend)).toHaveAttribute("data-tone", "wait");
+  // 待つ経路には乗る駅の吹き出しが無いので、地図の上端に「表示中」の札を出す
+  const tag = page.getByTestId(mapTestIds.selectedRoute);
+  await expect(tag).toBeVisible();
+  await expect(waitOption).toContainText((await tag.locator("span").nth(1).textContent()) ?? "");
+  await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+  await waitForFiniteAnimations(page);
+  await page.screenshot({ path: `${screenshotDir}map-focus-selected-wait-390x844.png` });
 });
 
 test("「全体を見る」で経路の全体に切り替え、もう一度押すと現在地のまわりに戻る", async ({

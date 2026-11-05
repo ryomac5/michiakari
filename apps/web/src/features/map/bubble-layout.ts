@@ -200,6 +200,8 @@ export type LabelLayout = {
   // 辺の方向へずらした量（px）。ずらさない札は 0
   slides: Record<string, number>;
   hidden?: string[];
+  // 地図に収まらず、一覧へ移した必須の札
+  docked?: string[];
 };
 
 // 札ごとの置き方の候補。固定の札は向きを変えず、ずらせる札は向きごとにずらし量を試す
@@ -573,7 +575,7 @@ function allowStationSlides(input: LayoutInput): LayoutInput {
 }
 
 // 収まる置き方を、通常の札、ずらし、短いおすすめ、短いおすすめとずらし、低優先の札を隠す順に試す
-// 必須の札は隠さず、画面の内側に収める。既定の置き場所で収まる画面では、これまでの置き場所を保つ
+// 必須の札は隠さず、画面の内側に収める。必須の札どうしが触れるなら一覧へ移す。既定の置き場所で収まる画面では、これまでの置き場所を保つ
 export function chooseStationLabelLayout(
   fullInput: LayoutInput,
   compactInput: LayoutInput,
@@ -597,8 +599,15 @@ export function chooseStationLabelLayout(
       return { ...layout, compactRecommended: attempt.compactRecommended };
     }
   }
+  const last = allowStationSlides(compact);
+  const layout = chooseVisibleLabelLayout(last, requiredKeys);
+  // ほかの札を隠しても必須の札どうしが触れるなら、札を地図から外して一覧へ移し、ほかの札も隠す
+  // はみ出すだけなら札は読めるので、地図に残す
+  if (measureLabelOverlap(last, layout) === 0) return { ...layout, compactRecommended: true };
   return {
-    ...chooseVisibleLabelLayout(allowStationSlides(compact), requiredKeys),
+    ...layout,
+    docked: last.items.filter((item) => requiredKeys.includes(item.key)).map((item) => item.key),
+    hidden: last.items.filter((item) => !requiredKeys.includes(item.key)).map((item) => item.key),
     compactRecommended: true,
   };
 }

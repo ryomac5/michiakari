@@ -73,6 +73,18 @@ export function JudgmentScreen() {
     resumeJudgment();
   }, [resumeJudgment]);
   const chrome = useMapChrome();
+  // 情報を追加するとき、シートが開き切った次のフレームで入力欄へ寄せる
+  const [focusAddInfo, setFocusAddInfo] = useState(false);
+  useEffect(() => {
+    if (!focusAddInfo || chrome.snap !== "full") return;
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .querySelector(`[data-testid="${testIds.judgment.addInfo}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setFocusAddInfo(false);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusAddInfo, chrome.snap]);
   const [reachSource, setReachSource] = useState<ReachSource | null>(null);
   const [guide, setGuide] = useState<StationGuide | null>(null);
   const { highlightId, focusOption } = useOptionFocus(chrome.setSnap);
@@ -114,9 +126,8 @@ export function JudgmentScreen() {
   };
   const switchStep = selectSwitchStep(display.judgment ?? null);
   // 一覧で押した選択肢を地図に描く。判断が変わって選択肢が消えたら推奨に戻す
-  const mapOptionId = options.some((o) => o.id === selectedOptionId)
-    ? selectedOptionId
-    : display.recommendedOptionId;
+  const chosenOptionId = options.some((o) => o.id === selectedOptionId) ? selectedOptionId : null;
+  const mapOptionId = chosenOptionId ?? display.recommendedOptionId;
   // 凡例も地図と同じ選択中の選択肢の色にする
   const tone = selectRouteTone(options, mapOptionId);
 
@@ -146,7 +157,7 @@ export function JudgmentScreen() {
         destination={destination}
         options={options}
         recommendedOptionId={display.recommendedOptionId}
-        selectedOptionId={mapOptionId}
+        selectedOptionId={chosenOptionId}
         blockedSection={blockedSection}
         blockedLine={blockedLine}
         blockedDirection={blockedDirection}
@@ -243,9 +254,7 @@ export function JudgmentScreen() {
               catalog={catalog}
               onUpdate={() => {
                 chrome.setSnap("full");
-                document
-                  .querySelector(`[data-testid="${testIds.judgment.addInfo}"]`)
-                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                setFocusAddInfo(true);
               }}
             />
           )}

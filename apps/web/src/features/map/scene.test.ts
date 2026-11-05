@@ -480,6 +480,24 @@ describe("buildMapScene", () => {
     ).toBe(true);
   });
 
+  it("選んだ経路を描き、推奨と止まっている区間は変えない", () => {
+    const recommended = buildMapScene(geo, input, labels);
+    const selected = buildMapScene(geo, { ...input, selectedOptionId: "wait_resume" }, labels);
+    expect(selected.route.features).not.toEqual(recommended.route.features);
+    expect(selected.route.features.map((f) => f.properties.label)).toEqual(["JR神戸線"]);
+    expect(
+      selected.alternatives.features.every((f) => f.properties.optionId !== "wait_resume"),
+    ).toBe(true);
+    expect(selected.blocked).toEqual(recommended.blocked);
+    expect(selected.transferLineIds).toEqual(recommended.transferLineIds);
+  });
+
+  it("選んだ経路が無ければ推奨の経路を描く", () => {
+    const recommended = buildMapScene(geo, input, labels);
+    const unselected = buildMapScene(geo, { ...input, selectedOptionId: null }, labels);
+    expect(unselected.route.features).toEqual(recommended.route.features);
+  });
+
   it("到達範囲があれば多角形で描き、動いている駅は 20 分の範囲の内側だけにする", () => {
     const reachIndex = createGeoIndex(network as unknown as NetworkData, {
       isochrones: loadIsochrones(),

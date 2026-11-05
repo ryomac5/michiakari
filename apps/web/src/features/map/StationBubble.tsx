@@ -75,34 +75,10 @@ export function LineChip({
   );
 }
 
-export function StationBubble({
-  station,
-  placement,
-  variant,
-  onSelect,
-  slide = 0,
-}: {
-  station: GuideStation;
-  placement: BubblePlacement;
-  variant: BubbleVariant;
-  onSelect: (() => void) | null;
-  slide?: number;
-}) {
-  const compact = variant === "compact";
+// 小さな札の 1 行。おすすめの星、路線色、短い駅名、徒歩の分数
+function CompactRow({ station }: { station: GuideStation }) {
   const t = useTranslations("map");
-  const status = station.suspended ? t("statusSuspended") : t("statusRunning");
-  const label = [
-    station.starred ? t("recommended") : null,
-    `${station.name} ${station.operator}`,
-    station.lines.map((l) => l.name).join("、"),
-    status,
-    t("walk", { minutes: station.walkMinutes }),
-    station.transferService ? t("transferService") : null,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  const body = compact ? (
+  return (
     <span className="flex items-center gap-1.5">
       {station.starred && <Star className="size-3 shrink-0 fill-current text-switch" aria-hidden />}
       <span className="flex gap-0.5">
@@ -115,8 +91,61 @@ export function StationBubble({
         {t("walkShort", { minutes: station.walkMinutes })}
       </span>
     </span>
+  );
+}
+
+export function StationBubble({
+  station,
+  placement,
+  variant,
+  onSelect,
+  slide = 0,
+  shownLabel = null,
+}: {
+  station: GuideStation;
+  placement: BubblePlacement;
+  variant: BubbleVariant;
+  onSelect: (() => void) | null;
+  slide?: number;
+  // 一覧で選んだ経路をこの駅から描いているときの「表示中」の文言
+  shownLabel?: string | null;
+}) {
+  const compact = variant === "compact";
+  const t = useTranslations("map");
+  const status = station.suspended ? t("statusSuspended") : t("statusRunning");
+  const shown = shownLabel ? (
+    <span
+      data-shown="true"
+      className="shrink-0 rounded-full bg-foreground px-1.5 py-0.5 text-[10px] leading-none font-bold whitespace-nowrap text-background"
+    >
+      {shownLabel}
+    </span>
+  ) : null;
+  const label = [
+    shownLabel,
+    station.starred ? t("recommended") : null,
+    `${station.name} ${station.operator}`,
+    station.lines.map((l) => l.name).join("、"),
+    status,
+    t("walk", { minutes: station.walkMinutes }),
+    station.transferService ? t("transferService") : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  // 小さな札では「表示中」を 1 段目に置き、札の幅を広げない
+  const body = compact ? (
+    shown ? (
+      <span className="flex flex-col items-start gap-1">
+        {shown}
+        <CompactRow station={station} />
+      </span>
+    ) : (
+      <CompactRow station={station} />
+    )
   ) : variant === "medium" ? (
     <span className="flex w-[176px] flex-col gap-1 text-left">
+      {shown && <span className="flex">{shown}</span>}
       <span className="flex items-baseline justify-between gap-2">
         <span className="min-w-0 truncate text-[13px] font-bold">
           {station.name}
@@ -149,10 +178,15 @@ export function StationBubble({
     </span>
   ) : (
     <span className="flex w-[172px] flex-col gap-1.5 text-left sm:w-[196px]">
-      {station.starred && (
-        <span className="flex items-center gap-1 text-[11px] font-bold text-switch">
-          <Star className="size-3 fill-current" aria-hidden />
-          {t("recommended")}
+      {(station.starred || shown) && (
+        <span className="flex items-center gap-1.5">
+          {shown}
+          {station.starred && (
+            <span className="flex items-center gap-1 text-[11px] font-bold text-switch">
+              <Star className="size-3 fill-current" aria-hidden />
+              {t("recommended")}
+            </span>
+          )}
         </span>
       )}
       <span className="flex items-baseline justify-between gap-2">
@@ -273,10 +307,13 @@ export function AlightMarker({
   alight,
   placement = "bottom",
   slide = 0,
+  hideLabel = false,
 }: {
   alight: NonNullable<StationGuide["alight"]>;
   placement?: BubblePlacement;
   slide?: number;
+  // 札を地図の上の一覧へ移したときは、印だけを残す
+  hideLabel?: boolean;
 }) {
   const t = useTranslations("map");
   return (
@@ -287,11 +324,13 @@ export function AlightMarker({
         className="absolute inset-0 rounded-full border-[3px] border-focus bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.3)]"
       />
       <p
+        hidden={hideLabel}
         data-placement={placement}
         style={buildSlideStyle(placement, slide)}
         className={cn(
           "absolute flex items-center gap-1 rounded-full bg-focus px-2 py-0.5 text-[12px] leading-tight font-bold whitespace-nowrap text-white shadow-[0_1px_6px_rgb(0_0_0/0.25)]",
           alightLabelSide[placement],
+          hideLabel && "hidden",
         )}
       >
         <span className="font-semibold opacity-90">{t("alight")}</span>
@@ -307,12 +346,15 @@ export function HereMarker({
   placement,
   compact,
   slide = 0,
+  hideLabel = false,
 }: {
   here: StationGuide["here"];
   placement: BubblePlacement;
   // 狭い画面では、路線を色の印だけにして 1 行に収める
   compact: boolean;
   slide?: number;
+  // 札を地図の上の一覧へ移したときは、印だけを残す
+  hideLabel?: boolean;
 }) {
   const t = useTranslations("map");
   const side = hereLabelSide[placement];
@@ -325,6 +367,7 @@ export function HereMarker({
         className="absolute inset-0 rounded-full border-[3px] border-white bg-focus shadow-[0_1px_6px_rgb(0_0_0/0.35)]"
       />
       <div
+        hidden={hideLabel}
         data-placement={placement}
         style={buildSlideStyle(placement, slide)}
         className={cn(
@@ -332,6 +375,7 @@ export function HereMarker({
           // 狭い画面では、英語の長い名前を折り返して、札を細く保つ
           compact ? "max-w-[176px]" : "max-w-[220px]",
           side,
+          hideLabel && "hidden",
         )}
       >
         <p className="flex items-center gap-1.5 text-[13px] leading-tight font-bold">

@@ -148,9 +148,8 @@ export function ReplayPlayer({
   };
   const switchStep = selectSwitchStep(display.judgment ?? null);
   // 一覧で押した選択肢を地図に描く。判断が変わって選択肢が消えたら推奨に戻す
-  const mapOptionId = options.some((o) => o.id === selectedOptionId)
-    ? selectedOptionId
-    : display.recommendedOptionId;
+  const chosenOptionId = options.some((o) => o.id === selectedOptionId) ? selectedOptionId : null;
+  const mapOptionId = chosenOptionId ?? display.recommendedOptionId;
   // 凡例も地図と同じ選択中の選択肢の色にする
   const tone = selectRouteTone(options, mapOptionId);
 
@@ -212,7 +211,7 @@ export function ReplayPlayer({
         destination={destination}
         options={options}
         recommendedOptionId={display.recommendedOptionId}
-        selectedOptionId={mapOptionId}
+        selectedOptionId={chosenOptionId}
         blockedSection={started ? (lastWithSection?.section ?? null) : null}
         blockedLine={blockedLine}
         insets={{ ...chrome.insets, top: chrome.insets.top + announcementInset }}

@@ -488,6 +488,30 @@ export function buildStationGuide(
   };
 }
 
+export type DockedStationRow = { key: string; optionId: string | null; text: string };
+
+// 地図に収まらず一覧へ移した駅の行。おすすめの印は星の付く駅だけに付ける
+// shown があれば、地図に経路を描いている駅の行に添える
+export function listDockedStationRows(
+  stations: readonly GuideStation[],
+  docked: readonly string[],
+  labels: { recommended: string; shown?: string | null; walk: (minutes: number) => string },
+): DockedStationRow[] {
+  return stations
+    .filter((station) => docked.includes(station.key))
+    .map((station) => ({
+      key: station.key,
+      optionId: station.optionId,
+      text: [
+        ...(labels.shown && station.recommended ? [labels.shown] : []),
+        ...(station.starred ? [labels.recommended] : []),
+        station.name,
+        ...station.lines.map((line) => line.name),
+        labels.walk(station.walkMinutes),
+      ].join(" · "),
+    }));
+}
+
 // 折れ線の上で、2 点にいちばん近い頂点のあいだの道のりの中ほどの点。駅間の現在地を線路の上に置くのに使う
 // 折れ線が無いか、2 点が同じ頂点に寄るときは、2 点の直線の中点にする
 export function findMidpointAlongPath(

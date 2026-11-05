@@ -12,6 +12,8 @@ import {
   findFocusArea,
   findPointAtDistance,
   findRingLabelPoint,
+  type GuideStation,
+  listDockedStationRows,
   type StationGuideInput,
 } from "./station-guide";
 
@@ -344,5 +346,59 @@ describe("findRingLabelPoint", () => {
     expect(findRingLabelPoint(ring, center, 90)).toEqual([135.51, 34.7]);
     expect(findRingLabelPoint(ring, center, 180)).toEqual([135.5, 34.69]);
     expect(findRingLabelPoint([], center, 0)).toBeNull();
+  });
+});
+
+describe("listDockedStationRows", () => {
+  const buildStation = (key: string, starred: boolean): GuideStation => ({
+    key,
+    name: `${key}駅`,
+    shortName: key,
+    operator: "",
+    position: [135.5, 34.7],
+    placement: { narrow: "right", wide: "right" },
+    lines: [
+      {
+        lineId: `${key}.線`,
+        name: `${key}線`,
+        color: "#000",
+        suspended: false,
+        transferService: false,
+      },
+    ],
+    suspended: false,
+    walkMinutes: 5,
+    walkSource: "estimate",
+    transferService: false,
+    route: null,
+    recommended: !starred,
+    starred,
+    optionId: `option_${key}`,
+  });
+  const labels = { recommended: "おすすめ", walk: (minutes: number) => `徒歩 ${minutes} 分` };
+
+  it("おすすめの印は星の付く駅の行だけに付け、選んだだけの駅には付けない", () => {
+    const rows = listDockedStationRows(
+      [buildStation("梅田", true), buildStation("福島", false), buildStation("中津", false)],
+      ["梅田", "福島"],
+      labels,
+    );
+    expect(rows.map((row) => row.key)).toEqual(["梅田", "福島"]);
+    expect(rows[0]?.text).toBe("おすすめ · 梅田駅 · 梅田線 · 徒歩 5 分");
+    expect(rows[1]?.text).toBe("福島駅 · 福島線 · 徒歩 5 分");
+    expect(rows.filter((row) => row.text.includes("おすすめ"))).toHaveLength(1);
+    expect(rows.map((row) => row.optionId)).toEqual(["option_梅田", "option_福島"]);
+  });
+
+  it("経路を描いている駅の行にだけ表示中を添える", () => {
+    const rows = listDockedStationRows(
+      [buildStation("梅田", true), buildStation("福島", false)],
+      ["梅田", "福島"],
+      { ...labels, shown: "表示中" },
+    );
+    expect(rows.map((row) => row.text)).toEqual([
+      "おすすめ · 梅田駅 · 梅田線 · 徒歩 5 分",
+      "表示中 · 福島駅 · 福島線 · 徒歩 5 分",
+    ]);
   });
 });
