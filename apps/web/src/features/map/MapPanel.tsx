@@ -14,10 +14,12 @@ import { prefersReducedMotion, useDocumentTheme } from "@/lib/use-document-theme
 import { useMediaQuery } from "@/lib/use-media-query";
 import { buildAutoFocusArea } from "./auto-focus";
 import {
-  chooseLabelLayout,
+  type BoxSize,
+  chooseStationLabelLayout,
+  constrainFitPadding,
   type LabelLayout,
   type LayoutInput,
-  measureLayoutOverlap,
+  overlapArea,
   projectToWorld,
   type Rect,
 } from "./bubble-layout";
@@ -111,8 +113,7 @@ const focusMaxZoom = { configured: 16.2, auto: 15.5 };
 const initialOriginZoom = 15.8;
 // おすすめの吹き出しの高さのおよそ（px）
 const recommendedBubbleHeight = 130;
-// 札の重なりの合計がこの面積（px²）以下なら、重なっていないとみなす。駅の印のまわりの余白のぶんを許す
-const overlapTolerance = 150;
+const labelMeasurementPadding = 2;
 // 現在地と降りる駅の札を、辺の方向へずらせる量の候補（px）。四方に置いても駅の印や札に重なるとき、ずらして避ける
 const labelSlides = [
   -64, -56, -48, -40, -32, -24, -16, -8, 0, 8, 16, 24, 32, 40, 48, 56, 64,
@@ -257,24 +258,20 @@ function buildPadding(insets: MapInsets, extra = { top: 0, right: 0, bottom: 0, 
   };
 }
 
-// 現在地のまわりの余白。重なる部品の幅に、吹き出しと札のぶんだけを足す
-function buildFocusPadding(insets: MapInsets, margin: MapInsets) {
-  return {
-    top: insets.top + margin.top,
-    right: insets.right + margin.right,
-    bottom: insets.bottom + margin.bottom,
-    left: insets.left + margin.left,
-  };
-}
-
 // 現在地のまわりに寄せるときの余白。おすすめの吹き出しを駅の上に出すなら、その高さのぶん上を空ける
-function buildGuidePadding(insets: MapInsets, narrow: boolean, guide: StationGuide) {
+function buildGuidePadding(
+  map: MapLibreMap,
+  insets: MapInsets,
+  narrow: boolean,
+  guide: StationGuide,
+) {
   const margins = guide.areaId.startsWith("auto:") ? autoFocusMargin : focusMargin;
   const margin = narrow ? margins.narrow : margins.wide;
   const tallTop = guide.stations.some(
     (s) => s.recommended && s.placement[narrow ? "narrow" : "wide"] === "top",
   );
-  return buildFocusPadding(insets, {
+  const canvas = map.getCanvas();
+  return constrainFitPadding({ w: canvas.clientWidth, h: canvas.clientHeight }, insets, {
     ...margin,
     top: margin.top + (tallTop ? recommendedBubbleHeight : 0),
   });
@@ -300,7 +297,8 @@ function estimateBubbleSize(
   // 路線色の印と分数のぶんを足す。おすすめの小さな札は、星の分だけ広い
   return {
     w: estimateTextWidth(station.shortName, 12) + 76 + (station.recommended ? 16 : 0),
-    h: 34,
+    // 上下の配置では 44px のタップ領域を基準にアンカーが付く。
+    h: 44,
   };
 }
 
@@ -314,7 +312,7 @@ function estimateHereSize(guide: StationGuide, narrow: boolean): { w: number; h:
   const inner = 32 + estimateTextWidth(guide.here.name, 13) + badges;
   const lines = Math.max(1, Math.ceil(inner / (maxWidth - 20)));
   const w = Math.min(maxWidth, inner + 20);
-  if (narrow) return { w, h: 16 + 16 * lines };
+  if (narrow) return { w: w + 2, h: 18 + 16 * lines };
   return { w: Math.max(w, 170), h: 16 + 16 * lines + 28 * Math.min(3, guide.here.lines.length) };
 }
 
@@ -329,7 +327,6 @@ function estimateAlightSize(
 
 // 吹き出しと、現在地と降りる駅の札を、寄せたあとの画面の上で重ならない向きに置く
 // 寄せる範囲の中心が、余白を除いた画面の中心に来るとみなして画面の位置を求める
-// lockStations なら、駅の吹き出しは設定の向きのまま動かさず、現在地と降りる駅の札だけを選ぶ
 // おすすめの大きな札では駅の印や札が重なってしまうときは、おすすめも小さな札にして置き直す
 type AutoLayout = LabelLayout & { compactRecommended: boolean };
 
@@ -341,15 +338,18 @@ function layoutAutoPlacements(
   herePreferred: BubblePlacement,
   // 札で隠したくない点。到達範囲の札の位置
   avoid: readonly Position[],
-  lockStations: boolean,
   english: boolean,
+  measuredSizes: Readonly<Record<string, BoxSize>>,
 ): AutoLayout | null {
   if (!guide.bounds) return null;
-  const padding = buildGuidePadding(insets, narrow, guide);
-  const camera = map.cameraForBounds(guide.bounds, { padding, maxZoom: focusMaxZoom.auto });
+  const canvas = map.getCanvas();
+  const padding = buildGuidePadding(map, insets, narrow, guide);
+  const camera = map.cameraForBounds(guide.bounds, {
+    padding,
+    maxZoom: guide.areaId.startsWith("auto:") ? focusMaxZoom.auto : focusMaxZoom.configured,
+  });
   const zoom = camera?.zoom;
   if (zoom === undefined) return null;
-  const canvas = map.getCanvas();
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
   const [[west, south], [east, north]] = guide.bounds;
@@ -375,12 +375,16 @@ function layoutAutoPlacements(
     top: height - insets.bottom - viewToggleBox.bottom - viewToggleBox.h - viewToggleBox.margin,
     bottom: height - insets.bottom - viewToggleBox.bottom + viewToggleBox.margin,
   };
+  const measureSize = (key: string, estimate: BoxSize): BoxSize => ({
+    w: Math.max(estimate.w, measuredSizes[key]?.w ?? 0),
+    h: Math.max(estimate.h, measuredSizes[key]?.h ?? 0),
+  });
   const buildInput = (compactRecommended: boolean): LayoutInput => ({
     items: [
       {
         key: "here",
         point: here,
-        size: estimateHereSize(guide, narrow),
+        size: measureSize(`here:${narrow}`, estimateHereSize(guide, narrow)),
         gap: 20,
         slides: labelSlides,
       },
@@ -389,7 +393,7 @@ function layoutAutoPlacements(
             {
               key: "alight",
               point: toScreen(guide.alight.position),
-              size: estimateAlightSize(guide.alight, english),
+              size: measureSize("alight", estimateAlightSize(guide.alight, english)),
               gap: 16,
               slides: labelSlides,
               // 印の外の輪（6px）まで札が重ならないようにする
@@ -400,7 +404,10 @@ function layoutAutoPlacements(
       ...guide.stations.map((s) => ({
         key: s.key,
         point: toScreen(s.position),
-        size: estimateBubbleSize(s, narrow, compactRecommended),
+        size: measureSize(
+          `${s.key}:${s.recommended && !compactRecommended ? "full" : narrow ? "compact" : "medium"}`,
+          estimateBubbleSize(s, narrow, compactRecommended),
+        ),
         gap: 12,
       })),
     ],
@@ -411,7 +418,6 @@ function layoutAutoPlacements(
       right: width - insets.right - 8,
       bottom: height - insets.bottom - 8,
     },
-    fixed: lockStations ? stationPlacements : undefined,
     preferred: { here: herePreferred, alight: "bottom", ...stationPlacements },
     obstacles: avoid.map((p) => {
       const { x, y } = toScreen(p);
@@ -419,17 +425,11 @@ function layoutAutoPlacements(
     }),
     blockers: [toggle],
   });
-  const fullInput = buildInput(false);
-  const full = chooseLabelLayout(fullInput);
-  const fullOverlap = measureLayoutOverlap(fullInput, full);
-  if (!guide.stations.some((s) => s.recommended) || fullOverlap <= overlapTolerance) {
-    return { ...full, compactRecommended: false };
-  }
-  const compactInput = buildInput(true);
-  const compact = chooseLabelLayout(compactInput);
-  return measureLayoutOverlap(compactInput, compact) < fullOverlap
-    ? { ...compact, compactRecommended: true }
-    : { ...full, compactRecommended: false };
+  return chooseStationLabelLayout(buildInput(false), buildInput(true), [
+    "here",
+    "alight",
+    ...guide.stations.filter((station) => station.recommended).map((station) => station.key),
+  ]);
 }
 
 // 出発は丸、行き先はピン。色はテーマの文字色に合わせる
@@ -525,7 +525,7 @@ export function useMarkerHosts(
 
   useEffect(() => {
     for (const entry of entries) {
-      markersRef.current.get(entry.key)?.setLngLat(entry.position);
+      markersRef.current.get(entry.key)?.setOffset(entry.offset).setLngLat(entry.position);
     }
   }, [entries]);
 
@@ -754,6 +754,7 @@ export function MapPanel(props: MapPanelProps) {
   );
 
   const { top, right, bottom, left } = props.insets;
+  const [measuredSizes, setMeasuredSizes] = useState<Record<string, BoxSize>>({});
   // 「全体を見る」のボタン。止まっている路線の札と到達範囲の札は、このボタンを避けて置く
   const viewToggleRef = useRef<HTMLButtonElement>(null);
   const fitView = useCallback(
@@ -763,7 +764,7 @@ export function MapPanel(props: MapPanelProps) {
       const insets = { top, right, bottom, left };
       if (view === "focus" && guide?.bounds) {
         map.fitBounds(guide.bounds, {
-          padding: buildGuidePadding(insets, narrow, guide),
+          padding: buildGuidePadding(map, insets, narrow, guide),
           maxZoom: guide.areaId.startsWith("auto:") ? focusMaxZoom.auto : focusMaxZoom.configured,
           duration,
         });
@@ -832,6 +833,7 @@ export function MapPanel(props: MapPanelProps) {
   // 到達範囲の札を、寄せたあとの画面で吹き出しや線と重ならない向きに置き直す。地図が止まるたびに選び直す
   useEffect(() => {
     if (!map || !scene || reachLabelCandidates.length === 0) return;
+    let lastLabels = "";
     const place = () => {
       const canvas = map.getCanvas();
       const origin = canvas.getBoundingClientRect();
@@ -888,7 +890,13 @@ export function MapPanel(props: MapPanelProps) {
       for (const candidate of reachLabelCandidates) {
         const size = estimateReachLabelSize(candidate.label);
         const pick = chooseReachLabelCandidate(
-          candidate.points.map((p) => ({ key: p, point: toScreen(p) })),
+          candidate.points
+            .map((p) => ({ key: p, point: toScreen(p) }))
+            .filter((candidate) =>
+              boxes.every(
+                (box) => overlapArea(buildReachLabelRect(candidate.point, size), box) === 0,
+              ),
+            ),
           { size, view: viewRect, boxes, polylines },
         );
         // 見える範囲に収まる向きが無ければ、欠けた札を出すより出さない。範囲の意味は凡例が示す
@@ -897,11 +905,17 @@ export function MapPanel(props: MapPanelProps) {
         // 20 分の札は 10 分の札とも重ねない
         boxes.push(buildReachLabelRect(pick.point, size));
       }
+      const signature = JSON.stringify(chosen);
+      if (signature === lastLabels) return;
+      lastLabels = signature;
       setSourceData(map, sourceIds.reachLabels, buildReachLabelCollection(chosen));
     };
     place();
     map.on("moveend", place);
+    // 実寸の再計測で札が動いたあとも、最後の描画位置で避け直す。
+    map.on("render", place);
     return () => {
+      map.off("render", place);
       map.off("moveend", place);
     };
   }, [map, geo, scene, guide, mode, reachLabelCandidates, top, right, bottom, left]);
@@ -1008,22 +1022,27 @@ export function MapPanel(props: MapPanelProps) {
         );
       });
       // 置ける点が無ければ札は出さない。止まっていることは現在地の札と上部の帯が示す
-      setBlockedTagPosition(chosen ?? null);
+      setBlockedTagPosition((previous) => {
+        const next = chosen ?? null;
+        return previous?.[0] === next?.[0] && previous?.[1] === next?.[1] ? previous : next;
+      });
     };
     place();
     map.on("movestart", hide);
     map.on("moveend", place);
+    map.on("render", place);
     return () => {
+      map.off("render", place);
       map.off("movestart", hide);
       map.off("moveend", place);
     };
   }, [map, blockedPath, view, guide, top, right, bottom, left]);
 
-  // 自動で選んだ駅は、寄せたあとの画面で重ならない向きに吹き出しを置く。手で整えた駅は設定に従う
+  // 手で整えた向きは好みとして保ち、重なる場合は画面サイズによらず置き直す
   // 駅間の車内の人の現在地と降りる駅の札は、手で整えた範囲でも、駅の印やボタンに重ならない置き場所を選ぶ
   const autoPlacements = useMemo(
     () =>
-      map && guide && area && (area.auto || guide.alight)
+      map && guide && area
         ? layoutAutoPlacements(
             map,
             guide,
@@ -1031,11 +1050,11 @@ export function MapPanel(props: MapPanelProps) {
             narrow,
             area.herePlacement[narrow ? "narrow" : "wide"],
             reachLabels.features.map((f) => f.geometry.coordinates),
-            !area.auto,
             locale === "en",
+            measuredSizes,
           )
         : null,
-    [map, guide, area, narrow, top, right, bottom, left, reachLabels, locale],
+    [map, guide, area, narrow, top, right, bottom, left, reachLabels, locale, measuredSizes],
   );
   const placeStation = useCallback(
     (s: StationGuide["stations"][number]): BubblePlacement =>
@@ -1062,14 +1081,25 @@ export function MapPanel(props: MapPanelProps) {
             },
           ]
         : []),
-      ...guide.stations.map((s) => ({
-        key: `station:${s.key}`,
-        position: s.position,
-        anchor: markerAnchor[placeStation(s)],
-        offset: markerOffset[placeStation(s)],
-      })),
+      ...guide.stations
+        .filter((s) => !autoPlacements?.hidden?.includes(s.key))
+        .map((s) => {
+          const placement = placeStation(s);
+          const slide = autoPlacements?.slides[s.key] ?? 0;
+          const [x, y] = markerOffset[placement];
+          const horizontal = placement === "top" || placement === "bottom";
+          return {
+            key: `station:${s.key}`,
+            position: s.position,
+            anchor: markerAnchor[placement],
+            offset: [x + (horizontal ? slide : 0), y + (horizontal ? 0 : slide)] as [
+              number,
+              number,
+            ],
+          };
+        }),
     ];
-  }, [view, guide, placeStation]);
+  }, [view, guide, placeStation, autoPlacements]);
   const tagEntries = useMemo(
     () =>
       blockedTagPosition
@@ -1086,6 +1116,48 @@ export function MapPanel(props: MapPanelProps) {
   );
   const entries = useMemo(() => [...tagEntries, ...focusEntries], [tagEntries, focusEntries]);
   const hosts = useMarkerHosts(map, markerClass, entries);
+  // フォントや内容で見積もりを超えた札は、描画後の寸法でもう一度配置する。
+  useEffect(() => {
+    if (!guide) return;
+    const labels = [...hosts.entries()].flatMap(([key, host]) => {
+      if (key === "blocked") return [];
+      const element = host.querySelector<HTMLElement>(
+        key === "here" || key === "alight" ? "[data-placement]" : "[data-variant]",
+      );
+      if (!element) return [];
+      return [{ element, key }];
+    });
+    const measure = () => {
+      setMeasuredSizes((previous) => {
+        const next = { ...previous };
+        let changed = false;
+        for (const { element, key } of labels) {
+          const sizeKey =
+            key === "here"
+              ? `here:${narrow}`
+              : key === "alight"
+                ? key
+                : `${key.slice("station:".length)}:${element.dataset.variant}`;
+          const rect = element.getBoundingClientRect();
+          // Marker の座標の丸めでも札の面が触れない余白を含める。
+          const size = {
+            w: Math.ceil(rect.width) + labelMeasurementPadding,
+            h: Math.ceil(rect.height) + labelMeasurementPadding,
+          };
+          // 描画前の札は寸法が 0 になるので、見積もりを上書きしない
+          if (rect.width === 0 || rect.height === 0) continue;
+          if (previous[sizeKey]?.w === size.w && previous[sizeKey]?.h === size.h) continue;
+          next[sizeKey] = size;
+          changed = true;
+        }
+        return changed ? next : previous;
+      });
+    };
+    const observer = new ResizeObserver(measure);
+    for (const { element } of labels) observer.observe(element);
+    measure();
+    return () => observer.disconnect();
+  }, [hosts, narrow, guide]);
   const herePlacement =
     autoPlacements?.placements.here ??
     (area ? area.herePlacement[narrow ? "narrow" : "wide"] : "left");
@@ -1153,6 +1225,7 @@ export function MapPanel(props: MapPanelProps) {
           <StationBubble
             station={station}
             placement={placeStation(station)}
+            slide={autoPlacements?.slides[station.key] ?? 0}
             variant={
               station.recommended && !autoPlacements?.compactRecommended
                 ? "full"

@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 // page 内で動かす関数（evaluate）のために DOM の型を読む
 import { fileURLToPath } from "node:url";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import {
@@ -39,6 +39,103 @@ async function stepTo(page: Page, observationId: string): Promise<void> {
 }
 
 const stations = (page: Page) => page.locator(`[data-testid^="judgment-map-station-"]`);
+
+async function expectLabelsApart(labels: Locator): Promise<void> {
+  await expect
+    .poll(() =>
+      labels.evaluateAll((elements) => elements.filter((el) => el.checkVisibility()).length),
+    )
+    .toBeGreaterThan(1);
+  await expect
+    .poll(() =>
+      labels.evaluateAll((elements) => {
+        const boxes = elements
+          .filter((el) => el.checkVisibility())
+          .map((el) => ({ name: el.textContent, rect: el.getBoundingClientRect() }));
+        if (boxes.length < 2) return ["表示中の札が2枚未満"];
+        return boxes.flatMap((a, i) =>
+          boxes.slice(i + 1).flatMap((b) => {
+            const width = Math.min(a.rect.right, b.rect.right) - Math.max(a.rect.left, b.rect.left);
+            const height =
+              Math.min(a.rect.bottom, b.rect.bottom) - Math.max(a.rect.top, b.rect.top);
+            return width > 0 && height > 0
+              ? [`${a.name} / ${b.name}: ${width.toFixed(2)}×${height.toFixed(2)}px`]
+              : [];
+          }),
+        );
+      }),
+    )
+    .toEqual([]);
+}
+
+for (const viewport of [
+  { width: 375, height: 667 },
+  { width: 390, height: 844 },
+]) {
+  test.describe(`${viewport.width}×${viewport.height} の地図の札`, () => {
+    test.use({ viewport });
+
+    for (const scenario of scenarios) {
+      test(`判断画面の札が重ならない: ${scenario.id}`, async ({ page }) => {
+        await openReplay(page, scenario.id);
+        for (const entry of scenario.timeline) {
+          await page.getByTestId(testIds.replay.nextButton).click();
+          await waitForJudged(page, entry.id);
+          await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute(
+            "data-state",
+            "ready",
+            {
+              timeout: 30_000,
+            },
+          );
+          await waitForFiniteAnimations(page);
+          await expect(
+            page.getByTestId(mapTestIds.here).locator(":scope > [data-placement]"),
+          ).toBeVisible();
+          const recommendedId = await page
+            .getByTestId(testIds.judgment.map)
+            .getAttribute("data-recommended-option");
+          if (recommendedId) {
+            const key = await page
+              .getByTestId(testIds.judgment.option(recommendedId))
+              .getAttribute("data-station");
+            if (key && key !== "here") {
+              const recommended = page.getByTestId(mapTestIds.station(key));
+              await expect(recommended).toHaveAttribute("data-recommended", "true");
+              await expect(recommended).toBeVisible();
+            }
+          }
+          await expectLabelsApart(
+            page.locator(
+              // ボタンの 44px のタップ領域ではなく、表示している札の面を測る
+              '[data-testid="judgment-map-here"] > [data-placement], [data-testid="judgment-map-alight"] > [data-placement], button[data-testid^="judgment-map-station-"] > span, div[data-testid^="judgment-map-station-"], [data-testid="judgment-map-blocked-tag"]',
+            ),
+          );
+        }
+      });
+    }
+
+    test("入口の関西・エリア・駅の札が重ならない", async ({ page }) => {
+      await page.goto("/?mock=1");
+      await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
+        timeout: 30_000,
+      });
+      const labels = page.locator(
+        '[data-testid^="start-hub-"] > span[aria-hidden], [data-testid^="start-place-"] > span[aria-hidden], [data-testid^="start-hub-edge-"]',
+      );
+      await waitForFiniteAnimations(page);
+      await expectLabelsApart(labels);
+      await page.getByTestId(testIds.start.hub("umeda")).click();
+      await expect(page.getByTestId(testIds.start.place("osaka"))).toBeVisible();
+      await waitForFiniteAnimations(page);
+      await expectLabelsApart(labels);
+      await page.getByTestId(testIds.start.place("osaka")).click();
+      await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "station");
+      await waitForFiniteAnimations(page);
+      await expectLabelsApart(labels);
+    });
+  });
+}
 
 test("大阪駅では現在地のまわりに寄せ、乗り換え候補の駅を吹き出しで出す", async ({ page }) => {
   if (!osaka) throw new Error("大阪駅のシナリオがありません");
