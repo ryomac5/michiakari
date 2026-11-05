@@ -15,22 +15,11 @@
 
 ## 記録
 
-### 2026-11-05 / T1 / 遷移前のSSE本文保持と理由の字数検証
-- やったこと: e2e は応答を画面へ渡す前に本文を保持。全観測の理由が90字以内であることを単体テストに追加。判断規則と上限は変更なし。
-- 確認結果: frozen install は通常参照先で ENOTFOUND、既存キャッシュ指定で成功。typecheck、lint、core 279件、agent 197件、guard は成功。
-- 残課題: 指定 e2e は listen EPERM 0.0.0.0:3101 で起動不可。スケジューラでの実行結果を確認する。
-
-### 2026-11-05 / T1 / 確率文の比較時点と e2e の再修正
-- やったこと: 大半が分岐点後にある場合の食い違いを単体テストで再現。core で分岐点後の8割以上の目盛りを選び日英の確率文に使用。判断規則は変更なし。
-- やったこと: 延長後の回帰と e2e を追加。SSE は waitForResponse で読み取り常に真の否定アサーションを削除。
-- 確認結果: 既存キャッシュ指定の frozen install、typecheck、lint、core 279件、agent 197件、guard が成功。
-- 残課題: 指定 e2e 3ファイルは2回とも Web 起動時の listen EPERM 0.0.0.0:3101 で停止。待ち受け可能な環境での合格確認が必要。
-
-### 2026-11-05 / T1 / 結論と再開確率の文面のレビュー修正
-
-- やったこと: 確率文を短縮し発表時刻と分岐点の理由を復元。判断規則は維持。スキーマを満たす固定データと回帰テストを追加し e2e の確認を強化した。
-- 確認結果: 修正前は回帰4件が失敗。キャッシュ指定の frozen install、typecheck、lint、core 279件、agent 196件、guard は成功した。
-- 残課題: e2e 3ファイルは3101・3201とも listen EPERM。起動可能な環境で再検証が必要。scope 外の prompts/judgment-system.md、tools/emit-judgment.ts、architecture.md、ux.md、web/messages/ja.json の旧文型は後続で統一する。
+### 2026-11-05 / T1 / 結論と再開確率の比較時点を統一
+- やったこと: 判断規則と90字上限を維持し日英の確率文と分岐点の比較先・到着時刻を整備。発表見込みの理由に分岐点時刻を復元。
+- やったこと: 最大7割の固定データで確率文の欠落2件を再現。coreに分岐点後の最初の目盛りへのfallbackを追加し関連テストを同じdescribeへ集約。
+- 確認結果: frozen installは通常参照先でENOTFOUND、既存キャッシュ指定で成功。typecheck、lint、core 280件、agent 199件、guardは成功。
+- 残課題: 指定e2eはlisten EPERM 0.0.0.0:3101で起動不可。スケジューラで検証する。scope外のprompts/judgment-system.md、tools/emit-judgment.ts、architecture.md、ux.md、web/messages/ja.jsonの旧文型は後続で統一する。
 
 ### 2026-11-04 / 統合 / 入口から判断、デモ録画までの 2 日間のまとめ
 

@@ -434,6 +434,17 @@ describe("mergeBranchSamples", () => {
 });
 
 describe("selectKeyTick", () => {
+  it("最大7割なら比較時刻を過ぎた最初の目盛りを選ぶ", () => {
+    const ticks = [
+      { time: at("22:30"), tenths: 5, sinceOnsetMinutes: null },
+      { time: at("23:00"), tenths: 6, sinceOnsetMinutes: null },
+      { time: at("23:30"), tenths: 7, sinceOnsetMinutes: null },
+      { time: at("00:00", "06"), tenths: 7, sinceOnsetMinutes: null },
+    ];
+    expect(selectKeyTick(ticks, at("22:30"))).toEqual(ticks[1]);
+    expect(selectKeyTick(ticks, at("00:00", "06"))).toBeNull();
+  });
+
   it("5 割に達する最初の目盛りを選び、無ければ最後の目盛り", () => {
     const ticks = [
       { time: at("22:30"), tenths: 0, sinceOnsetMinutes: null },
@@ -446,7 +457,7 @@ describe("selectKeyTick", () => {
     expect(selectKeyTick([])).toBeNull();
     expect(selectKeyTick(ticks, at("23:00"))?.time).toBe(at("00:00", "06"));
     expect(selectKeyTick(ticks, at("00:00", "06"))).toBeNull();
-    expect(selectKeyTick(ticks.slice(0, 3), at("23:00"))).toBeNull();
+    expect(selectKeyTick(ticks.slice(0, 3), at("23:00"))).toEqual(ticks[2]);
     expect(selectKeyTick([], at("23:00"))).toBeNull();
   });
 });

@@ -38,4 +38,17 @@ export const decisionChances = {
     resumeByForDeadline: null,
     onsetTime: null,
   },
+  cappedLate: {
+    stepMinutes: 10,
+    ticks: [
+      { time: "2026-11-05T22:40:00+09:00", tenths: 5, sinceOnsetMinutes: null },
+      { time: "2026-11-05T22:50:00+09:00", tenths: 6, sinceOnsetMinutes: null },
+      { time: "2026-11-05T23:00:00+09:00", tenths: 7, sinceOnsetMinutes: null },
+      { time: "2026-11-05T23:10:00+09:00", tenths: 7, sinceOnsetMinutes: null },
+    ],
+    waitFaster: 6,
+    waitOnTime: null,
+    resumeByForDeadline: null,
+    onsetTime: null,
+  },
 } satisfies Record<string, ResumeChance>;
