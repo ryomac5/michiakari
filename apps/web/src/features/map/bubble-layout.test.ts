@@ -14,6 +14,7 @@ import {
   overlapArea,
   placeBox,
   type Rect,
+  type ScreenPoint,
 } from "./bubble-layout";
 
 // 吹き出しの置き場所を、重なりの少ない組み合わせから選べるか確かめる
@@ -603,5 +604,36 @@ describe("chooseStationLabelLayout: 375px 幅の密集した 6 札", () => {
     }
     expect(measureLabelOverlap(input, layout)).toBe(0);
     expect(elapsed).toBeLessThan(500);
+  });
+
+  it("探索の上限で打ち切られても、必須の札を画面の内側に収める", () => {
+    const points: Record<string, { x: number; y: number }> = {
+      here: { x: 199, y: 157 },
+      alight: { x: 207, y: 190 },
+      recommended: { x: 186, y: 152 },
+      metro: { x: 216, y: 175 },
+      kitashinchi: { x: 134, y: 206 },
+      hanshin: { x: 217, y: 211 },
+    };
+    const spread = (input: LayoutInput): LayoutInput => ({
+      ...input,
+      items: input.items.map((item) => ({ ...item, point: points[item.key] as ScreenPoint })),
+      here: points.here as ScreenPoint,
+    });
+    const fullSpread = spread(full);
+    const compactSpread = spread(compact);
+    const layout = chooseStationLabelLayout(fullSpread, compactSpread, required);
+    const input = layout.compactRecommended ? compactSpread : fullSpread;
+    for (const key of required) {
+      expect(layout.hidden ?? []).not.toContain(key);
+      const item = input.items.find((i) => i.key === key) as LayoutItem;
+      const rect = placeBox(item, layout.placements[key] ?? "right", layout.slides[key] ?? 0);
+      expect({ key, rect, inside: overlapArea(rect, input.view) }).toEqual({
+        key,
+        rect,
+        inside: (rect.right - rect.left) * (rect.bottom - rect.top),
+      });
+    }
+    expect(measureLabelOverlap(input, layout)).toBe(0);
   });
 });
