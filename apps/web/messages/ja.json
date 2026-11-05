@@ -308,6 +308,8 @@
       "onTrain": "車内の位置は{station}駅と仮定する",
       "elapsedUnknown": "止まった時刻はいまと仮定する",
       "causeUnknown": "原因は未確認。境目の時刻を動く目安にする",
+      "cause": "原因は放送で聞いた{cause}と仮定する",
+      "causeNoPattern": "原因は放送で聞いた{cause}。傾向の無い原因なので境目の時刻を動く目安にする",
       "betweenStations": "駅と駅の間にいる。{station}に着いてからの行動を示す"
     },
     "nextCheck": {
@@ -566,12 +568,26 @@
     "tripTerminal": "方面の終点を行き先にする",
     "causeQuestion": "放送で聞いた原因を選ぶ",
     "causes": {
-      "person": "人身事故",
-      "inCar": "非常ボタン・急病",
-      "vehicle": "車両の点検",
-      "signal": "信号",
-      "rain": "大雨",
+      "passenger": "人身事故・お客様対応",
+      "vehicle": "車両の故障・点検",
+      "signaling": "信号・ポイント",
+      "power": "停電",
+      "obstruction": "線路・踏切の支障物",
+      "infrastructure": "線路や設備の不具合",
+      "weather": "雨・風・雪・地震",
+      "major_accident": "衝突・脱線・火災",
       "unknown": "聞き取れなかった・言っていない"
+    },
+    "causeKindQuestion": "近いものを選ぶ",
+    "causeKinds": {
+      "person": "人身事故",
+      "inCar": "車内の急病人・非常ボタン",
+      "rain": "雨",
+      "wind": "風",
+      "snow": "雪・凍結",
+      "lightning": "雷",
+      "earthquake": "地震",
+      "other": "その他・分からない"
     },
     "elapsedQuestion": "止まってからの時間を選ぶ",
     "elapsed": {

@@ -18,10 +18,11 @@ for (const back of ["device", "header"] as const) {
     await page.getByTestId(testIds.start.hub("umeda")).click();
     await page.getByTestId(testIds.start.place("osaka")).click();
     await page.getByTestId(testIds.start.destinationCandidate("三ノ宮")).click();
-    await page.getByTestId(testIds.start.cause("person")).click();
+    await page.getByTestId(testIds.start.cause("passenger")).click();
+    await page.getByTestId(testIds.start.causeKind("person")).click();
     await page.getByTestId(testIds.start.elapsed("m10")).click();
     await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "resume");
-    await expectDepth(page, 6);
+    await expectDepth(page, 7);
     const entryHistoryLength = await page.evaluate(() => window.history.length);
     await page.getByTestId(testIds.start.resume("unknown")).click();
     await expect(page).toHaveURL(/\/judgment$/);
@@ -31,14 +32,14 @@ for (const back of ["device", "header"] as const) {
     else await page.getByTestId(testIds.judgment.backButton).click();
     await expect(page).toHaveURL(/\/\?mock=1$/);
     await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "resume");
-    await expectDepth(page, 6);
+    await expectDepth(page, 7);
     await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText("人身事故");
     await expect(page.getByTestId(testIds.start.answer("elapsed"))).toContainText("10分くらい");
     // 復元で入口の履歴を積み直すと、判断への進む履歴が消えて戻るが空振りする。
     expect(await page.evaluate(() => window.history.length)).toBe(entryHistoryLength + 1);
     await page.goBack();
     await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "elapsed");
-    await expectDepth(page, 5);
+    await expectDepth(page, 6);
     await expect(page).toHaveURL(/\/\?mock=1$/);
     await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText("人身事故");
 
@@ -49,10 +50,10 @@ for (const back of ["device", "header"] as const) {
     if (back === "device") await page.goBack();
     else await page.getByTestId(testIds.judgment.backButton).click();
     await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "resume");
-    await expectDepth(page, 6);
+    await expectDepth(page, 7);
     await expect(page.getByTestId(testIds.start.answer("elapsed"))).toContainText("30分以上");
     await page.goBack();
     await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "elapsed");
-    await expectDepth(page, 5);
+    await expectDepth(page, 6);
   });
 }

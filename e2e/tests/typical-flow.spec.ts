@@ -107,7 +107,9 @@ test("人身事故のリプレイでは、よくある流れで再開まで 1 �
   );
 });
 
-test("入口で「非常ボタン・急病」を選ぶと、待つの判断と安心させる文が出る", async ({ page }) => {
+test("入口で「車内の急病人・非常ボタン」を選ぶと、待つの判断と安心させる文が出る", async ({
+  page,
+}) => {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
@@ -120,10 +122,17 @@ test("入口で「非常ボタン・急病」を選ぶと、待つの判断と�
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
 
   // 様子の段は方式を選ばせず、すぐに原因を聞く。原因、時間、再開見込みの順に答える
-  const inCar = page.getByTestId(testIds.start.cause("inCar"));
-  await expect(inCar).toHaveText("非常ボタン・急病");
+  // 大分類の人身事故・お客様対応を選ぶと、続けて種類を 1 問だけ聞く
+  const passenger = page.getByTestId(testIds.start.cause("passenger"));
+  await expect(passenger).toHaveText("人身事故・お客様対応");
+  await passenger.click();
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "causeKind");
+  const inCar = page.getByTestId(testIds.start.causeKind("inCar"));
+  await expect(inCar).toHaveText("車内の急病人・非常ボタン");
   await inCar.click();
-  await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText("非常ボタン・急病");
+  await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText(
+    "車内の急病人・非常ボタン",
+  );
   await page.getByTestId(testIds.start.elapsed("now")).click();
   await expect(page.getByTestId(testIds.start.answer("elapsed"))).toContainText("いま止まった");
   await page.getByTestId(testIds.start.resume("unknown")).click();

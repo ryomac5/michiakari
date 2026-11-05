@@ -57,6 +57,8 @@ export const testIds = {
     nearStop: (id: string) => `start-near-stop-${id}`,
     // 様子の 3 つの問い。原因、止まってからの時間、再開の見込み
     cause: (id: string) => `start-cause-${id}`,
+    // 原因の大分類の続きで聞く種類
+    causeKind: (id: string) => `start-cause-kind-${id}`,
     elapsed: (id: string) => `start-elapsed-${id}`,
     resume: (id: string) => `start-resume-${id}`,
     // 放送で聞いた再開見込みの時刻。id は HHMM
