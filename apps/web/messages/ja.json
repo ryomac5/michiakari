@@ -527,8 +527,12 @@
     }
   },
   "entry": {
+    "locationNote": "現在地は端末内で近くの駅を探すために使います。位置は保存しません",
+    "nearbyStations": "現在地の近くの駅",
+    "nearbyDistance": "約{distance}",
+    "nearestEmpty": "近くの駅が見つかりません。地図か検索で駅を選んでください",
     "question": "いま、どこで止まっていますか",
-    "hint": "地図の駅を触ってください。電車の中なら近くの駅で大丈夫です",
+    "hint": "エリアを押すか地図を広げてください。近くの駅を選べます",
     "searchPlaceholder": "駅名・よみがなで探す",
     "mapLabel": "駅を選ぶ地図",
     "back": "戻る",
@@ -538,7 +542,7 @@
     "areaHint": "{area}の駅です。地図の丸か、下から選んでください",
     "lineQuestion": "止まっている路線はどれですか",
     "lineHint": "乗っていた路線か、乗る予定だった路線です",
-    "nearby": "近くの駅は{station}です（約{distance}）",
+    "nearby": "近くの駅は{station}です。距離は約{distance}です",
     "suspended": "見合わせ",
     "destinationQuestion": "どこまで行きますか",
     "destinationLabel": "行き先",

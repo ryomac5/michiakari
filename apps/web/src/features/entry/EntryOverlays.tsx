@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { forwardRef } from "react";
 import { testIds } from "@/features/judgment/testids";
-import type { StationChoice } from "@/features/stations/catalog";
+import type { NearestStationChoice, StationChoice } from "@/features/stations/catalog";
 import { StationSearch } from "@/features/stations/components/StationSearch";
+import { formatDistance, pickStationName } from "@/features/stations/describe";
 import type { LocateStatus } from "@/features/stations/use-current-location";
 import { cn } from "@/lib/utils";
 import { type EntryHub, pickLocalized } from "./entry-places";
@@ -17,6 +18,7 @@ export const PromptCard = forwardRef<
   HTMLDivElement,
   {
     locateStatus: LocateStatus;
+    nearest: NearestStationChoice[];
     message: string | null;
     onLocate: () => void;
     onSelect: (station: StationChoice) => void;
@@ -24,7 +26,10 @@ export const PromptCard = forwardRef<
     quickPicks: EntryHub[] | null;
     onQuickPick: (stationName: string) => void;
   }
->(function PromptCard({ locateStatus, message, onLocate, onSelect, quickPicks, onQuickPick }, ref) {
+>(function PromptCard(
+  { locateStatus, nearest, message, onLocate, onSelect, quickPicks, onQuickPick },
+  ref,
+) {
   const t = useTranslations();
   const locale = useLocale();
   return (
@@ -39,6 +44,36 @@ export const PromptCard = forwardRef<
         </h1>
         <p className="text-[14px] leading-snug text-muted">{t("entry.hint")}</p>
       </div>
+      <div className="flex flex-col gap-1.5">
+        <button
+          type="button"
+          data-testid={testIds.start.locateButton}
+          onClick={onLocate}
+          disabled={locateStatus === "locating"}
+          className="flex min-h-11 items-center gap-2 rounded-xl bg-focus/10 px-3 text-left text-[14px] font-semibold text-focus"
+        >
+          {locateStatus === "locating" ? (
+            <LoaderCircle className="size-4 animate-spin" aria-hidden />
+          ) : (
+            <LocateFixed className="size-4" aria-hidden />
+          )}
+          {t("entry.nearbyStations")}
+        </button>
+        {nearest.map(({ station, meters }) => (
+          <button
+            type="button"
+            key={station.id}
+            data-testid={testIds.start.nearbyStation(station.id)}
+            onClick={() => onSelect(station)}
+            className="flex min-h-11 items-center justify-between gap-2 rounded-xl bg-foreground/[0.05] px-3 text-left text-[14px] font-semibold"
+          >
+            <span>{pickStationName(station, locale)}</span>
+            <span className="text-[12px] text-muted">
+              {t("entry.nearbyDistance", { distance: formatDistance(meters) })}
+            </span>
+          </button>
+        ))}
+      </div>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <StationSearch
@@ -52,21 +87,6 @@ export const PromptCard = forwardRef<
             }}
           />
         </div>
-        <button
-          type="button"
-          data-testid={testIds.start.locateButton}
-          onClick={onLocate}
-          disabled={locateStatus === "locating"}
-          aria-label={t("start.locate")}
-          title={t("start.locate")}
-          className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-foreground/[0.06] text-focus transition-[transform,background-color] duration-150 hover:bg-foreground/10 active:scale-95 disabled:opacity-50"
-        >
-          {locateStatus === "locating" ? (
-            <LoaderCircle className="size-5 animate-spin" aria-hidden />
-          ) : (
-            <LocateFixed className="size-5" strokeWidth={1.75} aria-hidden />
-          )}
-        </button>
       </div>
       {quickPicks && quickPicks.length > 0 && (
         <div className="flex flex-col gap-2 px-1 pt-1">

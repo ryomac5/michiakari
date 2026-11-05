@@ -527,6 +527,10 @@
     }
   },
   "entry": {
+    "locationNote": "Your location is used on this device to find nearby stations. It is not stored.",
+    "nearbyStations": "Stations near you",
+    "nearbyDistance": "About {distance}",
+    "nearestEmpty": "No nearby station found. Choose a station on the map or search.",
     "question": "Where are you stuck right now?",
     "hint": "Tap a station on the map. On a train? Pick one nearby",
     "searchPlaceholder": "Search by station name",
