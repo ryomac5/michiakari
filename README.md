@@ -136,6 +136,7 @@ Built with Claude: Japan 2026 ハッカソンの提出作品です。
 これらのパラメータは開発者の推定による仮の値です。
 
 設計の詳細は [docs/architecture.md](docs/architecture.md) にあります。
+Claude Code での作り方は [docs/guides/claude-code-usage.html](docs/guides/claude-code-usage.html) にまとめています。
 
 ## 動かし方
 
