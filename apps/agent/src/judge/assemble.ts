@@ -32,6 +32,7 @@ export function assembleJudgment(
 ): Judgment {
   const r = results.breakEven.result;
   const typicalFlow = results.estimate.typicalFlow;
+  const busChecks = results.alternatives.busChecks;
   // 時刻ごとの再開の見込みと、待ったほうが早く着く確率。分岐点の計算で求め、分岐点と一緒に届ける
   const resumeChance = results.breakEven.resumeChance ?? null;
   return {
@@ -56,6 +57,8 @@ export function assembleJudgment(
     })),
     disclaimer: buildDisclaimer(language),
     ...(typicalFlow ? { typicalFlow } : {}),
+    // バス停は確認先の候補として別に載せる。recommendedOptionId には入らない
+    ...(busChecks.length > 0 ? { busChecks } : {}),
   };
 }
 

@@ -75,6 +75,7 @@ function buildInput(input: {
       waitOptionId: "wait",
       waitRouteMinutesAfterResume: 10,
       blockedLine: null,
+      busChecks: [],
       notes: [],
     },
     breakEven: { result: input.result, comparison: [], basisOptionIds: ["alt_1"], deadline: null },

@@ -1,5 +1,5 @@
 import type { LonLat } from "@repo/core";
-import type { DurationDist, Lang, Place, RouteOption, Section } from "@repo/schema";
+import type { BusCheck, DurationDist, Lang, Place, RouteOption, Section } from "@repo/schema";
 
 // 代替手段の算出の差し替え口。WS1 の路線ネットワークが来たらこの型で実装を入れ替える
 
@@ -41,6 +41,8 @@ export type AlternativesResult = {
   waitOptionId: string;
   // 再開後に乗ってから目的地に着くまでの分。経路を引けなければ null
   waitRouteMinutesAfterResume: number | null;
+  // 近くのバス停の確認候補。到着時刻を持たないので options とは分け、比較とおすすめに入れない
+  busChecks: BusCheck[];
   notes: string[];
 };
 

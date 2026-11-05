@@ -52,6 +52,24 @@ describe("判断イベントの列", () => {
     });
   }
 
+  it("バス停の確認候補は判断に別に載り、おすすめには入らない", async () => {
+    let seen = 0;
+    for (const scenario of scenarios) {
+      const steps = await replayScenario(createTestApp(deps), scenario);
+      for (const { entry, events } of steps) {
+        const computed = events.find((e) => e.type === "alternatives_computed");
+        const ready = events.find((e) => e.type === "judgment_ready");
+        if (computed?.type !== "alternatives_computed" || ready?.type !== "judgment_ready")
+          continue;
+        expect(ready.judgment.busChecks, entry.id).toEqual(computed.busChecks);
+        const busIds = (computed.busChecks ?? []).map((b) => b.id);
+        seen += busIds.length;
+        expect(busIds, entry.id).not.toContain(ready.judgment.recommendedOptionId);
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+
   it("決定論モードでも各段階の開始を利用者の言語で流す", async () => {
     const scenario = scenarios[0];
     const entry = scenario?.timeline[0];

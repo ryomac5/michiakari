@@ -42,6 +42,18 @@ describe("createGeoProvider", () => {
     expect(others.some((o) => o.kind === "taxi" && o.fareYen !== null)).toBe(true);
   });
 
+  it("近くのバス停を確認候補として別に返し、選択肢には混ぜない", async () => {
+    const result = await provider.findAlternatives(query);
+    expect(result.busChecks.length).toBeGreaterThan(0);
+    expect(result.busChecks.length).toBeLessThanOrEqual(3);
+    const minutes = result.busChecks.map((b) => b.walkMinutes);
+    expect(minutes).toEqual([...minutes].sort((a, b) => a - b));
+    expect(minutes.every((m) => m <= 10)).toBe(true);
+    expect(result.busChecks.every((b) => b.dataYear === 2022)).toBe(true);
+    const optionIds = new Set(result.options.map((o) => o.id));
+    expect(result.busChecks.some((b) => optionIds.has(b.id))).toBe(false);
+  });
+
   it("経路の各区間に駅 ID と路線 ID を入れる", async () => {
     const result = await provider.findAlternatives(query);
     const legs = result.options.flatMap((o) => o.legs);

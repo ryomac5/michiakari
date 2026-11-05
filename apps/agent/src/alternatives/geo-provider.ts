@@ -1,18 +1,33 @@
-import { addMinutesToIso, computeWaitArrival, estimateWalkMinutes, type LonLat } from "@repo/core";
+import {
+  addMinutesToIso,
+  BUS_CHECK_MAX_WALK_MINUTES,
+  computeWaitArrival,
+  estimateWalkMinutes,
+  type LonLat,
+} from "@repo/core";
 import {
   type BlockedSection,
+  type BusStop,
   formatLineName,
   formatRouteLabel,
   formatStationName,
   type GeoIndex,
   type LineInfo as GeoLineInfo,
   listLineDirections,
+  listWalkAccessBusStops,
   normalizeSearchText,
   type Router,
   type StationNode,
 } from "@repo/geo";
-import { loadGeoIndex, loadRouter } from "@repo/geo/node";
-import type { Lang, Place, RouteLeg, RouteOption } from "@repo/schema";
+import { loadBusStopMeta, loadBusStops, loadGeoIndex, loadRouter } from "@repo/geo/node";
+import {
+  BUS_CHECK_LIMIT,
+  type BusCheck,
+  type Lang,
+  type Place,
+  type RouteLeg,
+  type RouteOption,
+} from "@repo/schema";
 import { findLineNicknameEn } from "./line-names-en.ts";
 import type {
   AlternativesProvider,
@@ -31,13 +46,22 @@ const WAIT_OPTION_ID = "wait";
 export type GeoDeps = {
   router: Router;
   geo: GeoIndex;
+  // バス停留所。生成物が無ければ空
+  busStops: readonly BusStop[];
+  // バス停の位置情報の資料の年。生成物が無ければ null
+  busStopYear: number | null;
 };
 
 let sharedDeps: GeoDeps | null = null;
 
 // 路線ネットワークは 1 回だけ読み、プロセス内で使い回す
 export function loadSharedGeoDeps(): GeoDeps {
-  sharedDeps ??= { router: loadRouter(), geo: loadGeoIndex() };
+  sharedDeps ??= {
+    router: loadRouter(),
+    geo: loadGeoIndex(),
+    busStops: loadBusStops(),
+    busStopYear: loadBusStopMeta()?.dataYear ?? null,
+  };
   return sharedDeps;
 }
 
@@ -63,7 +87,27 @@ function sumWalkMinutes(legs: readonly RouteLeg[]): number {
 }
 
 export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): AlternativesProvider {
-  const { router, geo } = deps;
+  const { router, geo, busStops, busStopYear } = deps;
+
+  // 起点から歩いて確かめに行けるバス停。時刻を持たないので確認先の候補にとどめる
+  function listBusChecks(coord: LonLat): BusCheck[] {
+    if (busStopYear === null) return [];
+    return listWalkAccessBusStops({
+      stops: busStops,
+      origin: coord,
+      maxWalkMinutes: BUS_CHECK_MAX_WALK_MINUTES,
+      limit: BUS_CHECK_LIMIT,
+    }).map(({ stop, walkMinutes }) => ({
+      id: stop.id,
+      stopName: stop.name,
+      operator: stop.operator,
+      lon: stop.lonLat[0],
+      lat: stop.lonLat[1],
+      walkMinutes,
+      officialUrl: stop.officialUrl,
+      dataYear: busStopYear,
+    }));
+  }
 
   function resolveStation(name: string, lineHint: string | null): StationNode | null {
     const id = router.resolveStationId(normalizeStationName(name), lineHint ?? undefined);
@@ -259,6 +303,7 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
         options: [buildUnroutedWaitOption(query, place)],
         waitOptionId: WAIT_OPTION_ID,
         waitRouteMinutesAfterResume: null,
+        busChecks: origin ? listBusChecks(origin.coord) : [],
         notes: ["出発地または目的地を路線ネットワークで見つけられませんでした"],
       };
     }
@@ -323,6 +368,7 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
       waitRouteMinutesAfterResume: waitRoute
         ? waitRoute.minutes + extraWait + origin.accessWalkMinutes + destination.accessWalkMinutes
         : null,
+      busChecks: listBusChecks(origin.coord),
       notes: [
         ...notes,
         "乗車時間は国土数値情報の路線距離と表定速度の推定から求めた概算。時刻表にもとづく値ではない",

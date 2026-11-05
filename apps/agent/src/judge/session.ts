@@ -85,6 +85,8 @@ function presentAlternatives(r: AlternativesToolResult, language: Lang) {
   return {
     ...r,
     options: r.options.map((o) => ({ ...o, arrivalLabel: formatClock(o.arrivalTime, language) })),
+    busChecksNote:
+      "busChecks は近くのバス停の確認先で、時刻と運行の可否を持たない。比較とおすすめには入らない。画面が別の欄に出す",
   };
 }
 
@@ -244,7 +246,11 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     if (isOutcome(parsed)) return parsed;
     const result = await runFindAlternatives(ctx, state.estimate, parsed);
     state.alternatives = result;
-    await sink.emit({ type: "alternatives_computed", options: result.options });
+    await sink.emit({
+      type: "alternatives_computed",
+      options: result.options,
+      ...(result.busChecks.length > 0 ? { busChecks: result.busChecks } : {}),
+    });
     return { isError: false, content: presentAlternatives(result, language) };
   }
 
