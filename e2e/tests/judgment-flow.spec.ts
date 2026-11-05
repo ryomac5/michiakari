@@ -100,7 +100,7 @@ test("駅を選び、貼り付けで状況を入れると、推論過程が順�
   // 残り時間は時刻と紛れない「あと N 分」で出し、時刻は文の中に置く
   await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(/^あと \d+ 分$/);
   await expect(page.getByTestId(testIds.judgment.breakEvenSentence)).toContainText(
-    /\d{2}:\d{2}\s?までに再開しなければ/,
+    /\d{2}:\d{2}\s?までに再開すれば/,
   );
 
   const disclaimer = page.getByTestId(testIds.judgment.disclaimer);

@@ -1,4 +1,4 @@
-import { addMinutesToIso, diffMinutes } from "@repo/core";
+import { addMinutesToIso, diffMinutes, selectKeyTick } from "@repo/core";
 import type {
   JudgeRequest,
   Judgment,
@@ -94,7 +94,7 @@ describe("人身事故のリプレイの再開の見込み", () => {
     expect(chance.waitOnTime).not.toBeNull();
     expect(chance.resumeByForDeadline).not.toBeNull();
     expect(judgment.action).toBe("switch");
-    expect(judgment.reason).toMatch(/待ったほうが早く着く見込みは1割未満です。$/);
+    expect(judgment.reason).toMatch(/分岐点の\d{1,2}時\d{2}分までに再開する見込みは1割未満です。$/);
   });
 
   it("発表が届くたびに確率が変わり、理由の最後に確率の 1 文が付く", async () => {
@@ -104,12 +104,26 @@ describe("人身事故のリプレイの再開の見込み", () => {
     expect(keys.size).toBeGreaterThan(1);
     for (const step of steps) {
       const judgment = findJudgment(step.events);
+      expect([...(judgment.reason ?? "")].length, step.entry.id).toBeLessThanOrEqual(90);
+      if (step.entry.id === "obs_4") {
+        const tick = selectKeyTick(requireChance(judgment).ticks, judgment.breakEven?.time);
+        if (!tick) throw new Error("遅めの再開見込みの目盛りがありません");
+        expect(judgment.action).toBe("switch");
+        expect(judgment.reason).toContain("見込みが延長され");
+        expect(
+          judgment.reason?.endsWith(
+            `遅めの見込みでは分岐点より後の${formatClock(tick.time, "ja")}までに再開する確率が${formatChance(tick.tenths, "ja")}に達する推定です。`,
+          ),
+        ).toBe(true);
+        expect(judgment.reason).not.toContain("分岐点の");
+        continue;
+      }
       // 期限が理由でタクシーを勧める観測は、タクシーより早いかを比べず、待って期限に間に合う見込みを言う
       const byDeadline = requireChance(judgment).waitFaster === null;
       expect(judgment.reason, step.entry.id).toMatch(
         byDeadline
-          ? /待って期限に間に合う見込みは(\d割|1割未満|9割以上)です。$/
-          : /待ったほうが早く着く見込みは(\d割|1割未満|9割以上)です。$/,
+          ? /待って期限に間に合うために必要な\d{1,2}時\d{2}分までの再開の見込みは(\d割|1割未満|9割以上)です。$/
+          : /分岐点の\d{1,2}時\d{2}分までに再開する見込みは(\d割|1割未満|9割以上)です。$/,
       );
     }
   });
@@ -128,7 +142,7 @@ describe("人身事故のリプレイの再開の見込み", () => {
     // 分岐点は、待っても期限に間に合う最後の再開の時刻。期限に間に合う確率の「動いていなければならない時刻」と同じ
     expect(chance.resumeByForDeadline).toBe(judgment.breakEven?.time);
     expect(judgment.breakEven?.explanation).toMatch(
-      /までに動かなければ、タクシーでないと.+に間に合いません。$/,
+      /までに再開すれば.+着のタクシーに切り替えず期限に間に合います。$/,
     );
     // 期限が理由でないほかの観測は、これまでどおり待ったほうが早く着く確率を出す
     const others = steps.filter((s) => s.entry.id !== "obs_5");
@@ -163,7 +177,9 @@ describe("車内対応のリプレイの再開の見込み", () => {
     expect(chance.waitFaster).toBeGreaterThanOrEqual(9);
     expect(judgment.action).toBe("wait");
     expect(judgment.reason).toMatch(/^車内対応は5〜10分ほどで終わることが多いです。/);
-    expect(judgment.reason).toMatch(/待ったほうが早く着く見込みは(9割|9割以上)です。$/);
+    expect(judgment.reason).toMatch(
+      /分岐点の\d{1,2}時\d{2}分までに再開する見込みは(9割|9割以上)です。$/,
+    );
   });
 });
 
@@ -185,7 +201,9 @@ describe("原因が分からないときの再開の見込み", () => {
     const atStated = chance.ticks.find((t) => t.time === stated);
     expect(atStated?.tenths).toBe(5);
     expect(chance.waitFaster).not.toBeNull();
-    expect(judgment.reason).toMatch(/待ったほうが早く着く見込みは(\d割|1割未満|9割以上)です。$/);
+    expect(judgment.reason).toMatch(
+      /分岐点の\d{1,2}時\d{2}分までに再開する見込みは(\d割|1割未満|9割以上)です。$/,
+    );
   });
 });
 
@@ -200,7 +218,7 @@ describe("英語の判断", () => {
     const steps = await replayScenario(createTestApp(deps), english);
     const judgment = findJudgment(steps[0]?.events ?? []);
     expect(judgment.reason).toMatch(
-      /The chance that waiting gets you there sooner is (\d0%|under 10%|over 90%)\.$/,
+      /The chance of resuming by \d{2}:\d{2} is (\d0%|under 10%|over 90%)\.$/,
     );
   });
 });

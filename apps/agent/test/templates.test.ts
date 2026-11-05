@@ -7,6 +7,7 @@ import {
   buildDeadlineBreakEvenSentence,
   buildDeadlinePassedSentence,
   buildDecisionText,
+  buildNoAlternativeSentence,
   buildPassedSentence,
   buildWeatherSummary,
   type DecisionReason,
@@ -144,6 +145,43 @@ describe("buildDecisionText", () => {
     );
   });
 
+  it("流れと確率を添えても再開見込みと分岐点を残し90字以内に収める", () => {
+    const input = {
+      reason: "resume_after_break_even" as const,
+      language: "ja" as const,
+      breakEvenMinutesFromNow: 13,
+      bestOption: null,
+      ...OUTLOOK,
+      flow: {
+        outlook: "long" as const,
+        sentence: "人身事故は、再開まで1時間ほどかかるのがふつうです。",
+        inReason: true,
+      },
+      chance: {
+        waitFaster: 0,
+        comparisonTime: OUTLOOK.breakEvenTime,
+        waitOnTime: null,
+        keyTick: null,
+      },
+    };
+    const comparison = "再開見込み23時40分頃が、分岐点23時23分より遅いためです。";
+    const chance = "分岐点の23時23分までに再開する見込みは1割未満です。";
+    const text = buildDecisionText(input);
+    expect(text.reason).toBe(`${input.flow.sentence}${comparison}${chance}`);
+    expect([...text.reason].length).toBeLessThanOrEqual(90);
+
+    const longerFlow = buildDecisionText({
+      ...input,
+      flow: {
+        ...input.flow,
+        sentence:
+          "人身事故は、関係機関による確認が終わるまで再開を待つため1時間ほどかかるのがふつうです。",
+      },
+    });
+    expect(longerFlow.reason).toBe(`${comparison}${chance}`);
+    expect([...longerFlow.reason].length).toBeLessThanOrEqual(90);
+  });
+
   it("待つときの理由は、見込みが分岐点より早いか、差が小さいかで書き分ける", () => {
     const base = {
       reason: "resume_before_break_even" as const,
@@ -170,19 +208,36 @@ describe("buildDecisionText", () => {
 
 describe("分岐点の説明文", () => {
   const time = "2026-11-05T22:44:00+09:00";
+  const arrival = "2026-11-05T23:30:00+09:00";
+
+  it("日本語の説明は括弧や読点を使わず一文に収める", () => {
+    const sentences = [
+      buildBreakEvenSentence(time, "阪急京都線", arrival, "ja"),
+      buildPassedSentence(time, "阪急京都線", arrival, "ja"),
+      buildDeadlineBreakEvenSentence(time, arrival, "タクシー", arrival, "ja"),
+      buildDeadlinePassedSentence(time, arrival, "タクシー", arrival, "ja"),
+      buildNoAlternativeSentence("ja"),
+    ];
+    for (const sentence of sentences) {
+      expect(sentence).not.toMatch(/[、（）()]/);
+      expect(sentence.match(/。/g)).toHaveLength(1);
+      expect([...sentence].length).toBeGreaterThanOrEqual(40);
+      expect([...sentence].length).toBeLessThanOrEqual(50);
+    }
+  });
 
   it("英語では、文頭用の経路ラベルを文の途中に合う小文字の名詞句にする", () => {
-    expect(buildBreakEvenSentence(time, "Via Hankyu Kyoto Line", "en")).toBe(
-      "If service has not resumed by 22:44, the route via Hankyu Kyoto Line gets you there sooner.",
+    expect(buildBreakEvenSentence(time, "Via Hankyu Kyoto Line", arrival, "en")).toBe(
+      "Resuming by 22:44 makes waiting at least as fast as the route via Hankyu Kyoto Line arriving at 23:30.",
     );
-    expect(buildPassedSentence(time, "Transfer service via Hankyu Kobe Line", "en")).toBe(
-      "The break-even time of 22:44 has passed. Even if service resumed now, the transfer service via Hankyu Kobe Line would be faster.",
+    expect(buildPassedSentence(time, "Transfer service via Hankyu Kobe Line", arrival, "en")).toBe(
+      "Resuming by 22:44 would have made waiting at least as fast as the transfer service via Hankyu Kobe Line arriving at 23:30.",
     );
   });
 
   it("タクシーと徒歩は冠詞や動名詞で文に収める", () => {
-    expect(buildBreakEvenSentence(time, "Taxi", "en")).toBe(
-      "If service has not resumed by 22:44, a taxi gets you there sooner.",
+    expect(buildBreakEvenSentence(time, "Taxi", arrival, "en")).toBe(
+      "Resuming by 22:44 makes waiting at least as fast as a taxi arriving at 23:30.",
     );
     expect(formatLabelInSentence("Walk", "en")).toBe("walking");
   });
@@ -190,16 +245,22 @@ describe("分岐点の説明文", () => {
   it("定型でない英語のラベルと、日本語のラベルはそのまま使う", () => {
     expect(formatLabelInSentence("Hankyu Kyoto Line", "en")).toBe("Hankyu Kyoto Line");
     expect(formatLabelInSentence("Via", "en")).toBe("Via");
-    expect(buildBreakEvenSentence(time, "阪急京都線経由", "ja")).toBe(
-      "22時44分までに再開しなければ、阪急京都線経由のほうが早く着きます。",
+    expect(buildBreakEvenSentence(time, "阪急京都線経由", arrival, "ja")).toBe(
+      "22時44分までに再開すれば23時30分着の阪急京都線経由より待つほうが早く着きます。",
+    );
+  });
+
+  it("過ぎた分岐点も再開の条件と比較先の到着を一文で示す", () => {
+    expect(buildPassedSentence(time, "阪急京都線", arrival, "ja")).toBe(
+      "22時44分までに再開すれば23時30分着の阪急京都線より待つほうが早い境目でした。",
     );
   });
 
   it("英語の説明文は、文頭以外に大文字の Via や Transfer を含まない", () => {
     for (const label of ["Via Hankyu Kyoto Line", "Transfer service via JR Kobe Line"]) {
       for (const sentence of [
-        buildBreakEvenSentence(time, label, "en"),
-        buildPassedSentence(time, label, "en"),
+        buildBreakEvenSentence(time, label, arrival, "en"),
+        buildPassedSentence(time, label, arrival, "en"),
       ]) {
         expect(sentence).not.toMatch(/.\b(Via|Transfer service)\b/);
       }
@@ -210,22 +271,23 @@ describe("分岐点の説明文", () => {
 describe("期限が理由でタクシーを勧めるときの文", () => {
   const time = "2026-11-06T08:10:00+09:00";
   const deadline = "2026-11-06T09:00:00+09:00";
+  const arrival = "2026-11-06T08:55:00+09:00";
 
-  it("分岐点の説明は、動かなければタクシーでないと期限に間に合わない形で書く", () => {
-    expect(buildDeadlineBreakEvenSentence(time, deadline, "タクシー", "ja")).toBe(
-      "8時10分までに動かなければ、タクシーでないと9時00分に間に合いません。",
+  it("期限から求めた分岐点はタクシーへ切り替えず間に合う条件を書く", () => {
+    expect(buildDeadlineBreakEvenSentence(time, deadline, "タクシー", arrival, "ja")).toBe(
+      "8時10分までに再開すれば8時55分着のタクシーに切り替えず期限に間に合います。",
     );
-    expect(buildDeadlineBreakEvenSentence(time, deadline, "Taxi", "en")).toBe(
-      "If service has not resumed by 08:10, only a taxi will get you there by 09:00.",
+    expect(buildDeadlineBreakEvenSentence(time, deadline, "Taxi", arrival, "en")).toBe(
+      "Resuming by 08:10 lets you meet your 09:00 deadline without switching to a taxi arriving at 08:55.",
     );
   });
 
   it("分岐点を過ぎたときは、いま再開しても期限に間に合わないと書く", () => {
-    expect(buildDeadlinePassedSentence(time, deadline, "タクシー", "ja")).toBe(
-      "分岐点の8時10分を過ぎました。いま再開しても、タクシーでないと9時00分に間に合いません。",
+    expect(buildDeadlinePassedSentence(time, deadline, "タクシー", arrival, "ja")).toBe(
+      "8時10分を過ぎた今は9時00分の期限に向け8時55分着のタクシーに切り替えてください。",
     );
-    expect(buildDeadlinePassedSentence(time, deadline, "Taxi", "en")).toBe(
-      "The break-even time of 08:10 has passed. Even if service resumed now, only a taxi would get you there by 09:00.",
+    expect(buildDeadlinePassedSentence(time, deadline, "Taxi", arrival, "en")).toBe(
+      "After 08:10, switch to a taxi arriving at 08:55 to meet your 09:00 deadline.",
     );
   });
 
