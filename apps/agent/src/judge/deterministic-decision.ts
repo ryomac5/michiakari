@@ -189,14 +189,18 @@ export function buildChanceText(
 ): ChanceTextInput | null {
   const chance = breakEven.resumeChance ?? null;
   if (!chance) return null;
-  const key = selectKeyTick(chance.ticks);
   const r = breakEven.result;
   const hasBreakEven = r.kind === "future" || r.kind === "passed";
+  const laterOutlook =
+    reason === "resume_mostly_after_break_even" ||
+    (reason === "estimate_extended" && chance.waitFaster !== null);
+  const key = selectKeyTick(chance.ticks, laterOutlook && hasBreakEven ? r.time : undefined);
   return {
+    laterOutlook,
     comparisonTime: hasBreakEven ? r.time : null,
     deadlineResumeTime: chance.resumeByForDeadline,
-    waitFaster: reason === "deadline_risk" ? null : chance.waitFaster,
-    waitOnTime: chance.waitOnTime,
+    waitFaster: reason === "deadline_risk" || laterOutlook ? null : chance.waitFaster,
+    waitOnTime: laterOutlook ? null : chance.waitOnTime,
     keyTick: key ? { time: key.time, tenths: key.tenths } : null,
   };
 }

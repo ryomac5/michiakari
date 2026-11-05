@@ -444,5 +444,9 @@ describe("selectKeyTick", () => {
     expect(selectKeyTick(ticks)?.time).toBe(at("23:30"));
     expect(selectKeyTick(ticks.slice(0, 2))?.time).toBe(at("23:00"));
     expect(selectKeyTick([])).toBeNull();
+    expect(selectKeyTick(ticks, at("23:00"))?.time).toBe(at("00:00", "06"));
+    expect(selectKeyTick(ticks, at("00:00", "06"))).toBeNull();
+    expect(selectKeyTick(ticks.slice(0, 3), at("23:00"))).toBeNull();
+    expect(selectKeyTick([], at("23:00"))).toBeNull();
   });
 });

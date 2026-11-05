@@ -222,6 +222,19 @@ export function computeResumeChance(input: ResumeChanceInput): ResumeChance {
 }
 
 // 要点の 1 文に使う目盛り。5 割に達する最初の目盛り。無ければ最後の目盛り
-export function selectKeyTick(ticks: readonly ResumeChanceTick[]): ResumeChanceTick | null {
+export function selectKeyTick(
+  ticks: readonly ResumeChanceTick[],
+  laterThan?: string,
+): ResumeChanceTick | null {
+  if (laterThan) {
+    // 長引く側を根拠に切り替えるときは、分岐点後の 8 割以上の目盛りを使う
+    const laterOutlookTenths = 8;
+    return (
+      ticks.find(
+        (tick) =>
+          tick.tenths >= laterOutlookTenths && parseIsoToMs(tick.time) > parseIsoToMs(laterThan),
+      ) ?? null
+    );
+  }
   return ticks.find((t) => t.tenths >= 5) ?? ticks.at(-1) ?? null;
 }

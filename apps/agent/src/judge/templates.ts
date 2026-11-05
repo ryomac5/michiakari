@@ -119,6 +119,8 @@ export function formatChance(tenths: number, language: Lang): string {
 }
 
 export type ChanceTextInput = {
+  // 見込みの幅や延長後の遅めの見込みを根拠にした判断
+  laterOutlook?: boolean;
   // 待ったほうが早く着く確率。代替手段が無ければ null
   waitFaster: number | null;
   comparisonTime?: string | null;
@@ -159,6 +161,11 @@ export function buildChanceSentence(chance: ChanceTextInput, language: Lang): st
   if (chance.keyTick) {
     const c = formatChance(chance.keyTick.tenths, language);
     const clock = formatClock(chance.keyTick.time, language);
+    if (chance.laterOutlook) {
+      return ja
+        ? `遅めの見込みでは分岐点より後の${clock}までに再開する確率が${c}に達する推定です。`
+        : `In the later outlook, the chance of resuming reaches ${c} by ${clock}, after the break-even time.`;
+    }
     return ja
       ? `${clock}には${c}の見込みで動いています。`
       : `By ${clock}, the chance that trains are moving is ${c}.`;

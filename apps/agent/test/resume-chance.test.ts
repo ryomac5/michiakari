@@ -1,4 +1,4 @@
-import { addMinutesToIso, diffMinutes } from "@repo/core";
+import { addMinutesToIso, diffMinutes, selectKeyTick } from "@repo/core";
 import type {
   JudgeRequest,
   Judgment,
@@ -104,6 +104,20 @@ describe("人身事故のリプレイの再開の見込み", () => {
     expect(keys.size).toBeGreaterThan(1);
     for (const step of steps) {
       const judgment = findJudgment(step.events);
+      expect([...(judgment.reason ?? "")].length, step.entry.id).toBeLessThanOrEqual(90);
+      if (step.entry.id === "obs_4") {
+        const tick = selectKeyTick(requireChance(judgment).ticks, judgment.breakEven?.time);
+        if (!tick) throw new Error("遅めの再開見込みの目盛りがありません");
+        expect(judgment.action).toBe("switch");
+        expect(judgment.reason).toContain("見込みが延長され");
+        expect(
+          judgment.reason?.endsWith(
+            `遅めの見込みでは分岐点より後の${formatClock(tick.time, "ja")}までに再開する確率が${formatChance(tick.tenths, "ja")}に達する推定です。`,
+          ),
+        ).toBe(true);
+        expect(judgment.reason).not.toContain("分岐点の");
+        continue;
+      }
       // 期限が理由でタクシーを勧める観測は、タクシーより早いかを比べず、待って期限に間に合う見込みを言う
       const byDeadline = requireChance(judgment).waitFaster === null;
       expect(judgment.reason, step.entry.id).toMatch(

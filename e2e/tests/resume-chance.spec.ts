@@ -234,7 +234,7 @@ test("入口から判断しても帯が出て、止まってからの時間を�
 test("切り替える判断でも確率の時点と分岐点が一致し比較先の到着時刻が出る", async ({ page }) => {
   await openReplay(page, "person_accident_last_train", 60);
   let events: JudgmentEvent[] = [];
-  // 画面へ応答を渡す前に本文を保持し、遷移によるレスポンスの破棄を避ける
+  // 遷移で本文が破棄される前に取得し、画面には同じ応答を渡す
   await page.route("**/judge", async (route) => {
     const response = await route.fetch();
     const body = await response.text();
@@ -269,5 +269,24 @@ test("切り替える判断でも確率の時点と分岐点が一致し比較�
   await openSheet(page, "half");
   await expect(page.getByTestId(testIds.judgment.breakEvenSentence)).toContainText(
     `${clock(alternative.arrivalTime)}着の${alternative.label}`,
+  );
+});
+
+test("再開見込みが延長されたら分岐点後の遅めの時刻と確率を述べて切り替えを勧める", async ({
+  page,
+}) => {
+  await openReplay(page, "person_accident_last_train", 60);
+  for (const id of ["obs_1", "obs_2", "obs_3", "obs_4"]) {
+    await page.getByTestId(testIds.replay.nextButton).click();
+    await waitForJudged(page, id);
+  }
+  const reason = page.getByTestId(testIds.judgment.conclusionReason);
+  await expect(reason).toContainText("見込みが延長され");
+  await expect(reason).toContainText(
+    "遅めの見込みでは分岐点より後の0時00分までに再開する確率が8割に達する推定です。",
+  );
+  await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
+    "data-action",
+    "switch",
   );
 });
