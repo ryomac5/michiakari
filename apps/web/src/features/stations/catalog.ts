@@ -1,7 +1,7 @@
 import type { GeoIndex, LineInfo, StationNode } from "@repo/geo";
 import { computeDistanceMeters } from "@repo/geo";
 import { z } from "zod";
-import { STATION_NAME_EN_OVERRIDES } from "../../../../../packages/data/config/station-names-en";
+import { STATION_NAME_EN_OVERRIDES } from "./station-names-en";
 
 // 駅検索の候補。国土数値情報の駅（路線ごと）を、同じ名前で近くにある駅どうし 1 つにまとめる
 // 英語名は駅データを使い、表示用の設定で補う
