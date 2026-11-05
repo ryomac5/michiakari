@@ -122,17 +122,6 @@ export default async function AboutPage() {
             <Bullet>{t("approach.p3")}</Bullet>
             <Bullet>{t("approach.p4")}</Bullet>
           </ul>
-          <Link
-            href="/knowledge"
-            data-testid={testIds.about.knowledgeLink}
-            className={buttonVariants({
-              variant: "secondary",
-              className: "h-auto min-h-12 self-start rounded-full py-2 text-left whitespace-normal",
-            })}
-          >
-            <BookOpen aria-hidden />
-            {t("knowledgeLink")}
-          </Link>
         </AboutSection>
 
         <AboutSection

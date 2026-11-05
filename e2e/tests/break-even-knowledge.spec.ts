@@ -12,7 +12,7 @@ import {
 } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
-// 分岐点の時間軸と、知見ナレッジの閲覧画面の振る舞い
+// 分岐点の時間軸の振る舞い
 // シナリオ ID と期待値はコードに書かず、YAML から選ぶ
 
 const screenshotDir = fileURLToPath(new URL("../screenshots/", import.meta.url));
@@ -93,56 +93,19 @@ test("待つ判断では再開見込みが分岐点より前、切り替える�
   await captureTop(page, `timeline-${switchExpectation.after}`);
 });
 
-test("根拠の兆候から知見の該当箇所へ飛び、そこからリプレイへ戻れる", async ({ page }) => {
-  if (!scenario || !switchExpectation) throw new Error("シナリオがありません");
-  const signalId = switchExpectation.evidence_includes?.[0];
-  if (!signalId) throw new Error("switch の期待値に evidence_includes がありません");
+test("知見の閲覧画面は無く、メニューと説明の頁にも入口が無い", async ({ page }) => {
+  const response = await page.goto("/knowledge");
+  expect(response?.status()).toBe(404);
+  await expect(page.getByTestId(testIds.status.screen)).toBeVisible({ timeout: 30_000 });
 
-  await openReplay(page, scenario.id);
-  await stepUntil(page, switchExpectation.after);
-  await openSheet(page, "full");
-  await page.getByTestId(testIds.judgment.evidenceToggle).click();
-  const link = page.getByTestId(testIds.judgment.signalLink(signalId));
-  await expect(link).toHaveAttribute("href", `/knowledge#signal-${signalId}`);
-  await link.click();
-
-  await expect(page).toHaveURL(new RegExp(`/knowledge#signal-${signalId}$`));
-  await expect(page.getByTestId(testIds.knowledge.screen)).toBeVisible();
-  await expect(page.getByTestId(testIds.knowledge.notice)).toContainText("社内情報は含みません");
-  // e2e は開発用のダミーを読むので、その旨が出る
-  await expect(page.getByTestId(testIds.knowledge.dummyNotice)).toBeVisible();
-  const signal = page.getByTestId(testIds.knowledge.signal(signalId));
-  await expect(signal).toHaveAttribute("id", `signal-${signalId}`);
-  await expect(signal).toBeInViewport();
-
-  const event = page.getByTestId(testIds.knowledge.event(scenario.event_type));
-  await expect(event.getByTestId(testIds.knowledge.caveats(scenario.event_type))).toBeAttached();
-  await event.getByTestId(testIds.knowledge.replayLink(scenario.id)).click();
-  await expect(page.getByTestId(testIds.replay.screen)).toHaveAttribute(
-    "data-scenario-id",
-    scenario.id,
-    { timeout: 60_000 },
-  );
-});
-
-test("知見の閲覧画面に、段階・兆候・次の段階へのつながりが出る", async ({ page }) => {
-  if (!scenario) throw new Error("シナリオがありません");
   await page.goto("/");
   await page.getByTestId(testIds.app.menuButton).click();
-  await page.getByTestId(testIds.app.knowledgeLink).click();
-  const event = page.getByTestId(testIds.knowledge.event(scenario.event_type));
-  await expect(event).toBeVisible({ timeout: 60_000 });
-  await expect(event).toHaveAttribute("data-dummy", "true");
+  const menu = page.getByTestId(testIds.app.menu);
+  await expect(menu).toBeVisible();
+  await expect(menu.locator("a[href='/about']")).toHaveCount(1);
+  await expect(menu.locator("a[href^='/knowledge']")).toHaveCount(0);
 
-  // 期待値に出てくる兆候は、すべてこの画面にアンカー付きで載っている
-  const signalIds = scenario.expectations.flatMap((e) => e.evidence_includes ?? []);
-  for (const id of new Set(signalIds)) {
-    await expect(page.locator(`#signal-${id}`)).toHaveCount(1);
-  }
-  // 次の段階へのリンクは、同じ画面の兆候を指している
-  const exitLinks = event.locator("a[href^='#signal-']");
-  expect(await exitLinks.count()).toBeGreaterThan(0);
-  for (const href of await exitLinks.evaluateAll((els) => els.map((a) => a.getAttribute("href")))) {
-    await expect(page.locator(href ?? "#missing")).toHaveCount(1);
-  }
+  await page.goto("/about");
+  await expect(page.getByTestId(testIds.about.screen)).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("a[href^='/knowledge']")).toHaveCount(0);
 });
