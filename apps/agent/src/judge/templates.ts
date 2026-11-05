@@ -38,52 +38,62 @@ export function formatLabelInSentence(label: string, language: Lang): string {
   return label;
 }
 
-// 「◯時◯分までに再開しなければ、◯◯のほうが早く着きます」
-export function buildBreakEvenSentence(time: string, label: string, language: Lang): string {
+// 分岐点は再開の条件と比較先の到着を一文で示す
+export function buildBreakEvenSentence(
+  time: string,
+  label: string,
+  arrival: string,
+  language: Lang,
+): string {
   const route = formatLabelInSentence(label, language);
   return language === "ja"
-    ? `${formatClock(time, language)}までに再開しなければ、${route}のほうが早く着きます。`
-    : `If service has not resumed by ${formatClock(time, language)}, ${route} gets you there sooner.`;
+    ? `${formatClock(time, language)}までに再開すれば${formatClock(arrival, language)}着の${route}より待つほうが早く着きます。`
+    : `Resuming by ${formatClock(time, language)} makes waiting at least as fast as ${route} arriving at ${formatClock(arrival, language)}.`;
 }
 
-export function buildPassedSentence(time: string, label: string, language: Lang): string {
+export function buildPassedSentence(
+  time: string,
+  label: string,
+  arrival: string,
+  language: Lang,
+): string {
   const route = formatLabelInSentence(label, language);
   return language === "ja"
-    ? `分岐点の${formatClock(time, language)}を過ぎました。いま再開しても${route}のほうが早く着きます。`
-    : `The break-even time of ${formatClock(time, language)} has passed. Even if service resumed now, ${route} would be faster.`;
+    ? `${formatClock(time, language)}までに再開すれば${formatClock(arrival, language)}着の${route}より待つほうが早い境目でした。`
+    : `Resuming by ${formatClock(time, language)} would have made waiting at least as fast as ${route} arriving at ${formatClock(arrival, language)}.`;
 }
 
-// 期限が理由でタクシーを勧めるときの分岐点の文。分岐点は、待っても期限に間に合う最後の再開の時刻
-// 「8時10分までに動かなければ、タクシーでないと9時00分に間に合いません」
+// 期限から求めた境目は、代替手段との早着の比較には使わない
 export function buildDeadlineBreakEvenSentence(
   time: string,
   deadline: string,
   label: string,
+  arrival: string,
   language: Lang,
 ): string {
   const route = formatLabelInSentence(label, language);
   return language === "ja"
-    ? `${formatClock(time, language)}までに動かなければ、${route}でないと${formatClock(deadline, language)}に間に合いません。`
-    : `If service has not resumed by ${formatClock(time, language)}, only ${route} will get you there by ${formatClock(deadline, language)}.`;
+    ? `${formatClock(time, language)}までに再開すれば${formatClock(arrival, language)}着の${route}に切り替えず期限に間に合います。`
+    : `Resuming by ${formatClock(time, language)} lets you meet your ${formatClock(deadline, language)} deadline without switching to ${route} arriving at ${formatClock(arrival, language)}.`;
 }
 
-// 期限から求めた分岐点を過ぎたとき。いま再開しても、待って期限には間に合わない
 export function buildDeadlinePassedSentence(
   time: string,
   deadline: string,
   label: string,
+  arrival: string,
   language: Lang,
 ): string {
   const route = formatLabelInSentence(label, language);
   return language === "ja"
-    ? `分岐点の${formatClock(time, language)}を過ぎました。いま再開しても、${route}でないと${formatClock(deadline, language)}に間に合いません。`
-    : `The break-even time of ${formatClock(time, language)} has passed. Even if service resumed now, only ${route} would get you there by ${formatClock(deadline, language)}.`;
+    ? `${formatClock(time, language)}を過ぎた今は${formatClock(deadline, language)}の期限に向け${formatClock(arrival, language)}着の${route}に切り替えてください。`
+    : `After ${formatClock(time, language)}, switch to ${route} arriving at ${formatClock(arrival, language)} to meet your ${formatClock(deadline, language)} deadline.`;
 }
 
 export function buildNoAlternativeSentence(language: Lang): string {
   return language === "ja"
-    ? "近くの代わりの経路より、運転再開を待つほうが確実です。"
-    : "Waiting for service to resume is surer than the nearby alternatives.";
+    ? "待つ場合と到着時刻を比べられる代わりの経路がないためいまは運転再開を待ってください。"
+    : "Wait for service to resume because no alternative arrival is available for comparison.";
 }
 
 export type DecisionReason =
@@ -111,23 +121,37 @@ export function formatChance(tenths: number, language: Lang): string {
 export type ChanceTextInput = {
   // 待ったほうが早く着く確率。代替手段が無ければ null
   waitFaster: number | null;
+  comparisonTime?: string | null;
+  deadlineResumeTime?: string | null;
   // 待って期限に間に合う確率。期限が無ければ null
   waitOnTime: number | null;
   // 代替手段も期限も無いときに使う目盛り。5 割に達する最初の目盛り
   keyTick: { time: string; tenths: number } | null;
 };
 
-// 確率の 1 文。「待ったほうが早く着く見込みは3割です。」。数値はツールの結果からそのまま渡す
+// 判断で比較した時刻の再開確率を一文で示す。数値はツールの結果からそのまま渡す
 export function buildChanceSentence(chance: ChanceTextInput, language: Lang): string | null {
   const ja = language === "ja";
   if (chance.waitFaster !== null) {
     const c = formatChance(chance.waitFaster, language);
+    if (chance.comparisonTime) {
+      const time = formatClock(chance.comparisonTime, language);
+      return ja
+        ? `比較する代替経路と同着になる分岐点の${time}までに再開する見込みは${c}です。`
+        : `The chance of resuming by ${time} is ${c}.`;
+    }
     return ja
       ? `待ったほうが早く着く見込みは${c}です。`
       : `The chance that waiting gets you there sooner is ${c}.`;
   }
   if (chance.waitOnTime !== null) {
     const c = formatChance(chance.waitOnTime, language);
+    if (chance.deadlineResumeTime) {
+      const time = formatClock(chance.deadlineResumeTime, language);
+      return ja
+        ? `待って期限に間に合うために必要な${time}までの再開の見込みは${c}です。`
+        : `The chance of resuming by ${time} to meet your deadline by waiting is ${c}.`;
+    }
     return ja
       ? `待って期限に間に合う見込みは${c}です。`
       : `The chance of making your deadline by waiting is ${c}.`;
@@ -383,9 +407,7 @@ function buildDecisionReason(input: DecisionTextInput): string {
         ? `${be}を過ぎると${target}のほうが早く着きます。放送で原因が分かれば、もっと確かに言えます。`
         : `After ${be}, ${target} gets you there sooner. Hearing the cause will sharpen this.`;
     case "no_alternative":
-      return ja
-        ? "近くの代わりの経路より、運転再開を待つほうが確実です。"
-        : "Waiting for service to resume is surer than the nearby alternatives.";
+      return buildNoAlternativeSentence(input.language);
     case "break_even_passed":
       if (!be) {
         return ja
@@ -474,7 +496,7 @@ function buildDecisionReason(input: DecisionTextInput): string {
           : `The announced restart is after the break-even time, so ${target} gets you there sooner even if it holds.`;
       }
       return ja
-        ? `発表の再開見込み${p50}が分岐点${be}より遅く、見込みどおりでも${target}のほうが早く着くためです。`
+        ? `発表の再開見込み${p50}では見込みどおりでも${target}のほうが早く着きます。`
         : `The announced restart of ${p50} is after the break-even time of ${be}, so ${target} gets you there sooner even if it holds.`;
     case "stated_resume_before_break_even":
       if (!p50 || !be || input.marginP50Minutes === null) {
@@ -559,6 +581,9 @@ function buildFlowFollowUp(input: DecisionTextInput, outlook: FlowOutlook): stri
   const ja = input.language === "ja";
   const be = input.breakEvenTime ? formatClock(input.breakEvenTime, input.language) : null;
   const target = nameSwitchTarget(input.bestOption, input.language);
+  if (be && input.reason === "resume_after_break_even") {
+    return ja ? `分岐点${be}より再開が遅れます。` : `Resumption is expected after ${be}.`;
+  }
   if (outlook === "short" && input.reason === "resume_before_break_even") {
     return ja ? "このまま待つほうが早く着きます。" : "Staying put gets you there sooner.";
   }

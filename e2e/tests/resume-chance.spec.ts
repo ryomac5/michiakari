@@ -3,7 +3,13 @@
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import { openReplay, waitForFiniteAnimations, waitForJudged } from "../support/replay.ts";
+import type { JudgmentEvent } from "../../packages/schema/src/index.ts";
+import {
+  openReplay,
+  openSheet,
+  waitForFiniteAnimations,
+  waitForJudged,
+} from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
 // 時刻ごとの再開の見込みの帯と、待ったほうが早く着く見込み
@@ -88,7 +94,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(lead).toContainText("見込みで動いています");
       // 理由の最後にも確率の 1 文が入る
       await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(
-        "待ったほうが早く着く見込みは1割未満です",
+        /分岐点の\d{1,2}時\d{2}分までに再開する見込みは1割未満です/,
       );
       await waitForMapReady(page);
       await page.screenshot({
@@ -107,6 +113,9 @@ for (const theme of ["light", "dark"] as const) {
       const later = await readTicks(page);
       const laterTenths = Number(await waitFaster.getAttribute("data-tenths"));
       expect(laterTenths).toBeGreaterThanOrEqual(5);
+      await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(
+        /分岐点の\d{1,2}時\d{2}分までに再開する見込みは/,
+      );
       expect(later.map((t) => t.tenths).join(",")).not.toBe(ticks.map((t) => t.tenths).join(","));
     });
 
@@ -220,4 +229,43 @@ test("入口から判断しても帯が出て、止まってからの時間を�
   await expect(band).toHaveAttribute("data-onset", "unknown");
   await expect(lead).not.toContainText("発生から");
   await expect(lead).toContainText("見込みで動いています");
+});
+
+test("切り替える判断でも確率の時点と分岐点が一致し比較先の到着時刻が出る", async ({ page }) => {
+  await openReplay(page, "person_accident_last_train", 60);
+  let events: JudgmentEvent[] = [];
+  // 画面へ応答を渡す前に本文を保持し、遷移によるレスポンスの破棄を避ける
+  await page.route("**/judge", async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    events = body
+      .split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => JSON.parse(line.slice(5)));
+    await route.fulfill({ response, body });
+  });
+  await page.getByTestId(testIds.replay.nextButton).click();
+  await waitForJudged(page, "obs_1");
+  const judgment = events.find((event) => event.type === "judgment_ready")?.judgment;
+  if (!judgment?.breakEven) throw new Error("分岐点が届きません");
+  expect(judgment.action).toBe("switch");
+  const time = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    hour: "numeric",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const clock = (iso: string): string => {
+    const parts = time.formatToParts(new Date(iso));
+    return `${Number(parts.find((part) => part.type === "hour")?.value)}時${parts.find((part) => part.type === "minute")?.value}分`;
+  };
+  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(
+    `分岐点の${clock(judgment.breakEven.time)}までに再開する見込みは1割未満です。`,
+  );
+  const alternative = judgment.options.find((option) => option.id === judgment.recommendedOptionId);
+  if (!alternative) throw new Error("推奨経路がありません");
+  await openSheet(page, "half");
+  await expect(page.getByTestId(testIds.judgment.breakEvenSentence)).toContainText(
+    `${clock(alternative.arrivalTime)}着の${alternative.label}`,
+  );
 });

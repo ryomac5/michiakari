@@ -2,8 +2,13 @@ import type { BreakEvenResult, FlowOutlook } from "@repo/core";
 import type { Confidence } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { decisionParams, reasonLimits } from "../src/config.ts";
-import { applyDecisionRules, type RuleInput } from "../src/judge/deterministic-decision.ts";
-import { buildDecisionText } from "../src/judge/templates.ts";
+import {
+  applyDecisionRules,
+  buildChanceText,
+  type RuleInput,
+} from "../src/judge/deterministic-decision.ts";
+import { buildChanceSentence, buildDecisionText } from "../src/judge/templates.ts";
+import { decisionChances } from "./fixtures/decision-chance.ts";
 
 // 決定論モードの判断規則。保留より先に切り替えを言い切る場面を確かめる
 // 時刻と分は架空の場面。難波で原因が分からず止まった夜を模す
@@ -261,7 +266,7 @@ describe("発表の再開見込みで比べたときの文言", () => {
     });
     expect(text.headline).toBe("いま別の路線に切り替えてください");
     expect(text.reason).toBe(
-      "発表の再開見込み22時50分が分岐点22時41分より遅く、見込みどおりでも別の路線のほうが早く着くためです。",
+      "発表の再開見込み22時50分では見込みどおりでも別の路線のほうが早く着きます。",
     );
     expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });
@@ -337,4 +342,85 @@ describe("期限が理由でタクシーを勧めるときの判断", () => {
     expect(outcome.action).toBe("switch");
     expect(outcome.reason).toBe("break_even_passed");
   });
+});
+
+describe("結論の根拠と確率の比較時点", () => {
+  it("期限で切り替えるときは早着確率ではなく期限内到着確率を述べる", () => {
+    const input = buildInput({
+      eventType: "vehicle_failure",
+      confidence: "high",
+      result: buildResult({
+        minutesFromNow: 30,
+        marginP50Minutes: 10,
+        marginP80Minutes: 5,
+      }),
+    });
+    input.breakEven.deadline = "2026-11-05T23:00:00+09:00";
+    input.breakEven.comparison = [
+      {
+        scenario: "wait_p50",
+        optionId: "wait",
+        arrivalTime: "2026-11-05T23:05:00+09:00",
+        minutesFromNow: 35,
+        deadline: { onTime: false, marginMinutes: -5 },
+      },
+      {
+        scenario: "alternative",
+        optionId: "alt_1",
+        arrivalTime: "2026-11-05T22:55:00+09:00",
+        minutesFromNow: 25,
+        deadline: { onTime: true, marginMinutes: 5 },
+      },
+    ];
+    input.breakEven.resumeChance = decisionChances.deadline;
+    const outcome = applyDecisionRules(input);
+    expect(outcome).toMatchObject({ action: "switch", reason: "deadline_risk" });
+    const chance = buildChanceText(input.breakEven, outcome.reason);
+    if (!chance) throw new Error("比較時点の確率がありません");
+    const sentence = buildChanceSentence(chance, "ja");
+    expect(sentence).toContain("22時50分");
+    expect(sentence).toContain("2割");
+    expect(sentence).not.toContain("1割");
+  });
+
+  it("乗り換えの差が小さく待つときは低い確率を一般的な待つ価値と言い換えない", () => {
+    const input = buildInput({
+      eventType: "vehicle_failure",
+      confidence: "high",
+      result: buildResult({
+        minutesFromNow: 30,
+        marginP50Minutes: -1,
+        marginP80Minutes: -10,
+      }),
+    });
+    input.breakEven.resumeChance = decisionChances.close;
+    const outcome = applyDecisionRules(input);
+    expect(outcome.action).toBe("wait");
+    const chance = buildChanceText(input.breakEven, outcome.reason);
+    if (!chance) throw new Error("比較時点の確率がありません");
+    const sentence = buildChanceSentence(chance, "ja");
+    expect(sentence).toContain("22時41分までに再開");
+    expect(sentence).toContain("2割");
+    expect(sentence).not.toContain("待ったほうが早く着く見込み");
+  });
+});
+
+it("見込みの幅の大半が後なら再開確率が高くても切り替えの規則を保つ", () => {
+  const input = buildInput({
+    eventType: "vehicle_failure",
+    confidence: "low",
+    result: buildResult({
+      minutesFromNow: 4,
+      marginP50Minutes: 2,
+      marginP80Minutes: -18,
+    }),
+  });
+  input.breakEven.resumeChance = decisionChances.mostlyLate;
+  const outcome = applyDecisionRules(input);
+  expect(outcome).toMatchObject({ action: "switch", reason: "resume_mostly_after_break_even" });
+  const chance = buildChanceText(input.breakEven, outcome.reason);
+  if (!chance) throw new Error("比較時点の確率がありません");
+  const sentence = buildChanceSentence(chance, "ja");
+  expect(sentence).toContain("22時41分までに再開する見込みは6割");
+  expect(sentence).not.toContain("待ったほうが早く着く見込み");
 });

@@ -182,13 +182,20 @@ function buildFlowText(estimate: EstimateToolResult): DecisionTextInput["flow"] 
   };
 }
 
-// 理由の最後に添える確率。待ったほうが早く着く確率を優先し、無ければ期限、目盛りの順に使う
-function buildChanceText(breakEven: BreakEvenToolResult): ChanceTextInput | null {
+// 理由と同じ比較時点の確率を添える。期限の判断では早着より期限内到着を優先する
+export function buildChanceText(
+  breakEven: BreakEvenToolResult,
+  reason: DecisionReason,
+): ChanceTextInput | null {
   const chance = breakEven.resumeChance ?? null;
   if (!chance) return null;
   const key = selectKeyTick(chance.ticks);
+  const r = breakEven.result;
+  const hasBreakEven = r.kind === "future" || r.kind === "passed";
   return {
-    waitFaster: chance.waitFaster,
+    comparisonTime: hasBreakEven ? r.time : null,
+    deadlineResumeTime: chance.resumeByForDeadline,
+    waitFaster: reason === "deadline_risk" ? null : chance.waitFaster,
     waitOnTime: chance.waitOnTime,
     keyTick: key ? { time: key.time, tenths: key.tenths } : null,
   };
@@ -223,7 +230,7 @@ export function decideDeterministically(
     deadlineBasis: hasBreakEven ? (r.deadlineBasis ?? null) : null,
     bestOption,
     flow: buildFlowText(results.estimate),
-    chance: buildChanceText(results.breakEven),
+    chance: buildChanceText(results.breakEven, outcome.reason),
     trainQueue: buildTrainQueueText(results.estimate, bestOption),
   });
   return {

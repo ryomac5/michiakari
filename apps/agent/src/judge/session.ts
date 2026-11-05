@@ -106,11 +106,11 @@ export function buildComputedBreakEven(
   const deadline = r.deadlineBasis;
   const explanation = deadline
     ? r.kind === "passed"
-      ? buildDeadlinePassedSentence(r.time, deadline, label, language)
-      : buildDeadlineBreakEvenSentence(r.time, deadline, label, language)
+      ? buildDeadlinePassedSentence(r.time, deadline, label, r.bestAlternativeArrival, language)
+      : buildDeadlineBreakEvenSentence(r.time, deadline, label, r.bestAlternativeArrival, language)
     : r.kind === "passed"
-      ? buildPassedSentence(r.time, label, language)
-      : buildBreakEvenSentence(r.time, label, language);
+      ? buildPassedSentence(r.time, label, r.bestAlternativeArrival, language)
+      : buildBreakEvenSentence(r.time, label, r.bestAlternativeArrival, language);
   const resumeChance = breakEven.resumeChance ?? null;
   return { time: r.time, explanation, ...(resumeChance ? { resumeChance } : {}) };
 }
