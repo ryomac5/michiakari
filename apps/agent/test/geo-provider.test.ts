@@ -42,16 +42,19 @@ describe("createGeoProvider", () => {
     expect(others.some((o) => o.kind === "taxi" && o.fareYen !== null)).toBe(true);
   });
 
-  it("近くのバス停を確認候補として別に返し、選択肢には混ぜない", async () => {
-    const result = await provider.findAlternatives(query);
-    expect(result.busChecks.length).toBeGreaterThan(0);
-    expect(result.busChecks.length).toBeLessThanOrEqual(3);
-    const minutes = result.busChecks.map((b) => b.walkMinutes);
+  it("出発地の近くのバス停を、同じ名前は 1 件にまとめて返し、高速バスは出さない", async () => {
+    const checks = provider.listBusChecks(query.origin);
+    expect(checks.length).toBeGreaterThan(0);
+    expect(checks.length).toBeLessThanOrEqual(3);
+    const minutes = checks.map((b) => b.walkMinutes);
     expect(minutes).toEqual([...minutes].sort((a, b) => a - b));
     expect(minutes.every((m) => m <= 10)).toBe(true);
-    expect(result.busChecks.every((b) => b.dataYear === 2022)).toBe(true);
-    const optionIds = new Set(result.options.map((o) => o.id));
-    expect(result.busChecks.some((b) => optionIds.has(b.id))).toBe(false);
+    expect(checks.every((b) => b.dataYear === 2022 && b.operators.length > 0)).toBe(true);
+    expect(checks.some((b) => b.stopName.includes("高速バス"))).toBe(false);
+    expect(new Set(checks.map((b) => b.stopName)).size).toBe(checks.length);
+    // 代替手段の算出にはバス停を混ぜない
+    const result = await provider.findAlternatives(query);
+    expect(JSON.stringify(result)).not.toContain(checks[0]?.stopName ?? "-");
   });
 
   it("経路の各区間に駅 ID と路線 ID を入れる", async () => {

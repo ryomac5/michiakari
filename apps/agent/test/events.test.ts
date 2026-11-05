@@ -52,19 +52,23 @@ describe("判断イベントの列", () => {
     });
   }
 
-  it("バス停の確認候補は判断に別に載り、おすすめには入らない", async () => {
+  it("決定論モードでは、バス停の確認候補を判断の後に付け、見出し・理由・推奨には入れない", async () => {
     let seen = 0;
     for (const scenario of scenarios) {
       const steps = await replayScenario(createTestApp(deps), scenario);
       for (const { entry, events } of steps) {
         const computed = events.find((e) => e.type === "alternatives_computed");
+        expect(computed && "busChecks" in computed, entry.id).toBe(false);
         const ready = events.find((e) => e.type === "judgment_ready");
-        if (computed?.type !== "alternatives_computed" || ready?.type !== "judgment_ready")
-          continue;
-        expect(ready.judgment.busChecks, entry.id).toEqual(computed.busChecks);
-        const busIds = (computed.busChecks ?? []).map((b) => b.id);
-        seen += busIds.length;
-        expect(busIds, entry.id).not.toContain(ready.judgment.recommendedOptionId);
+        if (ready?.type !== "judgment_ready") continue;
+        const { judgment } = ready;
+        for (const check of judgment.busChecks ?? []) {
+          seen += 1;
+          expect(judgment.headline, entry.id).not.toContain(check.stopName);
+          expect(judgment.reason ?? "", entry.id).not.toContain(check.stopName);
+          expect(judgment.recommendedOptionId, entry.id).not.toBe(check.id);
+          expect(judgment.options.some((o) => o.id === check.id)).toBe(false);
+        }
       }
     }
     expect(seen).toBeGreaterThan(0);

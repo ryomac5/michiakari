@@ -1,6 +1,7 @@
 import {
   addMinutesToIso,
   BUS_CHECK_MAX_WALK_MINUTES,
+  BUS_STOP_SAME_NAME_METERS,
   computeWaitArrival,
   estimateWalkMinutes,
   type LonLat,
@@ -90,23 +91,28 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
   const { router, geo, busStops, busStopYear } = deps;
 
   // 起点から歩いて確かめに行けるバス停。時刻を持たないので確認先の候補にとどめる
-  function listBusChecks(coord: LonLat): BusCheck[] {
-    if (busStopYear === null) return [];
+  function listBusChecksAt(coord: LonLat, dataYear: number): BusCheck[] {
     return listWalkAccessBusStops({
       stops: busStops,
       origin: coord,
       maxWalkMinutes: BUS_CHECK_MAX_WALK_MINUTES,
+      sameNameMeters: BUS_STOP_SAME_NAME_METERS,
       limit: BUS_CHECK_LIMIT,
-    }).map(({ stop, walkMinutes }) => ({
-      id: stop.id,
-      stopName: stop.name,
-      operator: stop.operator,
-      lon: stop.lonLat[0],
-      lat: stop.lonLat[1],
-      walkMinutes,
-      officialUrl: stop.officialUrl,
-      dataYear: busStopYear,
-    }));
+    }).flatMap(({ name, stops, walkMinutes }) => {
+      const [nearest] = stops;
+      if (!nearest) return [];
+      return [
+        {
+          id: nearest.id,
+          stopName: name,
+          operators: stops.map((s) => ({ name: s.operator, officialUrl: s.officialUrl })),
+          lon: nearest.lonLat[0],
+          lat: nearest.lonLat[1],
+          walkMinutes,
+          dataYear,
+        },
+      ];
+    });
   }
 
   function resolveStation(name: string, lineHint: string | null): StationNode | null {
@@ -303,7 +309,6 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
         options: [buildUnroutedWaitOption(query, place)],
         waitOptionId: WAIT_OPTION_ID,
         waitRouteMinutesAfterResume: null,
-        busChecks: origin ? listBusChecks(origin.coord) : [],
         notes: ["出発地または目的地を路線ネットワークで見つけられませんでした"],
       };
     }
@@ -368,7 +373,6 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
       waitRouteMinutesAfterResume: waitRoute
         ? waitRoute.minutes + extraWait + origin.accessWalkMinutes + destination.accessWalkMinutes
         : null,
-      busChecks: listBusChecks(origin.coord),
       notes: [
         ...notes,
         "乗車時間は国土数値情報の路線距離と表定速度の推定から求めた概算。時刻表にもとづく値ではない",
@@ -422,5 +426,11 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
     return stations.length > 0 ? { lineId: section.lineId, stations } : null;
   }
 
-  return { findAlternatives, resolvePlace, listLines, listStationsAhead };
+  function listBusChecks(place: Place): BusCheck[] {
+    const origin = resolveEndpoint(place, null);
+    if (!origin || busStopYear === null) return [];
+    return listBusChecksAt(origin.coord, busStopYear);
+  }
+
+  return { findAlternatives, resolvePlace, listLines, listStationsAhead, listBusChecks };
 }

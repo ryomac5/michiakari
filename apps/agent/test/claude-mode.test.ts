@@ -203,6 +203,27 @@ describe("claude モード", () => {
     expect(JSON.stringify(toolResult?.content)).toContain("tool_result");
   });
 
+  it("Claude にはバス停の候補を渡さず、判断の後に付け、見出し・理由・推奨には入れない", async () => {
+    const script = createScriptedLlm({
+      judgment: [...buildToolSequence(), replyWithTool("emit_judgment", validDecision)],
+    });
+    const { events, judgment, warnings } = await runWith(script);
+    expect(warnings).toEqual([]);
+    const busChecks = judgment?.busChecks ?? [];
+    expect(busChecks.length).toBeGreaterThan(0);
+    // Claude に送った内容に、busChecks の項目も停留所の ID も無い。停留所の名前は駅名と重なりうるので見ない
+    const sent = JSON.stringify(script.calls);
+    expect(sent).not.toContain("busChecks");
+    expect(sent).not.toContain("P11-22_");
+    for (const check of busChecks) {
+      expect(judgment?.headline).not.toContain(check.stopName);
+      expect(judgment?.reason ?? "").not.toContain(check.stopName);
+      expect(judgment?.recommendedOptionId).not.toBe(check.id);
+    }
+    const computed = events.find((e) => e.type === "alternatives_computed");
+    expect(computed && "busChecks" in computed).toBe(false);
+  });
+
   it("emit_judgment の検証に失敗したら、指摘を返して 1 回だけ再生成させる", async () => {
     const script = createScriptedLlm({
       judgment: [

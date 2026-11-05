@@ -41,8 +41,6 @@ export type AlternativesResult = {
   waitOptionId: string;
   // 再開後に乗ってから目的地に着くまでの分。経路を引けなければ null
   waitRouteMinutesAfterResume: number | null;
-  // 近くのバス停の確認候補。到着時刻を持たないので options とは分け、比較とおすすめに入れない
-  busChecks: BusCheck[];
   notes: string[];
 };
 
@@ -64,4 +62,6 @@ export interface AlternativesProvider {
   listLines(): readonly LineInfo[];
   // 来た側の駅と次の駅から、その先の駅と駅間の走行時間を並べる。路線上で結べなければ null
   listStationsAhead(query: StationsAheadQuery): StationsAhead | null;
+  // 出発地から歩いて確かめに行けるバス停。判断の確定後に付け、判断の材料には渡さない
+  listBusChecks(place: Place): BusCheck[];
 }
