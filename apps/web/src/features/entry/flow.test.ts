@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { EntryArea, EntryLine, EntryPlace } from "./entry-places";
 import {
   type EntryAction,
@@ -181,5 +181,56 @@ describe("selectProgressIndex", () => {
       ).map(selectProgressIndex),
     ).toEqual([0, 1, 2, 3, 4, 4, 4, 4]);
     expect(selectProgressIndex("area")).toBeLessThan(0);
+  });
+});
+
+// 復元直後の効果を、ブラウザの履歴を正として確認する。
+describe("useEntryHistory の復元", () => {
+  it.each([
+    { name: "経過まで戻った履歴を積み直さない", pathname: "/", storedDepth: 7, ready: true },
+    { name: "最後の段へ戻った履歴を保つ", pathname: "/", storedDepth: 8, ready: true },
+    { name: "復元前は履歴に触らない", pathname: "/", storedDepth: 7, ready: false },
+    {
+      name: "判断画面に入口の履歴を積まない",
+      pathname: "/judgment",
+      storedDepth: null,
+      ready: true,
+    },
+  ])("$name", async ({ pathname, storedDepth, ready }) => {
+    const effects: (() => undefined | (() => void))[] = [];
+    vi.doMock("react", () => ({
+      useRef: (current: unknown) => ({ current }),
+      useCallback: (callback: unknown) => callback,
+      useEffect: (effect: () => undefined | (() => void)) => effects.push(effect),
+    }));
+    const pushState = vi.fn();
+    const replaceState = vi.fn();
+    const go = vi.fn();
+    vi.stubGlobal("window", {
+      location: { pathname },
+      history: { state: { entryDepth: storedDepth }, pushState, replaceState, go },
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+    try {
+      const { useEntryHistory: renderHistory } = await import("./use-entry-history");
+      const dispatch = vi.fn();
+      renderHistory(stageDepth("resume"), dispatch, ready);
+      for (const effect of effects) effect();
+      // Strict Mode で同じ効果が再実行されても、復元途中の深さを積まない。
+      effects[0]?.();
+      expect(pushState).not.toHaveBeenCalled();
+      expect(replaceState).not.toHaveBeenCalled();
+      expect(go).not.toHaveBeenCalled();
+      if (ready && pathname === "/" && storedDepth === stageDepth("elapsed")) {
+        expect(dispatch).toHaveBeenCalledWith({ type: "backTo", depth: stageDepth("elapsed") });
+      } else {
+        expect(dispatch).not.toHaveBeenCalled();
+      }
+    } finally {
+      vi.unstubAllGlobals();
+      vi.doUnmock("react");
+      vi.resetModules();
+    }
   });
 });

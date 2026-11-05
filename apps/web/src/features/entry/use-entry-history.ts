@@ -8,12 +8,12 @@ import type { EntryAction } from "./flow";
 
 const depthKey = "entryDepth";
 
-function readDepth(state: unknown): number {
+function readDepth(state: unknown): number | null {
   const value = (state as Record<string, unknown> | null)?.[depthKey];
-  return typeof value === "number" ? value : 0;
+  return typeof value === "number" ? value : null;
 }
 
-function readHistoryDepth(): number {
+function readHistoryDepth(): number | null {
   return readDepth(window.history.state);
 }
 
@@ -21,6 +21,9 @@ function readHistoryDepth(): number {
 export function useEntryHistory(depth: number, dispatch: Dispatch<EntryAction>, ready: boolean) {
   const depthRef = useRef(depth);
   depthRef.current = depth;
+  const readyRef = useRef(ready);
+  readyRef.current = ready;
+  const initializedRef = useRef(false);
   // 自分で履歴を引いたときの行き先の深さ。その popstate は段を変えない
   const pendingRef = useRef<number | null>(null);
 
@@ -31,8 +34,21 @@ export function useEntryHistory(depth: number, dispatch: Dispatch<EntryAction>, 
 
   // 段と履歴の深さをそろえる。深くなったら積み、履歴のほうが深ければ（判断の画面から戻ったときなど）履歴を引く
   useEffect(() => {
-    if (!ready) return;
-    const historyDepth = readHistoryDepth();
+    if (!ready || window.location.pathname !== "/") return;
+    const storedDepth = readHistoryDepth();
+    if (!initializedRef.current) {
+      // セッションの答えより履歴が浅い場合、復元を進行とみなして積み直さない。
+      if (storedDepth !== null && depth > storedDepth) {
+        dispatch({ type: "backTo", depth: storedDepth });
+        return;
+      }
+      initializedRef.current = true;
+    }
+    if (pendingRef.current !== null) return;
+    const historyDepth = storedDepth ?? 0;
+    if (storedDepth === null) {
+      window.history.replaceState({ ...window.history.state, [depthKey]: 0 }, "");
+    }
     if (depth > historyDepth) {
       for (let d = historyDepth + 1; d <= depth; d++) {
         window.history.pushState({ ...window.history.state, [depthKey]: d }, "");
@@ -40,11 +56,13 @@ export function useEntryHistory(depth: number, dispatch: Dispatch<EntryAction>, 
     } else if (depth < historyDepth) {
       travel(depth, historyDepth);
     }
-  }, [depth, ready, travel]);
+  }, [depth, dispatch, ready, travel]);
 
   useEffect(() => {
     function handlePop(e: PopStateEvent) {
       const value = readDepth(e.state);
+      // 復元前や別画面への移動はルーターに任せ、入口の段として扱わない。
+      if (!readyRef.current || window.location.pathname !== "/" || value === null) return;
       const current = depthRef.current;
       if (pendingRef.current === value) {
         // 自分で引いた履歴が着いた。段はもう合っている
