@@ -121,3 +121,23 @@ describe("pickSpreadStops", () => {
     expect(names).not.toContain("西中島南方");
   });
 });
+
+describe("京都と神戸の路線", () => {
+  it.each([
+    ["東寺", "近鉄京都線", ["京都", "大和西大寺・橿原神宮前"]],
+    ["七条", "京阪本線", ["三条・出町柳", "枚方市・淀屋橋"]],
+    ["神戸三宮", "阪神本線", ["尼崎・大阪梅田", "元町・高速神戸"]],
+  ])("%s の %s は駅で見る方面名と行き先を持つ", (station, observedName, labels) => {
+    const directions = listEntryDirections(data, findLine(station, observedName));
+    expect(directions.map((direction) => direction.label.ja).sort()).toEqual([...labels].sort());
+    for (const direction of directions) {
+      const candidates = listDirectionCandidates(direction);
+      expect(candidates.length).toBeGreaterThan(0);
+      for (const landmark of direction.landmarks) {
+        expect(candidates).toContain(landmark);
+        expect(landmark.choice.nameEn).toBeTruthy();
+      }
+      expect(direction.label.en).not.toMatch(/[一-龯]/);
+    }
+  });
+});

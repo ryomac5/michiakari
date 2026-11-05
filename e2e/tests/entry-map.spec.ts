@@ -400,3 +400,88 @@ test("PC 幅では、問いかけの下のよく使う駅から駅の段へ進�
   await page.goBack();
   await expectStage(page, "area");
 });
+
+test("引いた地図はエリアだけを表示し、指で寄る操作でも駅が出る", async ({ page }) => {
+  await openEntry(page);
+  const map = page.getByTestId(testIds.start.map);
+  const places = page.locator("[data-testid^='start-place-']");
+  await expect(map).toHaveAttribute("data-detail", "areas");
+  await expect(places).toHaveCount(0);
+  const hub = await page.getByTestId(testIds.start.hub("umeda")).boundingBox();
+  if (!hub) throw new Error("大阪のエリアがありません");
+  await page.mouse.move(hub.x + hub.width / 2, hub.y + hub.height / 2);
+  for (let step = 0; step < 5; step++) {
+    if ((await map.getAttribute("data-detail")) === "stations") break;
+    const before = Number(await map.getAttribute("data-zoom"));
+    await page.mouse.wheel(0, -2400);
+    await expect
+      .poll(async () => Number(await map.getAttribute("data-zoom")))
+      .toBeGreaterThan(before + 0.2);
+  }
+  await expect(map).toHaveAttribute("data-detail", "stations");
+  await expect(places.first()).toBeVisible();
+  await expect(page.getByTestId(testIds.start.hub("umeda"))).toHaveCount(0);
+  await places.first().click();
+  await expectStage(page, "station");
+  await expect(page.locator("[data-testid^='start-line-']").first()).toBeVisible();
+});
+
+test("京都の地図で私鉄の駅を選び、方面と行き先へ進める", async ({ page }) => {
+  await openEntry(page);
+  await page.getByTestId(testIds.start.hubEdge("kyoto")).click();
+  await expectStage(page, "area");
+  await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-detail", "stations");
+  await page.getByTestId(testIds.start.place("toji")).click();
+  await expectStage(page, "station");
+  const line = "東寺|kintetsu.京都線|近鉄京都線";
+  await page.getByTestId(testIds.start.line(line)).click();
+  await expectStage(page, "direction");
+  const south = `${line}>kintetsu.京都線.大和西大寺`;
+  await expect(page.getByTestId(testIds.start.direction(south))).toContainText("大和西大寺");
+  await page.getByTestId(testIds.start.direction(south)).click();
+  await expectStage(page, "destination");
+  await expect(page.getByTestId(testIds.start.destinationCandidate("大和西大寺"))).toBeVisible();
+});
+
+test("三宮の地図で阪神を選び、利用者向けの方面と行き先が出る", async ({ page }) => {
+  await openEntry(page);
+  await page.getByTestId(testIds.start.hubEdge("sannomiya")).click();
+  await page.getByTestId(testIds.start.place("sannomiya")).click();
+  const line = "神戸三宮|hanshin.本線|阪神本線";
+  await page.getByTestId(testIds.start.line(line)).click();
+  await expectStage(page, "direction");
+  const east = `${line}>hanshin.本線.大阪梅田`;
+  await expect(page.getByTestId(testIds.start.direction(east))).toContainText("大阪梅田");
+  await page.getByTestId(testIds.start.direction(east)).click();
+  await expectStage(page, "destination");
+  await expect(page.getByTestId(testIds.start.destinationCandidate("大阪梅田"))).toBeVisible();
+});
+
+test("位置情報を許可済みなら近くの駅が最初に出て、1回で選べる", async ({ context, page }) => {
+  await context.setGeolocation({ latitude: 34.9855, longitude: 135.7585 });
+  await context.grantPermissions(["geolocation"]);
+  await openEntry(page);
+  await expectStage(page, "kansai");
+  await page.getByTestId(testIds.start.nearbyStation("京都")).click();
+  await expectStage(page, "station");
+  await expect(
+    page.getByTestId(testIds.start.line("京都|kintetsu.京都線|近鉄京都線")),
+  ).toBeVisible();
+});
+
+test("位置情報を拒否したら地図と検索から駅を選べる", async ({ context, page }) => {
+  await context.setGeolocation({ latitude: 34.9855, longitude: 135.7585 });
+  await context.clearPermissions();
+  await openEntry(page);
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Browser.setPermission", {
+    permission: { name: "geolocation" },
+    setting: "denied",
+    origin: new URL(page.url()).origin,
+  });
+  await page.getByTestId(testIds.start.locateButton).click();
+  await expect(page.getByTestId(testIds.start.locateStatus)).toBeVisible();
+  await expectStage(page, "kansai");
+  await expect(page.getByTestId(testIds.start.hub("umeda"))).toBeVisible();
+  await openStation(page, "神戸三宮", "神戸三宮");
+});

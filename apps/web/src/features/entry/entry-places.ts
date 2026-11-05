@@ -73,6 +73,7 @@ const hubSnapMeters = 3000;
 // 駅データから作るエリアの半径と駅の数
 const genericRadiusMeters = 1300;
 const genericPlaceLimit = 6;
+const stationChoiceRadiusMeters = 1000;
 
 // JR の東海道線は、走る場所で通称が変わる。大阪を境に西は JR神戸線、東は JR京都線
 const tokaidoNicknames = {
@@ -134,8 +135,25 @@ function toPosition(choice: StationChoice): Position {
   return [choice.lon, choice.lat];
 }
 
-function buildPlace(data: EntryData, config: EntryPlaceConfig): EntryPlace | null {
-  const groups = config.stationNames.flatMap((n) => findGroup(data, n) ?? []);
+function buildPlace(
+  data: EntryData,
+  config: EntryPlaceConfig,
+  center: Position,
+): EntryPlace | null {
+  const groups = config.stationNames.flatMap((name) =>
+    data.catalog.groups
+      .filter(
+        (group) =>
+          group.choice.name === name &&
+          computeDistanceMeters(center, toPosition(group.choice)) <= hubSnapMeters,
+      )
+      .sort(
+        (a, b) =>
+          computeDistanceMeters(center, toPosition(a.choice)) -
+          computeDistanceMeters(center, toPosition(b.choice)),
+      )
+      .slice(0, 1),
+  );
   const [first] = groups;
   if (!first) return null;
   return {
@@ -148,8 +166,9 @@ function buildPlace(data: EntryData, config: EntryPlaceConfig): EntryPlace | nul
 }
 
 function buildConfiguredArea(data: EntryData, config: EntryAreaConfig): EntryArea {
-  const places = config.places.flatMap((p) => buildPlace(data, p) ?? []);
   const hub = findGroup(data, config.hub.stationName);
+  const center: Position = hub ? toPosition(hub.choice) : [135.5, 34.7];
+  const places = config.places.flatMap((p) => buildPlace(data, p, center) ?? []);
   return {
     id: config.id,
     name: config.name,
@@ -230,10 +249,12 @@ export function openStationChoice(
 ): { area: EntryArea; place: EntryPlace } | null {
   const point = toPosition(choice);
   for (const config of entryAreas) {
-    const placeConfig = config.places.find((p) => p.stationNames.includes(choice.id));
-    if (!placeConfig) continue;
     const area = buildConfiguredArea(data, config);
-    const place = area.places.find((p) => p.key === placeConfig.key);
+    const place = area.places.find(
+      (p) =>
+        p.lines.some((line) => line.stationName === choice.name) &&
+        computeDistanceMeters(p.position, point) <= stationChoiceRadiusMeters,
+    );
     if (place) return { area, place };
   }
   const group = data.catalog.groupById.get(choice.id);

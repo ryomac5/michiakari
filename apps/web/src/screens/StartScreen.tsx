@@ -61,6 +61,7 @@ import {
   NEXT_STATION_CANDIDATE_LIMIT,
 } from "@/features/entry/train-position-defaults";
 import { useEntryHistory } from "@/features/entry/use-entry-history";
+import { listMapStations } from "@/features/entry/visible-stations";
 import { type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { testIds } from "@/features/judgment/testids";
 import { pickLocalized as pickCatalogName } from "@/features/knowledge/catalog";
@@ -72,9 +73,12 @@ import {
   listCauseOptions,
   listResumeTimeOptions,
 } from "@/features/situation/plain-questions";
-import type { StationChoice } from "@/features/stations/catalog";
-import { fetchNearestStations } from "@/features/stations/client";
-import { describePlace, formatDistance, pickStationName } from "@/features/stations/describe";
+import {
+  findNearestChoices,
+  type NearestStationChoice,
+  type StationChoice,
+} from "@/features/stations/catalog";
+import { describePlace, pickStationName } from "@/features/stations/describe";
 import { useCurrentLocation } from "@/features/stations/use-current-location";
 import { desktopMediaQuery, useMediaQuery } from "@/lib/use-media-query";
 
@@ -145,6 +149,8 @@ export function StartScreen() {
     startJudgment,
   } = session;
   const { geo, data } = useEntryData();
+  const [nearest, setNearest] = useState<NearestStationChoice[]>([]);
+  const mapStations = useMemo(() => (data ? listMapStations(data) : []), [data]);
   const hubs = useMemo(() => (data ? listEntryHubs(data) : []), [data]);
   const [entry, dispatch] = useReducer(reduceEntry, initialEntryState);
   const [note, setNote] = useState<string | null>(null);
@@ -267,29 +273,35 @@ export function StartScreen() {
     [data],
   );
 
-  // 現在地から最寄りの駅を開く。位置は最寄り駅を調べるためだけに送る
+  // 位置は端末内の駅データとの照合だけに使う。
   const handleLocated = useCallback(
     (point: { lat: number; lon: number }) => {
-      setNote(null);
-      fetchNearestStations(point)
-        .then(([first]) => {
-          if (!first) return;
-          openPlace(first.station);
-          setNote(
-            t("entry.nearby", {
-              station: pickStationName(first.station, locale),
-              distance: formatDistance(first.meters),
-            }),
-          );
-        })
-        .catch(() => setNote(t("start.nearestFailed")));
+      if (!data) return;
+      const choices = findNearestChoices(data.index, data.catalog, point, 1);
+      setNearest(choices);
+      setNote(choices.length ? null : t("entry.nearestEmpty"));
     },
-    [openPlace, t, locale],
+    [data, t],
   );
   const { status: locateStatus, locate } = useCurrentLocation(handleLocated);
+  const locateRef = useRef(locate);
+  locateRef.current = locate;
+  useEffect(() => {
+    if (!data || !navigator.permissions) return;
+    let cancelled = false;
+    navigator.permissions
+      .query({ name: "geolocation" })
+      .then((permission) => {
+        if (!cancelled && permission.state === "granted") locateRef.current();
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [data]);
   const locateMessage =
     locateStatus === "locating"
-      ? `${t("start.locating")} ${t("start.locationNote")}`
+      ? `${t("start.locating")} ${t("entry.locationNote")}`
       : locateStatus === "failed"
         ? t("start.locateFailed")
         : locateStatus === "unsupported"
@@ -617,6 +629,7 @@ export function StartScreen() {
     <div data-testid={testIds.start.screen} data-stage={entry.stage} className="h-dvh">
       <EntryMap
         geo={geo}
+        stations={mapStations}
         stage={entry.stage}
         hubs={hubs}
         area={entry.area}
@@ -640,7 +653,8 @@ export function StartScreen() {
             if (entry.stage === "position" && onTrain && here) chooseNearStop(here);
             return;
           }
-          if (entry.area) dispatch({ type: "openPlace", area: entry.area, place });
+          const area = data ? findAreaAt(data, place.position) : null;
+          if (area) dispatch({ type: "openPlace", area, place });
         }}
         onTap={handleTap}
       />
@@ -654,6 +668,7 @@ export function StartScreen() {
                 locateStatus={locateStatus}
                 message={locateMessage}
                 onLocate={locate}
+                nearest={nearest}
                 onSelect={openPlace}
                 quickPicks={desktop ? hubs : null}
                 onQuickPick={(stationName) => {

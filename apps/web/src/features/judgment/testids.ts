@@ -1,2 +1,11 @@
-// 既存の参照先を保ち、共通の一覧を公開する
-export { type SituationTab, testIds } from "../../lib/testids";
+import { testIds as sharedTestIds } from "../../lib/testids";
+
+export type { SituationTab } from "../../lib/testids";
+
+export const testIds = {
+  ...sharedTestIds,
+  start: {
+    ...sharedTestIds.start,
+    nearbyStation: (id: string) => `start-nearby-station-${id}`,
+  },
+};
