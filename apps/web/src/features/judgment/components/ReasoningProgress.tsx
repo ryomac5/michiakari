@@ -1,7 +1,8 @@
 "use client";
 
-import { Check, CircleAlert, LoaderCircle } from "lucide-react";
+import { Check, ChevronDown, CircleAlert, LoaderCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   findCatalogEvent,
   type KnowledgeCatalog,
@@ -124,7 +125,7 @@ function StepDot({
   );
 }
 
-// 判断が出たあとに、全部開いたシートで推論の過程を振り返る
+// 判断が出たあとに、推論の過程を振り返る。終わった過程は畳み、見たい人だけが開く
 export function ReasoningLog({
   state,
   catalog,
@@ -138,33 +139,45 @@ export function ReasoningLog({
   if (steps.length === 0) return null;
 
   return (
-    <section data-testid={testIds.judgment.reasoningLog} className="flex flex-col gap-2">
-      <h3 className="text-[13px] font-medium text-muted">{t("logTitle")}</h3>
-      <ol className="flex flex-col">
-        {steps.map((id, i) => (
-          <li key={id} data-state={state.steps[id]} className="flex gap-3">
-            <span className="flex flex-col items-center">
-              <span
-                className={cn(
-                  "mt-1 flex size-4 shrink-0 items-center justify-center rounded-full text-background",
-                  state.steps[id] === "failed" ? "bg-danger" : "bg-foreground",
-                )}
-              >
-                <Check className="size-2.5" strokeWidth={3.5} aria-hidden />
+    <Collapsible
+      data-testid={testIds.judgment.reasoningLog}
+      className="group rounded-2xl bg-foreground/[0.03]"
+    >
+      <CollapsibleTrigger className="flex min-h-12 w-full items-center justify-between gap-2 rounded-2xl px-4 text-left text-[15px] font-semibold">
+        {t("logTitle")}
+        <ChevronDown
+          className="size-5 text-muted transition-transform duration-200 group-data-[state=open]:rotate-180"
+          strokeWidth={1.75}
+          aria-hidden
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <ol className="flex flex-col px-4 pb-2">
+          {steps.map((id, i) => (
+            <li key={id} data-state={state.steps[id]} className="flex gap-3">
+              <span className="flex flex-col items-center">
+                <span
+                  className={cn(
+                    "mt-1 flex size-4 shrink-0 items-center justify-center rounded-full text-background",
+                    state.steps[id] === "failed" ? "bg-danger" : "bg-foreground",
+                  )}
+                >
+                  <Check className="size-2.5" strokeWidth={3.5} aria-hidden />
+                </span>
+                {i < steps.length - 1 && <span className="w-px flex-1 bg-foreground/15" />}
               </span>
-              {i < steps.length - 1 && <span className="w-px flex-1 bg-foreground/15" />}
-            </span>
-            <div className="flex min-w-0 flex-col pb-3">
-              <p className="text-[14px] font-medium">{t(`steps.${id}`)}</p>
-              <p className="text-[13px] text-muted">{describe(id)}</p>
-              {state.progress[id] && (
-                <p className="text-[12px] leading-snug text-muted">{state.progress[id]}</p>
-              )}
-            </div>
-          </li>
-        ))}
-      </ol>
-    </section>
+              <div className="flex min-w-0 flex-col pb-3">
+                <p className="text-[14px] font-medium">{t(`steps.${id}`)}</p>
+                <p className="text-[13px] text-muted">{describe(id)}</p>
+                {state.progress[id] && (
+                  <p className="text-[12px] leading-snug text-muted">{state.progress[id]}</p>
+                )}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

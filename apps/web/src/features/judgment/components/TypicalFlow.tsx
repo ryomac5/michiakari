@@ -1,5 +1,6 @@
 "use client";
 
+import { classifyFlowOutlook } from "@repo/core";
 import type { Estimate, TypicalFlow } from "@repo/schema";
 import { MapPin, Route } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -7,7 +8,8 @@ import { pickLocalized } from "@/features/knowledge/catalog";
 import { cn } from "@/lib/utils";
 
 // 事象のよくある流れ。段階を横に並べた細い帯に、いまの段階の印と目安の分を添える
-// 半分開いた状態では 1 行の要約だけを出し、全部開くと帯と見込みの立てやすさの根拠を出す
+// 半分開いた状態では 1 行の要約だけを出し、全部開くと帯と見込みの立てやすさを出す
+// 知見の根拠の文は開発者向けなので出さない。代わりに「ふつう1時間ほどで再開」を分数から組み立てる
 
 export type FlowTestIds = {
   section: string;
@@ -16,9 +18,23 @@ export type FlowTestIds = {
 
 type Position = "past" | "current" | "future";
 
-// 知見の文の「1 時間」のような数と単位の間で改行しないよう、空白を改行しない空白にする
-function keepNumberWithUnit(text: string): string {
-  return text.replace(/(\d) (?=[時分])/g, "$1\u00a0");
+type Translate = ReturnType<typeof useTranslations<"judgment.flow">>;
+
+function formatDuration(t: Translate, minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours === 0) return t("duration.minutes", { minutes });
+  if (rest === 0) return t("duration.hours", { hours });
+  return t("duration.hoursMinutes", { hours, minutes: rest });
+}
+
+// 「ふつう1時間ほどで再開」。短く終わる事象は「ふつう5〜10分で終わる」。数値は知見から core が求めた値を使う
+export function buildUsualText(t: Translate, flow: TypicalFlow): string {
+  const { p50, p80 } = flow.untilResume;
+  if (classifyFlowOutlook(flow) === "short") {
+    return t("usual.short", { span: p50 === p80 ? `${p80}` : `${p50}〜${p80}` });
+  }
+  return t("usual.long", { duration: formatDuration(t, flow.typicalFloorMinutes ?? p50) });
 }
 
 // 帯の各段の幅は p50 に比べる。短い段も名前が読めるよう最小の幅を持たせる
@@ -44,7 +60,6 @@ export function TypicalFlowSection({
   const currentIndex = flow.phases.findIndex((p) => p.id === currentId);
   const current = flow.phases[currentIndex];
   const level = flow.predictability.level;
-  const basis = level === "high" ? flow.predictability.basis : null;
 
   return (
     <section
@@ -134,7 +149,7 @@ export function TypicalFlowSection({
           >
             {t(`predictability.${level}`)}
           </span>
-          {basis && keepNumberWithUnit(pickLocalized(basis, locale))}
+          {buildUsualText(t, flow)}
         </p>
       </div>
     </section>

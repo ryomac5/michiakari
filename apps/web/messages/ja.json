@@ -83,7 +83,7 @@
         "signals": "兆候を見つける",
         "phase": "いまの段階を推定する",
         "options": "代替手段を調べる",
-        "breakEven": "分岐点を計算する"
+        "breakEven": "境目の時刻を計算する"
       },
       "status": {
         "pending": "待機中",
@@ -104,9 +104,9 @@
         "signals": "兆候",
         "phase": "段階",
         "options": "選択肢",
-        "breakEven": "分岐点"
+        "breakEven": "境目"
       },
-      "logTitle": "推論の過程"
+      "logTitle": "判断の過程"
     },
     "action": {
       "wait": "待つ",
@@ -117,9 +117,11 @@
       "label": "結論",
       "recommended": "おすすめ: {label}・{time} 着",
       "remaining": "再開まで 約{p50}〜{p80}分",
-      "confidence": "確信度 {level}",
+      "confidence": "見込みの確かさ {level}",
       "live": "結論: {action}。{headline}",
-      "arrival": "{time} 着"
+      "arrival": "{time} 着",
+      "next": "次の手",
+      "reasonTitle": "理由"
     },
     "confidence": {
       "low": "低",
@@ -134,10 +136,10 @@
       "detail": "詳細: {message}"
     },
     "breakEven": {
-      "title": "分岐点",
-      "meaning": "この時刻までに再開すれば待つほうが早く着く",
-      "passed": "分岐点を過ぎました",
-      "soon": "まもなく分岐点。乗り換えに備える",
+      "title": "境目",
+      "meaning": "境目の時刻までに動けば待つほうが早く着きます。",
+      "passed": "境目を過ぎました",
+      "soon": "まもなく境目です。乗り換えに備える",
       "none": "運転再開を待つ",
       "noneDetail": "到着時刻を比べられる代わりの経路はない。運転再開を待つ。",
       "pending": "計算しています…",
@@ -148,39 +150,32 @@
       "condition": "<clock>{time}</clock> までに再開すれば待つほうが早く着く",
       "timeline": {
         "now": "いま",
-        "breakEven": "分岐点 {time}",
+        "breakEven": "境目 {time}",
         "deadline": "期限 {time}",
         "summary": {
-          "before": "再開見込み {from}〜{to} は分岐点 {breakEven} より前。待つほうが早く着く見込み。",
-          "straddle": "再開見込み {from}〜{to} は分岐点 {breakEven} をまたぐ。見込みが延びたら切り替える。",
-          "after": "再開見込み {from}〜{to} は分岐点 {breakEven} より後。切り替えるほうが早く着く見込み。"
+          "before": "再開見込み {from}〜{to} は境目 {breakEven} より前。待つほうが早く着く見込み。",
+          "straddle": "再開見込み {from}〜{to} は境目 {breakEven} をまたぐ。見込みが延びたら切り替える。",
+          "after": "再開見込み {from}〜{to} は境目 {breakEven} より後。切り替えるほうが早く着く見込み。"
         },
         "caption": {
-          "before": "おおよその再開 {from}〜{to} は<em>分岐点より前</em>",
-          "straddle": "おおよその再開 {from}〜{to} が<em>分岐点をまたぐ</em>",
-          "after": "おおよその再開 {from}〜{to} は<em>分岐点より後</em>"
+          "before": "おおよその再開 {from}〜{to} は<em>境目より前</em>",
+          "straddle": "おおよその再開 {from}〜{to} が<em>境目をまたぐ</em>",
+          "after": "おおよその再開 {from}〜{to} は<em>境目より後</em>"
         }
-      }
+      },
+      "untilLabel": "境目まで",
+      "detailTitle": "境目の見方"
     },
     "resumeChance": {
-      "title": "再開の見込み",
-      "waitFaster": "分岐点までに再開する見込み",
+      "title": "動いている見込み",
+      "onset": "発生から{since}",
+      "half": "5割",
+      "waitFaster": "境目までに動く見込み",
       "waitOnTime": "待って期限に間に合う見込み",
       "chance": {
         "under": "1割未満",
         "over": "9割以上",
         "tenths": "{n}割"
-      },
-      "bar": {
-        "under": "1割未満",
-        "over": "9割以上",
-        "tenths": "{n}割"
-      },
-      "lead": {
-        "fromNow": "{fromNow}後の {time} までに再開する見込みは{chance}",
-        "sinceOnset": "発生から{since}の {time} までに再開する見込みは{chance}",
-        "both": "発生から{since}。いまから{fromNow}後の {time} までに再開する見込みは{chance}",
-        "plain": "{time} までに再開する見込みは{chance}"
       },
       "duration": {
         "minutes": "{minutes}分",
@@ -188,14 +183,12 @@
         "hoursMinutes": "{hours}時間{minutes}分"
       },
       "marks": {
-        "breakEven": "分岐点",
-        "deadline": "期限"
+        "breakEven": "境目",
+        "now": "いま",
+        "resumeBy": "<clock>{time}</clock>までに動けば間に合う"
       },
       "sr": {
-        "ticks": "時刻ごとの再開の見込み: {items}。",
-        "tick": "{time} {chance}",
-        "waitFaster": "分岐点までに再開する見込みは{chance}。",
-        "waitOnTime": "期限に間に合うには {time} までの再開が必要。待って間に合う見込みは{chance}。"
+        "tick": "{time} {chance}"
       }
     },
     "switchStep": {
@@ -204,7 +197,8 @@
       "boardAt": "{station}から乗る",
       "taxi": "タクシーで向かう",
       "walk": "徒歩 {minutes} 分で向かう",
-      "arrival": "{time} 着"
+      "arrival": "{time} 着",
+      "arrivalLabel": "到着の見込み"
     },
     "weather": {
       "title": "雨量の推移 10分ごと",
@@ -245,7 +239,9 @@
         "taxi": "タクシー"
       },
       "walkShort": "徒歩{minutes}分",
-      "from": "{station}から"
+      "from": "{station}から",
+      "select": "地図に描く",
+      "selected": "地図に表示中"
     },
     "evidence": {
       "title": "判断の根拠",
@@ -262,7 +258,13 @@
         "weather": "気象",
         "computation": "計算"
       },
-      "openKnowledge": "知見を見る"
+      "openKnowledge": "知見を見る",
+      "describe": {
+        "signal": "発表の「{quote}」",
+        "event": "{event}のよくある流れ",
+        "phase": "いまの段階は「{phase}」",
+        "knowledge": "元指令員の知見"
+      }
     },
     "flow": {
       "title": "よくある流れ",
@@ -271,9 +273,18 @@
       "minutes": "約{minutes}分",
       "here": "いまここ",
       "predictability": {
-        "high": "見込みが立てやすい",
-        "medium": "見込みにやや幅",
-        "low": "見込みが立てにくい"
+        "high": "流れが読みやすい",
+        "medium": "流れにやや幅",
+        "low": "流れが読みにくい"
+      },
+      "usual": {
+        "long": "ふつう{duration}ほどで再開",
+        "short": "ふつう{span}分で終わる"
+      },
+      "duration": {
+        "minutes": "{minutes}分",
+        "hours": "{hours}時間",
+        "hoursMinutes": "{hours}時間{minutes}分"
       }
     },
     "addInfo": {
@@ -291,7 +302,7 @@
       "destinationTerminal": "行き先は終点の{station}と仮定する",
       "onTrain": "車内の位置は{station}駅と仮定する",
       "elapsedUnknown": "止まった時刻はいまと仮定する",
-      "causeUnknown": "原因は未確認。分岐点を動く目安にする",
+      "causeUnknown": "原因は未確認。境目の時刻を動く目安にする",
       "betweenStations": "駅と駅の間にいる。{station}に着いてからの行動を示す"
     },
     "nextCheck": {
@@ -442,7 +453,8 @@
     "changeAt": "{station}で",
     "transferShort": "振替",
     "between": "{from}〜{to}の間",
-    "alight": "降りる駅"
+    "alight": "降りる駅",
+    "walkShort": "徒歩{minutes}分"
   },
   "about": {
     "title": "このアプリについて",
@@ -460,8 +472,8 @@
       "title": "推定の考え方",
       "p1": "元指令員の経験を、外から観察できる兆候にもとづいて一般化した知見を使います。",
       "p2": "あなたが持ち込んだ掲示や発表から兆候を読み取り、いまの段階と再開までの残り時間を幅で推定します。",
-      "p3": "到着時刻や分岐点などの数値はプログラムで計算し、AI はその結果を解釈して説明します。",
-      "p4": "確信が持てないときは見込みを断言せず、分岐点を中心に示します。"
+      "p3": "到着時刻や境目の時刻などの数値はプログラムで計算し、AI はその結果を解釈して説明します。",
+      "p4": "確信が持てないときは見込みを断言せず、境目の時刻を中心に示します。"
     },
     "attribution": {
       "title": "出典",

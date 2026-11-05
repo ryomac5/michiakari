@@ -57,7 +57,7 @@ describe("判断のよくある流れ", () => {
       "preparing_resume",
     ]);
     // 見込みが立てやすい事象なので、理由の頭で流れを伝える
-    expect(judgment.reason).toMatch(/^人身事故は、再開まで1時間ほどかかるのがふつうです。/);
+    expect(judgment.reason).toMatch(/^人身事故はふつう1時間ほどで再開します。/);
   });
 
   it("原因が分からない判断には、よくある流れを入れない", async () => {
@@ -72,7 +72,7 @@ describe("判断のよくある流れ", () => {
     expect(judgment.estimate.confidence).toBe("medium");
     expect(judgment.action).toBe("wait");
     expect(judgment.headline).toBe("このまま待つ");
-    expect(judgment.reason).toMatch(/^車内対応は5〜10分ほどで終わることが多いです。/);
+    expect(judgment.reason).toMatch(/^車内対応はふつう5〜10分で終わります。/);
     expect(judgment.typicalFlow?.untilResume).toEqual({ p50: 5, p80: 10 });
   });
 
@@ -97,8 +97,8 @@ describe("見込みの立てやすい事象の言い切りと確信度", () => {
     const steps = await replayPersonAccident();
     const judgment = findJudgment(steps.find((s) => s.entry.id === "obs_1")?.events ?? []);
     expect(judgment.action).toBe("switch");
-    expect(judgment.headline).toMatch(/^いま.+に切り替える$/);
-    expect(judgment.reason).toMatch(/^人身事故は、再開まで1時間ほどかかるのがふつうです。/);
+    expect(judgment.headline).toMatch(/^.+まで歩いて.+へ$|^.+に乗り換える$/);
+    expect(judgment.reason).toMatch(/^人身事故はふつう1時間ほどで再開します。/);
     expect(judgment.estimate.confidence).toBe("medium");
   });
 
@@ -207,7 +207,7 @@ describe("claude モードの数値の検査", () => {
     const { session, results } = await prepareSession();
     expect(results.estimate.flowOutlook).toBe("long");
     const sentence = results.estimate.flowSentence ?? "";
-    expect(sentence).toBe("人身事故は、再開まで1時間ほどかかるのがふつうです。");
+    expect(sentence).toBe("人身事故はふつう1時間ほどで再開します。");
     const ok = assembleJudgment(results, buildDecision(sentence), "ja");
     expect(session.checkJudgment(ok, results).errors).toEqual([]);
     expect(ok.typicalFlow?.eventType).toBe("person_accident");
@@ -267,10 +267,10 @@ describe("よくある流れの言葉", () => {
   it("長くかかる事象は下限を、無ければ再開までの p50 を使う", () => {
     const flow = { ...base, untilResume: { p50: 70, p80: 110 }, predictability: high };
     expect(buildFlowSentence({ ...flow, typicalFloorMinutes: 60 }, "人身事故", "long", "ja")).toBe(
-      "人身事故は、再開まで1時間ほどかかるのがふつうです。",
+      "人身事故はふつう1時間ほどで再開します。",
     );
     expect(buildFlowSentence(flow, "人身事故", "long", "ja")).toBe(
-      "人身事故は、再開まで1時間10分ほどかかるのがふつうです。",
+      "人身事故はふつう1時間10分ほどで再開します。",
     );
   });
 });

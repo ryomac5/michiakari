@@ -64,8 +64,10 @@ export type GuideStation = {
   transferService: boolean;
   // 推奨の選択肢の乗り方。おすすめの駅だけが持つ
   route: GuideRoute | null;
-  // 推奨の選択肢が最初に乗る駅
+  // 地図に描く選択肢が最初に乗る駅。一覧で選ばなければ推奨の選択肢
   recommended: boolean;
+  // 推奨の選択肢が最初に乗る駅。おすすめの星を付ける
+  starred: boolean;
   // 吹き出しを押したときに移る選択肢。推奨を優先する
   optionId: string | null;
 };
@@ -110,7 +112,10 @@ export type OptionMark = {
 export type StationGuideInput = {
   origin: Place;
   options: readonly RouteOption[];
+  // 地図に描く選択肢。一覧で選ばなければ推奨の選択肢
   recommendedOptionId: string | null;
+  // おすすめの星を付ける選択肢。省略時は recommendedOptionId
+  starOptionId?: string | null;
   // 駅間の車内。現在地の印を来た側の駅と次の駅のあいだの線路の上に置く。label は「大阪〜塚本の間」
   between?: { previousStation: string; nextStation: string; label: string } | null;
   // 止まっている区間の折れ線。駅間の現在地を線路の上に置くのに使う
@@ -338,6 +343,9 @@ export function buildStationGuide(
 
   const recommended = input.options.find((o) => o.id === input.recommendedOptionId);
   const recommendedBoarding = recommended ? findBoardingLeg(recommended) : undefined;
+  const starId = input.starOptionId === undefined ? input.recommendedOptionId : input.starOptionId;
+  const star = input.options.find((o) => o.id === starId);
+  const starBoarding = star ? findBoardingLeg(star) : undefined;
   const boardings = input.options.flatMap((o) => {
     const leg = findBoardingLeg(o);
     return leg?.fromStationId ? [{ option: o, leg, stationId: leg.fromStationId }] : [];
@@ -384,6 +392,9 @@ export function buildStationGuide(
         walkSource: walk.source,
         transferService: lines.some((l) => l.transferService),
         recommended: isRecommended,
+        starred:
+          starBoarding?.fromStationId != null &&
+          station.stationIds.includes(starBoarding.fromStationId),
         route:
           isRecommended && recommended
             ? buildGuideRoute(geo, recommended, input, transferLineIds)

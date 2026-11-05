@@ -1,10 +1,10 @@
 import type { ResumeChance } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import {
-  buildChanceLayout,
-  computeBarHeight,
-  computeChancePosition,
-  selectMarkLabelSide,
+  buildChanceChart,
+  buildChartPaths,
+  checkLabelsCollide,
+  selectValueSides,
 } from "./resume-chance";
 
 const at = (clock: string) => `2026-11-05T${clock}:00+09:00`;
@@ -26,95 +26,87 @@ const chance: ResumeChance = {
   onsetTime: at("22:10"),
 };
 
-describe("computeChancePosition", () => {
-  it("目盛りは等間隔の列の中央にあり、その間の時刻は直線で写す", () => {
-    expect(computeChancePosition(chance, ms("22:30"))).toBeCloseTo(0.1, 5);
-    expect(computeChancePosition(chance, ms("23:00"))).toBeCloseTo(0.3, 5);
-    expect(computeChancePosition(chance, ms("22:45"))).toBeCloseTo(0.2, 5);
-    // いま（22:10）は最初の目盛りの左の外
-    expect(computeChancePosition(chance, ms("22:10"))).toBeLessThan(0);
-  });
-});
-
-describe("selectMarkLabelSide", () => {
-  const bars = [0.1, 0.3, 0.5, 0.7, 0.9];
-  it("右に置けるなら右、棒に重なるなら左、どちらも無理なら出さない", () => {
-    expect(selectMarkLabelSide(0.12, bars)).toBe("right");
-    // 右に置くと 0.3 の棒に重なるので左に置く
-    expect(selectMarkLabelSide(0.27, bars)).toBe("left");
-    // 棒と棒のちょうど中間では、どちら側も棒に重なる
-    expect(selectMarkLabelSide(0.2, bars)).toBe("hidden");
-    expect(selectMarkLabelSide(0.3, bars)).toBe("hidden");
+describe("buildChanceChart", () => {
+  it("目盛りは時刻どおりに横へ並び、高さは動いている見込みになる", () => {
+    const chart = buildChanceChart({ chance, breakEvenTime: at("22:46"), nowMs: ms("22:40") });
+    expect(chart.points.map((p) => p.x)).toEqual([0, 0.25, 0.5, 0.75, 1]);
+    expect(chart.points.map((p) => p.y)).toEqual([0, 0, 0.6, 0.8, 1]);
+    // 境目より後の目盛りは after になる
+    expect(chart.points.map((p) => p.side)).toEqual(["before", "after", "after", "after", "after"]);
+    expect(chart.now).toBeCloseTo(10 / 120, 5);
   });
 
-  it("右端に近ければ左に置く", () => {
-    expect(selectMarkLabelSide(0.95, [0.1, 0.3])).toBe("left");
-  });
-});
-
-describe("buildChanceLayout", () => {
-  it("分岐点より後の目盛りは after になり、分岐点と期限の印が軸の上に置かれる", () => {
-    const layout = buildChanceLayout({ chance, breakEvenTime: at("22:46"), nowMs: ms("22:10") });
-    expect(layout.ticks.map((t) => t.side)).toEqual(["before", "after", "after", "after", "after"]);
-    expect(layout.marks.map((m) => m.kind)).toEqual(["breakEven", "deadline"]);
-    const [breakEven, deadline] = layout.marks;
-    expect(breakEven?.position).toBeCloseTo(0.1 + (16 / 30) * 0.2, 5);
-    expect(deadline?.position).toBeCloseTo(0.5 + (15 / 30) * 0.2, 5);
-    expect(deadline?.time).toBe(at("23:45"));
-    // 低い棒とは重ならないので、分岐点の文字は右に置ける。期限は高い棒に挟まれ、旗だけを右に置く
-    expect(breakEven?.labelSide).toBe("right");
-    expect(breakEven?.iconSide).toBeNull();
-    expect(deadline?.labelSide).toBe("hidden");
-    expect(deadline?.iconSide).toBe("right");
+  it("境目と期限の印を時刻の位置に置き、点の高さは agent の確率をそのまま使う", () => {
+    const chart = buildChanceChart({ chance, breakEvenTime: at("22:46"), nowMs: null });
+    expect(chart.marks.map((m) => m.kind)).toEqual(["breakEven", "resumeBy"]);
+    const [breakEven, deadline] = chart.marks;
+    expect(breakEven?.x).toBeCloseTo(16 / 120, 5);
+    expect(breakEven?.tenths).toBe(0);
+    expect(deadline?.x).toBeCloseTo(75 / 120, 5);
+    expect(deadline?.tenths).toBe(6);
+    expect(chart.now).toBeNull();
   });
 
-  it("期限が理由でタクシーを勧め、分岐点が期限から求めた時刻と同じなら、印は分岐点の 1 つだけ", () => {
-    // 期限に間に合うために動いていなければならない時刻 23:45 が、そのまま分岐点になる
-    const layout = buildChanceLayout({ chance, breakEvenTime: at("23:45"), nowMs: ms("22:10") });
-    expect(layout.marks.map((m) => m.kind)).toEqual(["breakEven"]);
-    expect(layout.marks[0]?.time).toBe(at("23:45"));
-  });
-
-  it("日本語の短い文字なら、英語では置けない隙間にも置ける", () => {
-    // 全部の棒が高いとき、22:38 の印の右の隙間は日本語の文字だけが収まる
-    const narrow = { ...chance, ticks: chance.ticks.map((t) => ({ ...t, tenths: 8 })) };
-    const en = buildChanceLayout({ chance: narrow, breakEvenTime: at("22:38"), nowMs: null });
-    const ja = buildChanceLayout({
-      chance: narrow,
-      breakEvenTime: at("22:38"),
+  it("期限が理由で境目と期限が同じ時刻なら、印は境目の 1 つだけで期限の見込みを添える", () => {
+    const chart = buildChanceChart({
+      chance: { ...chance, waitFaster: null },
+      breakEvenTime: at("23:45"),
       nowMs: null,
-      labelWidth: 0.09,
     });
-    expect(en.marks[0]?.labelSide).toBe("hidden");
-    expect(ja.marks[0]?.labelSide).toBe("right");
+    expect(chart.marks.map((m) => m.kind)).toEqual(["breakEven"]);
+    expect(chart.marks[0]?.tenths).toBe(6);
   });
 
-  it("軸の外の印は置かず、分岐点が無ければ全部 before になる", () => {
-    const passed = buildChanceLayout({ chance, breakEvenTime: at("21:00"), nowMs: null });
-    expect(passed.marks.map((m) => m.kind)).toEqual(["deadline"]);
-    expect(passed.ticks.every((t) => t.side === "after")).toBe(true);
-    const none = buildChanceLayout({
+  it("軸の外の時刻は端に寄せ、向きを残す。いまが軸の外なら印を置かない", () => {
+    const passed = buildChanceChart({ chance, breakEvenTime: at("21:00"), nowMs: ms("22:10") });
+    expect(passed.marks[0]).toMatchObject({ kind: "breakEven", x: 0, outside: "before" });
+    expect(passed.points.every((p) => p.side === "after")).toBe(true);
+    expect(passed.now).toBeNull();
+    const none = buildChanceChart({
       chance: { ...chance, resumeByForDeadline: null },
       breakEvenTime: null,
       nowMs: null,
     });
     expect(none.marks).toEqual([]);
-    expect(none.ticks.every((t) => t.side === "before")).toBe(true);
-  });
-
-  it("要点の目盛りは 5 割に達する最初の目盛りで、いまからの分を付ける", () => {
-    const layout = buildChanceLayout({ chance, breakEvenTime: at("22:46"), nowMs: ms("22:10") });
-    expect(layout.lead?.tick.time).toBe(at("23:30"));
-    expect(layout.lead?.fromNowMinutes).toBe(80);
-    const noNow = buildChanceLayout({ chance, breakEvenTime: null, nowMs: null });
-    expect(noNow.lead?.fromNowMinutes).toBeNull();
+    expect(none.points.every((p) => p.side === "before")).toBe(true);
   });
 });
 
-describe("computeBarHeight", () => {
-  it("確率に比例し、1 割未満でも 2px は残す", () => {
-    expect(computeBarHeight(0, 22)).toBe(2);
-    expect(computeBarHeight(5, 22)).toBe(11);
-    expect(computeBarHeight(10, 22)).toBe(22);
+describe("buildChartPaths", () => {
+  it("折れ線は上が 100% の座標で描き、面は底辺で閉じる", () => {
+    const chart = buildChanceChart({ chance, breakEvenTime: null, nowMs: null });
+    const paths = buildChartPaths(chart.points);
+    expect(paths.line).toBe(
+      "M 0.00 100.00 L 25.00 100.00 L 50.00 40.00 L 75.00 20.00 L 100.00 0.00",
+    );
+    expect(paths.area).toBe(`${paths.line} L 100.00 100 L 0.00 100 Z`);
+    expect(buildChartPaths([])).toEqual({ line: "", area: "" });
+  });
+});
+
+describe("checkLabelsCollide", () => {
+  it("2 つの位置の差が文字の幅より小さければ重なる", () => {
+    expect(checkLabelsCollide(0.1, 0.2, 0.15)).toBe(true);
+    expect(checkLabelsCollide(0.1, 0.4, 0.15)).toBe(false);
+  });
+});
+
+describe("selectValueSides", () => {
+  const mark = (kind: "breakEven" | "resumeBy", x: number) =>
+    ({ kind, time: at("23:00"), x, outside: null, tenths: 1 }) as const;
+  it("右端に近い点の数字は左に置く", () => {
+    expect(selectValueSides([mark("breakEven", 0.2)])).toEqual({ breakEven: "right" });
+    expect(selectValueSides([mark("breakEven", 0.9)])).toEqual({ breakEven: "left" });
+  });
+
+  it("境目と期限が近いときは、左の点を左、右の点を右に分ける", () => {
+    expect(selectValueSides([mark("breakEven", 0.28), mark("resumeBy", 0.42)])).toEqual({
+      breakEven: "left",
+      resumeBy: "right",
+    });
+    expect(selectValueSides([mark("breakEven", 0.2), mark("resumeBy", 0.8)])).toEqual({
+      breakEven: "right",
+      resumeBy: "left",
+    });
   });
 });

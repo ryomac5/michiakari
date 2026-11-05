@@ -83,7 +83,7 @@
         "signals": "Finding signals",
         "phase": "Estimating the phase",
         "options": "Checking alternatives",
-        "breakEven": "Finding the decision point"
+        "breakEven": "Finding the cutoff time"
       },
       "status": {
         "pending": "Waiting",
@@ -104,9 +104,9 @@
         "signals": "Signs",
         "phase": "Phase",
         "options": "Options",
-        "breakEven": "Break-even"
+        "breakEven": "Cutoff"
       },
-      "logTitle": "How it was reasoned"
+      "logTitle": "How we decided"
     },
     "action": {
       "wait": "Wait",
@@ -117,9 +117,11 @@
       "label": "Advice",
       "recommended": "Try {label} · Arrive {time}",
       "remaining": "Resumes in {p50}–{p80} min",
-      "confidence": "Confidence: {level}",
+      "confidence": "Outlook certainty: {level}",
       "live": "Advice: {action}. {headline}",
-      "arrival": "Arrive {time}"
+      "arrival": "Arrive {time}",
+      "next": "Next step",
+      "reasonTitle": "Why"
     },
     "confidence": {
       "low": "low",
@@ -134,10 +136,10 @@
       "detail": "Details: {message}"
     },
     "breakEven": {
-      "title": "Decision point",
-      "meaning": "If trains restart by then, waiting is faster",
-      "passed": "Decision point passed",
-      "soon": "The decision point is close. Get ready to switch",
+      "title": "Cutoff",
+      "meaning": "If service restarts by the cutoff, waiting is faster.",
+      "passed": "Cutoff passed",
+      "soon": "The cutoff is close. Get ready to switch",
       "none": "Wait for service to resume",
       "noneDetail": "No alternative arrival to compare. Wait for service to resume.",
       "pending": "Calculating…",
@@ -160,27 +162,20 @@
           "straddle": "Resumes ~{from}–{to}: <em>spans decision</em>",
           "after": "Resumes ~{from}–{to}: <em>past decision</em>"
         }
-      }
+      },
+      "untilLabel": "until cutoff",
+      "detailTitle": "Reading the cutoff"
     },
     "resumeChance": {
-      "title": "Chance of moving again",
-      "waitFaster": "Restart by decision point",
-      "waitOnTime": "On time by waiting",
+      "title": "Chance service is running",
+      "onset": "{since} since the stop",
+      "half": "50%",
+      "waitFaster": "Chance of restart by the cutoff",
+      "waitOnTime": "Chance of making your deadline by waiting",
       "chance": {
-        "under": "under 10%",
-        "over": "over 90%",
-        "tenths": "{n}0%"
-      },
-      "bar": {
         "under": "<10%",
         "over": ">90%",
         "tenths": "{n}0%"
-      },
-      "lead": {
-        "fromNow": "{chance} chance of restart by {time}. That is {fromNow} from now.",
-        "sinceOnset": "{chance} chance of restart by {time}. That is {since} after the stop.",
-        "both": "{chance} chance of restart by {time}. That is {fromNow} from now. The stop began {since} before then.",
-        "plain": "{chance} chance of restart by {time}"
       },
       "duration": {
         "minutes": "{minutes} min",
@@ -188,14 +183,12 @@
         "hoursMinutes": "{hours} h {minutes} min"
       },
       "marks": {
-        "breakEven": "Decision",
-        "deadline": "Deadline"
+        "breakEven": "Cutoff",
+        "now": "Now",
+        "resumeBy": "On time if running by <clock>{time}</clock>"
       },
       "sr": {
-        "ticks": "Chance of moving by each time: {items}.",
-        "tick": "{time} {chance}",
-        "waitFaster": "Chance of restart by the decision point: {chance}.",
-        "waitOnTime": "Restart by {time} to meet your deadline. Chance of making it by waiting: {chance}."
+        "tick": "{time} {chance}"
       }
     },
     "switchStep": {
@@ -204,7 +197,8 @@
       "boardAt": "Board at {station}",
       "taxi": "Take a taxi",
       "walk": "Walk there, {minutes} min",
-      "arrival": "Arrive {time}"
+      "arrival": "Arrive {time}",
+      "arrivalLabel": "Expected arrival"
     },
     "weather": {
       "title": "Rainfall, every 10 min",
@@ -245,7 +239,9 @@
         "taxi": "Taxi"
       },
       "walkShort": "{minutes} min walk",
-      "from": "From {station}"
+      "from": "From {station}",
+      "select": "Show on map",
+      "selected": "Shown on map"
     },
     "evidence": {
       "title": "Why we think so",
@@ -262,7 +258,13 @@
         "weather": "Weather",
         "computation": "Calculation"
       },
-      "openKnowledge": "See in knowledge base"
+      "openKnowledge": "See in knowledge base",
+      "describe": {
+        "signal": "Announcement: \"{quote}\"",
+        "event": "Typical flow of {event}",
+        "phase": "Current phase: {phase}",
+        "knowledge": "Former dispatcher's knowledge"
+      }
     },
     "flow": {
       "title": "Typical flow",
@@ -271,9 +273,18 @@
       "minutes": "~{minutes} min",
       "here": "You are here",
       "predictability": {
-        "high": "Predictable",
-        "medium": "Somewhat variable",
-        "low": "Hard to predict"
+        "high": "Predictable flow",
+        "medium": "Somewhat variable flow",
+        "low": "Hard-to-read flow"
+      },
+      "usual": {
+        "long": "Usually resumes in about {duration}",
+        "short": "Usually over in {span} min"
+      },
+      "duration": {
+        "minutes": "{minutes} min",
+        "hours": "{hours} h",
+        "hoursMinutes": "{hours} h {minutes} min"
       }
     },
     "addInfo": {
@@ -291,7 +302,7 @@
       "destinationTerminal": "Destination is set to {station}, the end of the line",
       "onTrain": "You're on the train, so we start from {station}",
       "elapsedUnknown": "We count the stop as starting now",
-      "causeUnknown": "We don't assume a cause and use the decision point as your cue",
+      "causeUnknown": "Cause not confirmed. We use the cutoff time as your cue",
       "betweenStations": "You're between stations, so we plan what to do once you reach {station}"
     },
     "nextCheck": {
@@ -442,7 +453,8 @@
     "changeAt": "change at {station}",
     "transferShort": "Transfer",
     "between": "between {from} and {to}",
-    "alight": "Get off at"
+    "alight": "Get off at",
+    "walkShort": "{minutes} min walk"
   },
   "about": {
     "title": "About Michiakari",
@@ -460,8 +472,8 @@
       "title": "How we estimate",
       "p1": "We use knowledge from a former train dispatcher, generalized into signs anyone can observe.",
       "p2": "We read signals from the notices you bring and estimate the current phase and a range for the time to resumption.",
-      "p3": "Numbers such as arrival times and the decision point are computed by code. The AI interprets and explains them.",
-      "p4": "When we are not confident, we focus on the decision point instead of a firm estimate."
+      "p3": "Numbers such as arrival times and the cutoff time are computed by code. The AI interprets and explains them.",
+      "p4": "When we are not confident, we focus on the cutoff time instead of a firm estimate."
     },
     "attribution": {
       "title": "Sources",

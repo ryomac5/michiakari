@@ -281,8 +281,8 @@ describe("claude モード", () => {
     for (const n of [reasonLimits.ja.target, reasonLimits.ja.max, reasonLimits.en.max]) {
       expect(reason).toContain(String(n));
     }
-    expect(reason).toContain("先頭の1文だけ");
-    expect(reason).toContain("再開見込み23時40分頃は分岐点23時23分より後");
+    expect(reason).toContain("先頭の1文を見出しの下に出す");
+    expect(reason).toContain("再開は23時40分頃の見込みで境目より後です。");
     expect(tool?.input_schema.required).toContain("reason");
     expect(tool?.description).toContain(String(reasonLimits.ja.max));
   });
@@ -293,7 +293,8 @@ describe("claude モード", () => {
     for (const n of [headlineLimits.ja.target, headlineLimits.ja.max, headlineLimits.en.max]) {
       expect(headline).toContain(String(n));
     }
-    expect(headline).toContain("あと25分は待つ");
+    expect(headline).toContain("20時05分まで待つ。動かなければ阪急京都線へ");
+    expect(headline).toContain("大阪梅田まで歩いて阪急京都線へ");
     expect(tool?.description).toContain(String(headlineLimits.ja.max));
   });
 

@@ -42,9 +42,9 @@ async function answerWithStatedTime(page: Page, pickTime: "second" | "last"): Pr
   return label;
 }
 
-// 「HH:MM」の表示を 0 時からの分にする
+// 「HH:MM」か「H時MM分」の表示を 0 時からの分にする
 function toMinuteOfDay(text: string): number {
-  const match = /(\d{1,2}):(\d{2})/.exec(text);
+  const match = /(\d{1,2})(?::|時)(\d{2})/.exec(text);
   if (!match) throw new Error(`時刻の表示がありません: ${text}`);
   return Number(match[1]) * 60 + Number(match[2]);
 }
@@ -56,35 +56,39 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
   const statedLabel = await answerWithStatedTime(page, "second");
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   await expect(conclusion).toHaveAttribute("data-action", "wait", { timeout: 30_000 });
-  // 発表の時刻を見込みに使うので、確信度は低にならず、保留の形にもならない
-  await expect(conclusion).not.toContainText("確信度 低");
-  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toContainText(
-    /あと\d+分は待つ/,
+  // 境目の時刻まで待つと言い切り、動かなければ乗る路線を次の手として添える
+  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText(
+    /^\d{1,2}時\d{2}分まで待つ$/,
   );
+  await expect(page.getByTestId(testIds.judgment.conclusionNext)).toContainText(/動かなければ.+へ/);
   await expect(conclusion).not.toContainText(nonDecisive);
-
-  // 選んだ時刻は分岐点より前にある
-  const breakEvenText = await page.getByTestId(testIds.judgment.breakEvenTime).textContent();
-  expect(toMinuteOfDay(statedLabel)).toBeLessThan(toMinuteOfDay(breakEvenText ?? ""));
-
-  // 見出しの「あと23分」と分岐点の行の「あと 23 分」は、同じ基準時刻から数えて同じ数字になる
-  const headlineText = await page.getByTestId(testIds.judgment.conclusionHeadline).textContent();
-  const headlineMinutes = Number(/あと(\d+)分/.exec(headlineText ?? "")?.[1]);
-  await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(
-    new RegExp(`あと\\s*${headlineMinutes}\\s*分`),
+  // 発表の時刻を見込みに使うので、見込みの確かさは低にならない
+  await expect(page.getByTestId(testIds.judgment.confidence)).not.toHaveAttribute(
+    "data-level",
+    "low",
   );
+
+  // 選んだ時刻は境目より前にある。見出しの時刻は図の境目の時刻と同じ
+  const breakEvenText = await page.getByTestId(testIds.judgment.breakEvenTime).textContent();
+  expect(diffMinutes(statedLabel, breakEvenText ?? "")).toBeLessThan(0);
+  const headlineText = await page.getByTestId(testIds.judgment.conclusionHeadline).textContent();
+  expect(toMinuteOfDay(headlineText ?? "")).toBe(toMinuteOfDay(breakEvenText ?? ""));
+  // 右上の数字は境目までの残り時間 1 つだけ
+  await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(/^あと \d+ 分$/);
 
   // 理由は、発表の時刻をもとにした推定だと分かる言い方にする
-  await openSheet(page, "half");
-  const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
-  await expect(reason).toContainText("発表の再開見込み");
-  await expect(reason).toContainText("見込みどおりなら");
-  await expect(reason).not.toContainText(nonDecisive);
+  const summary = page.getByTestId(testIds.judgment.conclusionReason);
+  await expect(summary).toContainText(`発表の再開が${toJapaneseClock(statedLabel)}なら`);
+  await expect(summary).toContainText("待つほうが早く着きます");
   await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
     timeout: 30_000,
   });
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}stated-resume-wait-390x844.png` });
+  await openSheet(page, "half");
+  const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
+  await expect(reason).toContainText("境目の");
+  await expect(reason).not.toContainText(nonDecisive);
 });
 
 test("原因が聞き取れなくても、放送の再開時刻が分岐点より後なら切り替えると言い切る", async ({
@@ -93,15 +97,39 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
   const statedLabel = await answerWithStatedTime(page, "last");
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   await expect(conclusion).toHaveAttribute("data-action", "switch", { timeout: 30_000 });
-  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toContainText(/に切り替える/);
+  // どの路線に、どこから乗るかを言い切る
+  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText(
+    /^.+まで歩いて.+へ$|^.+に乗り換える$/,
+  );
   await expect(conclusion).not.toContainText(nonDecisive);
+  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(
+    `発表の再開が${toJapaneseClock(statedLabel)}なら`,
+  );
+  await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
+    timeout: 30_000,
+  });
+  await waitForFiniteAnimations(page);
+  await page.screenshot({ path: `${screenshotDir}stated-resume-switch-390x844.png` });
 
-  // 選んだ時刻は分岐点より後にある。分岐点は全部開いたシートの説明に残る
+  // 選んだ時刻は境目より後にある。境目は開いたシートの説明に残る
   await openSheet(page, "full");
   const sentence = await page.getByTestId(testIds.judgment.breakEvenSentence).textContent();
-  expect(toMinuteOfDay(statedLabel)).toBeGreaterThan(toMinuteOfDay(sentence ?? ""));
+  expect(diffMinutes(statedLabel, sentence ?? "")).toBeGreaterThan(0);
   const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
-  await expect(reason).toContainText("発表の再開見込み");
-  await expect(reason).toContainText("見込みどおりでも");
+  await expect(reason).toContainText("境目の");
   await expect(reason).not.toContainText(nonDecisive);
 });
+
+// 「22:10」を理由の文の書き方「22時10分」にする
+function toJapaneseClock(label: string): string {
+  const match = /(\d{1,2}):(\d{2})/.exec(label);
+  if (!match) throw new Error(`時刻の表示がありません: ${label}`);
+  return `${Number(match[1])}時${match[2]}分`;
+}
+
+// 2 つの時刻の差（分）。日付をまたぐ時刻も比べられるよう、差を -12 時間〜12 時間に収める
+function diffMinutes(a: string, b: string): number {
+  const day = 24 * 60;
+  const diff = (toMinuteOfDay(a) - toMinuteOfDay(b) + day) % day;
+  return diff > day / 2 ? diff - day : diff;
+}
