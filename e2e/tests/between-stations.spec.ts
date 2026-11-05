@@ -131,7 +131,8 @@ async function startBetweenStations(page: Page): Promise<void> {
   // 駅間の後に行き先を答え、様子へ進む
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("塚本");
-  await page.getByTestId(testIds.start.cause("person")).click();
+  await page.getByTestId(testIds.start.cause("passenger")).click();
+  await page.getByTestId(testIds.start.causeKind("person")).click();
   await page.getByTestId(testIds.start.elapsed("m10")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
