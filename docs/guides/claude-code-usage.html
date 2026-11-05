@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claude Code での作り方 — マツカエル</title>
+<title>Claude Code での作り方 — みちあかり</title>
 <style>
   :root {
     --ink: #1f2429;
@@ -121,7 +121,7 @@
 
 <header>
   <h1>Claude Code での作り方</h1>
-  <p class="lead">マツカエル — 関西の輸送障害で「待つか、切り替えるか」を示す Web アプリ</p>
+  <p class="lead">みちあかり — 関西の輸送障害で「待つか、切り替えるか」を示す Web アプリ</p>
   <p class="lead">Built with Claude: Japan 2026 提出作品の開発記録。2026-11-05 時点。</p>
 </header>
 
@@ -315,6 +315,22 @@ API キーが無ければ決定論モードで動き、文字列照合と規則�
 同じ系統でレビューすると、盲点が共有されたままになる。
 重要な差分のレビューには、そのとき使える最上位のモデルを指定した。</p>
 
+<h3>開発者の方針</h3>
+
+<p>実装は Claude の子に振る。
+レビューは別系統の Codex に回し、同じ系統で見落としを共有しない。
+このハッカソンが Claude で作ることを競うので、実装を Codex には任せない。</p>
+
+<h3>11-05 の運用で分かったこと</h3>
+
+<p>11-05 のタスクグラフの運用で、次の 3 点が分かった。</p>
+
+<ul>
+  <li>根は子の「通った」という報告を根拠にせず、受け入れコマンドを自分で流してから統合した。</li>
+  <li>子のサンドボックスではポートを開けず e2e を流せないので、e2e はスケジューラと根が流した。</li>
+  <li>3 往復で直らなかった作業は、同じ子に直させ続けず、別のモデルに引き継いだ。</li>
+</ul>
+
 <h3>スケジューラとサンドボックス</h3>
 
 <p>複数ステップの作業はタスクグラフとして <code>tasks.yaml</code> に書き、スケジューラが worktree ごとに子を起こす。
@@ -370,18 +386,16 @@ git log の「検証前スナップショット」は、スケジューラが受
 
 <h2 id="numbers">5. 数字</h2>
 
-<p>値は 2026-11-05 の git と <code>docs/progress.md</code> から取った。
-単体テストの内訳は 11-04 の最後の全体実行の記録である。
-11-05 の子の記録では web が 290 件に増えている。</p>
+<p>テストの値は <code>docs/progress.md</code> の 11-05 T10 の記録から取った。
+コミット数は git の実数である。</p>
 
 <table>
   <thead><tr><th>項目</th><th>値</th><th>出どころ</th></tr></thead>
   <tbody>
-    <tr><td>コミット数</td><td class="num">208</td><td><code>git log --oneline</code> の行数</td></tr>
-    <tr><td>日別のコミット</td><td class="num">74 / 40 / 60 / 34</td><td>11-02 から 11-05 の順</td></tr>
-    <tr><td>単体テスト</td><td class="num">1,084</td><td>agent 189、core 279、geo 120、schema 186、data 39、web 271</td></tr>
-    <tr><td>e2e</td><td class="num">84</td><td>最後の全体実行で全件が通った。spec は 17 ファイル</td></tr>
-    <tr><td>e2e の推移</td><td class="num">11 → 26 → 55 → 72 → 78 → 84</td><td>作業記録の各回の件数</td></tr>
+    <tr><td>コミット数</td><td class="num">243</td><td>2026-11-05 の統合の時点。<code>git rev-list --count HEAD</code> で数えた</td></tr>
+    <tr><td>単体テスト</td><td class="num">1,212</td><td>agent 218、core 282、geo 121、schema 189、data 39、web 363。scripts の 37 件は別</td></tr>
+    <tr><td>e2e</td><td class="num">106</td><td>根が全件を流して全件が通った。spec は 17 ファイル</td></tr>
+    <tr><td>e2e の推移</td><td class="num">11 → 26 → 55 → 72 → 78 → 84 → 106</td><td>作業記録の各回の件数</td></tr>
     <tr><td>作業ツリー</td><td class="num">40 本超</td><td>残タスク一覧の片付けの項</td></tr>
     <tr><td>路線と駅</td><td class="num">106 / 1,356</td><td>国土数値情報から生成した網</td></tr>
     <tr><td>フック</td><td class="num">1</td><td><code>PreToolUse</code> の <code>protect-paths.mjs</code></td></tr>
