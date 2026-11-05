@@ -1,7 +1,7 @@
 "use client";
 
 import { type Dispatch, useCallback, useEffect, useRef } from "react";
-import type { EntryAction } from "./flow";
+import { type EntryAction, selectEntryHistoryAction } from "./flow";
 
 // 入口の段を端末の履歴につなぐ。段が 1 つ深くなるたびに同じ URL の履歴を 1 つ積み、
 // 端末の戻る操作（popstate）でその深さの段まで引く。URL は変えないので、?mock=1 などはそのまま残る
@@ -32,29 +32,30 @@ export function useEntryHistory(depth: number, dispatch: Dispatch<EntryAction>, 
     window.history.go(target - from);
   }, []);
 
-  // 段と履歴の深さをそろえる。深くなったら積み、履歴のほうが深ければ（判断の画面から戻ったときなど）履歴を引く
+  // 復元時は履歴に段を合わせ、通常の進行・選び直しでは段に履歴を合わせる
   useEffect(() => {
-    if (!ready || window.location.pathname !== "/") return;
+    if (!ready || window.location.pathname !== "/" || pendingRef.current !== null) return;
     const storedDepth = readHistoryDepth();
-    if (!initializedRef.current) {
-      // セッションの答えより履歴が浅い場合、復元を進行とみなして積み直さない。
-      if (storedDepth !== null && depth > storedDepth) {
-        dispatch({ type: "backTo", depth: storedDepth });
-        return;
-      }
-      initializedRef.current = true;
-    }
-    if (pendingRef.current !== null) return;
-    const historyDepth = storedDepth ?? 0;
-    if (storedDepth === null) {
-      window.history.replaceState({ ...window.history.state, [depthKey]: 0 }, "");
-    }
-    if (depth > historyDepth) {
-      for (let d = historyDepth + 1; d <= depth; d++) {
-        window.history.pushState({ ...window.history.state, [depthKey]: d }, "");
-      }
-    } else if (depth < historyDepth) {
-      travel(depth, historyDepth);
+    const action = selectEntryHistoryAction(depth, storedDepth, !initializedRef.current);
+    // backTo による段の更新が反映されるまで復元扱いを保つ（Strict Mode の再実行も同じ）。
+    initializedRef.current = action.type !== "restore";
+    switch (action.type) {
+      case "restore":
+        dispatch({ type: "backTo", depth: action.depth });
+        break;
+      case "write":
+        if (action.initialize) {
+          window.history.replaceState({ ...window.history.state, [depthKey]: 0 }, "");
+        }
+        for (let d = action.from + 1; d <= action.to; d++) {
+          window.history.pushState({ ...window.history.state, [depthKey]: d }, "");
+        }
+        break;
+      case "travel":
+        travel(action.depth, storedDepth ?? 0);
+        break;
+      case "none":
+        break;
     }
   }, [depth, dispatch, ready, travel]);
 

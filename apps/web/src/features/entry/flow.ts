@@ -87,6 +87,27 @@ export function stageDepth(stage: EntryStage): number {
   return stageDepths[stage];
 }
 
+type EntryHistoryAction =
+  | { type: "restore" | "travel"; depth: number }
+  | { type: "write"; from: number; to: number; initialize: boolean }
+  | { type: "none" };
+
+// 復元中は既存の履歴を優先する。戻った先を進行とみなすと、履歴を積み直してしまう。
+export function selectEntryHistoryAction(
+  depth: number,
+  storedDepth: number | null,
+  restoring: boolean,
+): EntryHistoryAction {
+  if (restoring && storedDepth !== null && depth > storedDepth) {
+    return { type: "restore", depth: storedDepth };
+  }
+  if (storedDepth === null || depth > storedDepth) {
+    return { type: "write", from: storedDepth ?? 0, to: depth, initialize: storedDepth === null };
+  }
+  if (depth < storedDepth) return { type: "travel", depth };
+  return { type: "none" };
+}
+
 // 進み具合の印。路線・方面・行き先・いまどこ・様子の 5 つ。駅より前の段は -1
 export const progressSteps = ["line", "direction", "destination", "position", "situation"] as const;
 

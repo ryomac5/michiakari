@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { EntryArea, EntryLine, EntryPlace } from "./entry-places";
 import {
   type EntryAction,
   type EntryState,
   initialEntryState,
   reduceEntry,
+  selectEntryHistoryAction,
   selectProgressIndex,
   stageDepth,
 } from "./flow";
@@ -184,53 +185,66 @@ describe("selectProgressIndex", () => {
   });
 });
 
-// 復元直後の効果を、ブラウザの履歴を正として確認する。
-describe("useEntryHistory の復元", () => {
-  it.each([
-    { name: "経過まで戻った履歴を積み直さない", pathname: "/", storedDepth: 7, ready: true },
-    { name: "最後の段へ戻った履歴を保つ", pathname: "/", storedDepth: 8, ready: true },
-    { name: "復元前は履歴に触らない", pathname: "/", storedDepth: 7, ready: false },
-    {
-      name: "判断画面に入口の履歴を積まない",
-      pathname: "/judgment",
-      storedDepth: null,
-      ready: true,
-    },
-  ])("$name", async ({ pathname, storedDepth, ready }) => {
-    const effects: (() => undefined | (() => void))[] = [];
-    vi.doMock("react", () => ({
-      useRef: (current: unknown) => ({ current }),
-      useCallback: (callback: unknown) => callback,
-      useEffect: (effect: () => undefined | (() => void)) => effects.push(effect),
-    }));
-    const pushState = vi.fn();
-    const replaceState = vi.fn();
-    const go = vi.fn();
-    vi.stubGlobal("window", {
-      location: { pathname },
-      history: { state: { entryDepth: storedDepth }, pushState, replaceState, go },
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
+describe("selectEntryHistoryAction", () => {
+  const resumeDepth = stageDepth("resume");
+  const elapsedDepth = stageDepth("elapsed");
+
+  it("判断から戻った履歴が最後の段なら、入口の履歴を積み直さない", () => {
+    expect(selectEntryHistoryAction(resumeDepth, resumeDepth, true)).toEqual({ type: "none" });
+    expect(selectEntryHistoryAction(resumeDepth, resumeDepth, false)).toEqual({ type: "none" });
+  });
+
+  it("復元した答えより履歴が浅ければ段を戻し、更新後も履歴を積まない", () => {
+    const restored = run([
+      ...toCause,
+      { type: "chooseCause", cause: { eventType: "person_accident" } },
+      { type: "chooseElapsed", elapsed: "m10" },
+    ]);
+    const action = selectEntryHistoryAction(stageDepth(restored.stage), elapsedDepth, true);
+    expect(action).toEqual({ type: "restore", depth: elapsedDepth });
+    // 段の更新前に再実行されても、復元を進行として扱わない。
+    expect(selectEntryHistoryAction(stageDepth(restored.stage), elapsedDepth, true)).toEqual(
+      action,
+    );
+    if (action.type !== "restore") throw new Error("履歴の深さへの復元が必要");
+    const next = reduceEntry(restored, { type: "backTo", depth: action.depth });
+    expect(next.stage).toBe("elapsed");
+    expect(selectEntryHistoryAction(stageDepth(next.stage), elapsedDepth, true)).toEqual({
+      type: "none",
     });
-    try {
-      const { useEntryHistory: renderHistory } = await import("./use-entry-history");
-      const dispatch = vi.fn();
-      renderHistory(stageDepth("resume"), dispatch, ready);
-      for (const effect of effects) effect();
-      // Strict Mode で同じ効果が再実行されても、復元途中の深さを積まない。
-      effects[0]?.();
-      expect(pushState).not.toHaveBeenCalled();
-      expect(replaceState).not.toHaveBeenCalled();
-      expect(go).not.toHaveBeenCalled();
-      if (ready && pathname === "/" && storedDepth === stageDepth("elapsed")) {
-        expect(dispatch).toHaveBeenCalledWith({ type: "backTo", depth: stageDepth("elapsed") });
-      } else {
-        expect(dispatch).not.toHaveBeenCalled();
-      }
-    } finally {
-      vi.unstubAllGlobals();
-      vi.doUnmock("react");
-      vi.resetModules();
-    }
+    expect(selectEntryHistoryAction(stageDepth(next.stage), elapsedDepth, false)).toEqual({
+      type: "none",
+    });
+  });
+
+  it("通常の回答では次の段だけを積む", () => {
+    expect(selectEntryHistoryAction(resumeDepth, elapsedDepth, false)).toEqual({
+      type: "write",
+      from: elapsedDepth,
+      to: resumeDepth,
+      initialize: false,
+    });
+  });
+
+  it("初回は深さ 0 を記録し、履歴に印がない復元では必要な段を積む", () => {
+    expect(selectEntryHistoryAction(0, null, true)).toEqual({
+      type: "write",
+      from: 0,
+      to: 0,
+      initialize: true,
+    });
+    expect(selectEntryHistoryAction(resumeDepth, null, true)).toEqual({
+      type: "write",
+      from: 0,
+      to: resumeDepth,
+      initialize: true,
+    });
+  });
+
+  it("選び直しで段が浅くなったときは既存の履歴を引く", () => {
+    expect(selectEntryHistoryAction(elapsedDepth, resumeDepth, false)).toEqual({
+      type: "travel",
+      depth: elapsedDepth,
+    });
   });
 });
