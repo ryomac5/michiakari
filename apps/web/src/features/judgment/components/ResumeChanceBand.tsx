@@ -10,6 +10,7 @@ import {
   type ChanceLead,
   type ChanceMarkLayout,
   computeBarHeight,
+  formatTenths,
   markLabelWidths,
 } from "../resume-chance";
 import { testIds } from "../testids";
@@ -24,14 +25,6 @@ const barMaxPx = 20;
 const barMotion = "transition-[height] duration-700 ease-out motion-reduce:transition-none";
 
 type Translate = ReturnType<typeof useTranslations<"judgment.resumeChance">>;
-
-// 1 割単位の確率の表示。0 は 1 割未満、10 は 9 割以上。棒の上は短い形にする
-function formatTenths(t: Translate, tenths: number, compact = false): string {
-  const group = compact ? "bar" : "chance";
-  if (tenths <= 0) return t(`${group}.under`);
-  if (tenths >= 10) return t(`${group}.over`);
-  return t(`${group}.tenths`, { n: tenths });
-}
 
 function formatDuration(t: Translate, minutes: number): string {
   const hours = Math.floor(minutes / 60);

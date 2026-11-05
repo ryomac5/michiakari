@@ -3,10 +3,13 @@
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
-import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import en from "../../apps/web/messages/en.json" with { type: "json" };
+import ja from "../../apps/web/messages/ja.json" with { type: "json" };
+import { testIds } from "../../apps/web/src/lib/testids.ts";
 import {
   loadReplayScenarios,
   openReplay,
+  openSheet,
   waitForFiniteAnimations,
   waitForJudged,
 } from "../support/replay.ts";
@@ -43,6 +46,61 @@ async function capture(page: Page, variant: Variant, name: string): Promise<void
   mkdirSync(dir, { recursive: true });
   await page.screenshot({ path: `${dir}${name}.png` });
 }
+
+test.describe("通常画面の判断の変化", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("情報を追加すると前の待つ判断と今の切り替え判断を並べる", async ({ page }) => {
+    await page.goto("/?mock=1");
+    await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
+      timeout: 30_000,
+    });
+    await page.getByTestId(testIds.start.originSearch).fill("大阪");
+    await page.getByTestId(testIds.start.originOption("大阪")).click();
+    const line = "大阪|jr-west.東海道線|JR神戸線";
+    await page.getByTestId(testIds.start.line(line)).click();
+    await page.getByTestId(testIds.start.direction(`${line}>jr-west.東海道線.神戸`)).click();
+    await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
+    await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+    await page.getByTestId(testIds.start.positionStation).click();
+    await page.getByTestId(testIds.start.method("paste")).click();
+    await page.getByTestId(testIds.situation.pasteInput).fill("人身事故で運転を見合わせています。");
+    await page.getByTestId(testIds.situation.submit("paste")).click();
+    await expect(page.getByTestId(testIds.judgment.screen)).toBeVisible({ timeout: 30_000 });
+    await expect(page).toHaveURL(/\/judgment$/);
+    const conclusion = page.getByTestId(testIds.judgment.conclusion);
+    await expect(conclusion).toHaveAttribute("data-action", "wait", { timeout: 30_000 });
+    await expect(page.getByTestId(testIds.judgment.change)).toHaveCount(0);
+
+    await openSheet(page, "full");
+    const addInfo = page.getByTestId(testIds.judgment.addInfo);
+    await addInfo.getByTestId(testIds.situation.tab("paste")).click();
+    await addInfo.getByTestId(testIds.situation.pasteInput).fill("振替輸送を実施しています。");
+    await addInfo.getByTestId(testIds.situation.submit("paste")).click();
+    await expect(conclusion).toHaveAttribute("data-action", "switch", { timeout: 30_000 });
+    await openSheet(page, "collapsed");
+    const change = page.getByTestId(testIds.judgment.change);
+    await expect(change).toHaveAttribute("data-from", "wait");
+    await expect(change).toHaveAttribute("data-to", "switch");
+    await expect(page.getByTestId(testIds.judgment.changeBefore)).toContainText(
+      ja.judgment.action.wait,
+    );
+    await expect(page.getByTestId(testIds.judgment.changeAfter)).toContainText(
+      ja.judgment.action.switch,
+    );
+    await expect(change).toContainText("振替輸送を実施しています。");
+    await expect(change).toContainText("未算出 → 未算出");
+    expect(
+      await conclusion.evaluate((element) =>
+        element.nextElementSibling?.getAttribute("data-testid"),
+      ),
+    ).toBe(testIds.judgment.change);
+    await waitForFiniteAnimations(page);
+    for (const locator of [conclusion, change, page.getByTestId(testIds.judgment.disclaimer)]) {
+      await expect(locator).toBeInViewport({ ratio: 1 });
+    }
+  });
+});
 
 // 指定した観測まで 1 件ずつ進める
 async function stepUntil(page: Page, observationId: string): Promise<void> {
@@ -90,9 +148,11 @@ for (const variant of variants) {
       const conclusion = page.getByTestId(testIds.judgment.conclusion);
       const breakEven = page.getByTestId(testIds.judgment.breakEven);
       const step = page.getByTestId(testIds.judgment.switchStep);
+      const change = page.getByTestId(testIds.judgment.change);
 
       await stepUntil(page, switchAfter);
       await expect(conclusion).toHaveAttribute("data-action", "switch");
+      await expect(change).toHaveCount(0);
       await expect(breakEven).toHaveAttribute("data-mode", "switch");
       await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveCount(0);
       for (const locator of [conclusion, breakEven]) {
@@ -123,11 +183,42 @@ for (const variant of variants) {
 
       await stepUntil(page, waitAfter);
       await expect(conclusion).toHaveAttribute("data-action", "wait");
+      const waitIndex = scenario.timeline.findIndex((entry) => entry.id === waitAfter);
+      const previousEntry = scenario.timeline[waitIndex - 1];
+      const previousAction = scenario.expectations.find(
+        (e) => e.after === previousEntry?.id,
+      )?.action;
+      if (!previousAction) throw new Error("前回の判断の期待値がありません");
+      const messages = variant.locale === "ja" ? ja : en;
+      await expect(change).toBeVisible();
+      expect(
+        await conclusion.evaluate((element) =>
+          element.nextElementSibling?.getAttribute("data-testid"),
+        ),
+      ).toBe(testIds.judgment.change);
+      await expect(change).toHaveAttribute("data-from", previousAction);
+      await expect(change).toHaveAttribute("data-to", "wait");
+      await expect(page.getByTestId(testIds.judgment.changeBefore)).toContainText(
+        messages.judgment.action[previousAction],
+      );
+      await expect(page.getByTestId(testIds.judgment.changeAfter)).toContainText(
+        messages.judgment.action.wait,
+      );
+      await expect(page.getByTestId(testIds.judgment.changeAnnouncement)).not.toBeEmpty();
+      await expect(change).toContainText(messages.judgment.change.probability);
+      await expect(page.getByTestId(testIds.judgment.disclaimer)).toBeVisible();
       await expect(breakEven).toHaveAttribute("data-mode", "break-even");
       await expect(step).toHaveCount(0);
       await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(countdownText);
       await expectUnbrokenRuns(page, `${variant.name} ${waitAfter}`);
       await capture(page, variant, `${scenario.id}-${waitAfter}-wait`);
+      // 結論・変化のカード・注意書きが同じ画面に入り、前から後の順で並ぶ
+      for (const locator of [conclusion, change, page.getByTestId(testIds.judgment.disclaimer)]) {
+        await expect(locator).toBeInViewport({ ratio: 1 });
+      }
+      const beforeBox = await page.getByTestId(testIds.judgment.changeBefore).boundingBox();
+      const afterBox = await page.getByTestId(testIds.judgment.changeAfter).boundingBox();
+      expect(beforeBox?.x).toBeLessThan(afterBox?.x ?? 0);
     });
   });
 }

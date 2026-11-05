@@ -16,7 +16,9 @@ import type { CauseAnswer, EntryMethod } from "@/features/entry/flow";
 import { type KnowledgeCatalog, mergeCatalogs } from "@/features/knowledge/catalog";
 import type { ElapsedOption } from "@/features/situation/plain-questions";
 import type { NearestStationLabel, StationNames } from "@/features/stations/describe";
+import { JudgmentChangeContext } from "./components/JudgmentChangeCard";
 import { personAccidentCatalog } from "./fixtures/person-accident";
+import { buildJudgmentChange } from "./judgment-change";
 import { isMockRequested, streamMockJudgment } from "./mock";
 import { buildJudgeRequest } from "./request";
 import {
@@ -210,7 +212,8 @@ export function JudgmentSessionProvider({
     controllerRef.current?.abort();
     setObservations(seed);
     pendingRef.current = { input, seed };
-    setState(startJudgmentRun);
+    // 新しい行程では前の行程の判断と比べない
+    setState(startJudgmentRun(createJudgmentState()));
   }, []);
 
   const resumeJudgment = useCallback(() => {
@@ -298,7 +301,17 @@ export function JudgmentSessionProvider({
     ],
   );
 
-  return <JudgmentSessionContext value={value}>{children}</JudgmentSessionContext>;
+  const change = buildJudgmentChange(
+    state.previousJudgment,
+    state.status === "ready" ? state.judgment : null,
+    state.observations.at(-1)?.rawText ?? null,
+  );
+
+  return (
+    <JudgmentSessionContext value={value}>
+      <JudgmentChangeContext value={change}>{children}</JudgmentChangeContext>
+    </JudgmentSessionContext>
+  );
 }
 
 export function useJudgmentSession(): JudgmentSession {

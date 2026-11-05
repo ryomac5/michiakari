@@ -2,7 +2,8 @@
 // page 内で動かす関数（addInitScript・evaluate）のために DOM の型を読む
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
-import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import ja from "../../apps/web/messages/ja.json" with { type: "json" };
+import { testIds } from "../../apps/web/src/lib/testids.ts";
 import type { Expectation, Scenario } from "../../packages/schema/src/scenario.ts";
 import {
   loadReplayScenarios,
@@ -130,6 +131,8 @@ for (const scenario of scenarios) {
     }) => {
       await openReplay(page, scenario.id, testSpeed);
       const bar = page.getByTestId(testIds.replay.bar);
+      let previousAction: string | null = null;
+      let previousChance = ja.judgment.change.notCalculated;
 
       for (const [index, entry] of scenario.timeline.entries()) {
         await page.getByTestId(testIds.replay.nextButton).click();
@@ -152,6 +155,26 @@ for (const scenario of scenarios) {
           /^(wait|switch|hold)$/,
         );
         await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).not.toBeEmpty();
+        const currentAction = await page
+          .getByTestId(testIds.judgment.conclusion)
+          .getAttribute("data-action");
+        const change = page.getByTestId(testIds.judgment.change);
+        const chance = page.getByTestId(testIds.judgment.resumeChanceWaitFaster);
+        const currentChance =
+          (await chance.count()) > 0
+            ? ((await chance.locator("dd").textContent())?.trim() ?? "")
+            : ja.judgment.change.notCalculated;
+        if (previousAction !== null && previousAction !== currentAction) {
+          await expect(change).toHaveAttribute("data-from", previousAction);
+          await expect(change).toHaveAttribute("data-to", currentAction ?? "");
+          await expect(page.getByTestId(testIds.judgment.changeProbability)).toHaveText(
+            `${previousChance} → ${currentChance}`,
+          );
+        } else {
+          await expect(change).toHaveCount(0);
+        }
+        previousAction = currentAction;
+        previousChance = currentChance;
         // どの段でも、結論と理由は行動の言葉で言い切る
         await expect(page.getByTestId(testIds.judgment.conclusion)).not.toContainText(nonDecisive);
         const reason = page.getByTestId(testIds.judgment.conclusionReason);
