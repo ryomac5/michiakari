@@ -1,0 +1,196 @@
+import { findPositionCandidates, type LonLat, type StationNode } from "@repo/geo";
+import type { OriginLine } from "@/features/judgment/session";
+import type { StationChoice, StationGroup } from "@/features/stations/catalog";
+import {
+  type EntryDirection,
+  listEntryDirections,
+  listNearbyStops,
+  pickFallbackStop,
+} from "./directions";
+import { type EntryData, type EntryLine, listGroupLines } from "./entry-places";
+
+// 現在地から読み取った候補を、入口で 1 回押せば確定できる形にする。位置は端末の外へ送らない
+
+// 画面に並べる候補の上限
+export const GPS_CHOICE_LIMIT = 3;
+
+// 駅の間の 2 駅。路線の駅の並びの順で、進む向きはまだ決めない
+export type GpsSegment = { from: string; to: string };
+
+export type GpsChoice =
+  | { kind: "station"; key: string; choice: StationChoice; distanceMeters: number }
+  | {
+      kind: "between";
+      key: string;
+      // from の駅から見た路線
+      line: EntryLine;
+      from: StationChoice;
+      to: StationChoice;
+      distanceMeters: number;
+    };
+
+export type GpsPoint = { lat: number; lon: number; accuracy: number };
+
+// 進む向きを決めた駅の間。line は手前の駅から見た路線で、direction の先頭が次の駅
+export type SegmentTravel = { line: OriginLine; direction: EntryDirection };
+
+// 2 駅の両方に通る、同じ路線の呼び名。JR の通称は境目の駅で 2 つ出るので、両側で共通のものを選ぶ
+function pickSegmentLine(
+  data: EntryData,
+  lineId: string,
+  from: StationNode,
+  to: StationNode,
+): EntryLine | null {
+  const lineOf = (node: StationNode) => {
+    const group = findGroup(data, node);
+    return group ? listGroupLines(data, group).filter((l) => l.lineId === lineId) : [];
+  };
+  const fromLines = lineOf(from);
+  const toNames = new Set(lineOf(to).map((l) => l.observedName));
+  return fromLines.find((l) => toNames.has(l.observedName)) ?? fromLines[0] ?? null;
+}
+
+function findGroup(data: EntryData, node: StationNode): StationGroup | undefined {
+  const id = data.catalog.groupIdByStationId.get(node.stationId);
+  return id ? data.catalog.groupById.get(id) : undefined;
+}
+
+// 位置と精度から、近い順に最大 GPS_CHOICE_LIMIT 個の候補を返す
+export function listGpsChoices(
+  data: EntryData,
+  nodes: readonly StationNode[],
+  point: GpsPoint,
+  limit = GPS_CHOICE_LIMIT,
+): GpsChoice[] {
+  const lonLat: LonLat = [point.lon, point.lat];
+  const candidates = findPositionCandidates(
+    { nodes, lines: data.index.listLines() },
+    { lonLat, accuracyMeters: point.accuracy },
+  );
+  const choices: GpsChoice[] = [];
+  for (const c of candidates) {
+    if (c.kind === "station") {
+      const choice = findGroup(data, c.station)?.choice;
+      if (choice)
+        choices.push({
+          kind: "station",
+          key: `station:${choice.id}`,
+          choice,
+          distanceMeters: c.distanceMeters,
+        });
+      continue;
+    }
+    const from = findGroup(data, c.from)?.choice;
+    const to = findGroup(data, c.to)?.choice;
+    const line = pickSegmentLine(data, c.line.lineId, c.from, c.to);
+    if (from && to && line)
+      choices.push({
+        kind: "between",
+        key: `between:${line.lineId}:${from.id}:${to.id}`,
+        line,
+        from,
+        to,
+        distanceMeters: c.distanceMeters,
+      });
+  }
+  return choices
+    .filter((c, i) => choices.findIndex((other) => other.key === c.key) === i)
+    .slice(0, limit);
+}
+
+// 駅の名前の位置に置いた路線
+function placeLine(data: EntryData, line: OriginLine, name: string): OriginLine | null {
+  const choice = data.catalog.groupById.get(name)?.choice;
+  if (!choice) return null;
+  const placed = { ...line, stationName: choice.name, stationNameEn: choice.nameEn };
+  return placed;
+}
+
+// 次の駅で路線が分かれるなら、分かれた先ごとに方面を足す。手前の駅からの方面が通る先は足さない
+function listBranchDirections(
+  data: EntryData,
+  aheadLine: OriginLine,
+  main: EntryDirection[],
+  behind: string,
+): EntryDirection[] {
+  const aheadDirections = listEntryDirections(data, aheadLine);
+  const [first] = aheadDirections;
+  const here = first
+    ? listNearbyStops(data, aheadLine, aheadDirections, first).find(
+        (s) => s.choice.name === aheadLine.stationName,
+      )
+    : undefined;
+  if (!here) return [];
+  return aheadDirections.flatMap((d) => {
+    const next = d.stops[0];
+    if (!next || next.choice.name === behind) return [];
+    if (main.some((m) => m.stops[1]?.choice.id === next.choice.id)) return [];
+    const stops = [here, ...d.stops];
+    const fallback = pickFallbackStop(stops);
+    return fallback ? [{ ...d, stops, fallback }] : [];
+  });
+}
+
+// 駅の間を通る向きと方面の組をすべて返す。line は手前の駅に置き、方面の先頭が次の駅
+export function listSegmentTravels(
+  data: EntryData,
+  line: OriginLine,
+  segment: GpsSegment,
+): SegmentTravel[] {
+  const orientations: [string, string][] = [
+    [segment.from, segment.to],
+    [segment.to, segment.from],
+  ];
+  return orientations.flatMap(([behind, ahead]) => {
+    const behindLine = placeLine(data, line, behind);
+    const aheadLine = placeLine(data, line, ahead);
+    if (!behindLine || !aheadLine) return [];
+    const main = listEntryDirections(data, behindLine).filter(
+      (d) => d.stops[0]?.choice.name === ahead,
+    );
+    return [...main, ...listBranchDirections(data, aheadLine, main, behind)].map((direction) => ({
+      line: behindLine,
+      direction,
+    }));
+  });
+}
+
+// 方面の段に出す方面。駅の間の両端から、その駅の間を通る向きだけを出す
+export function listSegmentDirections(
+  data: EntryData,
+  line: OriginLine,
+  segment: GpsSegment,
+): EntryDirection[] {
+  return listSegmentTravels(data, line, segment).map((t) => t.direction);
+}
+
+// 行き先から進む向きを決める。行き先が一方の向きの先にだけあるときに決まる
+// 同じ向きの方面が複数当たっても駅の間の位置は同じなので、最初の方面で決める
+export function inferSegmentTravel(
+  travels: SegmentTravel[],
+  destination: StationChoice,
+): SegmentTravel | null {
+  const matching = travels.filter((t) =>
+    t.direction.stops.some((s) => s.choice.id === destination.id),
+  );
+  const [first] = matching;
+  return first && matching.every((t) => t.line.stationName === first.line.stationName)
+    ? first
+    : null;
+}
+
+// 方面の段で選んだ方面を、駅の間を通る向きに対応づける。通らない方面なら null
+export function resolveSegmentTravel(
+  travels: SegmentTravel[],
+  chosen: EntryDirection,
+): SegmentTravel | null {
+  return (
+    travels.find((t) => t.direction === chosen) ??
+    travels.find(
+      (t) =>
+        t.direction.key === chosen.key &&
+        t.direction.stops[0]?.choice.id === chosen.stops[0]?.choice.id,
+    ) ??
+    null
+  );
+}

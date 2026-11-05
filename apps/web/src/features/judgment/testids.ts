@@ -18,5 +18,13 @@ export const testIds = {
     introProblem: "start-intro-problem",
     introSolution: "start-intro-solution",
     nearbyStation: (id: string) => `start-nearby-station-${id}`,
+    // 現在地から読み取る。data-status に読み取りの状態を出す
+    gps: "start-gps",
+    gpsLocate: "start-gps-locate",
+    gpsQuestion: "start-gps-question",
+    gpsConfirm: "start-gps-confirm",
+    gpsDismiss: "start-gps-dismiss",
+    gpsChoice: (key: string) => `start-gps-choice-${key}`,
+    gpsStatus: "start-gps-status",
   },
 };
