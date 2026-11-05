@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+import { agentUrl } from "../servers.ts";
+import { expect, test } from "../support/test.ts";
 
 test("web のトップに見出しと注意書きが表示される", async ({ page }) => {
   await page.goto("/");
@@ -7,7 +8,7 @@ test("web のトップに見出しと注意書きが表示される", async ({ p
 });
 
 test("agent の /health が ok を返す", async ({ request }) => {
-  const res = await request.get("http://localhost:8787/health");
+  const res = await request.get(`${agentUrl}/health`);
   expect(res.ok()).toBe(true);
   expect(await res.json()).toEqual({ status: "ok" });
 });

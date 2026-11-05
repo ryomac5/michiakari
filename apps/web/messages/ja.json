@@ -1,0 +1,622 @@
+{
+  "app": {
+    "title": "マツカエル",
+    "description": "運転見合わせに出会ったとき、待つか乗り換えるかを、元指令員の知見をもとに見込みと行動で示します。",
+    "home": "地図から始める",
+    "about": "このアプリについて",
+    "language": "言語",
+    "theme": {
+      "toLight": "ライト表示にする",
+      "toDark": "ダーク表示にする"
+    },
+    "mockBadge": "デモ用の架空データで表示しています",
+    "name": "マツカエル",
+    "tagline": "待つか、乗り換えるか。",
+    "skipToContent": "本文へ移動",
+    "knowledge": "知見ナレッジ",
+    "menu": {
+      "label": "メニュー",
+      "darkMode": "ダーク表示",
+      "mock": "デモ用の架空データ"
+    }
+  },
+  "disclaimer": {
+    "short": "推定であり、公式発表を優先してください。"
+  },
+  "start": {
+    "originLabel": "いまいる駅",
+    "locate": "現在地を使う",
+    "locating": "現在地を取得しています…",
+    "locateFailed": "駅名から選んでください。現在地はあとで試し直せます。",
+    "locateUnsupported": "駅名から選んでください。この端末では駅名で選ぶのが確実です。",
+    "currentLocation": "現在地",
+    "useFreeText": "「{text}」を行き先にする",
+    "noResults": "ほかの書き方でも探せます",
+    "replayLink": "デモを見る",
+    "nearestFailed": "駅名から選んでください。最寄り駅はあとで試し直せます。",
+    "locationNote": "現在地は最寄り駅を調べるためだけに送り、保存しません。",
+    "resultCount": "{count}件の駅が見つかりました",
+    "searchFailed": "通信を確かめて、もう一度探してください。"
+  },
+  "situation": {
+    "heading": "いまの状況を教えてください",
+    "lead": "掲示や発表の内容から、いまの段階を読み取ります。",
+    "edit": "変更",
+    "tabs": {
+      "photo": "撮影する",
+      "paste": "貼り付ける",
+      "select": "選んで答える"
+    },
+    "photo": {
+      "hint": "駅の掲示や案内画面を撮影してください。",
+      "button": "カメラで撮影する",
+      "retake": "撮り直す",
+      "preview": "撮影した写真",
+      "unsupported": "別の写真でお試しください。掲示の文字が大きく写ると読み取りやすくなります。",
+      "submit": "この写真で判断する"
+    },
+    "paste": {
+      "label": "発表文・案内の文章",
+      "placeholder": "例: 人身事故のため、運転を見合わせています",
+      "submit": "この内容で判断する"
+    },
+    "select": {
+      "eventLabel": "何が起きていますか",
+      "signalLabel": "聞こえた案内・見えた様子（いくつでも）",
+      "empty": "選択肢を準備中です。撮影か貼り付けで伝えてください。",
+      "back": "事象を選び直す",
+      "submit": "この内容で判断する"
+    },
+    "busy": "判断しています…"
+  },
+  "judgment": {
+    "heading": "判断",
+    "back": "戻る",
+    "trip": "{origin} → {destination}",
+    "reasoning": {
+      "title": "判断しています",
+      "steps": {
+        "reading": "掲示・発表を読み取る",
+        "signals": "兆候を見つける",
+        "phase": "いまの段階を推定する",
+        "options": "代替手段を調べる",
+        "breakEven": "分岐点を計算する"
+      },
+      "status": {
+        "pending": "待機中",
+        "active": "進行中",
+        "done": "完了",
+        "failed": "中断"
+      },
+      "detail": {
+        "reading": "「{text}」",
+        "signals": "{count}件の兆候",
+        "phase": "{phase}",
+        "options": "{count}件の選択肢",
+        "breakEven": "{time}",
+        "breakEvenNone": "待つのが確実"
+      },
+      "short": {
+        "reading": "読み取り",
+        "signals": "兆候",
+        "phase": "段階",
+        "options": "選択肢",
+        "breakEven": "分岐点"
+      },
+      "logTitle": "推論の過程"
+    },
+    "action": {
+      "wait": "待つ",
+      "switch": "切り替える",
+      "hold": "いまは待つ"
+    },
+    "conclusion": {
+      "label": "結論",
+      "recommended": "おすすめ: {label}（{time} 着）",
+      "remaining": "再開まで 約{p50}〜{p80}分",
+      "confidence": "確信度 {level}",
+      "live": "結論: {action}。{headline}",
+      "arrival": "{time} 着"
+    },
+    "confidence": {
+      "low": "低",
+      "medium": "中",
+      "high": "高"
+    },
+    "error": {
+      "title": "通信が途切れました",
+      "retryable": "通信の状態を確認して、もう一度お試しください。",
+      "fatal": "時間をおいて、もう一度お試しください。",
+      "retry": "もう一度判断する",
+      "detail": "詳細: {message}"
+    },
+    "breakEven": {
+      "title": "分岐点",
+      "meaning": "この時刻までに動かなければ、切り替えたほうが早く着きます",
+      "passed": "分岐点を過ぎました",
+      "soon": "まもなく分岐点です。乗り換えの準備を",
+      "none": "待つのが確実です",
+      "noneDetail": "近くの代わりの経路より、運転再開を待つほうが確実です。",
+      "pending": "計算しています…",
+      "stale": "更新中",
+      "countdownMinutes": "あと {minutes} 分",
+      "countdownHours": "あと {hours} 時間 {minutes} 分",
+      "imminent": "まもなく",
+      "condition": "<clock>{time}</clock> までに再開しなければ、乗り換えたほうが早く着きます",
+      "timeline": {
+        "now": "いま",
+        "breakEven": "分岐点 {time}",
+        "deadline": "期限 {time}",
+        "summary": {
+          "before": "おおよその再開見込み {from}〜{to} は、分岐点 {breakEven} より前です。待つほうが早く着く見込みです。",
+          "straddle": "おおよその再開見込み {from}〜{to} が、分岐点 {breakEven} をまたいでいます。見込みが延びれば、切り替えたほうが早く着きます。",
+          "after": "おおよその再開見込み {from}〜{to} は、分岐点 {breakEven} を越えています。切り替えたほうが早く着く見込みです。"
+        },
+        "caption": {
+          "before": "おおよその再開 {from}〜{to} は<em>分岐点より前</em>",
+          "straddle": "おおよその再開 {from}〜{to} が<em>分岐点をまたぐ</em>",
+          "after": "おおよその再開 {from}〜{to} は<em>分岐点より後</em>"
+        }
+      }
+    },
+    "resumeChance": {
+      "title": "再開の見込み",
+      "waitFaster": "待ったほうが早く着く見込み",
+      "waitOnTime": "待って期限に間に合う見込み",
+      "chance": {
+        "under": "1割未満",
+        "over": "9割以上",
+        "tenths": "{n}割"
+      },
+      "bar": {
+        "under": "1割未満",
+        "over": "9割以上",
+        "tenths": "{n}割"
+      },
+      "lead": {
+        "fromNow": "{fromNow}後の {time} には、{chance}の見込みで動いています",
+        "sinceOnset": "発生から{since}の {time} には、{chance}の見込みで動いています",
+        "both": "発生から{since}、いまから{fromNow}後の {time} には、{chance}の見込みで動いています",
+        "plain": "{time} には、{chance}の見込みで動いています"
+      },
+      "duration": {
+        "minutes": "{minutes}分",
+        "hours": "{hours}時間",
+        "hoursMinutes": "{hours}時間{minutes}分"
+      },
+      "marks": {
+        "breakEven": "分岐点",
+        "deadline": "期限"
+      },
+      "sr": {
+        "ticks": "時刻ごとの再開の見込み: {items}。",
+        "tick": "{time} {chance}",
+        "waitFaster": "待ったほうが早く着く見込みは{chance}。",
+        "waitOnTime": "期限に間に合うには {time} までに動く必要があり、待って間に合う見込みは{chance}。"
+      }
+    },
+    "switchStep": {
+      "title": "切り替え先",
+      "walkTo": "{station}まで徒歩 {minutes} 分",
+      "boardAt": "{station}から乗る",
+      "taxi": "タクシーで向かう",
+      "walk": "徒歩 {minutes} 分で向かう",
+      "arrival": "{time} 着"
+    },
+    "weather": {
+      "title": "雨量の推移 10分ごと",
+      "stale": "更新中",
+      "trend": {
+        "rising": "強まっている",
+        "falling": "弱まっている",
+        "steady": "横ばい",
+        "unknown": "向きはこれから"
+      },
+      "issued": "{name} 発表中",
+      "noWarnings": "警報・注意報の発表なし",
+      "warningsUnknown": "警報・注意報は次の観測で確かめます",
+      "mm": "{mm}mm",
+      "missing": "欠測",
+      "missingCount": "欠測 {count}件",
+      "scaleMax": "上端 {mm}mm",
+      "chartLabel": "10分雨量の推移。{values}",
+      "source": "気象データ: 気象庁",
+      "fictional": "架空のシナリオの値"
+    },
+    "options": {
+      "title": "選択肢",
+      "arrival": "到着",
+      "fare": "運賃",
+      "walk": "徒歩",
+      "minutes": "{minutes}分",
+      "recommended": "おすすめ",
+      "transferService": "振替輸送",
+      "pending": "調べています…",
+      "empty": "運転再開を待つのが確実です",
+      "stale": "更新中",
+      "note": "乗車時間と運賃は概算です。",
+      "legs": {
+        "walk": "徒歩",
+        "ride": "乗車",
+        "wait": "待ち",
+        "taxi": "タクシー"
+      },
+      "walkShort": "徒歩{minutes}分",
+      "from": "{station}から"
+    },
+    "evidence": {
+      "title": "判断の根拠",
+      "phases": "段階",
+      "here": "いまここ",
+      "elapsed": "この段階に入って約{minutes}分",
+      "unknownPhase": "段階は次の放送や掲示で絞り込めます",
+      "signals": "検出した兆候",
+      "noSignals": "兆候は次の放送や掲示から拾います",
+      "items": "使った知見と計算",
+      "kinds": {
+        "signal": "兆候",
+        "knowledge": "知見",
+        "weather": "気象",
+        "computation": "計算"
+      },
+      "openKnowledge": "知見で見る"
+    },
+    "flow": {
+      "title": "よくある流れ",
+      "now": "いま {phase}・{index}/{total}",
+      "steps": "全{total}段",
+      "minutes": "約{minutes}分",
+      "here": "いまここ",
+      "predictability": {
+        "high": "見込みが立てやすい",
+        "medium": "見込みにやや幅",
+        "low": "見込みが立てにくい"
+      }
+    },
+    "addInfo": {
+      "title": "情報を追加",
+      "lead": "新しい掲示や発表があれば入力してください。判断を更新します。"
+    },
+    "sheet": "判断の詳細",
+    "status": "{line} 見合わせ",
+    "statusOnly": "見合わせ",
+    "premise": {
+      "title": "この判断の前提",
+      "destinationHub": "行き先は{station}で考えています。{direction}方面の主な駅です",
+      "destinationTerminal": "行き先は終点の{station}で考えています",
+      "onTrain": "電車の中なので、{station}駅にいるとして考えています",
+      "elapsedUnknown": "止まった時刻は、いまとして数えています",
+      "causeUnknown": "原因は決めつけず、分岐点を動く目安にしています",
+      "betweenStations": "駅と駅の間なので、{station}に着いてからの行動で考えています"
+    },
+    "nextCheck": {
+      "title": "次に確かめること",
+      "cause": "放送や掲示で、止まった原因を確かめてください",
+      "resume": "次の放送で「再開見込み」が出たら、もう一度入れてください",
+      "departSoon": "車内の放送で「まもなく発車します」が流れたら、そのまま乗っていて大丈夫です",
+      "transfer": "「振替輸送」の案内が出たら、もう一度入れてください",
+      "signals": "次の様子が見えたら、もう一度入れてください",
+      "action": "いまの様子を入れ直す"
+    },
+    "trainPosition": {
+      "title": "車内の前提",
+      "next": "次は{station}",
+      "own": "{type}に乗車",
+      "aheadNone": "前に詰まっている列車はいない",
+      "aheadUnknown": "前の列車 分からない",
+      "ahead": "前に詰まっている列車 {types}",
+      "aheadPattern": "前の列車 ふだんの間隔で走行（推定）",
+      "estimated": "推定",
+      "edit": "直す",
+      "nextQuestion": "次に着く駅はどこですか",
+      "ownQuestion": "乗っている電車の種別はどれですか",
+      "aheadQuestion": "前に止まっている列車を、近い順に押してください",
+      "aheadQueue": "近い順",
+      "aheadEmpty": "まだ押していません",
+      "removeLast": "最後の 1 つを消す",
+      "apply": "この前提で判断し直す",
+      "checkHint": "列車走行位置の画面で確かめられます",
+      "patternHint": "前の列車の種類が分かると、着く時刻がより確かになります",
+      "close": "閉じる"
+    },
+    "trainTypes": {
+      "local": "普通",
+      "rapid": "快速",
+      "special_rapid": "新快速",
+      "limited_express": "特急",
+      "unknown": "分からない",
+      "unknownType": "種別は分からない"
+    },
+    "tripBetween": "{from}〜{to}"
+  },
+  "replay": {
+    "heading": "デモを見る",
+    "lead": "架空の運転見合わせを 1 つ選んでください。発表が届くたびに、判断と地図が変わる様子を再生します。",
+    "fictional": "すべて架空のシナリオです。実在の事故や公式発表ではありません。",
+    "empty": "シナリオを追加すると、ここで再生できます",
+    "observationCount": "発表 {count}件",
+    "deadline": "{time}までに着きたい",
+    "noDeadline": "時間の制約なし",
+    "back": "シナリオを選び直す",
+    "play": "再生",
+    "pause": "一時停止",
+    "replay": "もう一度",
+    "next": "次の発表へ",
+    "restart": "最初に戻す",
+    "speed": "再生速度",
+    "clock": "シナリオ内の時刻",
+    "progress": "{count}/{total}",
+    "status": {
+      "idle": "停止中",
+      "playing": "再生中",
+      "paused": "一時停止中",
+      "judging": "判断しています",
+      "error": "通信が途切れました",
+      "ended": "再生が終わりました"
+    },
+    "kinds": {
+      "announcement": "新しい発表",
+      "signage": "新しい掲示",
+      "station_broadcast": "駅の放送",
+      "weather": "気象の情報",
+      "train_movement": "列車の動き"
+    },
+    "ready": {
+      "title": "再生の準備ができました",
+      "lead": "再生すると、最初の発表から順に判断します。",
+      "start": "再生をはじめる"
+    },
+    "changed": "判断が変わりました",
+    "phases": "段階",
+    "here": "いまここ",
+    "unknownPhase": "段階は次の観測で絞り込めます",
+    "history": "これまでの発表",
+    "trip": "{origin} → {destination}",
+    "bar": "再生の操作",
+    "outcome": {
+      "title": "結末",
+      "resumed": "実際の運転再開は {time}",
+      "followed": "判断に従った人",
+      "waited": "待ち続けた人",
+      "switched": "切り替えた人",
+      "switchedAt": "{time} に切り替え",
+      "neverSwitched": "最後まで待つ判断",
+      "waitedNote": "再開を待って乗車",
+      "arrival": "到着",
+      "onTime": "間に合った",
+      "late": "{minutes}分遅れ",
+      "diff": "差 {minutes}分",
+      "summary": {
+        "followedEarlierMadeIt": "判断に従うと、待ち続けた人より {minutes}分早く着き、{deadline} の期限に間に合いました。",
+        "followedEarlier": "判断に従うと、待ち続けた人より {minutes}分早く着きました。",
+        "waitedEarlier": "今回は待ち続けたほうが {minutes}分早く着きました。",
+        "aboutSame": "判断に従っても待ち続けても、着く時刻の差は {minutes}分でした。",
+        "waitWon": "待つ判断に従うと、{time} に切り替えた人より {minutes}分早く着きました。",
+        "switchWouldWin": "今回は待つ判断が外れました。{time} に切り替えた人のほうが {minutes}分早く着きました。",
+        "waitAboutSame": "待つ判断に従っても {time} に切り替えても、着く時刻の差は {minutes}分でした。",
+        "neverSwitched": "最後まで待つ判断で、待ち続けた人と同じ時刻に着きました。"
+      },
+      "deadline": {
+        "both": "どちらも {deadline} の期限に間に合いました。",
+        "followedOnly": "判断に従った人だけが {deadline} の期限に間に合いました。",
+        "waitedOnly": "待ち続けた人だけが {deadline} の期限に間に合いました。",
+        "switchedOnly": "切り替えた人だけが {deadline} の期限に間に合いました。",
+        "neither": "どちらも {deadline} の期限に間に合いませんでした。",
+        "sameOnTime": "{deadline} の期限に間に合いました。",
+        "sameLate": "{deadline} の期限には間に合いませんでした。"
+      },
+      "method": "到着時刻は、各判断で示した推定の所要時間と、シナリオで実際に再開した時刻から求めた目安です。"
+    },
+    "announcements": "発表",
+    "scenario": "シナリオ",
+    "changedFrom": "「{action}」から変更",
+    "pick": "再生する"
+  },
+  "map": {
+    "title": "地図",
+    "placeholder": "地図は準備中です",
+    "suspended": "見合わせ",
+    "statusSuspended": "見合わせ中",
+    "statusRunning": "運転中",
+    "recommended": "おすすめ",
+    "walk": "徒歩 {minutes} 分",
+    "minutesShort": "{minutes}分",
+    "transferService": "振替輸送",
+    "here": "いま",
+    "viewOverview": "全体を見る",
+    "viewFocus": "現在地のまわり",
+    "changeAt": "{station}で",
+    "transferShort": "振替",
+    "between": "{from}〜{to}の間",
+    "alight": "降りる駅"
+  },
+  "about": {
+    "title": "このアプリについて",
+    "why": {
+      "title": "作った理由",
+      "p1": "事故が起きると、現場は安全と復旧が先になり、案内は「何が起きたか」で止まりがちです。",
+      "p2": "運転士や指令員の経験があれば、この先の流れはある程度読めます。その読みを、いま困っている人の手元へ届けます。"
+    },
+    "purpose": {
+      "title": "目的",
+      "p1": "運行情報は「何が起きたか」を伝えます。このアプリは「だから、あなたはどうすべきか」まで返します。",
+      "p2": "運転見合わせに出会ったとき、待つか、別の手段に切り替えるかを判断するための見込みと行動を示します。"
+    },
+    "approach": {
+      "title": "推定の考え方",
+      "p1": "元指令員の経験を、外から観察できる兆候にもとづいて一般化した知見を使います。",
+      "p2": "あなたが持ち込んだ掲示や発表から兆候を読み取り、いまの段階と再開までの残り時間を幅で推定します。",
+      "p3": "到着時刻や分岐点などの数値はプログラムで計算し、AI はその結果を解釈して説明します。",
+      "p4": "確信が持てないときは見込みを断言せず、分岐点を中心に示します。"
+    },
+    "attribution": {
+      "title": "出典",
+      "map": "地図: 国土地理院 / © OpenStreetMap contributors",
+      "walk": "徒歩経路・到達範囲: © OpenStreetMap contributors のデータから Valhalla で計算",
+      "rail": "鉄道データ: 「国土数値情報（鉄道データ）」（国土交通省）を加工して作成",
+      "ridership": "駅の乗降客数: 「国土数値情報（駅別乗降客数データ）」（国土交通省）を加工して作成",
+      "weather": "気象データ: 気象庁"
+    },
+    "notes": {
+      "title": "注意事項",
+      "p1": "表示する内容は推定です。公式発表と駅係員の案内を優先してください。",
+      "p2": "鉄道事業者の運行情報は自動で取得していません。判断はあなたが入力した情報にもとづきます。",
+      "p3": "乗車時間と運賃は概算です。実際の時刻や運賃と異なることがあります。",
+      "p4": "現在地と入力内容は判断にのみ使い、保存しません。"
+    },
+    "intro": "マツカエルは「待つ」と「乗り換える」を掛けた名前です。駅で迷う時間を、少しでも短くしたいと考えています。",
+    "knowledgeLink": "判断に使う知見ナレッジを見る"
+  },
+  "knowledge": {
+    "title": "知見ナレッジ",
+    "lead": "判断の裏にある知見です。事象ごとに、段階の流れと外から見える兆候をまとめました。",
+    "notice": "知見は、開発者の実務経験を、外から観察できる兆候にもとづいて一般化したものです。社内情報は含みません。",
+    "dummy": "いま表示しているのは開発用のダミーです。開発者の知見ではなく、本番の判断には使いません。",
+    "empty": "知見を追加すると、ここに並びます",
+    "file": "ファイル: {file}",
+    "replay": "リプレイで見る: {title}",
+    "phasesTitle": "段階の流れ",
+    "duration": "目安 {p50}〜{p80} 分",
+    "durationLabel": "所要時間の目安",
+    "durationDetail": "半数は {p50} 分以内、8 割は {p80} 分以内",
+    "description": "段階の様子",
+    "signals": "兆候",
+    "observableFrom": "観察できる経路",
+    "examples": "聞こえる案内の例",
+    "exitSignals": "次の段階へのつながり",
+    "exitSignalsLead": "次の兆候が観察されたら、この段階を抜けます。",
+    "exitInPhase": "{phase} の兆候",
+    "noExit": "最後の段階です",
+    "guidance": "利用者への提示方針",
+    "afterResume": "運転再開のあと",
+    "firstTrainWait": "再開から乗れる列車が来るまでの目安: {p50}〜{p80} 分",
+    "caveats": "判断を誤りやすい点",
+    "externalFactors": "外部の要因",
+    "yaml": "知見ファイルの該当部分",
+    "yamlToggle": "YAML を見る",
+    "backToTop": "目次へ戻る",
+    "observable": {
+      "announcement": "発表",
+      "signage": "掲示",
+      "station_broadcast": "駅の放送",
+      "weather": "気象",
+      "train_movement": "列車の動き"
+    },
+    "overview": "事象を選ぶ",
+    "phaseCount": "{count} つの段階",
+    "open": "詳しく見る"
+  },
+  "sheet": {
+    "handle": "詳細の表示を切り替える",
+    "hint": "上下の矢印キーで広げたり縮めたりできます。",
+    "state": {
+      "collapsed": "要点だけを表示しています。",
+      "half": "半分まで開いています。",
+      "full": "すべて開いています。"
+    }
+  },
+  "entry": {
+    "question": "いま、どこで止まっていますか",
+    "hint": "地図の駅を触ってください。電車の中なら近くの駅で大丈夫です",
+    "searchPlaceholder": "駅名・よみがなで探す",
+    "mapLabel": "駅を選ぶ地図",
+    "back": "戻る",
+    "here": "いま",
+    "around": "{station}のあたり",
+    "areaQuestion": "どの駅ですか",
+    "areaHint": "{area}の駅です。地図の丸か、下から選んでください",
+    "lineQuestion": "止まっている路線はどれですか",
+    "lineHint": "乗っていた路線か、乗る予定だった路線です",
+    "nearby": "近くの駅は{station}です（約{distance}）",
+    "suspended": "見合わせ",
+    "destinationQuestion": "どこまで行きますか",
+    "destinationLabel": "行き先",
+    "destinationPlaceholder": "駅名・よみがな（例: 三ノ宮）",
+    "suggestions": "主な駅",
+    "from": "出発",
+    "to": "行き先",
+    "change": "選び直す",
+    "withText": "発表文や掲示があれば",
+    "methods": {
+      "photo": {
+        "title": "撮る",
+        "heading": "掲示や画面を撮ってください"
+      },
+      "paste": {
+        "title": "貼る",
+        "heading": "発表の文章を貼ってください"
+      }
+    },
+    "demoNote": "架空のシナリオで判断の流れを再生",
+    "quickPicks": "よく使う駅",
+    "directionQuestion": "どっち方面ですか",
+    "directionHint": "電車が向かう方向を選んでください",
+    "directionName": "{names}方面",
+    "destinationHint": "{direction}方面の主な駅です",
+    "destinationUndecided": "まだ決めていない",
+    "destinationUndecidedNote": "方面だけで進みます",
+    "destinationSearchLabel": "ほかの駅を探す",
+    "positionQuestion": "いまどこにいますか",
+    "positionStation": "{station}駅にいる",
+    "positionStationNote": "ホームや改札",
+    "positionTrain": "電車の中・駅に止まっている",
+    "positionTrainNote": "ホームに着いている",
+    "positionNearQuestion": "どの駅に止まっていますか",
+    "positionNearHint": "止まっている駅を押してください",
+    "progress": "{current} / {total}・{step}",
+    "steps": {
+      "line": "路線",
+      "direction": "方面",
+      "destination": "行き先",
+      "position": "いまどこ",
+      "situation": "様子"
+    },
+    "tripHub": "方面の主な駅で考えます",
+    "tripTerminal": "方面の終点で考えます",
+    "causeQuestion": "放送で何と言っていましたか",
+    "causes": {
+      "person": "人身事故",
+      "inCar": "非常ボタン・急病",
+      "vehicle": "車両の点検",
+      "signal": "信号",
+      "rain": "大雨",
+      "unknown": "聞き取れなかった・言っていない"
+    },
+    "elapsedQuestion": "止まってどれくらいですか",
+    "elapsed": {
+      "now": "いま止まった",
+      "m10": "10分くらい",
+      "m30": "30分以上",
+      "unknown": "分からない"
+    },
+    "resumeQuestion": "再開の見込みを言っていましたか",
+    "resume": {
+      "stated": "時刻を言っていた",
+      "statedNote": "押して時刻を選ぶ",
+      "undecided": "見込みは未定と言っていた",
+      "unknown": "言っていない・分からない"
+    },
+    "resumeTimeQuestion": "何時ごろと言っていましたか",
+    "answers": {
+      "cause": "放送の原因",
+      "elapsed": "止まってから"
+    },
+    "nextStation": "次は{station}",
+    "positionBetween": "電車の中・駅と駅の間",
+    "positionBetweenNote": "次の駅に着いてから考えます",
+    "positionBetweenTrip": "駅と駅の間。次に着く駅で考えます"
+  },
+  "status": {
+    "notFound": {
+      "title": "この頁は移動したか、まだ無いようです",
+      "lead": "URL が変わったのかもしれません。地図から選び直してみてください。"
+    },
+    "error": {
+      "title": "表示をやり直します",
+      "lead": "少し待ってから、もう一度試してください。続くときは地図から始め直せます。"
+    },
+    "home": "地図から始める",
+    "demo": "デモを見る",
+    "retry": "もう一度試す"
+  }
+}

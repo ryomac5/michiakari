@@ -12,6 +12,7 @@ Built with Claude: Japan 2026 ハッカソン（2026/11/2〜11/8）の提出作�
 | 文書 | 内容 |
 |---|---|
 | `docs/vision.md` | 製品仕様。何を、誰のために、なぜ作るか。作らないもの |
+| `docs/judging-criteria.md` | ハッカソンの審査基準。4 つの観点と配点 |
 | `docs/architecture.md` | 構成、データの流れ、エージェント設計、ツールとイベントの仕様、検証方法 |
 | `docs/data-sources.md` | 使ってよいデータ、ライセンス、出典表示 |
 | `docs/ux.md` | 画面構成、地図仕様、設計原則 |
@@ -35,13 +36,13 @@ Built with Claude: Japan 2026 ハッカソン（2026/11/2〜11/8）の提出作�
 ## 技術スタック
 
 - モノレポ: pnpm workspaces + Turborepo、TypeScript（strict）
-- 画面: Next.js（App Router）、Tailwind CSS、shadcn/ui、MapLibre GL JS、deck.gl
+- 画面: Next.js（App Router）、Tailwind CSS、shadcn/ui、MapLibre GL JS
 - 判断エージェント: Node.js 常駐サービス（Hono）、Anthropic Client SDK（`@anthropic-ai/sdk`）による自前のツール実行ループ、SSE で画面へストリーミング
 - スキーマ: Zod（`packages/schema` が唯一の正）
-- データ前処理: DuckDB（空間拡張）を SQL 中心で使用、tippecanoe で PMTiles を生成
-- 徒歩経路: Valhalla（Docker、OpenStreetMap 関西抽出）
+- データ前処理: DuckDB（空間拡張）を SQL 中心で使用、路線と駅を GeoJSON で出力
+- 徒歩経路: 直線距離からの概算。Valhalla による経路探索は将来の拡張
 - テスト: Vitest（単体）、Playwright（シナリオの振る舞い・画面）
-- 公開: 画面は Vercel、エージェントと Valhalla はコンテナ環境
+- 公開: 画面は Vercel、エージェントはコンテナ環境
 
 ## ディレクトリ構成
 
@@ -56,7 +57,7 @@ packages/
   data/           前処理スクリプトと SQL
 knowledge/        指令員の知見ナレッジ（YAML、開発者が記述）
 scenarios/        リプレイ用の架空シナリオと期待する振る舞い（YAML、開発者が記述）
-infra/            Valhalla などのコンテナ定義
+infra/            エージェントのコンテナ定義
 docs/             設計文書、作業記録
 .claude/          Claude Code の設定とフック
 ```
@@ -68,14 +69,22 @@ docs/             設計文書、作業記録
 ```bash
 pnpm install
 pnpm dev                 # web と agent を同時起動
+pnpm dev:demo            # web と agent をダミーの知見・シナリオと決定論モードで起動
+pnpm build               # 全パッケージをビルド
 pnpm test                # 全パッケージの単体テスト
-pnpm test:e2e            # シナリオの振る舞いテスト（Playwright）
+pnpm test:e2e            # シナリオの振る舞いテスト（Playwright）。決定論モードの agent とダミー内容で動く
+pnpm --filter e2e record # デモ動画を録画。出力は e2e/recordings/（git 管理外）。最初の画面から切り出した demo.webm と結末の静止画も同じ場所に出る
 pnpm lint && pnpm typecheck
 pnpm format              # Biome で整形
 pnpm validate            # knowledge/ と scenarios/ の YAML と雛形の整合を検証
+pnpm validate:dev        # ダミーの知見・シナリオで同じ検証を行う
+pnpm validate --watch    # knowledge/ と scenarios/ の変更を監視し、そのつど検証する
+pnpm knowledge:new <event_id>                         # 開発者専用。雛形から知見を作る。ALLOW_PROTECTED_EDIT=1 が必要
+pnpm scenario:new <scenario_id> --event <event_id>    # 開発者専用。雛形からシナリオを作る。ALLOW_PROTECTED_EDIT=1 が必要
+pnpm smoke:claude        # 実 API で claude モードを 1 回動かす確認。pnpm test には含めない。キーが無ければ案内して exit 0
 pnpm guard               # knowledge/ と scenarios/ を承認記録との照合、ブランチ差分、シンボリックリンク、内容検証で確認
 pnpm guard:approve       # 開発者専用。ALLOW_PROTECTED_EDIT=1 と TTY での確認が必要
-pnpm data:build          # 前処理（路線・駅・徒歩時間・タイル）
+pnpm data:build          # 前処理（国土数値情報から路線・駅・駅間距離の GeoJSON と JSON を生成）
 ```
 
 コマンドを追加・変更したら、この節を更新する。

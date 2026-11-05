@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
+    "record": "node support/warm-web.ts && playwright test --config playwright.record.config.ts && node support/trim-recording.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

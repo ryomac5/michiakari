@@ -10,3 +10,9 @@ next-env.d.ts
 .DS_Store
 .env*
 !.env.example
+
+# エージェントの作業ツリー
+.claude/worktrees/
+
+# 前処理の元データ（国土数値情報の zip）
+packages/data/.cache/

@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "turbo run dev",
+    "dev:demo": "CONTENT_DIR=packages/schema/test/fixtures/dev-content JUDGE_MODE=${JUDGE_MODE:-deterministic} turbo run dev --filter=@repo/web --filter=@repo/agent",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "biome check .",
@@ -17,7 +18,13 @@
     "guard": "node scripts/guard.mjs",
     "guard:approve": "node scripts/guard-approve.mjs",
     "validate": "pnpm --filter @repo/schema validate",
-    "data:build": "turbo run data:build"
+    "validate:dev": "CONTENT_DIR=packages/schema/test/fixtures/dev-content pnpm validate",
+    "knowledge:new": "node scripts/content-new.mjs knowledge",
+    "scenario:new": "node scripts/content-new.mjs scenario",
+    "smoke:claude": "pnpm --filter @repo/agent smoke:claude",
+    "data:build": "turbo run data:build",
+    "data:osm": "pnpm --filter @repo/data data:osm",
+    "data:walk": "pnpm --filter @repo/data data:walk"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",

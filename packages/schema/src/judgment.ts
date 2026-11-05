@@ -8,6 +8,7 @@ import {
   NonNegativeIntSchema,
 } from "./common.ts";
 import { findDuplicateIds } from "./internal.ts";
+import { TypicalFlowSchema } from "./typical-flow.ts";
 
 // emit_judgment の出力。Claude のツール定義に変換するため refine で ID 参照を検査しない
 
@@ -17,6 +18,10 @@ export const RouteLegSchema = z.object({
   to: z.string(),
   minutes: NonNegativeIntSchema,
   line: z.string().optional(),
+  // 地図に経路を描くための構造化情報。駅 ID と路線 ID は packages/geo のもの
+  fromStationId: z.string().optional(),
+  toStationId: z.string().optional(),
+  lineId: z.string().optional(),
 });
 export type RouteLeg = z.infer<typeof RouteLegSchema>;
 
@@ -32,9 +37,42 @@ export const RouteOptionSchema = z.object({
 });
 export type RouteOption = z.infer<typeof RouteOptionSchema>;
 
+// 1 割単位に丸めた確率。0 は 1 割未満、10 は 9 割以上を表し、0% と 100% は出さない
+export const ChanceTenthsSchema = z.number().int().min(0).max(10);
+export type ChanceTenths = z.infer<typeof ChanceTenthsSchema>;
+
+export const ResumeChanceTickSchema = z.object({
+  time: IsoDateTimeSchema,
+  // この時刻までに動いている確率
+  tenths: ChanceTenthsSchema,
+  // 発生とみなした時刻からの分。発生が分からなければ null
+  sinceOnsetMinutes: NonNegativeIntSchema.nullable(),
+});
+export type ResumeChanceTick = z.infer<typeof ResumeChanceTickSchema>;
+
+// 時刻ごとの再開の見込みと、待ったほうが早く着く確率。packages/core の computeResumeChance の出力
+// 分岐点の比べ方を確率にしたものなので、分岐点と一緒に届ける
+export const ResumeChanceSchema = z.object({
+  // 目盛りの刻み（分）
+  stepMinutes: z.number().int().positive(),
+  // 切りのよい時刻の目盛り。いまから、ほぼ動いている時刻までを覆う
+  ticks: z.array(ResumeChanceTickSchema).min(4).max(6),
+  // 待ったほうが早く着く確率 P(T_wait ≤ T_alternative)。代替手段が無ければ null
+  waitFaster: ChanceTenthsSchema.nullable(),
+  // 待って期限に間に合う確率 P(T_wait ≤ 期限)。期限か経路が無ければ null
+  waitOnTime: ChanceTenthsSchema.nullable(),
+  // 期限に間に合うために動いていなければならない時刻。waitOnTime が null なら null
+  resumeByForDeadline: IsoDateTimeSchema.nullable(),
+  // 発生とみなした時刻。分からなければ null
+  onsetTime: IsoDateTimeSchema.nullable(),
+});
+export type ResumeChance = z.infer<typeof ResumeChanceSchema>;
+
 export const BreakEvenSchema = z.object({
   time: IsoDateTimeSchema,
   explanation: z.string(),
+  // 時刻ごとの再開の見込みと、待ったほうが早く着く確率。残り時間の見込みがあるときに agent が詰める。無ければ画面は出さない
+  resumeChance: ResumeChanceSchema.optional(),
 });
 export type BreakEven = z.infer<typeof BreakEvenSchema>;
 
@@ -58,12 +96,16 @@ export type Evidence = z.infer<typeof EvidenceSchema>;
 export const JudgmentSchema = z.object({
   action: ActionSchema,
   headline: z.string().min(1),
+  // 結論の理由を 1〜2 文で。任意で、無ければ画面は見出しだけを出す
+  reason: z.string().min(1).optional(),
   breakEven: BreakEvenSchema.nullable(),
   estimate: EstimateSchema,
   options: z.array(RouteOptionSchema),
   recommendedOptionId: IdSchema.nullable(),
   evidence: z.array(EvidenceSchema),
   disclaimer: z.string().min(1),
+  // 事象のよくある流れ。サーバーが知見から詰める。原因が分からないときは入れない
+  typicalFlow: TypicalFlowSchema.optional(),
 });
 export type Judgment = z.infer<typeof JudgmentSchema>;
 

@@ -45,3 +45,16 @@ export type Action = z.infer<typeof ActionSchema>;
 
 export const ConfidenceSchema = z.enum(["low", "medium", "high"]);
 export type Confidence = z.infer<typeof ConfidenceSchema>;
+
+// 路線種別。乗車時間の概算で表定速度と運転間隔を選ぶのに使う
+export const LINE_TYPES = [
+  "jr_rapid",
+  "jr_local",
+  "private_express",
+  "private_local",
+  "subway",
+  "monorail",
+  "tram",
+] as const;
+export const LineTypeSchema = z.enum(LINE_TYPES);
+export type LineType = z.infer<typeof LineTypeSchema>;

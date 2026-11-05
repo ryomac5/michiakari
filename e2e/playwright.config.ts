@@ -1,7 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-
-const webUrl = "http://localhost:3000";
-const agentUrl = "http://localhost:8787";
+import { buildWebServers, stubExternal, webUrl } from "./servers.ts";
 
 export default defineConfig({
   testDir: "./tests",
@@ -14,18 +12,5 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: [
-    {
-      command: "pnpm --filter @repo/web dev",
-      url: webUrl,
-      reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
-    },
-    {
-      command: "pnpm --filter @repo/agent start",
-      url: `${agentUrl}/health`,
-      reuseExistingServer: !process.env.CI,
-      timeout: 60_000,
-    },
-  ],
+  webServer: buildWebServers({ stubExternal }),
 });

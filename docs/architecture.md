@@ -27,10 +27,23 @@
 ### 2.1 apps/web
 
 - Next.js（App Router）、スマートフォン優先
-- 地図: MapLibre GL JS（背景: 地理院タイル または 自前 PMTiles）、重ね合わせ: deck.gl
+- 地図: MapLibre GL JS。背景は地理院タイルの淡色地図とする。路線・駅・経路・到達範囲は GeoJSON のレイヤーで重ねる
+- 吹き出しの駅: 歩ける駅は、代替手段の探索と同じ関数と上限で選ぶ。詳細は 2.5 を正とする
 - 判断の受信: SSE。イベントごとに画面の該当部分を更新する
-- 多言語: 日本語・英語（next-intl などを利用）。エージェント出力も利用者の言語で返す
+- 多言語: 日本語・英語（next-intl）。エージェント出力も利用者の言語で返す
 - リプレイモード: `scenarios/` のシナリオを時刻順に入力として流し、判断の変化を再生する
+- 分岐点の時間軸: 分岐点と再開見込みの関係を横 1 本の軸で示す。観測が進むと帯と目盛りが動く
+- 知見の閲覧画面: `/knowledge` に知見ナレッジを並べる。PC 幅では左に YAML の該当部分、右に構造化した表示を置く
+
+リプレイは `/replay` で動く。要点は次のとおり。
+
+- 画面のサーバー側が `CONTENT_DIR` からシナリオを読む。検証に通ったものだけを使い、`expectations` は画面に渡さない
+- timeline の 1 件を `scenario` 型の RawInput にし、解釈済みの観測の列と合わせて `POST /judge` に送る
+- 時計はシナリオの 1 分を実時間 1 秒で進める。判断の生成中は止め、`judgment_ready` を受けてから次の観測へ進む
+- 速さは 1x・2x・4x から選ぶ。`?speed=` で 600 倍まで上げられ、`?scenario=` で最初に開くシナリオを指定できる。どちらもテストと録画のためである
+- 4x 以下では、推論の過程を目で追えるようイベントの間を 320 ミリ秒空ける
+- 判断が確定しなければ再生を止め、同じ観測を入れ直せるようにする
+- 観測ごとの行動・段階・根拠を履歴に残し、判断が変わったことを示す
 
 ### 2.2 apps/agent
 
@@ -41,6 +54,43 @@
   - 理由: 公開 Web サービスにファイル操作・コマンド実行のツールは不要で危険。イベントの粒度を完全に制御したい
 - モデル: 判断 `claude-opus-5-5`、入力の解釈 `claude-haiku-5-5`（設定ファイル1か所で管理）
 - 状態: 判断のたびに、これまでの観測の列をすべて入力として受け取る（サーバーに保存しない）
+- モード: `claude` と `deterministic` の 2 つ。環境変数 `JUDGE_MODE` で指定し、無ければ `ANTHROPIC_API_KEY` があるときだけ `claude` にする
+  - `claude`: Haiku で解釈し、Opus のツール実行ループで判断する。選択式の入力は Claude を通さない
+  - `deterministic`: 文字列照合で解釈し、規則で判断する。写真は読めないので error を返す
+  - 原因が分からないときと確信度が低いときは保留する。ただし分岐点までの残りが `holdDecisionWindowMinutes` 以内なら言い切る
+  - その場合、再開見込みの幅のうち分岐点より後の割合が `lateShareToSwitch` 以上なら切り替える。閾値は agent の config に置く
+  - 原因が分からなくても、発表された再開見込みの時刻があれば保留しない。その時刻を見込みとして分岐点と比べ、待つか切り替えるかを返す
+  - このときの見込みは core の `estimateStatedRemainingWithoutKnowledge` で求める。p50 は発表の時刻どおり、p80 は `STATED_RESUME_SLACK_MINUTES` だけ後ろに置く
+  - 確信度は `confidenceParams.whenStatedWithoutEvent` にする。結論の理由は、発表の時刻をもとにした推定だと分かる言い方にする
+  - 発表の時刻が無いときの振る舞いは変えない。claude モードもプロンプトで同じ方針にする
+  - 見込みが立てやすく、再開までの p80 が core の `SHORT_FLOW_MAX_MINUTES` 以内の事象は「短く終わる」とみなす。確信度が低くても保留せず、比較で決める
+  - 見込みが立てやすい事象は、発生直後から言い切る。知見から見積もった再開の見込みが分岐点より後なら、時間の窓を待たずに切り替える
+  - 発表された見込み時刻があるときは、発表の時刻で比べる。知見の下限は当てない
+  - 見込みが立てやすく、原因が観測から特定できたときは、確信度を `confidenceParams.floorWhenPredictable` より下げない
+  - 見込みが立てやすい事象で、知見から見積もっているときは、理由の頭に流れの一文を置く。claude モードもプロンプトで同じ方針にする
+  - 理由の最後に、待ったほうが早く着く確率を 1 文で添える。例は「待ったほうが早く着く見込みは3割です。」
+  - 上限を超えるなら、流れの一文、確率の一文の順に外す
+  - 代替手段が無いとき、期限が理由でタクシーを勧めるときは、待って期限に間に合う確率か、目盛りの確率を使う
+  - 期限が理由でタクシーを勧めるときの分岐点の説明は、「8時10分までに動かなければ、タクシーでないと9時00分に間に合いません」の形にする
+  - 理由も、タクシーのほうが早く着くではなく、待っては期限に間に合わないと書く
+  - claude モードは、`compute_break_even` の `labels.resumeChance` の表示をそのまま写す。自分で計算した確率は数値の検査で弾く
+  - 利用者が駅と駅の間の車内にいるときは、`trainPosition` を受けて次の駅に着いてからの行動で結論を書く
+  - 出発地は次の駅とし、代替手段はホームに着ける駅に着く見込みの時刻から探す。分岐点もその前提で出す
+  - 乗ったまま待つ側の到着には、前の列車が先に発車するぶんの遅れを足す。待つ側だけが楽観的にならないようにするためである
+  - 結論は「{駅}に着いたら降りて、{路線}に乗り換えてください」か「{駅}に着いても、そのまま乗っていてください」の形にする。「あと N 分待って」は使わない
+  - 理由の頭に、その駅に着く見込みの一文を置く。前の列車の本数か種別の事情を添える
+  - 駅にいる人と、駅に止まっている車内の人の判断は変えない。claude モードもプロンプトで同じ方針にする
+- 勧める代替手段は、core の `selectBestAlternative` が決める
+  - 決定論モードは、分岐点の結果の `bestAlternativeId` を切り替えの推奨にする
+  - claude モードも同じ方針をプロンプトに書く。切り替えの推奨が違えば検証エラーにして、一度だけ直させる
+- フォールバック: claude モードの失敗は決定論モードで仕上げる
+  - 解釈が失敗したら、文字列照合で解釈し直す
+  - 判断ループが失敗したら、済んだツールの結果を残して残りを決定論で進める。失敗とは拒否、`max_tokens`、ツール呼び出し 12 回の超過、反復の上限、検証の再失敗、例外である
+  - 拒否された呼び出しは、まずサーバー側のフォールバックで別モデルに回す
+- 切断時の中断: 利用者が切断したら AbortController で Claude の呼び出しと判断ループを止め、何も送らずに終える
+- 頻度制限: 接続元ごとの固定窓で、プロセス内のメモリで数える
+  - 上限は 1 分あたり 20 件とし、`RATE_LIMIT_PER_MINUTE` で変えられる。超えたら 429 と error イベントを返す
+  - 単位は既定で接続元アドレスとする。`TRUST_PROXY=true` のときだけ `X-Forwarded-For` の先頭を使う
 
 ### 2.3 packages/schema
 
@@ -50,16 +100,63 @@
 
 決定論的な計算。Claude を呼ばない。すべて単体テストを持つ。
 
-- `estimateRemaining`: 事象種別・現在の段階・段階の経過時間から、再開までの残り時間分布（p50, p80）を返す
+- `estimateRemaining`: 知見・現在の段階・段階の経過時間から、実際に乗れる列車が来るまでの残り時間分布（p50, p80）を返す。再開後の初列車待ちである after_resume を含む
+- `estimateBranchAwareRemaining`: 段階の分岐を考えた残り時間を返す。発生からの経過を渡すと、知見の下限を当てる
+  - 下限は `typical_floor_minutes` から発生からの経過を引いた分で、再開までの部分に当てる
+  - 標本ごとに再開までの部分を下限へ切り上げる。長い側の形は変えない
+  - 発生時刻は観測から分からないので、agent は最初の観測の時刻を発生とみなす
+  - 発表された見込み時刻を使うときは下限を当てない
+- `estimateStatedRemaining`: 発表された見込み時刻までの分に、知見の初列車待ちを足す
+- `estimateStatedRemainingWithoutKnowledge`: 事象が分からないときに、発表された見込み時刻だけから残り時間を返す
+  - p50 は発表の時刻までの分とする。p80 はそれに `STATED_RESUME_SLACK_MINUTES` を足す
+  - 余地の根拠は `packages/core/params/estimation.ts` のコメントに書く
+- `describeTypicalFlow`: 知見から、よくある流れと見込みの立てやすさを返す。詳細は 4.1 に書く
+- `computeResumeChance`: 残り時間の推定と同じ標本から、時刻ごとの再開の見込みと、待ったほうが早く着く確率を 1 割単位で返す。詳細は 4.9 に書く
+- `sampleRemaining` と `sampleDurationDist`: 推定に使う標本を取り出す。推定の p50・p80 はこの標本の分位点である
+- `selectKeyTick`: 要点の 1 文に使う目盛りを選ぶ。5 割に達する最初の目盛りで、無ければ最後の目盛り
 - `computeArrival`: 経路（徒歩・乗車・待ち）から到着時刻を返す
-- `computeBreakEven`: 待つ場合と各代替手段の到着時刻を比べ、分岐点の時刻を返す
+- `chooseBestAlternative` と `selectBestAlternative`: 勧める代替手段を選ぶ。この決まりは core のここ 1 か所に置き、ほかでは選び直さない
+  - 鉄道の代替のうち、到着がいちばん早いものを勧める。鉄道の代替とは、タクシー以外の代替を指す。乗り継ぎと、近距離の全区間徒歩を含む
+  - タクシーを勧めるのは、鉄道の代替が無いときと、鉄道の代替では期限に間に合わずタクシーなら間に合うときだけである
+  - タクシーは勧めないときも、選択肢として運賃と一緒に出し続ける
+  - `chooseBestAlternative` は、勧める代替手段と選んだ理由を返す。理由は `fastest_rail`、鉄道の代替が無い `no_rail`、期限に間に合うのがタクシーだけの `rail_misses_deadline` の 3 つである
+  - `selectBestAlternative` は、そのうち勧める代替手段だけを返す
+  - agent の分岐点の計算と、画面のリプレイの結末が、この関数を呼ぶ
+- `computeBreakEven`: 待つ場合と、勧める代替手段の到着時刻を比べ、分岐点の時刻を返す。期限を渡すと、勧める代替手段の選び方に使う。分岐点の time は運転再開の期限である
+  - 期限が理由でタクシーを勧めるときは、分岐点をタクシーの到着ではなく期限から求める。待っても期限に間に合う最後の再開の時刻になり、結果は `deadlineBasis` に期限を持つ
+  - この場面で利用者が知りたいのは、タクシーより早いかではなく、待っても期限に間に合うかだからである
+  - 鉄道の代替が無く、タクシーしか無いときは、期限があっても、これまでどおりタクシーの到着と並ぶ時刻を分岐点にする
 - `computeTaxiFare`: 距離と時刻から公示運賃体系にもとづく概算運賃を返す
+- `estimateTrainQueueArrival`: 駅間に止まった列車が、ホームに着ける駅に着く時刻の p50 と p80 を返す
+  - 入力は、再開までの残り、自分の種別、前の列車の種別の並び、先の駅と駅間の走行時間、事業者ごとの詰める動きである
+  - 詰める事業者では、前の列車を遠いほうから順に前の駅へ入れる。各列車はその種別が着けるホームのある駅にしか入れず、順番を追い越せない
+  - 利用者が押した並びは、目の前に詰まっている列車とみなす。運転パターンから推し量った並びは、ふだんの間隔をあけて先を走っていたとみなし、間隔の分を駅間の走行時間で何駅先かに直す
+  - すぐ前の列車が駅に入れなければ、自分の列車も再開のあとに着く。自分の種別が次の駅に止まれなければ、降りられる駅はその先になる
+  - 遅れる理由を `delays` で返す。`platform_occupied` はその駅のホームに前の列車が止まっている、`ahead_cannot_stop` は前の列車の種別がその駅に止まれず手前で動けない、`own_cannot_stop` は自分の種別がその駅に止まれない
+  - 前の列車が先に発車するぶんの遅れを `departureDelayMinutes` で返す。行く手の列車 1 本ごとに線路を空けるまでの分を数え、乗ったまま待つ側の到着にも足す
+  - 種別が分からない列車は普通として扱う。並びが分からなければ本数の目安を目の前の普通として置く
+- `inferTrainsAheadFromPattern`: 路線と方面の運転パターンから、自分の種別の前を走る列車を近い順に 3 本並べる。複々線では同じ線路の列車だけを数える
+- 詰める動きの値、駅ごとの着けるホームの表、運転パターンの表は `packages/core/params/train-queue.ts` に置く。どれも仮の値で、デモで使う JR神戸線と JR京都線の大阪付近だけを入れる
 
 ### 2.5 packages/geo
 
 - 路線・駅・事業者（国土数値情報から整形）
-- 駅間の徒歩時間行列、徒歩10分・20分の到達範囲（Valhalla で事前計算）
+- 乗換の徒歩時間は、Valhalla の経路を事前に計算して求める
+- 経路が大回りになる組と、データが無い組は、直線距離の 1.3 倍を分速 80m で割る概算に戻す。計算は packages/core の walk が担い、パラメータは `packages/core/params/walk.ts` に置く
+- 徒歩10分・20分の到達範囲は、乗降客数の上位 300 か所が事前計算の結果である。それ以外の駅は概算の円で描く
 - 路線上の距離からの乗車時間の概算（関西にはオープンな時刻表データがないため。後述）
+
+経路探索は packages/geo の routing が担う。ネットワーク上のダイクストラで探し、止まっている区間の辺を除く。前の候補の主な路線を除いて探し直し、多様な候補を最大 3 本返す。
+
+歩いて乗りに行ける駅は、packages/geo の `listWalkAccessStations` が選ぶ。地図の吹き出しと代替手段の探索が、この同じ関数を呼ぶ。
+
+- 現在地の駅と同じ駅の路線違いと、止まっている路線の駅は含めない
+- 徒歩の分は、乗換の辺が路線データにあればその分、無ければ core の概算を使う
+- 乗換の辺は、直線 300m 以内か、名前が関連する 1km 以内の駅にしか無い。探索はこの辺に加えて、現在地の駅から上の駅へ歩く辺を足して探す
+- 徒歩の上限は `packages/core/params/routing.ts` に置く。通常は `ACCESS_WALK_MAX_MINUTES` の 15 分である
+- 通常の上限の中に鉄道の代替が 1 つも無いときだけ、`ACCESS_WALK_MAX_MINUTES_EXTENDED` の 25 分に広げて探し直す
+- どちらの値も開発者の推定の仮のものである
+- 地図に出す駅は、探索が候補にする駅の中から選ぶ。探索の候補にしない駅は地図にも出さない
 
 ### 2.6 packages/data
 
@@ -69,8 +166,18 @@
 2. 事業者名を正規化する（例: 旧泉北高速鉄道 → 南海 泉北線）
 3. 駅の線データから代表点を求める
 4. 駅別乗降客数を結合する
-5. Valhalla で駅間の徒歩時間と到達範囲を計算する
-6. 路線・駅を PMTiles に変換する（tippecanoe）
+5. 線路のグラフから隣接駅と駅間距離を求め、乗換候補を結ぶ
+6. 路線・駅を GeoJSON、ネットワークを JSON で `packages/geo/data/` に書き出す
+
+徒歩経路と到達範囲は、`pnpm data:build` とは別のコマンドで事前に計算する。
+
+1. `pnpm data:osm` で Geofabrik の関西抽出を `packages/data/.cache/valhalla/` に取得する
+2. `infra/valhalla/compose.yaml` で Valhalla を起動する
+3. `pnpm data:walk` で乗換の徒歩経路と到達範囲を求め、`packages/geo/data/` に書く
+
+公開環境では Valhalla を動かさず、書き出した結果を読むだけにする。手順は `infra/valhalla/README.md` を正とする。
+
+画面は GeoJSON を静的に読み込んで配信する。PMTiles は tippecanoe が開発環境に無いため作らない。手順の詳細は `packages/data/README.md` を正とする。
 
 ## 3. 判断の流れ
 
@@ -109,6 +216,24 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
   - `exit_signals` は同じファイルで定義した兆候の id を指す
   - `id` は拡張子を除いたファイル名と一致する
 
+任意項目 `predictability` で、見込みの立てやすさを書ける。無ければ省いてよい。
+
+| キー | 内容 |
+|---|---|
+| `level` | `high`、`medium`、`low` のいずれか。必須 |
+| `basis` | 見込みを立てやすい理由。外から観察できる言葉で書く。必須 |
+| `typical_floor_minutes` | これより早く再開することはまれ、という目安の分。任意 |
+
+`packages/core` の `describeTypicalFlow` が、この項目を読んで「よくある流れ」を返す。
+返す型は `TypicalFlowSchema` で、キーは camelCase である。
+
+- 段階の列は、各段階の名前と所要時間の p50 と p80 を持つ
+- 発生から再開までの見込みは、残り時間の計算を経過 0 分で呼んで出す。下限があれば当てる
+- この見込みは初列車待ちを含まない。初列車待ちは別の項目で返す
+- 知見に `predictability` が無ければ、再開までの p80 と p50 の比から推し量る
+- 比の閾値は `packages/core/params/estimation.ts` に置く
+- 書かれた値か推し量った値かを `source` で区別する
+
 ### 4.2 Observation（利用者が持ち込んだ観測）
 
 `kind` と `rawText` だけが省略できる。null を許す項目も、キーは省略せずに null を入れる。
@@ -135,11 +260,19 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 |---|---|---|
 | `observation_parsed` | `{ observation: Observation }` | 「掲示を読み取りました」 |
 | `signal_detected` | `{ signal: DetectedSignal }` | 根拠リストに追加 |
+| `weather_checked` | `{ source, readings, warnings, trend, summary }` | 雨量の推移と警報を出す。readings は 36 件・6 時間まで |
 | `phase_estimated` | `{ estimate: Estimate }` | タイムラインの「いまここ」を更新 |
 | `alternatives_computed` | `{ options: RouteOption[] }` | 地図に経路と到達範囲を描画 |
 | `break_even_computed` | `{ breakEven: BreakEven \| null }` | 分岐点の表示を更新 |
 | `judgment_ready` | `{ judgment: Judgment }` | 結論を確定表示 |
 | `error` | `{ message: string, retryable: boolean }` | 再試行の案内 |
+| `progress` | `{ message: string, stage?: ProgressStage }` | 推論の過程の該当する段に一文を出す |
+
+`progress` は判断の途中経過である。両モードで各段階の開始を知らせ、claude モードでは Claude の text ブロックと進捗メモも流す。進捗メモは `thinking.display: "updates"` で得る。
+
+- `stage` は `interpret` / `knowledge` / `weather` / `phase` / `alternatives` / `break_even` / `judgment` のいずれか
+- Claude の進捗メモは `stage` を持たない。画面は進行中の段に付ける
+- 画面は知らない種類のイベントを読み飛ばす
 
 ### 4.4 Judgment（判断結果）
 
@@ -147,12 +280,14 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 |---|---|
 | `action` | `wait` / `switch` / `hold`（判断保留、分岐点のみ提示） |
 | `headline` | 結論の一文（利用者の言語） |
-| `breakEven` | 分岐点の時刻 `time` と意味の説明 `explanation`。null を許す |
+| `reason` | 結論の理由。1〜2 文で、省略できる |
+| `breakEven` | 分岐点の時刻 `time` と意味の説明 `explanation`。任意で時刻ごとの再開の見込み `resumeChance` を持つ。null を許す |
 | `estimate` | Estimate。項目は下表に示す |
 | `options` | RouteOption の配列。`id` を重複させない |
 | `recommendedOptionId` | 推奨する代替手段の `id`。null を許すが、`action` が `switch` なら必須 |
 | `evidence` | `{ kind, id, description }` の配列。`kind` は `signal` / `knowledge` / `weather` / `computation` |
 | `disclaimer` | 推定である旨（必須） |
+| `typicalFlow` | 事象のよくある流れ。`TypicalFlowSchema` の形で、省略できる。agent が知見から詰め、原因が分からなければ入れない |
 
 `recommendedOptionId` は `options` にある `id` を指す。参照と重複は `checkJudgmentRefs` で検査する。スキーマに refine を付けないのは、Claude のツール定義に変換するためである。
 
@@ -163,7 +298,7 @@ Estimate の項目は次のとおり。
 | `eventType` | 事象種別。特定できなければ null とし、分岐点だけで判断を返す |
 | `phaseId` | 段階の id。null を許す |
 | `elapsedMinutes` | 段階の経過分。null を許す |
-| `remaining` | 再開までの残り時間 `{ p50, p80 }`。null を許す |
+| `remaining` | 実際に乗れる列車が来るまでの残り時間 `{ p50, p80 }`。after_resume を含み、null を許す |
 | `confidence` | `low` / `medium` / `high` |
 
 RouteOption の項目は次のとおり。
@@ -224,10 +359,64 @@ RouteLeg は `mode`、`from`、`to`、`minutes` を持ち、`line` は省略で�
 | `constraints` | `deadline`、`knowsAlternatives`、`mobilityNotes`。`deadline` と `mobilityNotes` は null を許す |
 | `language` | `ja` / `en` |
 | `now` | 判断の基準時刻。リプレイではシナリオ時刻を入れる |
+| `trainPosition` | 車内の位置。任意で、無ければ駅にいるとみなす |
+
+`trainPosition` の項目は次のとおり。駅間のときだけ、次の駅以降の項目に値を入れる。
+
+| フィールド | 内容 |
+|---|---|
+| `kind` | `at_station` / `on_train_at_station` / `between_stations` |
+| `nextStation` | 次に着く駅。駅間でなければ null |
+| `previousStation` | 来た側の駅。先の駅と走行時間を路線から引くのに使う。null を許す |
+| `trainsAhead` | 前に止まっている列車の種別を近い順に並べた配列。空なら前に列車はいない。分からなければ null |
+| `trainsAheadCount` | 並びが分からないときの本数の目安。`none` / `few` / `many` / `unknown`。並びがあれば null |
+| `ownTrainType` | 乗っている列車の種別。`local` / `rapid` / `special_rapid` / `limited_express` / `unknown`。null を許す |
+| `trainsAheadHeadwayMinutes` | 並びを運転パターンから推し量ったときの、同じ線路の運転間隔の分。任意。値があれば前の列車はこの間隔で先を走っていたとみなし、無ければ目の前に詰まっているとみなす |
+
+画面は駅間を選んだ人に問いを重ねず、既定値で判断を出す。既定値は `apps/web/src/features/entry/train-position-defaults.ts` に置く。
+
+- 次の駅は、選んだ駅から方面の向きに 1 つ先の駅
+- 自分の種別は、路線と方面の運転パターンでいちばん多い種別。パターンが無ければ普通
+- 前の列車は、運転パターンから推し量った並び。パターンが無ければ「分からない」とし、本数の目安を `unknown` にする
+- 判断の画面のチップで直すと、出発の駅を次の駅に置き直し、同じ観測で判断を出し直す
 
 ### 4.8 Place（地点）
 
 M0 では駅名 `{ kind: "station", name }` と座標 `{ kind: "coord", lon, lat }` の 2 種とする。地名による指定は、ジオコーダを調査してから決める。
+
+### 4.9 ResumeChance（時刻ごとの再開の見込み）
+
+`BreakEven` の任意項目 `resumeChance`。`packages/core` の `computeResumeChance` が、残り時間の推定と同じ標本から求める。
+agent は `compute_break_even` で詰め、`break_even_computed` と `judgment_ready` に載せる。残り時間の見込みが無ければ付けない。
+
+| フィールド | 内容 |
+|---|---|
+| `stepMinutes` | 目盛りの刻み。10・15・30・60 分から、目盛りが 6 個以内に収まる最小のものを選ぶ |
+| `ticks` | 4〜6 個の目盛り。時刻 `time`、その時刻までに動いている確率 `tenths`、発生からの分 `sinceOnsetMinutes` を持つ |
+| `waitFaster` | 待ったほうが早く着く確率。代替手段が無ければ null |
+| `waitOnTime` | 待って期限に間に合う確率。期限か経路が無ければ null |
+| `resumeByForDeadline` | 期限に間に合うために動いていなければならない時刻。期限から乗車時間と初列車待ちを引く |
+| `onsetTime` | 発生とみなした時刻。最初の観測の時刻 |
+
+確率の定義は次のとおり。標本 s は再開して乗れるまでの残りの分で、初列車待ちを含む。
+
+- 待った場合の到着は T_wait = now + s + 再開後の乗車時間 とする
+- 代替手段の到着 T_alt は `find_alternatives` が返した決まった値として扱う。ばらつきは持たせない
+- `waitFaster` は P(T_wait ≤ T_alt) とする。同着は待つ側に数える。乗り換えの手間が無いぶん待つほうが楽なためである
+- T_alt は、勧める代替手段の到着である。タクシーのほうが早く着く場合でも、鉄道の代替を勧めるなら鉄道の代替の到着を使う
+- 分岐点は T_alt から乗車時間と初列車待ちの p50 を引いた時刻である。この確率は P(s ≤ 分岐点までの分 + 初列車待ち) と同じ値になり、分岐点と食い違わない
+- 期限が理由でタクシーを勧めるときは、分岐点が期限から求めた時刻で、`resumeByForDeadline` と同じになる。このとき `waitFaster` は null とし、`waitOnTime` で示す。タクシーと比べた確率は、分岐点と食い違うためである
+- `waitOnTime` は P(T_wait ≤ 期限) とする。同時刻は間に合うとみなし、`checkDeadline` と同じにする
+- 目盛りの確率は、乗れる時刻から初列車待ちの p50 を引いた再開の時刻が、目盛り以前である確率とする。再開見込みの幅と同じ近似で、p50 の目盛りはおよそ 5 割になる
+
+目盛りと丸めの決め方は次のとおり。
+
+- 目盛りは、いまより後の切りのよい時刻から始め、9 割の標本が動いている時刻まで覆う。分岐点がその 60 分以内なら分岐点まで延ばす
+- 4 個に満たなければ延ばす。60 分刻みでも 6 個を超えるなら 6 個で打ち切る
+- 確率は 1 割単位に丸める。0.05 未満は 0 で「1 割未満」、0.95 以上は 10 で「9 割以上」とし、0 割と 10 割は出さない
+- 分岐する知見では、p50 までは最短の経路の標本に、p80 からは最長の経路の標本に従い、あいだは直線でつなぐ。推定の p50・p80 と一致する
+- 発生時刻は観測から分からないので、最初の観測の時刻を発生とみなす。画面は入口で止まってからの時間を答えたときだけ「発生から」を出す
+- 待つか切り替えるかの規則は確率を使わず、これまでどおりである
 
 ## 5. ツール仕様（apps/agent/src/tools）
 
@@ -235,9 +424,9 @@ M0 では駅名 `{ kind: "station", name }` と座標 `{ kind: "coord", lon, lat
 |---|---|---|---|
 | `lookup_knowledge` | 事象種別 | 段階、兆候、所要時間の目安、利用者への提示方針 | YAML 読み込み |
 | `get_weather` | 区間の座標、時間幅 | 10分ごとの雨量、警報の発表状況 | 気象庁 |
-| `estimate_phase_and_remaining` | 事象種別、観測の列 | 段階 ID、段階の経過時間、残り時間分布 | packages/core |
-| `find_alternatives` | 現在地、行き先、止まっている区間、時刻、制約 | 代替手段の一覧（徒歩・乗車・待ち・運賃） | packages/geo + core |
-| `compute_break_even` | 待つ場合の条件、代替手段の到着時刻 | 分岐点の時刻 | packages/core |
+| `estimate_phase_and_remaining` | 事象種別、観測の列 | 段階 ID、段階の経過時間、残り時間分布、よくある流れと流れの一文。事象が null でも発表の見込み時刻があれば残り時間を返す。駅間の車内なら、ホームに着ける駅とそこに着く時刻、遅れる理由を `trainQueue` で返す | packages/core |
+| `find_alternatives` | 現在地、行き先、止まっている区間、時刻、制約 | 代替手段の一覧（徒歩・乗車・待ち・運賃）。駅間の車内なら、次の駅に着く見込みの時刻から探す。通常の徒歩の上限の中に鉄道の代替が無ければ、上限を広げて探す | packages/geo + core |
+| `compute_break_even` | 待つ場合の条件、代替手段の到着時刻、期限 | 分岐点の時刻、勧める代替手段の id、比較表、時刻ごとの再開の見込みと待ったほうが早く着く確率。駅間の車内でも同じ標本から求める | packages/core |
 
 ## 6. 時刻表データがないことへの対応
 
@@ -266,6 +455,13 @@ M0 では駅名 `{ kind: "station", name }` と座標 `{ kind: "coord", lon, lat
 - 分岐点が表示されている／されていないこと
 
 点数を出すためのものではなく、プロンプト・ツール・判断ロジックを変えたときに振る舞いが壊れていないかを確かめる回帰テストとして使う。エージェントの出力は揺れるため、検証は行動の種類と根拠の兆候 ID のような構造化された項目で行い、文面では比較しない。
+
+e2e は外部のタイルとフォントを取りに行かない。
+
+- 画面の外部要求は `e2e/support/test.ts` の共通 fixture が受ける。地図のタイルは `e2e/fixtures/tiles` の淡い格子で返す
+- web サーバーの Google Fonts は `NEXT_FONT_GOOGLE_MOCKED_RESPONSES` で空の応答に差し替える
+- `E2E_REAL_TILES=1` で本物に戻す。録画の `pnpm --filter e2e record` は常に本物を使う
+- 地図の準備は下地のタイルを待たない。スタイルと自前のレイヤーが描け、視点が止まった時点とする
 
 ### 7.3 開発者による確認
 

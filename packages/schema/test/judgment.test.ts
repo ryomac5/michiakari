@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { checkJudgmentRefs, type Judgment, JudgmentSchema } from "../src/index.ts";
+import { checkJudgmentRefs, type Judgment, JudgmentSchema, RouteLegSchema } from "../src/index.ts";
 import { validJudgment } from "./fixtures/api.ts";
 
 function cloneJudgment(): Judgment {
@@ -28,6 +28,30 @@ describe("JudgmentSchema", () => {
     };
     expect(JudgmentSchema.safeParse(j).success).toBe(true);
     expect(checkJudgmentRefs(j)).toEqual([]);
+  });
+
+  it("reason は任意で、あれば受け入れ、空文字は拒否する", () => {
+    expect(
+      JudgmentSchema.safeParse({ ...validJudgment, reason: "現場の確認が続いています。" }).success,
+    ).toBe(true);
+    expect(JudgmentSchema.safeParse({ ...validJudgment, reason: "" }).success).toBe(false);
+  });
+
+  it("typicalFlow は任意で、あれば受け入れ、段階が空なら拒否する", () => {
+    const typicalFlow = {
+      eventType: "person_accident",
+      phases: [{ id: "initial", name: { ja: "発生直後" }, duration: { p50: 10, p80: 20 } }],
+      untilResume: { p50: 60, p80: 110 },
+      firstTrainWait: { p50: 10, p80: 25 },
+      predictability: { level: "high", source: "knowledge", basis: { ja: "架空" } },
+      typicalFloorMinutes: 60,
+    } as const;
+    expect(JudgmentSchema.safeParse({ ...validJudgment, typicalFlow }).success).toBe(true);
+    expect(JudgmentSchema.safeParse(validJudgment).success).toBe(true);
+    expect(
+      JudgmentSchema.safeParse({ ...validJudgment, typicalFlow: { ...typicalFlow, phases: [] } })
+        .success,
+    ).toBe(false);
   });
 
   it("disclaimer が空なら拒否する", () => {
@@ -98,5 +122,26 @@ describe("checkJudgmentRefs", () => {
     j.action = "wait";
     j.recommendedOptionId = null;
     expect(checkJudgmentRefs(j)).toEqual([]);
+  });
+});
+
+describe("RouteLegSchema", () => {
+  it("駅 ID と路線 ID を省略できる", () => {
+    const leg = { mode: "walk", from: "甲", to: "乙", minutes: 3 };
+    expect(RouteLegSchema.safeParse(leg).success).toBe(true);
+  });
+
+  it("駅 ID と路線 ID を持てる", () => {
+    const leg = {
+      mode: "ride",
+      from: "甲",
+      to: "乙",
+      minutes: 10,
+      line: "架空線",
+      fromStationId: "op.line.甲",
+      toStationId: "op.line.乙",
+      lineId: "op.line",
+    };
+    expect(RouteLegSchema.parse(leg)).toEqual(leg);
   });
 });

@@ -1,32 +1,31 @@
-import { resolve } from "node:path";
-import {
-  checkTemplateConformance,
-  formatContentError,
-  validateContent,
-} from "../src/validate-content.ts";
+import { findRepoRoot, resolveContentDir } from "../src/loaders.ts";
+import { buildValidationReport, watchContentDirs } from "./validate-report.ts";
 
-// リポジトリルートの knowledge/ と scenarios/ を検証する
+// knowledge/ と scenarios/ を検証する。既定はリポジトリルート、CONTENT_DIR で切り替える
+// --watch を付けると、変更のたびに検証し直す
 
-const rootDir = resolve(import.meta.dirname, "../../..");
+const repoRoot = findRepoRoot();
+const rootDir = resolveContentDir(process.env, repoRoot);
+const isDefaultRoot = rootDir === repoRoot;
 
-const content = validateContent(rootDir);
-console.log(`検証したファイル: ${content.checkedFiles.length} 件`);
-for (const file of content.checkedFiles) console.log(`  - ${file}`);
-
-const templates = checkTemplateConformance(rootDir);
-console.log("雛形の整合:");
-for (const t of templates) {
-  console.log(`  ${t.file}: ${t.errors.length === 0 ? "スキーマとキー構造が一致" : "不一致"}`);
+function runOnce(): boolean {
+  const report = buildValidationReport(rootDir, { isDefaultRoot });
+  for (const line of report.lines) console.log(line);
+  return report.ok;
 }
 
-const errors = [
-  ...content.errors.map(formatContentError),
-  ...templates.flatMap((t) => t.errors.map((e) => `${t.file}: ${e}`)),
-];
-
-if (errors.length > 0) {
-  console.log(`エラー: ${errors.length} 件`);
-  for (const e of errors) console.log(`  - ${e}`);
-  process.exit(1);
+function formatClockNow(): string {
+  return new Date().toLocaleTimeString("ja-JP", { hour12: false });
 }
-console.log("エラーはありません");
+
+if (process.argv.includes("--watch")) {
+  runOnce();
+  console.log("監視中: knowledge/ と scenarios/ の変更を待っています。Ctrl+C で終了します");
+  watchContentDirs(rootDir, () => {
+    console.log(`\n---- ${formatClockNow()} 変更を検出したので検証し直します ----`);
+    runOnce();
+    console.log("監視中: 変更を待っています");
+  });
+} else {
+  process.exit(runOnce() ? 0 : 1);
+}

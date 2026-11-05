@@ -9,11 +9,18 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "data:build": "node -e \"console.error('data:build は WS1 で実装予定です'); process.exit(1)\""
+    "data:build": "node src/build.ts",
+    "data:osm": "node src/osm-download.ts",
+    "data:walk": "node src/walk.ts"
   },
   "devDependencies": {
+    "@duckdb/node-api": "2.0.0-r.1",
     "@types/node": "24.19.2",
     "typescript": "7.0.2",
     "vitest": "5.0.5"
+  },
+  "dependencies": {
+    "@repo/core": "workspace:*",
+    "@repo/geo": "workspace:*"
   }
 }

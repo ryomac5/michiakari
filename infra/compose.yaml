@@ -1,0 +1,30 @@
+# ローカルで判断エージェントをコンテナとして起動する
+# 起動: docker compose -f infra/compose.yaml up --build
+# 確認: curl http://localhost:8787/health
+
+services:
+  agent:
+    build:
+      context: ..
+      dockerfile: infra/agent/Dockerfile
+    ports:
+      - "8787:8787"
+    environment:
+      PORT: "8787"
+      # claude か deterministic。未設定なら API キーの有無で決まる
+      JUDGE_MODE: ${JUDGE_MODE:-deterministic}
+      # 値はホストの環境変数から渡す。このファイルには書かない
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # 知見とシナリオの置き場所。/app からの相対。既定は開発用のダミー内容
+      # CONTENT_DIR= と空で渡すと、リポジトリの knowledge/ と scenarios/ を読む
+      CONTENT_DIR: ${CONTENT_DIR-packages/schema/test/fixtures/dev-content}
+      # 画面のオリジン。カンマ区切りで複数指定できる
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      # 1 分あたりに 1 クライアントへ許す /judge の回数
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-20}
+      # X-Forwarded-For を信用するか。信用できるプロキシの背後に置くときだけ true にする
+      # false のときは接続元アドレスで数える。直接受けるときは false にする
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+    restart: unless-stopped
+
+  # 徒歩経路の Valhalla は事前計算専用で、infra/valhalla/compose.yaml で別に起動する

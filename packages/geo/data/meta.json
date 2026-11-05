@@ -1,0 +1,64 @@
+{
+  "generatedAt": "2026-11-02T12:29:57.422Z",
+  "attribution": [
+    "鉄道データ: 「国土数値情報（鉄道データ）」（国土交通省）を加工して作成",
+    "駅の乗降客数: 「国土数値情報（駅別乗降客数データ）」（国土交通省）を加工して作成",
+    "徒歩経路・到達範囲: © OpenStreetMap contributors のデータから Valhalla で計算"
+  ],
+  "sources": [
+    {
+      "name": "国土数値情報（鉄道データ）",
+      "dataset": "N02-25",
+      "version": "2025年度版（データ基準日 2025年12月31日）",
+      "url": "https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N02-2025.html",
+      "license": "CC BY 4.0（公共データ利用規約 第1.0版）"
+    },
+    {
+      "name": "国土数値情報（駅別乗降客数データ）",
+      "dataset": "S12-25",
+      "version": "2024年度版（最新の値は2024年の統計）",
+      "url": "https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-S12-2024.html",
+      "license": "CC BY 4.0（公共データ利用規約 第1.0版）"
+    }
+  ],
+  "notes": [
+    "対象エリアは packages/data/config/area.geojson のポリゴン。範囲内に駅がある路線を抽出した",
+    "新幹線と鋼索鉄道、観光用の路線は除いた",
+    "駅の代表点は駅の線データの中点。駅間距離は線路に沿った代表点間の距離の概算",
+    "乗換の walkMeters は代表点どうしの直線距離。徒歩経路は pnpm data:walk が walkMinutes と walkMetersRoute に足す",
+    "乗降客数は2024年の値。ない駅は2023年、2022年の順にさかのぼった"
+  ],
+  "counts": {
+    "lines": 106,
+    "stations": 1356,
+    "edges": 1251,
+    "transfers": 508
+  },
+  "walk": {
+    "computedAt": "2026-11-02T12:29:02.642Z",
+    "attribution": "© OpenStreetMap contributors",
+    "osm": {
+      "name": "OpenStreetMap（Geofabrik 関西抽出）",
+      "url": "https://download.geofabrik.de/asia/japan/kansai-261101.osm.pbf",
+      "date": "2026-11-01",
+      "license": "ODbL 1.0"
+    },
+    "valhalla": {
+      "version": "3.9.1-63e4d1aa6",
+      "image": "ghcr.io/valhalla/valhalla-scripted@sha256:2dab557c4786a411d6eb814f2bf6f927e56ff8b89df4b9412c89437fe59f93d9"
+    },
+    "walkingSpeedKmh": 4.8,
+    "counts": {
+      "transfers": 508,
+      "transfersRouted": 489,
+      "isochronePlaces": 300
+    },
+    "notes": [
+      "乗換の walkMinutes と walkMetersRoute は駅の代表点どうしの pedestrian 経路。駅構内の通路は OSM に描かれた範囲で反映される",
+      "walkMinutes は Valhalla の所要秒を分に切り上げた値。歩く速さは packages/core と同じ 80m/分",
+      "経路が直線距離より短いときは直線距離にそろえた",
+      "直線距離の2.5倍を超え、400m 以上長い経路は代表点の寄せ方の誤りとみなし、19 件を採らなかった。採らなかった乗換と経路の無い乗換 0 件は直線距離から概算する",
+      "到達範囲は乗降客数の上位 300 か所。10m の許容誤差で単純化し、座標を小数5桁に丸めた"
+    ]
+  }
+}

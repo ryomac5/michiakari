@@ -1,0 +1,126 @@
+# 開発用のダミー。開発者の知見ではない。本番の判断には使わない
+# 所要時間は報道や利用者の体感程度の目安。例文はすべて自作
+
+id: vehicle_failure
+name:
+  ja: 車両故障
+  en: Train malfunction
+summary:
+  ja: 走行中の列車に不具合が起き、点検のあいだ運転を見合わせる事象。現場の処置で直れば短く終わり、自力で動けなければ救援の列車を使うため長引く。
+  en: A train develops a fault and service is suspended during inspection. If fixed on the spot it ends quickly; if the train cannot move on its own, a rescue train is needed and it takes much longer.
+
+identification:
+  phrases:
+    - 車両故障のため
+    - 車両の不具合のため
+    - 車両点検のため
+    - 車両の点検を行っています
+
+phases:
+  - id: initial
+    name:
+      ja: 発生直後
+      en: Just occurred
+    description: 列車の不具合が伝えられ、運転士が状況を確かめている。短く終わるか長引くかはまだ分からない。
+    signals:
+      - id: vf_failure_announced
+        observable_from: [announcement, signage, station_broadcast]
+        description: 車両の不具合で運転を見合わせている旨の発表
+        example_phrases:
+          - 車両の不具合のため、運転を見合わせています
+          - 現在、車両の点検を行っています
+      - id: vf_train_stopped
+        observable_from: [train_movement]
+        description: 故障した列車や後続の列車が駅間や駅で止まっている
+        example_phrases:
+          - 前を走る列車が止まっているため、この列車も停車しています
+    duration_minutes: { p50: 5, p80: 15 }
+    exit_signals: [vf_repair_in_progress, vf_rescue_announced]
+    guidance:
+      ja: 短く終わることが多いと伝え、分岐点を示して様子を見る。
+      en: Note that this often ends quickly; show the break-even time and watch the situation.
+
+  - id: onsite_repair
+    name:
+      ja: 現場での処置
+      en: On-site repair
+    description: 運転士や係員が現場で処置をしている。救援の文言が出なければ、短く終わる傾向がある。
+    signals:
+      - id: vf_repair_in_progress
+        observable_from: [announcement, station_broadcast]
+        description: 運転士や係員が車両の処置をしている旨の案内
+        example_phrases:
+          - ただいま運転士が車両の点検と処置を行っております
+          - 係員が現場に向かっています
+    duration_minutes: { p50: 15, p80: 30 }
+    exit_signals: [vf_recovered_announced, vf_rescue_announced]
+    guidance:
+      ja: 待つ方向で示しつつ、救援の文言が出たら切り替えを考えるよう伝える。
+      en: Lean toward waiting, but advise reconsidering if rescue is mentioned.
+
+  - id: rescue_operation
+    name:
+      ja: 救援・移動
+      en: Rescue operation
+    description: 故障した列車が自力で動けず、救援の列車をつないで移動させている。長引く場合だけ通る段階。
+    signals:
+      - id: vf_rescue_announced
+        observable_from: [announcement, signage, station_broadcast]
+        description: 救援の列車の手配や、故障した列車の移動を伝える発表
+        example_phrases:
+          - 救援の列車を手配しています
+          - 故障した列車を移動させる準備をしています
+      - id: vf_passenger_evacuation
+        observable_from: [announcement, station_broadcast, train_movement]
+        description: 駅間に止まった列車から乗客を降ろす、または別の列車へ移す案内
+        example_phrases:
+          - 停車中の列車のお客様を、後続の列車にお移りいただいています
+    duration_minutes: { p50: 40, p80: 70 }
+    exit_signals: [vf_recovered_announced]
+    guidance:
+      ja: 長引く見通しを伝え、代替手段への切り替えを具体的に示す。
+      en: Explain that it will take a while and show concrete alternatives.
+
+  - id: resuming
+    name:
+      ja: 再開準備
+      en: Resuming
+    description: 処置や移動が終わり、安全を確かめて運転再開に向かっている。
+    signals:
+      - id: vf_recovered_announced
+        observable_from: [announcement, signage, station_broadcast]
+        description: 点検や処置が終わり、再開見込みを示す発表
+        example_phrases:
+          - 車両の点検が終わりました
+          - 8時35分頃に運転を再開する見込みです
+      - id: vf_resumed
+        observable_from: [announcement, signage, train_movement]
+        description: 運転を再開した旨の発表、または止まっていた列車が動き出す
+        example_phrases:
+          - 運転を再開しました
+    duration_minutes: { p50: 5, p80: 15 }
+    exit_signals: [vf_resumed]
+    guidance:
+      ja: まもなく再開することを伝え、待つ判断を後押しする。
+      en: Indicate that service will resume shortly and support waiting.
+
+after_resume:
+  first_train_wait_minutes: { p50: 5, p80: 15 }
+  notes: 止まっていた時間が短ければ、ダイヤは比較的早く戻る。故障した列車が運休になると、その分だけ間隔が空く。
+
+caveats:
+  - 発生から20分ほどで点検終了の発表が出れば、短く終わる傾向がある
+  - 救援、連結、車両の交換といった文言が出たら、長引く側に入ったと見る
+  - 駅間で止まった列車から乗客を降ろす案内が出ると、さらに長引く
+  - 点検中の文言だけが続き、続報が無いまま時間が過ぎるときは長引く側を疑う
+
+external_factors:
+  weather: false
+  notes: 天候は判断材料にしない。
+
+# 見込みの立てやすさ。ダミーの書き方
+predictability:
+  level: medium
+  basis:
+    ja: その場の処置で直れば短く終わるが、救援の列車を呼ぶと長引く。どちらになるかは、救援を伝える発表が出るまで分からない。
+    en: It ends quickly if fixed on the spot, but takes much longer if a rescue train is called. Which way it goes is unclear until a rescue is announced.
