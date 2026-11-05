@@ -15,6 +15,16 @@
 
 ## 記録
 
+### 2026-11-05 / T6 / 画像の列車種別を画面と再送信に反映
+- やったこと: observation_parsed の並びを session の state/ref に反映し、本数・間隔を null、編集済みに更新。日英の前提欄と単体・e2e（次回送信・リトライ）確認を追加。共有スキーマの影響 WS: WS4・WS5・WS7。
+- 確認結果: ローカル store で依存導入成功。typecheck・lint・agent 203件・web 294件・validate:dev・guard 成功。指定 install は ENOTFOUND、schema は188件成功・既存の監視テスト1件が監視開始後に異常終了。
+- 残課題: ポート禁止の指定に従い e2e は未実行、スケジューラで受け入れ検証する。監視テストもサンドボックス外で再確認が必要。
+
+### 2026-11-05 / T6 / レビュー指摘の再対応（scope 追加の回答待ち）
+- やったこと: scope 内に走行位置の並びを保持する関数と単体テストを準備し、e2e に前提欄・チップ・次回送信の確認を追加。共有スキーマの影響 WS: WS4・WS5・WS7。
+- 確認結果: 通常 install は ENOTFOUND、ローカル store の offline 導入は成功。typecheck・lint・agent 203件・web 290件・validate:dev・guard 成功。schema は188件成功、既存の watch 1件が監視開始後に異常終了。
+- 残課題: judgment/components/NextCheck.tsx・judgment/session.tsx・apps/web/messages/{ja,en}.json への scope 追加を確認中。表示と session への接続は未実装のため追加 e2e は未充足。e2e 実行はポート禁止によりスケジューラへ委ねる。
+
 ### 2026-11-05 / T6 / 走行位置画像の前方列車種別
 - やったこと: InterpretationSchema・Observation に任意の trainsAhead を追加し、共通種別列挙、推測しない読取指示、画像名 fixture、判断への受け渡しと単体・e2e 確認を追加。影響 WS: WS4・WS5・WS7。
 - 確認結果: ローカル store 指定の依存導入、typecheck、lint、agent 203 件、web 285 件、validate:dev、guard が成功。通常の依存導入は ENOTFOUND、schema は 188 件成功・既存の監視テスト 1 件が EMFILE で失敗。

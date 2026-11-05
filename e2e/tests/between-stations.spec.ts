@@ -303,4 +303,51 @@ test("持ち込んだ走行位置画像の種別を判断入力に使う", async
   await expect(page.getByTestId(testIds.judgment.conclusionReason).first()).toContainText(
     "前の快速は塚本に止まれないため",
   );
+  const ahead = page.getByTestId(testIds.judgment.trainPositionChip("ahead"));
+  await expect(ahead).toContainText("前に詰まっている列車 快速・普通");
+  await expect(ahead).toHaveAttribute("data-source", "user");
+  await openSheet(page, "full");
+  await expect(page.getByTestId(testIds.judgment.premise)).toContainText(
+    "走行位置の画像から前の列車を 快速・普通 と読みました",
+  );
+
+  // 次の入力でも、読み取った並びを保持して判断する
+  await addInfo.getByTestId(testIds.situation.tab("paste")).click();
+  await addInfo.getByTestId(testIds.situation.pasteInput).fill("引き続き運転を見合わせています");
+  const nextRequest = page.waitForRequest(
+    (request) => request.method() === "POST" && new URL(request.url()).pathname === "/judge",
+  );
+  await addInfo.getByTestId(testIds.situation.submit("paste")).click();
+  expect((await nextRequest).postDataJSON().trainPosition).toMatchObject({
+    trainsAhead: ["rapid", "local"],
+    trainsAheadCount: null,
+    trainsAheadHeadwayMinutes: null,
+  });
+  await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready", {
+    timeout: 30_000,
+  });
+  await expect(ahead).toContainText("前に詰まっている列車 快速・普通");
+  await expect(page.getByTestId(testIds.judgment.premise)).toContainText(
+    "走行位置の画像から前の列車を 快速・普通 と読みました",
+  );
+
+  // 通信失敗後のリトライでも、画像の並びを判断入力に戻す
+  await page.route("**/judge", (route) => route.abort(), { times: 1 });
+  await addInfo.getByTestId(testIds.situation.pasteInput).fill("再開の見込みはまだ未定です");
+  await addInfo.getByTestId(testIds.situation.submit("paste")).click();
+  const retry = page.getByTestId(testIds.judgment.retryButton);
+  await expect(retry).toBeVisible();
+  const retryRequest = page.waitForRequest(
+    (request) => request.method() === "POST" && new URL(request.url()).pathname === "/judge",
+  );
+  await retry.click();
+  expect((await retryRequest).postDataJSON().trainPosition).toMatchObject({
+    trainsAhead: ["rapid", "local"],
+    trainsAheadCount: null,
+    trainsAheadHeadwayMinutes: null,
+  });
+  await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready", {
+    timeout: 30_000,
+  });
+  await expect(ahead).toContainText("前に詰まっている列車 快速・普通");
 });

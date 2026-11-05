@@ -282,6 +282,8 @@
     "statusOnly": "Suspended",
     "premise": {
       "title": "What this assumes",
+      "trainsAheadPhoto": "We read the trains ahead as {types} from your train location image",
+      "trainsAheadPhotoNone": "We read your train location image as showing no trains ahead",
       "destinationHub": "Destination is set to {station}, a major station toward {direction}",
       "destinationTerminal": "Destination is set to {station}, the end of the line",
       "onTrain": "You're on the train, so we start from {station}",
