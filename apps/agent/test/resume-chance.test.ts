@@ -80,7 +80,7 @@ describe("人身事故のリプレイの再開の見込み", () => {
   const scenario = loadScenario("person_accident_last_train");
   const stepsPromise = replayScenario(createTestApp(deps), scenario);
 
-  it("最初の判断では、発生から下限までの目盛りが 1 割未満で、待ったほうが早く着く見込みも 1 割未満", async () => {
+  it("最初の判断では、発生から下限までの目盛りが 1 割未満で、分岐点までに再開する見込みも 1 割未満", async () => {
     const steps = await stepsPromise;
     const judgment = findJudgment(steps[0]?.events ?? []);
     const chance = requireChance(judgment);
@@ -109,10 +109,10 @@ describe("人身事故のリプレイの再開の見込み", () => {
         const tick = selectKeyTick(requireChance(judgment).ticks, judgment.breakEven?.time);
         if (!tick) throw new Error("遅めの再開見込みの目盛りがありません");
         expect(judgment.action).toBe("switch");
-        expect(judgment.reason).toContain("見込みが延長され");
+        expect(judgment.reason).toContain("延長後");
         expect(
           judgment.reason?.endsWith(
-            `遅めの見込みでは分岐点より後の${formatClock(tick.time, "ja")}までに再開する確率が${formatChance(tick.tenths, "ja")}に達する推定です。`,
+            `遅めの見込みでは分岐点より後の${formatClock(tick.time, "ja")}までの再開確率は${formatChance(tick.tenths, "ja")}です。`,
           ),
         ).toBe(true);
         expect(judgment.reason).not.toContain("分岐点の");
@@ -122,7 +122,7 @@ describe("人身事故のリプレイの再開の見込み", () => {
       const byDeadline = requireChance(judgment).waitFaster === null;
       expect(judgment.reason, step.entry.id).toMatch(
         byDeadline
-          ? /待って期限に間に合うために必要な\d{1,2}時\d{2}分までの再開の見込みは(\d割|1割未満|9割以上)です。$/
+          ? /期限に間に合う再開の境目は\d{1,2}時\d{2}分です。その時刻までの再開見込みは(\d割|1割未満|9割以上)です。$/
           : /分岐点の\d{1,2}時\d{2}分までに再開する見込みは(\d割|1割未満|9割以上)です。$/,
       );
     }
@@ -242,7 +242,7 @@ describe("formatChance と buildChanceSentence", () => {
       "待って期限に間に合う見込みは6割です。",
     );
     expect(buildChanceSentence({ waitFaster: null, waitOnTime: null, keyTick: tick }, "ja")).toBe(
-      "23時30分には5割の見込みで動いています。",
+      "23時30分までに再開する見込みは5割です。",
     );
     expect(buildChanceSentence({ waitFaster: null, waitOnTime: null, keyTick: null }, "ja")).toBe(
       null,
@@ -347,7 +347,7 @@ describe("確率の捏造の検査", () => {
     );
     const decision = (reason: string) => ({
       action: "switch" as const,
-      headline: "いま振替に切り替えてください",
+      headline: "いま振替に切り替える",
       reason,
       breakEvenExplanation: "説明",
       recommendedOptionId:
@@ -359,7 +359,7 @@ describe("確率の捏造の検査", () => {
     const fine = assembleJudgment(
       results,
       decision(
-        `待ったほうが早く着く見込みは${formatChance(chance.waitFaster, "ja")}です。${minutesFromNow}分後の${formatClock(tick.time, "ja")}には${formatChance(tick.tenths, "ja")}の見込みで動いています。`,
+        `待ったほうが早く着く見込みは${formatChance(chance.waitFaster, "ja")}です。${minutesFromNow}分後の${formatClock(tick.time, "ja")}までに再開する見込みは${formatChance(tick.tenths, "ja")}です。`,
       ),
       "ja",
     );

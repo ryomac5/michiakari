@@ -16,7 +16,7 @@ export { ActionPill } from "./ActionPill";
 // 見込みが立てやすい事象では、理由に事象のよくある流れが入る。行動の理由がすぐ伝わるよう、閉じたシートに理由を出す
 export function selectCardReason(judgment: Judgment | null): string | null {
   if (judgment?.typicalFlow?.predictability.level !== "high") return null;
-  return judgment.reason ?? null;
+  return judgment.reason?.match(/^.*?(?:。|[.!?](?=\s|$)|$)/s)?.[0] || null;
 }
 
 // 結論を一つだけ大きく出す。閉じたシートに収まるよう、ピルと見出しと、流れが読める事象では理由だけにする
@@ -75,8 +75,9 @@ export function ConclusionDetail({ judgment }: { judgment: Judgment }) {
   const t = useTranslations("judgment");
   const locale = useLocale();
   const { lead, rest } = splitHeadline(judgment.headline);
-  // 結論のカードが理由を出していれば、ここでは重ねない
-  const reason = selectCardReason(judgment) ? null : (judgment.reason ?? rest);
+  // 要約に収まらない補足は、開いたシートで全文を読めるようにする
+  const cardReason = selectCardReason(judgment);
+  const reason = cardReason && cardReason === judgment.reason ? null : (judgment.reason ?? rest);
   const recommended = judgment.options.find((o) => o.id === judgment.recommendedOptionId);
   const remaining = judgment.estimate.remaining;
 
@@ -99,7 +100,11 @@ export function ConclusionDetail({ judgment }: { judgment: Judgment }) {
     <div className="flex flex-col gap-2.5">
       {reason && (
         <p
-          data-testid={testIds.judgment.conclusionReason}
+          data-testid={
+            cardReason
+              ? `${testIds.judgment.conclusionReason}-detail`
+              : testIds.judgment.conclusionReason
+          }
           className="text-[15px] leading-relaxed text-pretty"
         >
           <NoBreakText text={reason} />

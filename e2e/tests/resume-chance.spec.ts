@@ -12,7 +12,7 @@ import {
 } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
-// 時刻ごとの再開の見込みの帯と、待ったほうが早く着く見込み
+// 時刻ごとの再開の見込みの帯と、分岐点までに再開する見込み
 // 決定論モードの agent とダミーの内容で確かめる。判断の画面はライトとダークの両方で撮る
 
 const screenshotDir = fileURLToPath(new URL("../screenshots/", import.meta.url));
@@ -61,7 +61,7 @@ for (const theme of ["light", "dark"] as const) {
       const band = page.getByTestId(testIds.judgment.resumeChance);
       await expect(band).toBeVisible();
       await expect(band).toHaveAttribute("data-onset", "known");
-      // 待ったほうが早く着く見込みは 1 割未満で、切り替えの結論と向きがそろう
+      // 分岐点までに再開する見込みは 1 割未満で、切り替えの結論と向きがそろう
       await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
         "data-action",
         "switch",
@@ -91,17 +91,17 @@ for (const theme of ["light", "dark"] as const) {
       // 要点の 1 文は、発生からの言い方で 5 割以上の目盛りを言う
       const lead = page.getByTestId(testIds.judgment.resumeChanceLead);
       await expect(lead).toContainText("発生から");
-      await expect(lead).toContainText("見込みで動いています");
+      await expect(lead).toContainText("までに再開する見込みは");
       // 理由の最後にも確率の 1 文が入る
-      await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(
-        /分岐点の\d{1,2}時\d{2}分までに再開する見込みは1割未満です/,
-      );
+      await expect(
+        page.locator(`[data-testid^="${testIds.judgment.conclusionReason}"]`).last(),
+      ).toContainText(/分岐点の\d{1,2}時\d{2}分までに再開する見込みは1割未満です/);
       await waitForMapReady(page);
       await page.screenshot({
         path: `${screenshotDir}resume-chance-person-accident-${theme}-390x844.png`,
       });
 
-      // 再開見込みの発表が届くと、帯と待ったほうが早く着く見込みが変わる
+      // 再開見込みの発表が届くと、帯と分岐点までに再開する見込みが変わる
       await page.getByTestId(testIds.replay.nextButton).click();
       await waitForJudged(page, "obs_2");
       await page.getByTestId(testIds.replay.nextButton).click();
@@ -113,9 +113,9 @@ for (const theme of ["light", "dark"] as const) {
       const later = await readTicks(page);
       const laterTenths = Number(await waitFaster.getAttribute("data-tenths"));
       expect(laterTenths).toBeGreaterThanOrEqual(5);
-      await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(
-        /分岐点の\d{1,2}時\d{2}分までに再開する見込みは/,
-      );
+      await expect(
+        page.locator(`[data-testid^="${testIds.judgment.conclusionReason}"]`).last(),
+      ).toContainText(/分岐点の\d{1,2}時\d{2}分までに再開する見込みは/);
       expect(later.map((t) => t.tenths).join(",")).not.toBe(ticks.map((t) => t.tenths).join(","));
     });
 
@@ -129,7 +129,7 @@ for (const theme of ["light", "dark"] as const) {
       expect(tenMinutes, "発生から 10 分の目盛り").toBeDefined();
       expect(tenMinutes?.tenths ?? 0).toBeGreaterThanOrEqual(7);
       expect(tenMinutes?.label ?? "").toMatch(/[7-9]割/);
-      // 待つ結論と、待ったほうが早く着く見込みの向きがそろう
+      // 待つ結論と、分岐点までに再開する見込みの向きがそろう
       await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
         "data-action",
         "wait",
@@ -137,7 +137,7 @@ for (const theme of ["light", "dark"] as const) {
       const waitFaster = page.getByTestId(testIds.judgment.resumeChanceWaitFaster);
       expect(Number(await waitFaster.getAttribute("data-tenths"))).toBeGreaterThanOrEqual(9);
       await expect(page.getByTestId(testIds.judgment.resumeChanceLead)).toContainText(
-        "見込みで動いています",
+        "までに再開する見込みは",
       );
       await waitForMapReady(page);
       await page.screenshot({ path: `${screenshotDir}resume-chance-in-car-${theme}-390x844.png` });
@@ -188,7 +188,7 @@ async function startBetweenStations(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
 }
 
-test("駅と駅の間にいる人の判断にも、確率の帯と待ったほうが早く着く見込みが出る", async ({
+test("駅と駅の間にいる人の判断にも、確率の帯と分岐点までに再開する見込みが出る", async ({
   page,
 }) => {
   await startBetweenStations(page);
@@ -197,7 +197,7 @@ test("駅と駅の間にいる人の判断にも、確率の帯と待ったほ�
   await expect(band).toHaveAttribute("data-onset", "known");
   await expect(page.getByTestId(testIds.judgment.resumeChanceWaitFaster)).toContainText(/割/);
   await expect(page.getByTestId(testIds.judgment.resumeChanceLead)).toContainText(
-    "見込みで動いています",
+    "までに再開する見込みは",
   );
   const ticks = await readTicks(page);
   expect(ticks.length).toBeGreaterThanOrEqual(4);
@@ -220,7 +220,7 @@ for (const { clock, sinceOnset } of [
     await expect(band).toHaveAttribute("data-onset", "known");
     const lead = page.getByTestId(testIds.judgment.resumeChanceLead);
     await expect(lead).toContainText("発生から");
-    await expect(lead).toContainText("見込みで動いています");
+    await expect(lead).toContainText("までに再開する見込みは");
     await expect(page.getByTestId(testIds.judgment.resumeChanceWaitFaster)).toBeVisible();
     // 未来の目盛りでも直前の秒からは経過分が10分に丸められる
     const ticks = await readTicks(page);
@@ -232,7 +232,7 @@ for (const { clock, sinceOnset } of [
     await expect(band).toBeVisible();
     await expect(band).toHaveAttribute("data-onset", "unknown");
     await expect(lead).not.toContainText("発生から");
-    await expect(lead).toContainText("見込みで動いています");
+    await expect(lead).toContainText("までに再開する見込みは");
   });
 }
 
@@ -268,7 +268,10 @@ test("切り替える判断でも確率の時点と分岐点が一致し比較�
   };
   const chanceSentence = `分岐点の${clock(judgment.breakEven.time)}までに再開する見込みは1割未満です。`;
   expect(judgment.reason.endsWith(chanceSentence)).toBe(true);
-  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(chanceSentence);
+  await openSheet(page, "half");
+  await expect(
+    page.locator(`[data-testid^="${testIds.judgment.conclusionReason}"]`).last(),
+  ).toContainText(chanceSentence);
   const alternative = judgment.options.find((option) => option.id === judgment.recommendedOptionId);
   if (!alternative) throw new Error("推奨経路がありません");
   await openSheet(page, "half");
@@ -277,18 +280,16 @@ test("切り替える判断でも確率の時点と分岐点が一致し比較�
   );
 });
 
-test("再開見込みが延長されたら分岐点後の遅めの時刻と確率を述べて切り替えを勧める", async ({
-  page,
-}) => {
+test("再開見込みの延長後は分岐点後の遅めの時刻と確率を述べて切り替えを勧める", async ({ page }) => {
   await openReplay(page, "person_accident_last_train", 60);
   for (const id of ["obs_1", "obs_2", "obs_3", "obs_4"]) {
     await page.getByTestId(testIds.replay.nextButton).click();
     await waitForJudged(page, id);
   }
-  const reason = page.getByTestId(testIds.judgment.conclusionReason);
-  await expect(reason).toContainText("見込みが延長され");
+  const reason = page.locator(`[data-testid^="${testIds.judgment.conclusionReason}"]`).last();
+  await expect(reason).toContainText("延長後");
   await expect(reason).toContainText(
-    "遅めの見込みでは分岐点より後の0時00分までに再開する確率が8割に達する推定です。",
+    "遅めの見込みでは分岐点より後の0時00分までの再開確率は8割です。",
   );
   await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
     "data-action",

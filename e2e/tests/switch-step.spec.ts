@@ -125,6 +125,16 @@ async function expectUnbrokenRuns(page: Page, label: string): Promise<void> {
       .map((span) => span.textContent ?? ""),
   );
   expect(broken, `${label}: 時刻や数と単位の途中で改行している`).toEqual([]);
+  const layout = await reason.evaluate((el) => {
+    const lineHeight = Number.parseFloat(getComputedStyle(el).lineHeight);
+    return { height: el.clientHeight, fullHeight: el.scrollHeight, lineHeight };
+  });
+  expect(layout.fullHeight, `${label}: 理由が3行を超えている`).toBeLessThanOrEqual(
+    Math.ceil(layout.lineHeight * 3),
+  );
+  expect(layout.fullHeight, `${label}: 理由が途中で切れている`).toBeLessThanOrEqual(
+    layout.height + 1,
+  );
 }
 
 for (const variant of variants) {
