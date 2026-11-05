@@ -6,17 +6,6 @@ import type { NetworkData } from "../src/types.ts";
 const source = networkJson as unknown as NetworkData;
 
 describe("入口の英語名", () => {
-  it("生成済みの網を書き換えず、京都と神戸の駅名を補う", () => {
-    const before = source.nodes.find((node) => node.name === "東寺");
-    const originalName = before?.nameEn;
-    const network = applyNetworkCorrections(source);
-    expect(network.nodes.find((node) => node.name === "東寺")?.nameEn).toBe("Toji");
-    expect(network.nodes.find((node) => node.name === "三宮・花時計前")?.nameEn).toBe(
-      "Sannomiya-Hanadokeimae",
-    );
-    expect(before?.nameEn).toBe(originalName);
-    expect(network.lines).toHaveLength(source.lines.length);
-  });
   it("京都と神戸の入口で使う路線が英語名を持つ", () => {
     for (const lineId of [
       "kintetsu.京都線",

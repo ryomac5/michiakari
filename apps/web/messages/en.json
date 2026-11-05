@@ -532,7 +532,7 @@
     "nearbyDistance": "About {distance}",
     "nearestEmpty": "No nearby station found. Choose a station on the map or search.",
     "question": "Where are you stuck right now?",
-    "hint": "Tap a station on the map. On a train? Pick one nearby",
+    "hint": "Tap an area or zoom in on the map. You can choose a nearby station",
     "searchPlaceholder": "Search by station name",
     "mapLabel": "Map for choosing a station",
     "back": "Back",

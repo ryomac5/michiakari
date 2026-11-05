@@ -1,4 +1,3 @@
-import { STATION_NAME_EN_OVERRIDES } from "../../data/config/station-names-en.ts";
 import type { LineInfo, NetworkData, RideEdge, StationNode, TransferEdge } from "./types.ts";
 
 // 網を組む段で足す補正。国土数値情報の形は書き換えず、列車の実際の走り方に合わせる
@@ -104,13 +103,7 @@ export function applyNetworkCorrections(
   const cached = corrected.get(network);
   if (cached && extensions === TERMINAL_EXTENSIONS) return cached;
 
-  let next: NetworkData = {
-    ...network,
-    nodes: network.nodes.map((node) => {
-      const nameEn = STATION_NAME_EN_OVERRIDES[node.name];
-      return nameEn && nameEn !== node.nameEn ? { ...node, nameEn } : node;
-    }),
-  };
+  let next: NetworkData = network;
   for (const ext of extensions) {
     const source = next.nodes.find((n) => n.stationId === ext.sourceStationId);
     const join = next.nodes.find((n) => n.stationId === ext.joinStationId);
