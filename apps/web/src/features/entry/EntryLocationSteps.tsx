@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { testIds } from "@/features/judgment/testids";
 import { pickStationName } from "@/features/stations/describe";
 import type { DirectionStop } from "./directions";
@@ -117,25 +117,29 @@ function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps
   );
 }
 
+// 最初の段。現在地の読み取り、駅名の検索、地図、車内の順に並べる
 export function LocationStep({
   onSelect,
   gps,
+  children,
 }: {
   onSelect: (location: "station" | "train") => void;
   gps: GpsProps;
+  children?: ReactNode;
 }) {
   const t = useTranslations("entry");
   return (
     <>
-      <SheetTitle title={t("locationQuestion")} />
+      <SheetTitle title={t("question")} />
       <GpsLocate {...gps} />
+      {children}
       <button
         type="button"
         className={buttonClass}
         data-testid={testIds.start.positionStation}
         onClick={() => onSelect("station")}
       >
-        {t("locationStation")}
+        {t("locationMap")}
       </button>
       <button
         type="button"

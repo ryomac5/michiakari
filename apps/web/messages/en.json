@@ -641,7 +641,8 @@
     "trainSegmentConfirm": "I am between these stations",
     "trainStoppedHint": "Select a station if your train is stopped there.",
     "destinationStationHint": "Choose your destination station.",
-    "routeInferred": "{line} · {direction} Change"
+    "routeInferred": "{line} · {direction} Change",
+    "locationMap": "Find a station on the map"
   },
   "status": {
     "notFound": {

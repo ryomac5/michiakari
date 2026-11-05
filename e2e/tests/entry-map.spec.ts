@@ -561,3 +561,29 @@ test("車内では路線・方面・駅間を答えてから行き先を聞く",
     await expectStage(page, stage);
   }
 });
+
+test("最初の段の検索から直接駅を選び、戻ると最初の段へ戻る", async ({ page }) => {
+  await openEntry(page, true, false);
+  await expectStage(page, "position");
+  // 現在地のボタンは読み取りの 1 つだけにする
+  await expect(page.getByTestId(testIds.start.gpsLocate)).toBeVisible();
+  await expect(page.getByTestId(testIds.start.locateButton)).toHaveCount(0);
+  await openStation(page, "大阪", "大阪");
+  await expect(page.getByTestId(testIds.start.progress)).toHaveAttribute("data-step", "1");
+  await page.getByTestId(testIds.start.back).click();
+  await expectStage(page, "position");
+  await expect(page.getByTestId(testIds.start.positionTrain)).toBeVisible();
+});
+
+test("最初の段の地図からエリアと駅を選び、戻るで1段ずつ引ける", async ({ page }) => {
+  await openEntry(page, true, false);
+  await expectStage(page, "position");
+  await page.getByTestId(testIds.start.hub("umeda")).click();
+  await expectStage(page, "area");
+  await page.getByTestId(testIds.start.place("osaka")).click();
+  await expectStage(page, "destination");
+  for (const stage of ["area", "position"]) {
+    await page.getByTestId(testIds.start.back).click();
+    await expectStage(page, stage);
+  }
+});

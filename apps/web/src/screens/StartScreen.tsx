@@ -23,7 +23,7 @@ import {
   TrainPositionStep,
 } from "@/features/entry/EntryLocationSteps";
 import { EntryMap, type EntryMapApi, type MapStop } from "@/features/entry/EntryMap";
-import { DemoDock, PromptCard } from "@/features/entry/EntryOverlays";
+import { DemoDock, LocationSearch, PromptCard } from "@/features/entry/EntryOverlays";
 import { EntrySheet } from "@/features/entry/EntrySheet";
 import {
   type AnsweredItem,
@@ -262,7 +262,7 @@ export function StartScreen() {
 
   const selectPlace = useCallback(
     (area: NonNullable<typeof entry.area>, place: EntryPlace) => {
-      if (entry.stage !== "kansai" && entry.stage !== "area") return;
+      if (!["position", "kansai", "area"].includes(entry.stage)) return;
       const line = place.lines[0];
       if (line) {
         rememberStationName(line.stationName, line.stationNameEn);
@@ -358,7 +358,7 @@ export function StartScreen() {
 
   function handleTap(point: Position) {
     if (!data) return;
-    if (entry.stage === "kansai") {
+    if (entry.stage === "position" || entry.stage === "kansai") {
       const area = findAreaAt(data, point);
       if (area) dispatch({ type: "openArea", area });
     } else if (entry.stage === "destination" && !onTrain) {
@@ -787,7 +787,8 @@ export function StartScreen() {
       <EntryMap
         geo={geo}
         stations={mapStations}
-        stage={entry.stage}
+        // 最初の段も関西の地図として描き、エリアと駅を押せるようにする
+        stage={entry.stage === "position" ? "kansai" : entry.stage}
         hubs={hubs}
         area={entry.area}
         place={mapPlace}
@@ -894,7 +895,9 @@ export function StartScreen() {
                   onConfirm: confirmGpsChoice,
                   onDismiss: gps.reset,
                 }}
-              />
+              >
+                <LocationSearch onSelect={openPlace} />
+              </LocationStep>
             )}
             {entry.stage === "station" && onTrain && (
               <TrainLineStep lines={trainLines} onSelect={chooseLine} />

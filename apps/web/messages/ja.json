@@ -641,7 +641,8 @@
     "trainSegmentConfirm": "この駅の間にいる",
     "trainStoppedHint": "駅に停車中なら駅を選んでください",
     "destinationStationHint": "行き先の駅を選んでください",
-    "routeInferred": "{line}・{direction} 変更する"
+    "routeInferred": "{line}・{direction} 変更する",
+    "locationMap": "地図で駅を探す"
   },
   "status": {
     "notFound": {

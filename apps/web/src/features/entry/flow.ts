@@ -158,14 +158,17 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
             directionAuto: false,
           })
         : state;
+    // 最初の段からも、地図と検索でエリアと駅を直接選べる。選んだら駅にいる人として扱う
     case "openArea":
-      return state.stage === "kansai"
-        ? advance(state, { stage: "area", area: action.area })
+      return ["position", "kansai"].includes(state.stage)
+        ? advance(state, { stage: "area", location: "station", area: action.area })
         : state;
     case "openPlace":
-      return state.location === "station" && ["kansai", "area"].includes(state.stage)
+      return (state.location === "station" || state.stage === "position") &&
+        ["position", "kansai", "area"].includes(state.stage)
         ? advance(state, {
             stage: "destination",
+            location: "station",
             area: action.area,
             place: action.place,
             line: null,

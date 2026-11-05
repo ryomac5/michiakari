@@ -297,3 +297,27 @@ describe("selectEntryHistoryAction", () => {
     });
   });
 });
+
+describe("最初の段からの駅の選択", () => {
+  it("駅にいるを先に選ばず駅を確定し、戻ると最初の段へ戻る", () => {
+    const state = reduceEntry(initialEntryState, { type: "openPlace", area, place });
+    expect(state).toMatchObject({ stage: "destination", location: "station", place });
+    expect(state.history).toHaveLength(1);
+    expect(reduceEntry(state, { type: "back" })).toEqual(initialEntryState);
+  });
+
+  it("最初の地図のエリアから駅を選べる", () => {
+    const state = run([
+      { type: "openArea", area },
+      { type: "openPlace", area, place },
+    ]);
+    expect(state).toMatchObject({ stage: "destination", location: "station", place });
+    expect(state.history.map((item) => item.stage)).toEqual(["position", "area"]);
+  });
+
+  it("車内と答えたあとは、エリアも駅も開かない", () => {
+    const onTrain = run([{ type: "chooseLocation", location: "train" }]);
+    expect(reduceEntry(onTrain, { type: "openArea", area })).toBe(onTrain);
+    expect(reduceEntry(onTrain, { type: "openPlace", area, place })).toBe(onTrain);
+  });
+});
