@@ -8,6 +8,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { testIds } from "@/features/judgment/testids";
+import type { Rect } from "@/features/map/bubble-layout";
 import type { MapGeoData } from "@/features/map/geo-data";
 import { selectMapLabels } from "@/features/map/labels";
 import { buildBaseStyle, type MapPalette, mapPalettes } from "@/features/map/layers";
@@ -26,7 +27,13 @@ import {
   placeEdgeHubs,
   selectVisibleHubs,
 } from "./visible-hubs";
-import { type MapStation, STATION_LABEL_MIN_ZOOM, selectVisibleStations } from "./visible-stations";
+import {
+  type MapStation,
+  type MapTarget,
+  STATION_LABEL_MIN_ZOOM,
+  selectVisibleStations,
+  type VisibleStation,
+} from "./visible-stations";
 import { buildStopLabelRect, keepStopsIfSame, selectVisibleStops } from "./visible-stops";
 
 // 入口の地図。関西 → エリア → 駅の順に寄り、行き先を選んだら出発と行き先を結ぶ
@@ -80,7 +87,14 @@ const labelMargin = { x: 96, y: 44 };
 const durationMs = 650;
 // 駅の段で一緒に収める、まわりの駅までの距離（m）
 const nearbyMeters = 600;
-const minimumAreaZoom = STATION_LABEL_MIN_ZOOM + 0.5;
+// エリアに寄せる倍率の幅。駅の印が出る倍率を保ち、狭い画面でも隣の駅まで収める
+const minimumAreaZoom = STATION_LABEL_MIN_ZOOM + 0.05;
+const maximumAreaZoom = 14;
+// エリアの中心から収める範囲（m）。大阪なら東の天満と北の中津まで入る
+const areaReach = { eastWest: 1500, northSouth: 1000 };
+const areaMargin = { x: 16, y: 24 };
+// 関西の段の丸の印と押せる丸の半径（px）。HubMarker の大きさに合わせる
+const hubTarget = { dotRadius: 13, hitRadius: 24 };
 
 function buildRailColor(palette: MapPalette) {
   // 遠くでは無彩色、寄るほど路線色にする
@@ -185,6 +199,16 @@ function computeBounds(points: Position[]): [Position, Position] | null {
   ];
 }
 
+// エリアの中心から東西と南北に areaReach だけ離れた 4 点
+function buildAreaReach(center: Position): Position[] {
+  const lat = areaReach.northSouth / 111_320;
+  const lon = areaReach.eastWest / (111_320 * Math.cos((center[1] * Math.PI) / 180));
+  return [
+    [center[0] - lon, center[1] - lat],
+    [center[0] + lon, center[1] + lat],
+  ];
+}
+
 // 重なる部品を除いた範囲の中心に寄せるための、画面の中心からのずれ（px）
 function buildOffset(insets: MapInsets): [number, number] {
   return [(insets.left - insets.right) / 2, (insets.top - insets.bottom) / 2];
@@ -242,7 +266,12 @@ export function EntryMap(props: EntryMapProps) {
   const callbacksRef = useRef(props);
   callbacksRef.current = props;
   const [map, setMap] = useState<MapLibreMap | null>(null);
-  const [visiblePlaces, setVisiblePlaces] = useState<EntryPlace[]>([]);
+  const [visiblePlaces, setVisiblePlaces] = useState<VisibleStation[]>([]);
+  // 関西の段の丸と縁の札の矩形。引いた地図の駅の名前はこれを避ける
+  const hubBlockersRef = useRef<{ rects: Rect[]; targets: MapTarget[] }>({
+    rects: [],
+    targets: [],
+  });
   const [visibleStops, setVisibleStops] = useState<MapStop[]>([]);
   const hereLabel = t("here");
   const [zoom, setZoom] = useState(0);
@@ -379,16 +408,22 @@ export function EntryMap(props: EntryMapProps) {
       return;
     }
     if (stage === "area" && area) {
-      const bounds = computeBounds([area.center, ...area.places.map((p) => p.position)]);
+      const bounds = computeBounds([
+        ...buildAreaReach(area.center),
+        ...area.places.map((p) => p.position),
+      ]);
       if (bounds) {
         const camera = map.cameraForBounds(bounds, {
-          padding: buildPadding(map, current, { x: labelMargin.x + 16, y: labelMargin.y + 8 }),
-          maxZoom: 15.8,
+          padding: buildPadding(map, current, areaMargin),
+          maxZoom: maximumAreaZoom,
         });
+        // 倍率を幅に収めると範囲がはみ出すので、中心は範囲の中央に置き、帯とシートの分だけずらす
+        const [[west, south], [east, north]] = bounds;
         if (camera)
           map.flyTo({
-            ...camera,
+            center: [(west + east) / 2, (south + north) / 2],
             zoom: Math.max(minimumAreaZoom, camera.zoom ?? minimumAreaZoom),
+            offset: buildOffset(current),
             duration,
           });
       }
@@ -413,6 +448,7 @@ export function EntryMap(props: EntryMapProps) {
     if (!map || (stage !== "kansai" && stage !== "area")) {
       setEdgeHubs([]);
       setHubLabels([]);
+      hubBlockersRef.current = { rects: [], targets: [] };
       return;
     }
     const update = () => {
@@ -430,21 +466,27 @@ export function EntryMap(props: EntryMapProps) {
           : [];
       setEdgeHubs(edges);
       const onEdge = new Set(edges.map((e) => e.hub.areaId));
-      setHubLabels(
-        selectVisibleHubs({
-          hubs: hubs.filter((h) => !onEdge.has(h.areaId)),
-          edges: edges.map((e) => buildEdgeHubRect(e, locale)),
-          project,
-          view: {
-            left: left + 8,
-            top: top + 8,
-            right: canvas.clientWidth - right - 8,
-            bottom: canvas.clientHeight - bottom - mapAttributionHeight - 8,
-          },
-          locale,
-          narrow,
-        }),
-      );
+      const labels = selectVisibleHubs({
+        hubs: hubs.filter((h) => !onEdge.has(h.areaId)),
+        edges: edges.map((e) => buildEdgeHubRect(e, locale)),
+        project,
+        view: {
+          left: left + 8,
+          top: top + 8,
+          right: canvas.clientWidth - right - 8,
+          bottom: canvas.clientHeight - bottom - mapAttributionHeight - 8,
+        },
+        locale,
+        narrow,
+      });
+      setHubLabels(labels);
+      hubBlockersRef.current = {
+        rects: [
+          ...edges.map((e) => buildEdgeHubRect(e, locale)),
+          ...labels.flatMap((l) => [l.box, l.dot]),
+        ],
+        targets: labels.map((l) => ({ point: project(l.hub.position), ...hubTarget })),
+      };
     };
     update();
     map.on("move", update);
@@ -472,6 +514,10 @@ export function EntryMap(props: EntryMapProps) {
           project: (position) => map.project(position),
           locale,
           selectedKey: stage === "station" ? place?.key : undefined,
+          priorityKeys: stage === "kansai" ? [] : (area?.places.map((p) => p.key) ?? []),
+          ...((stage === "kansai" || stage === "area") && currentZoom < STATION_LABEL_MIN_ZOOM
+            ? { blockers: hubBlockersRef.current.rects, targets: hubBlockersRef.current.targets }
+            : {}),
         }),
       );
       // 選んだ駅の名前の札を避けて、画面の上で重ならない駅の札だけを出す
@@ -510,6 +556,7 @@ export function EntryMap(props: EntryMapProps) {
     locale,
     stage,
     place,
+    area,
     stops,
     narrow,
     hereLabel,
@@ -566,14 +613,17 @@ export function EntryMap(props: EntryMapProps) {
       anchor: "center",
       offset: [0, 0],
     });
-    // 縁の札で示す丸と、札が収まらない丸は、地図の上には出さない
+    // 引いた地図は丸と主要な駅を出す。縁の札で示す丸と、札が収まらない丸は地図の上に出さない
     if ((stage === "kansai" || stage === "area") && zoom < STATION_LABEL_MIN_ZOOM) {
-      return hubLabels.map(({ hub }) => at(`hub:${hub.areaId}`, hub.position));
+      return [
+        ...hubLabels.map(({ hub }) => at(`hub:${hub.areaId}`, hub.position)),
+        ...visiblePlaces.map((v) => at(`place:${v.place.key}`, v.place.position)),
+      ];
     }
     // 駅を選んだあとは、選んだ駅と札だけを出す
     const places =
       stage === "kansai" || stage === "area" || stage === "station"
-        ? visiblePlaces
+        ? visiblePlaces.map((v) => v.place)
         : place
           ? [place]
           : [];
@@ -592,6 +642,12 @@ export function EntryMap(props: EntryMapProps) {
     return list;
   }, [stage, hubLabels, visiblePlaces, zoom, place, showTrip, destinationPosition, visibleStops]);
   const hosts = useMarkerHosts(map, markerClass, entries);
+  // 駅の印は込み合うので、四角い入れ物は触れず、丸いボタンだけが押せるようにする
+  useEffect(() => {
+    for (const [key, element] of hosts) {
+      if (key.startsWith("place:") || key.startsWith("hub:")) element.style.pointerEvents = "none";
+    }
+  }, [hosts]);
   const side = narrow ? "narrow" : "wide";
 
   return (
@@ -660,17 +716,34 @@ export function EntryMap(props: EntryMapProps) {
             key,
           );
         }
-        const target =
+        // 駅を選んだあとの選んだ駅は、設定の向きの大きな札で出す
+        const visible =
           (stage === "kansai" || stage === "area" || stage === "station"
-            ? visiblePlaces.find((p) => `place:${p.key}` === key)
-            : null) ?? (place && `place:${place.key}` === key ? place : null);
-        if (!target) return null;
+            ? visiblePlaces.find((v) => `place:${v.place.key}` === key)
+            : null) ??
+          (place && `place:${place.key}` === key
+            ? {
+                place,
+                major: true,
+                hitRadius: 24,
+                label: {
+                  side: place.side[side],
+                  size: "large" as const,
+                  slide: 0,
+                  tappable: true,
+                },
+              }
+            : null);
+        if (!visible) return null;
+        const target = visible.place;
         const selected = place?.key === target.key;
         return createPortal(
           <PlaceMarker
             placeKey={target.key}
             label={pickPlaceName(target, locale)}
-            side={target.side[side]}
+            layout={visible.label}
+            major={visible.major}
+            hitRadius={visible.hitRadius}
             colors={[...new Set(target.lines.map((l) => l.color))]}
             selected={selected}
             dim={place !== null && !selected}

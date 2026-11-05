@@ -1,8 +1,12 @@
+import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import { chooseTrainDirection } from "../support/entry.ts";
+import { waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
+
+const screenshotDir = fileURLToPath(new URL("../screenshots/", import.meta.url));
 
 // 入口の地図: 関西 → エリア → 駅の順に寄り、戻る操作で 1 段ずつ引ける
 // いまどこを答えてから行き先を選び、路線・方面の推定後に様子を答える
@@ -340,12 +344,18 @@ test("PC 幅では、問いかけの下のよく使う駅から駅の段へ進�
   await expectStage(page, "kansai");
 });
 
-test("引いた地図はエリアだけを表示し、指で寄る操作でも駅が出る", async ({ page }) => {
+test("引いた地図はエリアの丸と主要な駅の名前を出し、指で寄る操作でも駅が出る", async ({ page }) => {
   await openEntry(page);
   const map = page.getByTestId(testIds.start.map);
   const places = page.locator("[data-testid^='start-place-']");
   await expect(map).toHaveAttribute("data-detail", "areas");
-  await expect(places).toHaveCount(0);
+  // 丸がまとめる大阪駅は丸に任せ、京橋のような丸の無い主要な駅を名前付きで出す
+  await expect(page.getByTestId(testIds.start.hub("umeda"))).toBeVisible();
+  await expect(page.getByTestId(testIds.start.place("osaka"))).toHaveCount(0);
+  await expect(page.getByTestId(testIds.start.place("京橋"))).toHaveAttribute(
+    "data-label",
+    "small",
+  );
   // 駅にいると答えた直後の寄せが終わってから、指で寄る操作を始める
   await expect(map).toHaveAttribute("data-moving", "false");
   const hub = await page.getByTestId(testIds.start.hub("umeda")).boundingBox();
@@ -436,6 +446,100 @@ test("駅にいる人は行き先まで答えると、路線と方面を聞か�
   await page.goBack();
   await expectStage(page, "kansai");
 });
+
+// 描かれた駅の札の矩形どうしの重なり。札は data-station-label の付いた面で測る
+function listLabelOverlaps(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const boxes = [...document.querySelectorAll<HTMLElement>("[data-station-label]")]
+      .filter((el) => el.checkVisibility())
+      .map((el) => ({ name: el.textContent, rect: el.getBoundingClientRect() }));
+    return boxes.flatMap((a, i) =>
+      boxes.slice(i + 1).flatMap((b) => {
+        const w = Math.min(a.rect.right, b.rect.right) - Math.max(a.rect.left, b.rect.left);
+        const h = Math.min(a.rect.bottom, b.rect.bottom) - Math.max(a.rect.top, b.rect.top);
+        return w > 0 && h > 0 ? [`${a.name} / ${b.name}`] : [];
+      }),
+    );
+  });
+}
+
+// 各駅の印の中心と縁で、いちばん上にある要素がその駅のボタンかを調べる。隣の駅に覆われた印を返す
+function listCoveredDots(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const buttons = [
+      ...document.querySelectorAll<HTMLElement>("button[data-testid^='start-place-']"),
+    ];
+    return buttons.flatMap((button) => {
+      const rect = button.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      const points = [
+        [x, y],
+        [x - 4, y],
+        [x + 4, y],
+        [x, y - 4],
+        [x, y + 4],
+      ] as const;
+      const covered = points.flatMap(([px, py]) => {
+        const hit = document.elementFromPoint(px, py)?.closest("button");
+        return hit && hit !== button ? [hit.getAttribute("aria-label") ?? "?"] : [];
+      });
+      return covered.length > 0
+        ? [`${button.getAttribute("aria-label")} ← ${[...new Set(covered)].join(",")}`]
+        : [];
+    });
+  });
+}
+
+for (const viewport of [
+  { width: 375, height: 667 },
+  { width: 390, height: 844 },
+]) {
+  const size = `${viewport.width}x${viewport.height}`;
+  test.describe(`${size} の入口の地図`, () => {
+    test.use({ viewport });
+
+    test("関西と大阪のエリアで札が重ならず、隣の駅の印も押せる", async ({ page }) => {
+      await openEntry(page);
+      const map = page.getByTestId(testIds.start.map);
+      await expect(map).toHaveAttribute("data-moving", "false");
+      await waitForFiniteAnimations(page);
+      await page.screenshot({ path: `${screenshotDir}entry-kansai-${size}.png` });
+      await expect.poll(() => listLabelOverlaps(page)).toEqual([]);
+      await expect.poll(() => listCoveredDots(page)).toEqual([]);
+
+      await page.getByTestId(testIds.start.hub("umeda")).click();
+      await expect(page.getByTestId(testIds.start.place("osaka"))).toBeVisible();
+      await expect(map).toHaveAttribute("data-moving", "false");
+      await waitForFiniteAnimations(page);
+      await page.screenshot({ path: `${screenshotDir}entry-umeda-${size}.png` });
+      // 大阪のまわりの駅と、隣の福島・天満・中津まで名前付きで出す
+      for (const key of ["osaka", "umeda", "osaka-umeda", "kitashinchi", "福島", "天満", "中津"]) {
+        await expect(page.getByTestId(testIds.start.place(key))).toBeVisible();
+        await expect(page.getByTestId(testIds.start.place(key))).not.toHaveAttribute(
+          "data-label",
+          "none",
+        );
+      }
+      await expect.poll(() => listLabelOverlaps(page)).toEqual([]);
+      await expect.poll(() => listCoveredDots(page)).toEqual([]);
+
+      // 隣の駅をそれぞれ押すと、その駅が選ばれる
+      for (const key of ["福島", "天満", "中津", "kitashinchi"]) {
+        await page.getByTestId(testIds.start.place(key)).click();
+        await expectStage(page, "destination");
+        await expect(page.getByTestId(testIds.start.place(key))).toHaveAttribute(
+          "aria-pressed",
+          "true",
+        );
+        await page.getByTestId(testIds.start.back).click();
+        await expectStage(page, "area");
+        await expect(map).toHaveAttribute("data-moving", "false");
+        await waitForFiniteAnimations(page);
+      }
+    });
+  });
+}
 
 test("車内では路線・方面・駅間を答えてから行き先を聞く", async ({ page }) => {
   await openEntry(page, true, false);
