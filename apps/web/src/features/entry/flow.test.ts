@@ -5,6 +5,7 @@ import {
   type EntryState,
   initialEntryState,
   reduceEntry,
+  selectEntryHistoryAction,
   selectProgressIndex,
   stageDepth,
 } from "./flow";
@@ -181,5 +182,69 @@ describe("selectProgressIndex", () => {
       ).map(selectProgressIndex),
     ).toEqual([0, 1, 2, 3, 4, 4, 4, 4]);
     expect(selectProgressIndex("area")).toBeLessThan(0);
+  });
+});
+
+describe("selectEntryHistoryAction", () => {
+  const resumeDepth = stageDepth("resume");
+  const elapsedDepth = stageDepth("elapsed");
+
+  it("判断から戻った履歴が最後の段なら、入口の履歴を積み直さない", () => {
+    expect(selectEntryHistoryAction(resumeDepth, resumeDepth, true)).toEqual({ type: "none" });
+    expect(selectEntryHistoryAction(resumeDepth, resumeDepth, false)).toEqual({ type: "none" });
+  });
+
+  it("復元した答えより履歴が浅ければ段を戻し、更新後も履歴を積まない", () => {
+    const restored = run([
+      ...toCause,
+      { type: "chooseCause", cause: { eventType: "person_accident" } },
+      { type: "chooseElapsed", elapsed: "m10" },
+    ]);
+    const action = selectEntryHistoryAction(stageDepth(restored.stage), elapsedDepth, true);
+    expect(action).toEqual({ type: "restore", depth: elapsedDepth });
+    // 段の更新前に再実行されても、復元を進行として扱わない。
+    expect(selectEntryHistoryAction(stageDepth(restored.stage), elapsedDepth, true)).toEqual(
+      action,
+    );
+    if (action.type !== "restore") throw new Error("履歴の深さへの復元が必要");
+    const next = reduceEntry(restored, { type: "backTo", depth: action.depth });
+    expect(next.stage).toBe("elapsed");
+    expect(selectEntryHistoryAction(stageDepth(next.stage), elapsedDepth, true)).toEqual({
+      type: "none",
+    });
+    expect(selectEntryHistoryAction(stageDepth(next.stage), elapsedDepth, false)).toEqual({
+      type: "none",
+    });
+  });
+
+  it("通常の回答では次の段だけを積む", () => {
+    expect(selectEntryHistoryAction(resumeDepth, elapsedDepth, false)).toEqual({
+      type: "write",
+      from: elapsedDepth,
+      to: resumeDepth,
+      initialize: false,
+    });
+  });
+
+  it("初回は深さ 0 を記録し、履歴に印がない復元では必要な段を積む", () => {
+    expect(selectEntryHistoryAction(0, null, true)).toEqual({
+      type: "write",
+      from: 0,
+      to: 0,
+      initialize: true,
+    });
+    expect(selectEntryHistoryAction(resumeDepth, null, true)).toEqual({
+      type: "write",
+      from: 0,
+      to: resumeDepth,
+      initialize: true,
+    });
+  });
+
+  it("選び直しで段が浅くなったときは既存の履歴を引く", () => {
+    expect(selectEntryHistoryAction(elapsedDepth, resumeDepth, false)).toEqual({
+      type: "travel",
+      depth: elapsedDepth,
+    });
   });
 });
