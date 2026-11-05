@@ -67,6 +67,14 @@ export function listMapStations(data: EntryData): MapStation[] {
   });
 }
 
+// 札の文字の幅の見積もり（px）。全角と半角で 1 文字の幅を変える
+export function estimateTextWidth(text: string, fullWidth: number, halfWidth: number): number {
+  return [...text].reduce(
+    (width, char) => width + ((char.codePointAt(0) ?? 0) > 127 ? fullWidth : halfWidth),
+    0,
+  );
+}
+
 function containsRect(view: Rect, box: Rect): boolean {
   return (
     box.left >= view.left &&
@@ -111,10 +119,7 @@ export function selectVisibleStations(input: {
   for (const { place, point } of candidates) {
     const colors = new Set(place.lines.map((line) => line.color)).size;
     const label = pickPlaceName(place, input.locale);
-    const textWidth = [...label].reduce(
-      (width, char) => width + ((char.codePointAt(0) ?? 0) > 127 ? 13 : 8),
-      0,
-    );
+    const textWidth = estimateTextWidth(label, 13, 8);
     const item: LayoutItem = {
       key: place.key,
       point,
