@@ -15,6 +15,12 @@
 
 ## 記録
 
+### 2026-11-05 / T1 / 結論と再開確率の文面のレビュー修正
+
+- やったこと: 確率文を短縮し発表時刻と分岐点の理由を復元。判断規則は維持。スキーマを満たす固定データと回帰テストを追加し e2e の確認を強化した。
+- 確認結果: 修正前は回帰4件が失敗。キャッシュ指定の frozen install、typecheck、lint、core 279件、agent 196件、guard は成功した。
+- 残課題: e2e 3ファイルは3101・3201とも listen EPERM。起動可能な環境で再検証が必要。scope 外の prompts/judgment-system.md、tools/emit-judgment.ts、architecture.md、ux.md、web/messages/ja.json の旧文型は後続で統一する。
+
 ### 2026-11-04 / 統合 / 入口から判断、デモ録画までの 2 日間のまとめ
 
 - やったこと:

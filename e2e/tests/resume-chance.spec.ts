@@ -247,8 +247,10 @@ test("切り替える判断でも確率の時点と分岐点が一致し比較�
   await page.getByTestId(testIds.replay.nextButton).click();
   await waitForJudged(page, "obs_1");
   const judgment = events.find((event) => event.type === "judgment_ready")?.judgment;
-  if (!judgment?.breakEven) throw new Error("分岐点が届きません");
+  if (!judgment?.breakEven || !judgment.reason) throw new Error("分岐点と理由が届きません");
   expect(judgment.action).toBe("switch");
+  expect([...judgment.reason].length).toBeLessThanOrEqual(90);
+  expect(judgment.reason).not.toContain("比較する代替経路と同着になる");
   const time = new Intl.DateTimeFormat("ja-JP", {
     timeZone: "Asia/Tokyo",
     hour: "numeric",
@@ -259,9 +261,9 @@ test("切り替える判断でも確率の時点と分岐点が一致し比較�
     const parts = time.formatToParts(new Date(iso));
     return `${Number(parts.find((part) => part.type === "hour")?.value)}時${parts.find((part) => part.type === "minute")?.value}分`;
   };
-  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(
-    `分岐点の${clock(judgment.breakEven.time)}までに再開する見込みは1割未満です。`,
-  );
+  const chanceSentence = `分岐点の${clock(judgment.breakEven.time)}までに再開する見込みは1割未満です。`;
+  expect(judgment.reason.endsWith(chanceSentence)).toBe(true);
+  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(chanceSentence);
   const alternative = judgment.options.find((option) => option.id === judgment.recommendedOptionId);
   if (!alternative) throw new Error("推奨経路がありません");
   await openSheet(page, "half");

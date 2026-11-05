@@ -137,7 +137,7 @@ export function buildChanceSentence(chance: ChanceTextInput, language: Lang): st
     if (chance.comparisonTime) {
       const time = formatClock(chance.comparisonTime, language);
       return ja
-        ? `比較する代替経路と同着になる分岐点の${time}までに再開する見込みは${c}です。`
+        ? `分岐点の${time}までに再開する見込みは${c}です。`
         : `The chance of resuming by ${time} is ${c}.`;
     }
     return ja
@@ -496,7 +496,7 @@ function buildDecisionReason(input: DecisionTextInput): string {
           : `The announced restart is after the break-even time, so ${target} gets you there sooner even if it holds.`;
       }
       return ja
-        ? `発表の再開見込み${p50}では見込みどおりでも${target}のほうが早く着きます。`
+        ? `発表の再開見込み${p50}が分岐点${be}より遅く、見込みどおりでも${target}のほうが早く着くためです。`
         : `The announced restart of ${p50} is after the break-even time of ${be}, so ${target} gets you there sooner even if it holds.`;
     case "stated_resume_before_break_even":
       if (!p50 || !be || input.marginP50Minutes === null) {

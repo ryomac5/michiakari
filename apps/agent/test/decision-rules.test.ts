@@ -1,5 +1,5 @@
 import type { BreakEvenResult, FlowOutlook } from "@repo/core";
-import type { Confidence } from "@repo/schema";
+import { type Confidence, ResumeChanceSchema } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { decisionParams, reasonLimits } from "../src/config.ts";
 import {
@@ -266,7 +266,25 @@ describe("発表の再開見込みで比べたときの文言", () => {
     });
     expect(text.headline).toBe("いま別の路線に切り替えてください");
     expect(text.reason).toBe(
-      "発表の再開見込み22時50分では見込みどおりでも別の路線のほうが早く着きます。",
+      "発表の再開見込み22時50分が分岐点22時41分より遅く、見込みどおりでも別の路線のほうが早く着くためです。",
+    );
+    expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
+  });
+
+  it("発表時刻と分岐点の根拠を残したまま確率の一文が90字以内に収まる", () => {
+    const text = buildDecisionText({
+      ...base,
+      reason: "stated_resume_after_break_even",
+      resumeP50: "2026-11-05T22:50:00+09:00",
+      marginP50Minutes: -9,
+      chance: {
+        ...decisionChances.close,
+        comparisonTime: base.breakEvenTime,
+        keyTick: null,
+      },
+    });
+    expect(text.reason).toBe(
+      "発表の再開見込み22時50分が分岐点22時41分より遅く、見込みどおりでも別の路線のほうが早く着くためです。分岐点の22時41分までに再開する見込みは2割です。",
     );
     expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });
@@ -345,6 +363,12 @@ describe("期限が理由でタクシーを勧めるときの判断", () => {
 });
 
 describe("結論の根拠と確率の比較時点", () => {
+  it("確率の固定データは境界のスキーマを満たす", () => {
+    for (const chance of Object.values(decisionChances)) {
+      expect(ResumeChanceSchema.parse(chance)).toEqual(chance);
+    }
+  });
+
   it("期限で切り替えるときは早着確率ではなく期限内到着確率を述べる", () => {
     const input = buildInput({
       eventType: "vehicle_failure",
@@ -399,8 +423,8 @@ describe("結論の根拠と確率の比較時点", () => {
     const chance = buildChanceText(input.breakEven, outcome.reason);
     if (!chance) throw new Error("比較時点の確率がありません");
     const sentence = buildChanceSentence(chance, "ja");
-    expect(sentence).toContain("22時41分までに再開");
-    expect(sentence).toContain("2割");
+    expect(sentence).toBe("分岐点の22時41分までに再開する見込みは2割です。");
+    expect(buildChanceSentence(chance, "en")).toBe("The chance of resuming by 22:41 is 20%.");
     expect(sentence).not.toContain("待ったほうが早く着く見込み");
   });
 });
