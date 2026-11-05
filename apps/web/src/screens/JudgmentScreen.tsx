@@ -14,6 +14,7 @@ import {
   BreakEvenMetric,
   ResumeOutlook,
 } from "@/features/judgment/components/BreakEvenPanel";
+import { BusChecksSection } from "@/features/judgment/components/BusChecks";
 import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
 import { ConclusionCard, ConclusionDetail } from "@/features/judgment/components/ConclusionCard";
 import { Disclaimer } from "@/features/judgment/components/Disclaimer";
@@ -102,6 +103,8 @@ export function JudgmentScreen() {
     display.judgment?.disclaimer ?? state.previousJudgment?.disclaimer ?? null;
   const options = display.options ?? noOptions;
   const typicalFlow = display.settled?.judgment.typicalFlow ?? null;
+  // 近くのバス停の確認候補。確定した判断に載ったものだけを出す
+  const busChecks = display.settled?.judgment.busChecks ?? [];
   const breakEvenProps = {
     breakEven: display.breakEven,
     known: display.breakEvenKnown,
@@ -226,6 +229,11 @@ export function JudgmentScreen() {
               onSelect={selectOption}
             />
           </SheetSection>
+          {busChecks.length > 0 && (
+            <SheetSection>
+              <BusChecksSection busChecks={busChecks} />
+            </SheetSection>
+          )}
           {typicalFlow && (
             <SheetSection>
               <TypicalFlowSection

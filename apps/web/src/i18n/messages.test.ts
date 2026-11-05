@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-// 徒歩経路の出典は前処理（packages/data）の定数と同じ文言にする
-import { WALK_ATTRIBUTION } from "../../../../packages/data/config/sources.ts";
+// 徒歩経路とバス停の出典は前処理（packages/data）の定数と同じ文言にする
+import {
+  BUS_STOP_ATTRIBUTION,
+  WALK_ATTRIBUTION,
+} from "../../../../packages/data/config/sources.ts";
 import en from "../../messages/en.json";
 import ja from "../../messages/ja.json";
 import { resolveLocale, resolveTheme } from "./config";
@@ -31,6 +34,7 @@ describe("メッセージファイル", () => {
       walk: WALK_ATTRIBUTION,
       rail: "鉄道データ: 「国土数値情報（鉄道データ）」（国土交通省）を加工して作成",
       ridership: "駅の乗降客数: 「国土数値情報（駅別乗降客数データ）」（国土交通省）を加工して作成",
+      busStops: BUS_STOP_ATTRIBUTION,
       weather: "気象データ: 気象庁",
     });
   });
