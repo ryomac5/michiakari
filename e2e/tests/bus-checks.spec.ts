@@ -43,6 +43,13 @@ test("大阪で止まったとき、判断画面にバスも確かめる欄が�
   expect(count).toBeGreaterThan(0);
   expect(count).toBeLessThanOrEqual(3);
   await expect(items.first()).toContainText(/徒歩約\d+分/);
+  // 高速バスの停留所は出さず、同じ名前の停留所は 1 行にまとめる
+  await expect(section).not.toContainText("高速バス");
+  const names = await items.locator("span.font-semibold").allTextContents();
+  expect(new Set(names).size).toBe(names.length);
+  // 欄の全体が画面の高さの 3 分の 1 程度に収まる
+  const box = await section.boundingBox();
+  expect(box?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(844 / 3);
   // 時刻は出さない
   await expect(section).not.toContainText(/\d{1,2}:\d{2}|\d{1,2}時\d{2}分/);
   // 公式の案内は事業者のトップへのリンク。新しいタブで開く
