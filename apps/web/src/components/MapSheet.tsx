@@ -300,7 +300,7 @@ export function MapSheet({
         id={bodyId}
         className={cn(
           "min-h-0 flex-1 overscroll-contain px-4 pb-[max(24px,env(safe-area-inset-bottom))] lg:overflow-y-auto lg:px-5",
-          snap === "full" ? "overflow-y-auto" : "overflow-hidden",
+          snap !== "collapsed" ? "overflow-y-auto" : "overflow-hidden",
         )}
       >
         {children}
