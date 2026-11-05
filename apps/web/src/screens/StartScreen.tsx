@@ -625,8 +625,13 @@ export function StartScreen() {
     }
   }
 
+  // 地図の座標変換で端数が出ても44pxを下回らないよう、操作部品の高さに余裕を持たせる
   return (
-    <div data-testid={testIds.start.screen} data-stage={entry.stage} className="h-dvh">
+    <div
+      data-testid={testIds.start.screen}
+      data-stage={entry.stage}
+      className="h-dvh [&_[data-testid=start-map]_button]:min-h-12"
+    >
       <EntryMap
         geo={geo}
         stations={mapStations}
@@ -663,19 +668,32 @@ export function StartScreen() {
         below={
           entry.stage === "kansai" ? (
             <>
-              <PromptCard
-                ref={promptRef}
-                locateStatus={locateStatus}
-                message={locateMessage}
-                onLocate={locate}
-                nearest={nearest}
-                onSelect={openPlace}
-                quickPicks={desktop ? hubs : null}
-                onQuickPick={(stationName) => {
-                  const choice = data ? findStationChoice(data, stationName) : null;
-                  if (choice) openPlace(choice);
-                }}
-              />
+              <div ref={promptRef} className="flex flex-col gap-2">
+                <div
+                  data-testid="start-intro"
+                  className="glass-strong rounded-[20px] px-4 py-3 text-[14px] leading-snug"
+                >
+                  <p data-testid="start-intro-audience">{t("start.introAudience")}</p>
+                  <p data-testid="start-intro-problem" className="mt-1 text-muted">
+                    {t("start.introProblem")}
+                  </p>
+                  <p data-testid="start-intro-solution" className="mt-1 font-semibold">
+                    {t("start.introSolution")}
+                  </p>
+                </div>
+                <PromptCard
+                  locateStatus={locateStatus}
+                  message={locateMessage}
+                  onLocate={locate}
+                  nearest={nearest}
+                  onSelect={openPlace}
+                  quickPicks={desktop ? hubs : null}
+                  onQuickPick={(stationName) => {
+                    const choice = data ? findStationChoice(data, stationName) : null;
+                    if (choice) openPlace(choice);
+                  }}
+                />
+              </div>
               {desktop && <DemoDock inline />}
             </>
           ) : undefined

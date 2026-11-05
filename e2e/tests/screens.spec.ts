@@ -3,6 +3,8 @@
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
+import en from "../../apps/web/messages/en.json" with { type: "json" };
+import jaMessages from "../../apps/web/messages/ja.json" with { type: "json" };
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
   loadReplayKnowledge,
@@ -170,6 +172,23 @@ for (const variant of variants) {
       );
       await expect(page).toHaveTitle(ja ? /マツカエル/ : /MatsuKaeru/);
       await expect(page.getByTestId(testIds.start.hub("umeda"))).toBeVisible();
+      const messages = ja ? jaMessages : en;
+      await waitForFiniteAnimations(page);
+      for (const [id, text] of [
+        ["start-intro-audience", messages.start.introAudience],
+        ["start-intro-problem", messages.start.introProblem],
+        ["start-intro-solution", messages.start.introSolution],
+      ] as const) {
+        await expect(page.getByTestId(id)).toHaveText(text);
+        await expect(page.getByTestId(id)).toBeInViewport({ ratio: 1 });
+      }
+      await expect(page.getByTestId(testIds.start.originSearch)).toBeInViewport({ ratio: 1 });
+      await expect(page.getByText(messages.disclaimer.short, { exact: true })).toBeInViewport({
+        ratio: 1,
+      });
+      const introBox = await page.getByTestId("start-intro").boundingBox();
+      const promptBox = await page.getByTestId(testIds.start.prompt).boundingBox();
+      expect((introBox?.y ?? 0) + (introBox?.height ?? 0)).toBeLessThanOrEqual(promptBox?.y ?? 0);
       await capture(page, variant, "01-start");
       await checkScreen(page, "開始");
 
@@ -181,6 +200,7 @@ for (const variant of variants) {
 
       // 地図の丸を触ってエリアへ寄り、駅を触るとシートに路線が並ぶ
       await page.getByTestId(testIds.start.hub("umeda")).click();
+      await expect(page.getByTestId("start-intro")).toHaveCount(0);
       await expect(page.getByTestId(testIds.start.place("osaka"))).toBeVisible();
       await capture(page, variant, "03-start-area");
       await checkScreen(page, "開始（エリア）");
