@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import en from "../../apps/web/messages/en.json" with { type: "json" };
 import ja from "../../apps/web/messages/ja.json" with { type: "json" };
-import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import { testIds } from "../../apps/web/src/lib/testids.ts";
 import {
   loadReplayScenarios,
   openReplay,

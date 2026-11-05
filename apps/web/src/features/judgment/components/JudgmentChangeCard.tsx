@@ -2,9 +2,9 @@
 
 import { useTranslations } from "next-intl";
 import { createContext, useContext } from "react";
+import { testIds } from "@/lib/testids";
 import type { buildJudgmentChange } from "../judgment-change";
 import { formatTenths } from "../resume-chance";
-import { testIds } from "../testids";
 import { ActionPill } from "./ActionPill";
 
 type JudgmentChange = ReturnType<typeof buildJudgmentChange>;

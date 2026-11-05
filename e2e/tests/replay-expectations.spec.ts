@@ -3,7 +3,7 @@
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import ja from "../../apps/web/messages/ja.json" with { type: "json" };
-import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import { testIds } from "../../apps/web/src/lib/testids.ts";
 import type { Expectation, Scenario } from "../../packages/schema/src/scenario.ts";
 import {
   loadReplayScenarios,
