@@ -310,6 +310,8 @@
       "onTrain": "You're on the train, so we start from {station}",
       "elapsedUnknown": "We count the stop as starting now",
       "causeUnknown": "Cause not confirmed. We use the cutoff time as your cue",
+      "cause": "We assume the cause is {cause}, as announced",
+      "causeNoPattern": "The announced cause is {cause}. We have no pattern for it, so we use the cutoff time as your cue",
       "betweenStations": "You're between stations, so we plan what to do once you reach {station}"
     },
     "nextCheck": {
@@ -608,12 +610,21 @@
     "tripTerminal": "Using the end of the line",
     "causeQuestion": "Pick the cause you heard",
     "causes": {
-      "person": "Person hit by a train",
-      "inCar": "Emergency button / illness",
-      "vehicle": "Train inspection",
-      "signal": "Signal trouble",
-      "rain": "Heavy rain",
+      "passenger": "Person or passenger",
+      "vehicle": "Train fault / inspection",
+      "signaling": "Signals / points",
+      "power": "Power outage",
+      "obstruction": "Track obstruction",
+      "infrastructure": "Track or facility fault",
+      "weather": "Weather or quake",
+      "major_accident": "Crash, derail, fire",
       "unknown": "Didn't catch it / nothing said"
+    },
+    "causeKindQuestion": "Pick the closest one",
+    "causeKinds": {
+      "person": "Person hit by a train",
+      "inCar": "Illness / emergency button on board",
+      "other": "Other / not sure"
     },
     "elapsedQuestion": "Pick how long you have been stopped",
     "elapsed": {

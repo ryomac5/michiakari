@@ -9,17 +9,21 @@ import {
   ClipboardPaste,
   Clock,
   CloudRain,
+  Construction,
+  Flame,
   HelpCircle,
   Hourglass,
   LoaderCircle,
   type LucideIcon,
   MapPin,
   Pencil,
+  PlugZap,
   Siren,
   Timer,
-  TrainFront,
+  TrafficCone,
+  TreePine,
+  Users,
   Wrench,
-  Zap,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { type ReactNode, useState } from "react";
@@ -27,12 +31,12 @@ import type { OriginLine } from "@/features/judgment/session";
 import { testIds } from "@/features/judgment/testids";
 import { formatClockTime } from "@/features/judgment/time";
 import {
-  type KnowledgeCatalog,
-  pickLocalized as pickCatalogName,
-} from "@/features/knowledge/catalog";
+  type CauseCategoryId,
+  type CauseKindId,
+  causeCategoryIds,
+  listCauseKinds,
+} from "@/features/situation/cause-categories";
 import {
-  type CauseId,
-  type CauseOption,
   type ElapsedOption,
   elapsedOptions,
   type ResumeOptionId,
@@ -608,12 +612,21 @@ function QuestionEyebrow({ trip, answers }: { trip: ReactNode; answers: Answered
   );
 }
 
-const causeIcons: Record<CauseId, LucideIcon> = {
+const causeIcons: Record<CauseCategoryId, LucideIcon> = {
+  passenger: Users,
+  vehicle: Wrench,
+  signaling: TrafficCone,
+  power: PlugZap,
+  obstruction: TreePine,
+  infrastructure: Construction,
+  weather: CloudRain,
+  major_accident: Flame,
+};
+
+const causeKindIcons: Record<CauseKindId, LucideIcon> = {
   person: Siren,
   inCar: BellRing,
-  vehicle: Wrench,
-  signal: Zap,
-  rain: CloudRain,
+  other: HelpCircle,
 };
 
 // 原因や答えの大きな札。左に丸い印、右に言葉
@@ -667,52 +680,80 @@ function AnswerCard({
   );
 }
 
-// 1 問目。放送で何と言っていたか。知見にある原因と、聞き取れなかったを同じ重さで並べる
+// 1 問目。放送で聞いた原因の大分類。8 大分類と、聞き取れなかったを同じ重さで並べる
 export function CauseStep({
-  options,
-  catalog,
   onSelect,
   onMethod,
 }: {
-  options: CauseOption[];
-  catalog: KnowledgeCatalog;
-  onSelect: (eventType: string | null) => void;
+  onSelect: (category: CauseCategoryId | null) => void;
   onMethod: (method: EntryMethod) => void;
 }) {
   const t = useTranslations("entry");
-  const locale = useLocale();
-  const nameOption = (option: CauseOption) => {
-    if (option.kind === "preset") return t(`causes.${option.id}`);
-    const event = catalog.find((e) => e.id === option.eventType);
-    return event ? pickCatalogName(event.name, locale) : option.eventType;
-  };
-  const iconOf = (option: CauseOption) => {
-    const Icon = option.kind === "preset" ? causeIcons[option.id] : TrainFront;
-    return <Icon className="size-5" strokeWidth={1.75} />;
-  };
   return (
     <>
       <SheetTitle title={t("causeQuestion")} />
       <div className="grid grid-cols-2 gap-2">
-        {options.map((option) => (
-          <AnswerCard
-            key={option.eventType}
-            testId={testIds.start.cause(option.id)}
-            icon={iconOf(option)}
-            label={nameOption(option)}
-            onClick={() => onSelect(option.eventType)}
-          />
-        ))}
+        {causeCategoryIds.map((id) => {
+          const Icon = causeIcons[id];
+          return (
+            <AnswerCard
+              key={id}
+              testId={testIds.start.cause(id)}
+              icon={<Icon className="size-5" strokeWidth={1.75} />}
+              label={t(`causes.${id}`)}
+              onClick={() => onSelect(id)}
+            />
+          );
+        })}
         <AnswerCard
           testId={testIds.start.cause("unknown")}
           icon={<HelpCircle className="size-5" strokeWidth={1.75} />}
           label={t("causes.unknown")}
           tone="dashed"
-          span={options.length % 2 === 0}
+          span={causeCategoryIds.length % 2 === 0}
           onClick={() => onSelect(null)}
         />
       </div>
       <MethodLinks onSelect={onMethod} />
+    </>
+  );
+}
+
+// 原因の続きの 1 問。大分類の中で事象が分かれるときだけ、近い種類を選ぶ
+export function CauseKindStep({
+  trip,
+  answers,
+  category,
+  onSelect,
+}: {
+  trip: ReactNode;
+  answers: AnsweredItem[];
+  category: CauseCategoryId;
+  onSelect: (kind: CauseKindId) => void;
+}) {
+  const t = useTranslations("entry");
+  return (
+    <>
+      <SheetTitle
+        eyebrow={<QuestionEyebrow trip={trip} answers={answers} />}
+        title={t("causeKindQuestion")}
+      />
+      <div className="grid grid-cols-2 gap-2">
+        {listCauseKinds(category).map((kind) => {
+          const Icon = causeKindIcons[kind];
+          return (
+            <AnswerCard
+              key={kind}
+              testId={testIds.start.causeKind(kind)}
+              icon={<Icon className="size-5" strokeWidth={1.75} />}
+              label={t(`causeKinds.${kind}`)}
+              tone={kind === "other" ? "dashed" : "soft"}
+              span={kind === "other"}
+              onClick={() => onSelect(kind)}
+            />
+          );
+        })}
+      </div>
     </>
   );
 }

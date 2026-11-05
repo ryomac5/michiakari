@@ -80,7 +80,7 @@ type EntryMapProps = {
 
 const kansaiCenter: Position = [135.5, 34.75];
 // 様子を聞く段。行き先を選び終えているので、出発と行き先を弧で結び、視点は動かさない
-const situationStages = new Set<EntryStage>(["cause", "elapsed", "resume", "input"]);
+const situationStages = new Set<EntryStage>(["cause", "causeKind", "elapsed", "resume", "input"]);
 const sourceIds = { lines: "entry-lines", trip: "entry-trip" } as const;
 // 名前の札のぶん、印のまわりに空ける余白（px）
 const labelMargin = { x: 96, y: 44 };

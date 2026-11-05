@@ -64,20 +64,46 @@ describe("reduceEntry", () => {
   });
   it("原因・経過・再開見込みの順に進み、段の外では回答を受け付けない", () => {
     const cause = run(toCause);
-    const elapsed = reduceEntry(cause, { type: "chooseCause", cause: { eventType: null } });
+    const elapsed = reduceEntry(cause, {
+      type: "chooseCause",
+      cause: { category: null, kind: null },
+    });
     expect(elapsed.stage).toBe("elapsed");
     expect(reduceEntry(elapsed, { type: "chooseElapsed", elapsed: "m10" })).toMatchObject({
       stage: "resume",
       elapsed: "m10",
     });
     const paste = reduceEntry(cause, { type: "chooseMethod", method: "paste" });
-    expect(reduceEntry(paste, { type: "chooseCause", cause: { eventType: null } })).toBe(paste);
+    expect(reduceEntry(paste, { type: "chooseCause", cause: { category: null, kind: null } })).toBe(
+      paste,
+    );
     expect(reduceEntry(cause, { type: "chooseElapsed", elapsed: "now" })).toBe(cause);
+  });
+  it("人・旅客対応を選んだときだけ種類を 1 問聞き、戻ると大分類の問いへ戻る", () => {
+    const cause = run(toCause);
+    const kind = reduceEntry(cause, {
+      type: "chooseCause",
+      cause: { category: "passenger", kind: null },
+    });
+    expect(kind).toMatchObject({
+      stage: "causeKind",
+      cause: { category: "passenger", kind: null },
+    });
+    expect(selectProgressIndex(kind.stage)).toBe(3);
+    expect(reduceEntry(kind, { type: "chooseElapsed", elapsed: "now" })).toBe(kind);
+    const elapsed = reduceEntry(kind, { type: "chooseCauseKind", kind: "inCar" });
+    expect(elapsed).toMatchObject({
+      stage: "elapsed",
+      cause: { category: "passenger", kind: "inCar" },
+    });
+    expect(reduceEntry(elapsed, { type: "back" }).stage).toBe("causeKind");
+    expect(reduceEntry(kind, { type: "back" })).toEqual(cause);
+    expect(reduceEntry(cause, { type: "chooseCauseKind", kind: "person" })).toBe(cause);
   });
   it("駅にいる人は推定で省略した路線・方面には戻らない", () => {
     let state = run([
       ...toCause,
-      { type: "chooseCause", cause: { eventType: "person_accident" } },
+      { type: "chooseCause", cause: { category: "vehicle", kind: null } },
       { type: "chooseElapsed", elapsed: "m30" },
     ]);
     const stages = [];
@@ -122,7 +148,7 @@ describe("reduceEntry", () => {
     expect(reduceEntry(filled, { type: "backTo", depth: -1 })).toEqual(initialEntryState);
     const resume = run([
       ...toCause,
-      { type: "chooseCause", cause: { eventType: null } },
+      { type: "chooseCause", cause: { category: null, kind: null } },
       { type: "chooseElapsed", elapsed: "unknown" },
     ]);
     expect(
@@ -248,7 +274,7 @@ describe("selectEntryHistoryAction", () => {
   it("復元した答えより履歴が浅ければ段を戻し、更新後も履歴を積まない", () => {
     const restored = run([
       ...toCause,
-      { type: "chooseCause", cause: { eventType: "person_accident" } },
+      { type: "chooseCause", cause: { category: "vehicle", kind: null } },
       { type: "chooseElapsed", elapsed: "m10" },
     ]);
     const action = selectEntryHistoryAction(stageDepth(restored), elapsedDepth, true);
