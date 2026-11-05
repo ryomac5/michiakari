@@ -77,7 +77,7 @@ const interpretation: Interpretation = {
 const validDecision = {
   action: "hold",
   headline: "いまは待ち、動かなければ切り替え",
-  reason: "見込みの幅が大きく、分岐点を過ぎると代替手段のほうが早く着きます。",
+  reason: "分岐点を過ぎると代替手段のほうが早く着きます。再開見込みには幅があります。",
   breakEvenExplanation: "分岐点までに再開しなければ代替手段のほうが早く着きます",
   recommendedOptionId: null,
   evidence: [{ kind: "knowledge", id: knowledge.id, description: "知見の要約" }],
@@ -281,7 +281,8 @@ describe("claude モード", () => {
     for (const n of [reasonLimits.ja.target, reasonLimits.ja.max, reasonLimits.en.max]) {
       expect(reason).toContain(String(n));
     }
-    expect(reason).toContain("もっと確かに言えます");
+    expect(reason).toContain("先頭の1文だけ");
+    expect(reason).toContain("再開見込み23時40分頃は分岐点23時23分より後");
     expect(tool?.input_schema.required).toContain("reason");
     expect(tool?.description).toContain(String(reasonLimits.ja.max));
   });
@@ -292,7 +293,7 @@ describe("claude モード", () => {
     for (const n of [headlineLimits.ja.target, headlineLimits.ja.max, headlineLimits.en.max]) {
       expect(headline).toContain(String(n));
     }
-    expect(headline).toContain("あと25分は待てます");
+    expect(headline).toContain("あと25分は待つ");
     expect(tool?.description).toContain(String(headlineLimits.ja.max));
   });
 

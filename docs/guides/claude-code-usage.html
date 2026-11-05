@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code での作り方 — みちあかり</title>
+<style>
+  :root {
+    --ink: #1f2429;
+    --muted: #5b6670;
+    --line: #d6dbe0;
+    --bg: #ffffff;
+    --soft: #f4f6f8;
+    --accent: #1f5f8b;
+    --warn: #8a4b08;
+  }
+  * { box-sizing: border-box; }
+  html { font-size: 16px; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background: var(--bg);
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP",
+      "Yu Gothic", system-ui, sans-serif;
+    line-height: 1.8;
+  }
+  main {
+    max-width: 42rem;
+    margin: 0 auto;
+    padding: 2.5rem 1.25rem 4rem;
+  }
+  header {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  h1 { font-size: 1.6rem; margin: 0 0 .4rem; line-height: 1.4; }
+  h2 {
+    font-size: 1.25rem;
+    margin: 2.4rem 0 .8rem;
+    padding-left: .6rem;
+    border-left: 4px solid var(--accent);
+    line-height: 1.4;
+  }
+  h3 { font-size: 1.05rem; margin: 1.6rem 0 .5rem; }
+  p { margin: .6rem 0; }
+  .lead { color: var(--muted); margin: 0; }
+  nav.toc {
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: .8rem 1.2rem;
+    margin: 1.2rem 0 2rem;
+  }
+  nav.toc ol { margin: .3rem 0 0; padding-left: 1.4rem; }
+  nav.toc li { margin: .15rem 0; }
+  a { color: var(--accent); }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin: .2rem 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: .8rem 0 1.2rem;
+    font-size: .95rem;
+  }
+  th, td {
+    border: 1px solid var(--line);
+    padding: .45rem .6rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--soft); font-weight: 600; }
+  td.num { text-align: right; white-space: nowrap; }
+  code {
+    font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: .9em;
+    background: var(--soft);
+    padding: .05em .35em;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: .8rem 1rem;
+    overflow-x: auto;
+    line-height: 1.55;
+    font-size: .88rem;
+  }
+  pre code { background: none; padding: 0; }
+  figure { margin: 1rem 0 1.4rem; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figcaption {
+    color: var(--muted);
+    font-size: .88rem;
+    margin-top: .3rem;
+  }
+  .note {
+    border-left: 4px solid var(--warn);
+    background: #fdf7ee;
+    padding: .5rem .9rem;
+    margin: 1rem 0;
+  }
+  footer {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: .88rem;
+  }
+  @media print {
+    body { font-size: 11pt; }
+    main { max-width: none; padding: 0; }
+    nav.toc, pre, .note { break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Claude Code での作り方</h1>
+  <p class="lead">みちあかり — 関西の輸送障害で「待つか、切り替えるか」を示す Web アプリ</p>
+  <p class="lead">Built with Claude: Japan 2026 提出作品の開発記録。2026-11-05 時点。</p>
+</header>
+
+<nav class="toc" aria-label="目次">
+  <strong>目次</strong>
+  <ol>
+    <li><a href="#summary">要約</a></li>
+    <li><a href="#guard">守りの仕組み</a></li>
+    <li><a href="#delegation">委譲の仕組み</a></li>
+    <li><a href="#record">記録と再開</a></li>
+    <li><a href="#numbers">数字</a></li>
+    <li><a href="#lessons">うまくいかなかったことと直し方</a></li>
+  </ol>
+</nav>
+
+<h2 id="summary">1. 要約</h2>
+
+<p>開発者が仕事をしている昼間に、Claude Code が並列の作業ツリーで実装を進めた。
+開発者は夜に差分を確かめ、知見ナレッジとシナリオを書き、翌日の目標を決めた。</p>
+
+<p>この分業を成り立たせたのは 3 つの仕組みである。
+守りの仕組みは、エージェントが触ってはいけない領域をフックと guard で遮断する。
+委譲の仕組みは、根のセッションが計画と判断だけを担い、実装を子に振る。
+記録の仕組みは、各ターンの終わりに作業記録を残し、次のセッションが引き継ぐ。</p>
+
+<p>開発者本人が担ったのは、知見ナレッジ、シナリオ、判断結果の確認、動画のナレーションである。
+それ以外のコード、文書、テスト、録画の台本は Claude Code が書いた。</p>
+
+<h2 id="guard">2. 守りの仕組み</h2>
+
+<p>このアプリの価値は、元指令員の知見にある。
+知見とシナリオを機械に書かせては、作品の根拠が失われる。
+そこで <code>knowledge/</code> と <code>scenarios/</code> を開発者本人だけが書く領域と定め、4 層で守った。</p>
+
+<figure>
+<svg viewBox="0 0 640 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="守りの 4 層の図">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#5b6670"/>
+    </marker>
+  </defs>
+  <g font-family="sans-serif" font-size="13" fill="#1f2429">
+    <rect x="10" y="20" width="140" height="60" rx="6" fill="#f4f6f8" stroke="#d6dbe0"/>
+    <text x="80" y="45" text-anchor="middle" font-weight="bold">フック</text>
+    <text x="80" y="65" text-anchor="middle" font-size="11">書き込みの前に遮断</text>
+
+    <rect x="170" y="20" width="140" height="60" rx="6" fill="#f4f6f8" stroke="#d6dbe0"/>
+    <text x="240" y="45" text-anchor="middle" font-weight="bold">guard</text>
+    <text x="240" y="65" text-anchor="middle" font-size="11">承認記録と照合</text>
+
+    <rect x="330" y="20" width="140" height="60" rx="6" fill="#f4f6f8" stroke="#d6dbe0"/>
+    <text x="400" y="45" text-anchor="middle" font-weight="bold">決定論モード</text>
+    <text x="400" y="65" text-anchor="middle" font-size="11">API キー無しで動く</text>
+
+    <rect x="490" y="20" width="140" height="60" rx="6" fill="#f4f6f8" stroke="#d6dbe0"/>
+    <text x="560" y="45" text-anchor="middle" font-weight="bold">e2e</text>
+    <text x="560" y="65" text-anchor="middle" font-size="11">振る舞いを固定</text>
+
+    <line x1="80" y1="80" x2="80" y2="130" stroke="#5b6670" marker-end="url(#arrow)"/>
+    <line x1="240" y1="80" x2="240" y2="130" stroke="#5b6670" marker-end="url(#arrow)"/>
+    <line x1="400" y1="80" x2="400" y2="130" stroke="#5b6670" marker-end="url(#arrow)"/>
+    <line x1="560" y1="80" x2="560" y2="130" stroke="#5b6670" marker-end="url(#arrow)"/>
+
+    <rect x="10" y="135" width="300" height="70" rx="6" fill="#ffffff" stroke="#1f5f8b" stroke-width="1.5"/>
+    <text x="160" y="162" text-anchor="middle" font-weight="bold">knowledge/ と scenarios/</text>
+    <text x="160" y="184" text-anchor="middle" font-size="11">開発者本人だけが書く領域</text>
+
+    <rect x="330" y="135" width="300" height="70" rx="6" fill="#ffffff" stroke="#1f5f8b" stroke-width="1.5"/>
+    <text x="480" y="162" text-anchor="middle" font-weight="bold">判断の振る舞い</text>
+    <text x="480" y="184" text-anchor="middle" font-size="11">シナリオの期待値どおりに動くこと</text>
+  </g>
+</svg>
+<figcaption>左の 2 層が内容を守り、右の 2 層が振る舞いを守る。</figcaption>
+</figure>
+
+<h3>フック</h3>
+
+<p><code>.claude/settings.json</code> に <code>PreToolUse</code> のフックを 1 つ置いた。
+<code>Write</code>、<code>Edit</code>、<code>MultiEdit</code> の前に <code>protect-paths.mjs</code> が走る。
+対象のパスが保護ディレクトリなら exit 2 で止め、理由を伝える。</p>
+
+<pre><code>knowledge/foo.yaml は開発者本人が書く領域のため変更できません。
+問題があれば docs/progress.md の「開発者に確認したいこと」に書いてください。</code></pre>
+
+<p>エージェントが内容に疑問を持ったときの出口は、作業記録への記入である。
+この一文があるので、エージェントは止められても次の行動に迷わない。
+開発者が自分で編集するときは <code>ALLOW_PROTECTED_EDIT=1</code> を付けて起動する。</p>
+
+<h3>guard</h3>
+
+<p>フックは Claude Code のツール呼び出しだけを見る。
+Bash 経由の書き込みやシンボリックリンクはすり抜ける。
+その穴を <code>pnpm guard</code> が塞ぐ。</p>
+
+<table>
+  <thead><tr><th>検査</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td>承認記録</td><td>保護ディレクトリの内容を承認記録のハッシュと照合する。未承認の差分があれば失敗する。</td></tr>
+    <tr><td>シンボリックリンク</td><td>保護ディレクトリ内にリンクがあれば失敗する。</td></tr>
+    <tr><td>ブランチ差分</td><td>main からの差分に保護ディレクトリの変更があれば失敗する。</td></tr>
+    <tr><td>内容検証</td><td><code>pnpm validate</code> で YAML と雛形の整合を確かめる。</td></tr>
+  </tbody>
+</table>
+
+<p>承認記録を書くのは <code>pnpm guard:approve</code> だけである。
+このコマンドは <code>/dev/tty</code> から y の入力を要求する。
+エージェントは TTY を持たないので、承認を代行できない。
+<code>pnpm guard</code> はすべての自律作業の証明コマンドに含め、コミット前にも走らせた。</p>
+
+<h3>決定論モード</h3>
+
+<p>判断エージェントは <code>claude</code> と <code>deterministic</code> の 2 モードを持つ。
+API キーが無ければ決定論モードで動き、文字列照合と規則で判断する。
+数値計算は <code>packages/core</code> に置き、どちらのモードでも Claude に計算させない。</p>
+
+<p>この設計は 2 つの効果を生んだ。
+子エージェントのサンドボックスは API キーを持たないが、画面から録画まで通しで動かせる。
+テストは乱れなく再現し、プロンプトの変更が計算を壊したかを切り分けられる。</p>
+
+<h3>e2e</h3>
+
+<p>シナリオの期待値から Playwright の振る舞いテストを生成した。
+観測を 1 つ進めるたびに、結論と分岐点が期待どおりに変わることを確かめる。
+地図のタイルとフォントは固定データに差し替え、外部に依存しない。</p>
+
+<p>判断ロジック、プロンプト、ツールを変えたら e2e を流す規則にした。
+開発者の知見をコードに写した結果を、機械が毎回確かめる。</p>
+
+<h2 id="delegation">3. 委譲の仕組み</h2>
+
+<p>根のセッションは対話、要件整理、計画、委譲、判断、報告だけを担う。
+実装は子に振る。
+高性能なモデルを根に置く理由は、子への指示の質が結果を決めるからである。</p>
+
+<figure>
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="根と子とレビュアーの流れの図">
+  <defs>
+    <marker id="arrow2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#5b6670"/>
+    </marker>
+  </defs>
+  <g font-family="sans-serif" font-size="13" fill="#1f2429">
+    <rect x="240" y="15" width="160" height="50" rx="6" fill="#ffffff" stroke="#1f5f8b" stroke-width="1.5"/>
+    <text x="320" y="37" text-anchor="middle" font-weight="bold">根</text>
+    <text x="320" y="55" text-anchor="middle" font-size="11">計画・委譲・判断・報告</text>
+
+    <line x1="290" y1="65" x2="110" y2="110" stroke="#5b6670" marker-end="url(#arrow2)"/>
+    <line x1="320" y1="65" x2="320" y2="110" stroke="#5b6670" marker-end="url(#arrow2)"/>
+    <line x1="350" y1="65" x2="530" y2="110" stroke="#5b6670" marker-end="url(#arrow2)"/>
+
+    <rect x="30" y="115" width="160" height="50" rx="6" fill="#f4f6f8" stroke="#d6dbe0"/>
+    <text x="110" y="137" text-anchor="middle" font-weight="bold">子 T2</text>
+    <text x="110" y="155" text-anchor="middle" font-size="11">worktree で実装</text>
+
+    <rect x="240" y="115" width="160" height="50" rx="6" fill="#f4f6f8" stroke="#d6dbe0"/>
+    <text x="320" y="137" text-anchor="middle" font-weight="bold">子 T4</text>
+    <text x="320" y="155" text-anchor="middle" font-size="11">worktree で実装</text>
+
+    <rect x="450" y="115" width="160" height="50" rx="6" fill="#f4f6f8" stroke="#d6dbe0"/>
+    <text x="530" y="137" text-anchor="middle" font-weight="bold">子 T8</text>
+    <text x="530" y="155" text-anchor="middle" font-size="11">worktree で実装</text>
+
+    <line x1="110" y1="165" x2="300" y2="210" stroke="#5b6670" marker-end="url(#arrow2)"/>
+    <line x1="320" y1="165" x2="320" y2="210" stroke="#5b6670" marker-end="url(#arrow2)"/>
+    <line x1="530" y1="165" x2="340" y2="210" stroke="#5b6670" marker-end="url(#arrow2)"/>
+
+    <rect x="200" y="215" width="240" height="70" rx="6" fill="#ffffff" stroke="#8a4b08" stroke-width="1.5"/>
+    <text x="320" y="238" text-anchor="middle" font-weight="bold">スケジューラ</text>
+    <text x="320" y="256" text-anchor="middle" font-size="11">受け入れコマンド → 別系統のレビュー</text>
+    <text x="320" y="274" text-anchor="middle" font-size="11">→ integration へ統合</text>
+  </g>
+</svg>
+<figcaption>git log に残る T2、T4、T8 のブランチは、この流れで統合された。</figcaption>
+</figure>
+
+<h3>委譲の契約</h3>
+
+<p>委譲文には 4 つを必ず書いた。
+受け入れ条件は <code>pnpm typecheck</code> のような機械で判定できるコマンドにする。
+触ってよいファイルを scope として限定する。
+制約と禁止事項は要点のあとに書く。
+子は会話履歴を見ないので、委譲文は自己完結にする。</p>
+
+<p>子の報告を受けたら、根は受け入れ条件に照らして評価する。
+子が完了と書いても根拠にはしない。
+往復は 3 回を上限とし、収束しなければ分解のしかたを見直す。</p>
+
+<h3>レビューのモデル</h3>
+
+<p>実装とレビューは別系統のモデルにした。
+同じ系統でレビューすると、盲点が共有されたままになる。
+重要な差分のレビューには、そのとき使える最上位のモデルを指定した。</p>
+
+<h3>開発者の方針</h3>
+
+<p>実装は Claude の子に振る。
+レビューは別系統の Codex に回し、同じ系統で見落としを共有しない。
+このハッカソンが Claude で作ることを競うので、実装を Codex には任せない。</p>
+
+<h3>11-05 の運用で分かったこと</h3>
+
+<p>11-05 のタスクグラフの運用で、次の 3 点が分かった。</p>
+
+<ul>
+  <li>根は子の「通った」という報告を根拠にせず、受け入れコマンドを自分で流してから統合した。</li>
+  <li>子のサンドボックスではポートを開けず e2e を流せないので、e2e はスケジューラと根が流した。</li>
+  <li>3 往復で直らなかった作業は、同じ子に直させ続けず、別のモデルに引き継いだ。</li>
+</ul>
+
+<h3>スケジューラとサンドボックス</h3>
+
+<p>複数ステップの作業はタスクグラフとして <code>tasks.yaml</code> に書き、スケジューラが worktree ごとに子を起こす。
+子は Claude Code の native サンドボックスの中で動き、ポートを開けない。
+そのため子は e2e を流せない。</p>
+
+<p>e2e を含む受け入れコマンドはスケジューラがレビューの前に流す。
+通ったものだけがレビューに回る。
+レビュアーは e2e の未実行を理由に差し戻さない。
+git log の「検証前スナップショット」は、スケジューラが受け入れ検証の直前に残したコミットである。</p>
+
+<h3>自律の規則</h3>
+
+<p>開発者の不在中は <code>/goal</code> で各作業の流れを進めた。
+判定役はファイルを読まずコマンドも実行しない。
+だから条件は「どのコマンドが exit 0 になればよいか」の形で書く。
+ゴールには必ずターン数の上限を付け、止まったら残課題を作業記録に書かせた。</p>
+
+<pre><code>/goal docs/roadmap.md の M1 を完了する。
+証明: `pnpm typecheck &amp;&amp; pnpm test &amp;&amp; pnpm guard` が exit 0 で、
+`pnpm test:e2e -- --grep &lt;シナリオid&gt;` でそのシナリオのリプレイが最後まで通ること。
+制約: knowledge/ と scenarios/ を変更しない。テストを削除・skip しない。
+各ターンの作業内容を docs/progress.md に追記する。
+40 ターンで停止し、残課題を docs/progress.md に書く。</code></pre>
+
+<p>見た目の良さと判断の妥当性はゴールにしない。
+判定役は画面を見られず、現場の感覚は開発者にしか分からないからである。</p>
+
+<h2 id="record">4. 記録と再開</h2>
+
+<h3>作業記録</h3>
+
+<p><code>docs/progress.md</code> は各ターンの終わりに追記する。
+書式は「やったこと、確認結果、残課題、開発者に確認したいこと」の 4 項目である。
+新しい記録を上に置き、セッションをまたいでも最初の数行で現在地が分かる。</p>
+
+<p>「開発者に確認したいこと」はこの開発の要になった。
+エージェントは仮の値や仮定を置いて先へ進み、ここに問いを残す。
+開発者は夜にまとめて答え、翌朝のゴールに反映する。
+徒歩の上限、確信度の閾値、結末のカードで比べる相手は、この経路で決まった。</p>
+
+<h3>残タスク一覧</h3>
+
+<p><code>docs/remaining-tasks.md</code> は提出までの残りを 1 枚にまとめる。
+機能、文面、データと検証、デモと提出、開発者にしかできないこと、片付けの 6 区分である。
+途中の作業はブランチ名と残りの手順を表に残し、別のセッションが引き継げる。</p>
+
+<h3>作業前に読む文書</h3>
+
+<p><code>CLAUDE.md</code> は読むべき文書の一覧と、絶対に守る制約を先頭に置く。
+製品仕様、審査基準、構成、データの利用条件、画面設計、ロードマップを分けて書き、迷ったら文書を正とする規則にした。
+文書と実装が食い違えば、文書の更新を提案させる。</p>
+
+<h2 id="numbers">5. 数字</h2>
+
+<p>テストの値は <code>docs/progress.md</code> の 11-05 T10 の記録から取った。
+コミット数は git の実数である。</p>
+
+<table>
+  <thead><tr><th>項目</th><th>値</th><th>出どころ</th></tr></thead>
+  <tbody>
+    <tr><td>コミット数</td><td class="num">243</td><td>2026-11-05 の統合の時点。<code>git rev-list --count HEAD</code> で数えた</td></tr>
+    <tr><td>単体テスト</td><td class="num">1,212</td><td>agent 218、core 282、geo 121、schema 189、data 39、web 363。scripts の 37 件は別</td></tr>
+    <tr><td>e2e</td><td class="num">106</td><td>根が全件を流して全件が通った。spec は 17 ファイル</td></tr>
+    <tr><td>e2e の推移</td><td class="num">11 → 26 → 55 → 72 → 78 → 84 → 106</td><td>作業記録の各回の件数</td></tr>
+    <tr><td>作業ツリー</td><td class="num">40 本超</td><td>残タスク一覧の片付けの項</td></tr>
+    <tr><td>路線と駅</td><td class="num">106 / 1,356</td><td>国土数値情報から生成した網</td></tr>
+    <tr><td>フック</td><td class="num">1</td><td><code>PreToolUse</code> の <code>protect-paths.mjs</code></td></tr>
+    <tr><td>guard の検査</td><td class="num">4</td><td>承認記録、リンク、ブランチ差分、内容検証</td></tr>
+  </tbody>
+</table>
+
+<h2 id="lessons">6. うまくいかなかったことと直し方</h2>
+
+<p>作業記録の残課題から 3 つを選んだ。
+いずれも機械の検証が見つけ、記録を経て直した。</p>
+
+<h3>負荷で落ちる e2e</h3>
+
+<p>負荷平均が 20 を超えると、リプレイの最初の判断が 30 秒に収まらず e2e が落ちた。
+原因は、workers の既定値で Playwright と判断処理が資源を奪い合っていたことである。
+workers を 2 に制限し、起動確認を <code>/replay</code> にして初回コンパイルを先に済ませた。
+既存サーバーの再利用を禁じ、指定ポートが使用中なら失敗させる。</p>
+
+<h3>動いている途中の位置で避けた札</h3>
+
+<p>地図の「見合わせ」の札が「全体を見る」のボタンに重なる失敗が、負荷の中で 8 回に 2 回出た。
+ボタンは下の余白が変わると 200ms かけて動く。
+札はその途中の位置を避けていたので、動き終えると重なった。
+動き終えたあとの位置で避けるよう直し、同じ負荷で 24 回流して 24 回通った。</p>
+
+<h3>地図と探索で違った歩ける駅</h3>
+
+<p>塚本から三ノ宮へ向かうと、鉄道の代替が出ず「タクシーに切り替えてください」になった。
+地図は直線距離から 15 分以内の駅を集め、探索は乗換の辺だけを歩く道にしていた。
+塚本は辺が 0 本で、探索には歩ける駅が無かった。
+駅の選び方を <code>packages/geo</code> の 1 つの関数にまとめ、地図と探索の両方が呼ぶようにした。</p>
+
+<div class="note">
+<p>共通する教訓は、同じ事実を 2 か所で計算しないことである。
+リプレイの結末の spec が独自に持っていた計算も、同じ理由で core の関数に寄せた。</p>
+</div>
+
+<footer>
+<p>出典: <code>CLAUDE.md</code>、<code>docs/goals.md</code>、<code>docs/roadmap.md</code>、<code>docs/judging-criteria.md</code>、<code>docs/progress.md</code>、<code>docs/remaining-tasks.md</code>、<code>.claude/settings.json</code>、<code>.claude/hooks/protect-paths.mjs</code>、<code>scripts/guard.mjs</code>、<code>scripts/guard-approve.mjs</code>、git log。</p>
+</footer>
+
+</main>
+</body>
+</html>

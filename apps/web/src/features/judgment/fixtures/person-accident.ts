@@ -171,8 +171,8 @@ function buildFirstJudgment(request: JudgeRequest, now: Date): Judgment {
     breakEven: {
       time: formatIsoWithOffset(breakEvenTime),
       explanation: en
-        ? `If service has not resumed by ${clock}, the Hankyu transfer gets you there sooner.`
-        : `${clock}までに再開しなければ、阪急神戸線の振替のほうが早く着きます`,
+        ? `If service resumes by ${clock}, waiting gets you there sooner.`
+        : `${clock}までに再開すれば待つほうが早く着きます`,
     },
     estimate: {
       eventType,

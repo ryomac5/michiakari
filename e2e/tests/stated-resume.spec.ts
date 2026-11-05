@@ -9,8 +9,7 @@ import { expect, test } from "../support/test.ts";
 // 決定論モードの agent とダミーの内容で確かめる
 
 const screenshotDir = fileURLToPath(new URL("../screenshots/", import.meta.url));
-const kobeLine = "大阪|jr-west.東海道線|JR神戸線";
-const toKobe = `${kobeLine}>jr-west.東海道線.神戸`;
+
 // 利用者に「分からない」と返す言い回し。結論と理由には出さない
 const nonDecisive =
   /まだ判断できません|判断できません|分かりません|わかりません|情報が足りません|材料が不足|見込みが立ちません/;
@@ -21,14 +20,12 @@ async function answerWithStatedTime(page: Page, pickTime: "second" | "last"): Pr
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
   });
+  await page.getByTestId(testIds.start.positionStation).click();
   await page.getByTestId(testIds.start.originSearch).fill("大阪");
   await page.getByTestId(testIds.start.originOption("大阪")).click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "station");
-  await page.getByTestId(testIds.start.line(kobeLine)).click();
-  await page.getByTestId(testIds.start.direction(toKobe)).click();
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await page.getByTestId(testIds.start.positionStation).click();
   await expect(page.getByTestId(testIds.start.trip)).toContainText("三ノ宮");
 
   await page.getByTestId(testIds.start.cause("unknown")).click();
@@ -62,7 +59,7 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
   // 発表の時刻を見込みに使うので、確信度は低にならず、保留の形にもならない
   await expect(conclusion).not.toContainText("確信度 低");
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toContainText(
-    /あと\d+分は待てます/,
+    /あと\d+分は待つ/,
   );
   await expect(conclusion).not.toContainText(nonDecisive);
 
@@ -79,7 +76,7 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
 
   // 理由は、発表の時刻をもとにした推定だと分かる言い方にする
   await openSheet(page, "half");
-  const reason = page.getByTestId(testIds.judgment.conclusionReason);
+  const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
   await expect(reason).toContainText("発表の再開見込み");
   await expect(reason).toContainText("見込みどおりなら");
   await expect(reason).not.toContainText(nonDecisive);
@@ -96,16 +93,14 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
   const statedLabel = await answerWithStatedTime(page, "last");
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   await expect(conclusion).toHaveAttribute("data-action", "switch", { timeout: 30_000 });
-  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toContainText(
-    /に切り替えてください/,
-  );
+  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toContainText(/に切り替える/);
   await expect(conclusion).not.toContainText(nonDecisive);
 
   // 選んだ時刻は分岐点より後にある。分岐点は全部開いたシートの説明に残る
   await openSheet(page, "full");
   const sentence = await page.getByTestId(testIds.judgment.breakEvenSentence).textContent();
   expect(toMinuteOfDay(statedLabel)).toBeGreaterThan(toMinuteOfDay(sentence ?? ""));
-  const reason = page.getByTestId(testIds.judgment.conclusionReason);
+  const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
   await expect(reason).toContainText("発表の再開見込み");
   await expect(reason).toContainText("見込みどおりでも");
   await expect(reason).not.toContainText(nonDecisive);

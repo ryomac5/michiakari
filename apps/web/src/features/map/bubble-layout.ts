@@ -8,6 +8,27 @@ export type ScreenPoint = { x: number; y: number };
 export type BoxSize = { w: number; h: number };
 export type Rect = { left: number; top: number; right: number; bottom: number };
 
+// 小画面でも寄せる計算が成立するよう、地図に最低限の幅と高さを残す。
+export function constrainFitPadding(size: BoxSize, insets: Rect, margins: Rect): Rect {
+  const minimumMapSpan = 64;
+  const scaleX = Math.min(
+    1,
+    Math.max(0, size.w - insets.left - insets.right - minimumMapSpan) /
+      (margins.left + margins.right),
+  );
+  const scaleY = Math.min(
+    1,
+    Math.max(0, size.h - insets.top - insets.bottom - minimumMapSpan) /
+      (margins.top + margins.bottom),
+  );
+  return {
+    left: insets.left + margins.left * scaleX,
+    right: insets.right + margins.right * scaleX,
+    top: insets.top + margins.top * scaleY,
+    bottom: insets.bottom + margins.bottom * scaleY,
+  };
+}
+
 export type LayoutItem = {
   key: string;
   point: ScreenPoint;
@@ -21,6 +42,8 @@ export type LayoutItem = {
 };
 
 export const bubblePlacements: readonly BubblePlacement[] = ["top", "right", "bottom", "left"];
+// 狭い地図で四方だけでは収まらないとき、小さな駅の札も少しずらす。
+export const compactStationSlides = [0, -16, 16, -32, 32] as const;
 
 // 置き場所ごとの札の矩形。札の尾が点を指すよう、点の反対側に札を置く。slide は辺の方向へのずらし
 export function placeBox(item: LayoutItem, placement: BubblePlacement, slide = 0): Rect {
@@ -123,6 +146,8 @@ export type LayoutInput = {
   obstacles?: readonly Rect[];
   // 札で覆ってはいけないもの。「全体を見る」のボタンなど。障害物より強く避ける
   blockers?: readonly Rect[];
+  // 画面の内側に必ず収める札。現在地やおすすめなど、欠けてはいけない札に使う
+  inside?: readonly string[];
 };
 
 export type LabelChoice = { placement: BubblePlacement; slide: number };
@@ -174,6 +199,7 @@ export type LabelLayout = {
   placements: Record<string, BubblePlacement>;
   // 辺の方向へずらした量（px）。ずらさない札は 0
   slides: Record<string, number>;
+  hidden?: string[];
 };
 
 // 札ごとの置き方の候補。固定の札は向きを変えず、ずらせる札は向きごとにずらし量を試す
@@ -184,8 +210,26 @@ function listChoices(input: LayoutInput, item: LayoutItem): LabelChoice[] {
   return placements.flatMap((placement) => slides.map((slide) => ({ placement, slide })));
 }
 
+// 駅の印を覆ってよい面積（px²）。印の余白にかかる程度は許す
+export const dotOverlapTolerance = 150;
+
+// 探索で避ける重なり。all は画面の外・ボタン・印・札、collisions は印と札、labels は札だけ
+type AvoidOverlap = "all" | "collisions" | "labels" | "none";
+// 1 段の探索で試す置き方の上限。札が 6 つで密集しても数十 ms で終わる
+const searchBudget = 20_000;
+// 必須の札だけを探すときの上限。札が 3 つなら全組み合わせを見ても数 ms で終わる
+const requiredSearchBudget = 200_000;
+
+// 探索の結果。exhausted は上限で打ち切った段があり、収まる置き方を見落としたかもしれないことを示す
+type LayoutSearch = { layout: LabelLayout; exhausted: boolean };
+
 // 最も重なりの少ない置き場所とずらし量の組み合わせを返す。途中の重さが最良を超えた枝は打ち切る
 export function chooseLabelLayout(input: LayoutInput): LabelLayout {
+  return searchLabelLayout(input).layout;
+}
+
+// 探索を段階的に緩めて置き方を選ぶ。上限で打ち切った段があれば exhausted で知らせる
+function searchLabelLayout(input: LayoutInput, budgetLimit = searchBudget): LayoutSearch {
   const choices = input.items.map((item) => listChoices(input, item));
   const own = input.items.map((_, i) =>
     (choices[i] as LabelChoice[]).map((choice) => measureOwnCost(input, i, choice)),
@@ -196,51 +240,305 @@ export function chooseLabelLayout(input: LayoutInput): LabelLayout {
   let best: LabelChoice[] | null = null;
   let bestCost = Number.POSITIVE_INFINITY;
   const picked: number[] = [];
-  const visit = (i: number, cost: number) => {
-    if (cost >= bestCost) return;
+  // 札ごとの、ほかの駅の印を覆う面積（px²）
+  const dots = input.items.map((_, i) =>
+    (rects[i] as Rect[]).map((rect) =>
+      input.items.reduce(
+        (area, other, j) => area + (j === i ? 0 : overlapArea(rect, dotRect(other))),
+        0,
+      ),
+    ),
+  );
+  // 札ごとの、見える範囲からはみ出す面積（px²）
+  const outsides = input.items.map((_, i) =>
+    (rects[i] as Rect[]).map((rect) => outsideArea(rect, input.view)),
+  );
+  const mustStayInside = input.items.map((item) => input.inside?.includes(item.key) ?? false);
+  // 軽い置き方から試すと、最良を超えた枝を早く打ち切れる
+  const orders = own.map((costs) =>
+    costs.map((_, k) => k).sort((a, b) => (costs[a] as number) - (costs[b] as number)),
+  );
+  // 1 段の探索で試す置き方の上限。密集した札で収まらない段を長く探し続けない
+  let budget = 0;
+  let exhausted = false;
+  const visit = (i: number, cost: number, avoidOverlap: AvoidOverlap) => {
+    if (cost >= bestCost || budget <= 0) return;
     if (i === choices.length) {
       bestCost = cost;
       best = picked.map((k, n) => (choices[n] as LabelChoice[])[k] as LabelChoice);
       return;
     }
-    const candidates = choices[i] as LabelChoice[];
-    for (let k = 0; k < candidates.length; k++) {
+    for (const k of orders[i] as number[]) {
+      if (--budget <= 0) {
+        exhausted = true;
+        return;
+      }
       const rect = (rects[i] as Rect[])[k] as Rect;
+      const dot = (dots[i] as number[])[k] as number;
+      const outside = (outsides[i] as number[])[k] as number;
+      if (
+        avoidOverlap === "all" &&
+        (outside > 0 ||
+          input.blockers?.some((blocker) => overlapArea(rect, blocker) > 0) ||
+          dot > 0)
+      ) {
+        continue;
+      }
+      if (avoidOverlap === "collisions" && dot > dotOverlapTolerance) continue;
+      // 欠けてはいけない札は、従来の面積評価に落ちるまで画面の外に出さない
+      if (avoidOverlap !== "none" && mustStayInside[i] && outside > 0) continue;
       let next = cost + ((own[i] as number[])[k] as number);
+      let overlaps = false;
       for (let j = 0; j < i; j++) {
         const other = (rects[j] as Rect[])[picked[j] as number] as Rect;
-        next += overlapArea(rect, other) * weights.label;
+        const area = overlapArea(rect, other);
+        if (avoidOverlap !== "none" && area > 0) {
+          overlaps = true;
+          break;
+        }
+        next += area * weights.label;
       }
+      if (overlaps) continue;
       picked[i] = k;
-      visit(i + 1, next);
+      visit(i + 1, next, avoidOverlap);
     }
   };
-  visit(0, 0);
+  const search = (avoidOverlap: AvoidOverlap) => {
+    budget = budgetLimit;
+    visit(0, 0, avoidOverlap);
+  };
+  // 収まる組み合わせがあるなら、好みや移動量のために札の重なりを残さない
+  search("all");
+  // 画面の外やボタンを避けられない場合も、札どうしと駅の印から離れる組み合わせを先に探す
+  if (best === null) search("collisions");
+  // 印まで避けられない場合も、札どうしが離れる組み合わせを先に探す
+  if (best === null) search("labels");
+  // 大きなおすすめなど、収まらない場合は従来の面積評価で縮小の判断につなぐ
+  if (best === null) search("none");
   const chosen = (best ?? []) as LabelChoice[];
   return {
-    placements: Object.fromEntries(
-      input.items.map((item, i) => [item.key, chosen[i]?.placement ?? "right"]),
-    ),
-    slides: Object.fromEntries(input.items.map((item, i) => [item.key, chosen[i]?.slide ?? 0])),
+    layout: {
+      placements: Object.fromEntries(
+        input.items.map((item, i) => [item.key, chosen[i]?.placement ?? "right"]),
+      ),
+      slides: Object.fromEntries(input.items.map((item, i) => [item.key, chosen[i]?.slide ?? 0])),
+    },
+    exhausted,
   };
 }
 
 // 選んだ置き方の重なりの合計（px²）。札どうし、札と駅の点、札と覆ってはいけないもの、見える範囲の外を足す
 // 好みやずらしの重みは含めないので、「この置き方は重なっていると言えるか」の判定に使える
 export function measureLayoutOverlap(input: LayoutInput, layout: LabelLayout): number {
-  const rects = input.items.map((item) =>
+  const items = input.items.filter((item) => !layout.hidden?.includes(item.key));
+  const rects = items.map((item) =>
     placeBox(item, layout.placements[item.key] ?? "right", layout.slides[item.key] ?? 0),
   );
   let total = 0;
   rects.forEach((rect, i) => {
     total += outsideArea(rect, input.view);
     for (const blocker of input.blockers ?? []) total += overlapArea(rect, blocker);
-    input.items.forEach((other, j) => {
-      if (j !== i) total += overlapArea(rect, dotRect(other));
-      if (j > i) total += overlapArea(rect, rects[j] as Rect);
+    input.items.forEach((other) => {
+      if (other.key !== items[i]?.key) total += overlapArea(rect, dotRect(other));
     });
+    for (let j = i + 1; j < rects.length; j++) total += overlapArea(rect, rects[j] as Rect);
   });
   return total;
+}
+
+// 札どうしの重なりの合計（px²）。隠した札は数えない
+export function measureLabelOverlap(input: LayoutInput, layout: LabelLayout): number {
+  const boxes = input.items
+    .filter((item) => !layout.hidden?.includes(item.key))
+    .map((item) =>
+      placeBox(item, layout.placements[item.key] ?? "right", layout.slides[item.key] ?? 0),
+    );
+  return boxes.reduce(
+    (total, box, i) =>
+      total + boxes.slice(i + 1).reduce((area, other) => area + overlapArea(box, other), 0),
+    0,
+  );
+}
+
+// 札がほかの駅の印を覆う面積の合計（px²）。隠した札の印も覆わないものとして数える
+export function measureDotOverlap(input: LayoutInput, layout: LabelLayout): number {
+  const visible = input.items.filter((item) => !layout.hidden?.includes(item.key));
+  return visible.reduce((total, item) => {
+    const rect = placeBox(
+      item,
+      layout.placements[item.key] ?? "right",
+      layout.slides[item.key] ?? 0,
+    );
+    return (
+      total +
+      input.items.reduce(
+        (area, other) => area + (other.key === item.key ? 0 : overlapArea(rect, dotRect(other))),
+        0,
+      )
+    );
+  }, 0);
+}
+
+// 画面の内側に収める札が、見える範囲からはみ出す面積の合計（px²）
+export function measureInsideShortfall(input: LayoutInput, layout: LabelLayout): number {
+  return input.items
+    .filter((item) => input.inside?.includes(item.key) && !layout.hidden?.includes(item.key))
+    .reduce(
+      (total, item) =>
+        total +
+        outsideArea(
+          placeBox(item, layout.placements[item.key] ?? "right", layout.slides[item.key] ?? 0),
+          input.view,
+        ),
+      0,
+    );
+}
+
+// 札どうしが触れず、駅の印を覆う面積が許容内で、欠けてはいけない札が画面の内側にあるか
+// ほかの札の画面の外やボタンへの重なりは別に数える
+function isCollisionFree(input: LayoutInput, layout: LabelLayout): boolean {
+  return (
+    measureLabelOverlap(input, layout) === 0 &&
+    measureDotOverlap(input, layout) <= dotOverlapTolerance &&
+    measureInsideShortfall(input, layout) === 0
+  );
+}
+
+// 隠す札の組み合わせを、枚数の少ない順、同じ枚数なら後ろの低優先の札を隠す順に並べる
+function listHiddenSubsets(optionalKeys: readonly string[]): string[][] {
+  const subsets: number[][] = [[]];
+  optionalKeys.forEach((_, index) => {
+    subsets.push(...subsets.map((subset) => [...subset, index]));
+  });
+  const compareIndices = (a: number[], b: number[]): number => {
+    for (let i = 0; i < a.length; i++) {
+      const diff = (b[i] as number) - (a[i] as number);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  };
+  return subsets
+    .map((subset) => subset.toSorted((a, b) => b - a))
+    .sort((a, b) => a.length - b.length || compareIndices(a, b))
+    .map((subset) => subset.map((index) => optionalKeys[index] as string));
+}
+
+// 隠した札の駅の印も、残す札が覆わないよう避ける
+function buildVisibleInput(input: LayoutInput, hidden: readonly string[]): LayoutInput {
+  return {
+    ...input,
+    items: input.items.filter((item) => !hidden.includes(item.key)),
+    blockers: [
+      ...(input.blockers ?? []),
+      ...input.items.filter((item) => hidden.includes(item.key)).map(dotRect),
+    ],
+  };
+}
+
+// 隠す札を最少にし、同じ枚数なら後ろの低優先の札から隠す。必須の札は隠さず、画面の内側に収める
+// 隠す理由は札どうしと駅の印への重なり、必須の札のはみ出しだけにする。ほかの札は縁やボタンにかかってもよい
+// 隠し切っても触れるときは、必須の札のはみ出しが無いもの、重なりの小さい順、隠す枚数の少ない順に選ぶ
+export function chooseVisibleLabelLayout(
+  input: LayoutInput,
+  requiredKeys: readonly string[],
+): LabelLayout {
+  const optionalKeys = input.items
+    .filter((item) => !requiredKeys.includes(item.key))
+    .map((item) => item.key);
+  const insideInput = { ...input, inside: requiredKeys };
+  const candidates: LabelLayout[] = [];
+  let exhausted = false;
+  for (const hidden of listHiddenSubsets(optionalKeys)) {
+    const visibleInput = buildVisibleInput(insideInput, hidden);
+    const search = searchLabelLayout(visibleInput);
+    const layout = { ...search.layout, hidden };
+    if (isCollisionFree(visibleInput, layout)) return layout;
+    exhausted ||= search.exhausted;
+    candidates.push(layout);
+  }
+  // 上限で打ち切られて収まる置き方を見落としたかもしれないときは、必須の札を先に置く安い手順も候補にする
+  if (exhausted) {
+    const layered = layerLabelLayout(insideInput, optionalKeys);
+    if (layered) candidates.push(layered);
+  }
+  let best: { layout: LabelLayout; score: readonly number[] } | null = null;
+  for (const layout of candidates) {
+    const score = scoreFallbackLayout(buildVisibleInput(insideInput, layout.hidden ?? []), layout);
+    if (!best || compareScores(score, best.score) < 0) best = { layout, score };
+  }
+  return best?.layout ?? { placements: {}, slides: {}, hidden: [] };
+}
+
+// 収まらない置き方の順位。必須の札のはみ出し、札と印の重なり、隠す枚数、縁やボタンを含む重なりの順に小さいものを選ぶ
+function scoreFallbackLayout(input: LayoutInput, layout: LabelLayout): readonly number[] {
+  return [
+    measureInsideShortfall(input, layout),
+    measureLabelOverlap(input, layout) + measureDotOverlap(input, layout),
+    layout.hidden?.length ?? 0,
+    measureLayoutOverlap(input, layout),
+  ];
+}
+
+// 必須の札だけで画面の内側に重ならず置ける配置を探し、残りの札を優先の高い順に 1 つずつ足す。触れる札は隠す
+// 探索の上限で打ち切られたときの受け皿。必須の札が画面に入らないか互いに触れるなら null
+function layerLabelLayout(input: LayoutInput, optionalKeys: readonly string[]): LabelLayout | null {
+  const requiredInput = buildVisibleInput(input, optionalKeys);
+  const base = { ...searchLabelLayout(requiredInput, requiredSearchBudget).layout, hidden: [] };
+  if (
+    measureInsideShortfall(requiredInput, base) > 0 ||
+    measureLabelOverlap(requiredInput, base) > 0
+  ) {
+    return null;
+  }
+  const placements = { ...base.placements };
+  const slides = { ...base.slides };
+  const hidden: string[] = [];
+  const placed = requiredInput.items.map((item) =>
+    placeBox(item, placements[item.key] ?? "right", slides[item.key] ?? 0),
+  );
+  for (const key of optionalKeys) {
+    const index = input.items.findIndex((item) => item.key === key);
+    const item = input.items[index] as LayoutItem;
+    const choice = pickCleanChoice(input, index, placed);
+    if (!choice) {
+      hidden.push(key);
+      continue;
+    }
+    placements[key] = choice.placement;
+    slides[key] = choice.slide;
+    placed.push(placeBox(item, choice.placement, choice.slide));
+  }
+  return { placements, slides, hidden };
+}
+
+// 置いた札に触れず、駅の印を覆う面積が許容内の置き方のうち、最も軽いもの。無ければ null
+function pickCleanChoice(
+  input: LayoutInput,
+  index: number,
+  placed: readonly Rect[],
+): LabelChoice | null {
+  const item = input.items[index] as LayoutItem;
+  let best: { choice: LabelChoice; cost: number } | null = null;
+  for (const choice of listChoices(input, item)) {
+    const rect = placeBox(item, choice.placement, choice.slide);
+    if (placed.some((other) => overlapArea(rect, other) > 0)) continue;
+    const dot = input.items.reduce(
+      (area, other, j) => area + (j === index ? 0 : overlapArea(rect, dotRect(other))),
+      0,
+    );
+    if (dot > dotOverlapTolerance) continue;
+    const cost = measureOwnCost(input, index, choice);
+    if (!best || cost < best.cost) best = { choice, cost };
+  }
+  return best?.choice ?? null;
+}
+
+function compareScores(a: readonly number[], b: readonly number[]): number {
+  for (let i = 0; i < a.length; i++) {
+    const diff = (a[i] as number) - (b[i] as number);
+    if (diff !== 0) return diff;
+  }
+  return 0;
 }
 
 // 最も重なりの少ない置き場所の組み合わせを返す
@@ -256,5 +554,51 @@ export function projectToWorld(lonLat: readonly [number, number], zoom: number):
   return {
     x: ((lonLat[0] + 180) / 360) * scale,
     y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale,
+  };
+}
+
+// 札どうしと駅の印に触れず、画面の外やボタンへの重なりも許容内なら収まったとみなす
+function fitsLayout(input: LayoutInput, layout: LabelLayout): boolean {
+  return (
+    isCollisionFree(input, layout) && measureLayoutOverlap(input, layout) <= dotOverlapTolerance
+  );
+}
+
+// ずらさない札にも、辺の方向のずらし量の候補を与える
+function allowStationSlides(input: LayoutInput): LayoutInput {
+  return {
+    ...input,
+    items: input.items.map((item) => ({ ...item, slides: item.slides ?? compactStationSlides })),
+  };
+}
+
+// 収まる置き方を、通常の札、ずらし、短いおすすめ、短いおすすめとずらし、低優先の札を隠す順に試す
+// 必須の札は隠さず、画面の内側に収める。既定の置き場所で収まる画面では、これまでの置き場所を保つ
+export function chooseStationLabelLayout(
+  fullInput: LayoutInput,
+  compactInput: LayoutInput,
+  requiredKeys: readonly string[],
+): LabelLayout & { compactRecommended: boolean } {
+  const full = { ...fullInput, inside: requiredKeys };
+  const compact = { ...compactInput, inside: requiredKeys };
+  const preferred: LabelLayout = { placements: { ...full.preferred }, slides: {} };
+  if (measureLayoutOverlap(full, preferred) === 0) {
+    return { ...preferred, compactRecommended: false };
+  }
+  const attempts: { input: LayoutInput; compactRecommended: boolean }[] = [
+    { input: full, compactRecommended: false },
+    { input: allowStationSlides(full), compactRecommended: false },
+    { input: compact, compactRecommended: true },
+    { input: allowStationSlides(compact), compactRecommended: true },
+  ];
+  for (const attempt of attempts) {
+    const layout = chooseLabelLayout(attempt.input);
+    if (fitsLayout(attempt.input, layout)) {
+      return { ...layout, compactRecommended: attempt.compactRecommended };
+    }
+  }
+  return {
+    ...chooseVisibleLabelLayout(allowStationSlides(compact), requiredKeys),
+    compactRecommended: true,
   };
 }

@@ -23,7 +23,7 @@ function findJudgment(events: JudgmentEvent[]): Judgment {
   return ready.judgment;
 }
 
-// 入口の「放送で何と言っていましたか」で原因を選んだときと同じ形の要求
+// 入口の「放送で聞いた原因を選ぶ」で原因を選んだときと同じ形の要求
 function buildSelectionRequest(eventType: string | null, language: Lang = "ja"): JudgeRequest {
   return {
     observations: [],
@@ -71,7 +71,7 @@ describe("判断のよくある流れ", () => {
     // 見込みが立てやすく原因を選んで特定できているので、確信度は低にならない
     expect(judgment.estimate.confidence).toBe("medium");
     expect(judgment.action).toBe("wait");
-    expect(judgment.headline).toBe("慌てず、このまま待ちましょう");
+    expect(judgment.headline).toBe("このまま待つ");
     expect(judgment.reason).toMatch(/^車内対応は5〜10分ほどで終わることが多いです。/);
     expect(judgment.typicalFlow?.untilResume).toEqual({ p50: 5, p80: 10 });
   });
@@ -81,7 +81,7 @@ describe("判断のよくある流れ", () => {
       await postJudge(app, buildSelectionRequest("in_car_response", "en")),
     );
     expect(judgment.action).toBe("wait");
-    expect(judgment.headline).toBe("No need to rush. Stay and wait.");
+    expect(judgment.headline).toBe("Stay and wait.");
     expect(judgment.reason).toContain("Onboard assistance: usually over in about 5–10 min.");
   });
 });
@@ -97,7 +97,7 @@ describe("見込みの立てやすい事象の言い切りと確信度", () => {
     const steps = await replayPersonAccident();
     const judgment = findJudgment(steps.find((s) => s.entry.id === "obs_1")?.events ?? []);
     expect(judgment.action).toBe("switch");
-    expect(judgment.headline).toMatch(/^いま.+に切り替えてください$/);
+    expect(judgment.headline).toMatch(/^いま.+に切り替える$/);
     expect(judgment.reason).toMatch(/^人身事故は、再開まで1時間ほどかかるのがふつうです。/);
     expect(judgment.estimate.confidence).toBe("medium");
   });

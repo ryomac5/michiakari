@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "マツカエル",
-    "description": "運転見合わせに出会ったとき、待つか乗り換えるかを、元指令員の知見をもとに見込みと行動で示します。",
+    "title": "みちあかり",
+    "description": "運転見合わせで待つか乗り換えるかを決める。元指令員の知見から見込みと行動を示す。",
     "home": "地図から始める",
     "about": "このアプリについて",
     "language": "言語",
@@ -10,7 +10,7 @@
       "toDark": "ダーク表示にする"
     },
     "mockBadge": "デモ用の架空データで表示しています",
-    "name": "マツカエル",
+    "name": "みちあかり",
     "tagline": "待つか、乗り換えるか。",
     "skipToContent": "本文へ移動",
     "knowledge": "知見ナレッジ",
@@ -24,35 +24,38 @@
     "short": "推定であり、公式発表を優先してください。"
   },
   "start": {
+    "introAudience": "関西の運転見合わせで足が止まった人へ。",
+    "introProblem": "運行情報は何が起きたかまでしか伝えない。",
+    "introSolution": "元指令員の知見から次の一手を選ぶ。",
     "originLabel": "いまいる駅",
     "locate": "現在地を使う",
     "locating": "現在地を取得しています…",
-    "locateFailed": "駅名から選んでください。現在地はあとで試し直せます。",
-    "locateUnsupported": "駅名から選んでください。この端末では駅名で選ぶのが確実です。",
+    "locateFailed": "駅名で探す。現在地はあとで試し直せる。",
+    "locateUnsupported": "この端末では駅名で探す。",
     "currentLocation": "現在地",
     "useFreeText": "「{text}」を行き先にする",
-    "noResults": "ほかの書き方でも探せます",
+    "noResults": "別の書き方で探す",
     "replayLink": "デモを見る",
-    "nearestFailed": "駅名から選んでください。最寄り駅はあとで試し直せます。",
-    "locationNote": "現在地は最寄り駅を調べるためだけに送り、保存しません。",
+    "nearestFailed": "駅名で探す。最寄り駅はあとで試し直せる。",
+    "locationNote": "現在地は最寄り駅の検索だけに送る。位置は保存しない。",
     "resultCount": "{count}件の駅が見つかりました",
-    "searchFailed": "通信を確かめて、もう一度探してください。"
+    "searchFailed": "通信を確かめる。もう一度探す。"
   },
   "situation": {
-    "heading": "いまの状況を教えてください",
-    "lead": "掲示や発表の内容から、いまの段階を読み取ります。",
-    "edit": "変更",
+    "heading": "いまの状況を伝える",
+    "lead": "掲示や発表からいまの段階を読み取る。",
+    "edit": "変更する",
     "tabs": {
       "photo": "撮影する",
       "paste": "貼り付ける",
       "select": "選んで答える"
     },
     "photo": {
-      "hint": "駅の掲示や案内画面を撮影してください。",
+      "hint": "駅の掲示や案内画面を撮る。",
       "button": "カメラで撮影する",
       "retake": "撮り直す",
       "preview": "撮影した写真",
-      "unsupported": "別の写真でお試しください。掲示の文字が大きく写ると読み取りやすくなります。",
+      "unsupported": "別の写真を選ぶ。掲示の文字を大きく写す。",
       "submit": "この写真で判断する"
     },
     "paste": {
@@ -61,9 +64,9 @@
       "submit": "この内容で判断する"
     },
     "select": {
-      "eventLabel": "何が起きていますか",
-      "signalLabel": "聞こえた案内・見えた様子（いくつでも）",
-      "empty": "選択肢を準備中です。撮影か貼り付けで伝えてください。",
+      "eventLabel": "起きていることを選ぶ",
+      "signalLabel": "聞こえた案内・見えた様子をすべて選ぶ",
+      "empty": "選択肢は準備中。撮影か貼り付けで伝える。",
       "back": "事象を選び直す",
       "submit": "この内容で判断する"
     },
@@ -112,7 +115,7 @@
     },
     "conclusion": {
       "label": "結論",
-      "recommended": "おすすめ: {label}（{time} 着）",
+      "recommended": "おすすめ: {label}・{time} 着",
       "remaining": "再開まで 約{p50}〜{p80}分",
       "confidence": "確信度 {level}",
       "live": "結論: {action}。{headline}",
@@ -125,32 +128,32 @@
     },
     "error": {
       "title": "通信が途切れました",
-      "retryable": "通信の状態を確認して、もう一度お試しください。",
-      "fatal": "時間をおいて、もう一度お試しください。",
+      "retryable": "通信を確かめる。もう一度判断する。",
+      "fatal": "時間をおく。もう一度判断する。",
       "retry": "もう一度判断する",
       "detail": "詳細: {message}"
     },
     "breakEven": {
       "title": "分岐点",
-      "meaning": "この時刻までに動かなければ、切り替えたほうが早く着きます",
+      "meaning": "この時刻までに再開すれば待つほうが早く着く",
       "passed": "分岐点を過ぎました",
-      "soon": "まもなく分岐点です。乗り換えの準備を",
-      "none": "待つのが確実です",
-      "noneDetail": "近くの代わりの経路より、運転再開を待つほうが確実です。",
+      "soon": "まもなく分岐点。乗り換えに備える",
+      "none": "運転再開を待つ",
+      "noneDetail": "到着時刻を比べられる代わりの経路はない。運転再開を待つ。",
       "pending": "計算しています…",
       "stale": "更新中",
       "countdownMinutes": "あと {minutes} 分",
       "countdownHours": "あと {hours} 時間 {minutes} 分",
       "imminent": "まもなく",
-      "condition": "<clock>{time}</clock> までに再開しなければ、乗り換えたほうが早く着きます",
+      "condition": "<clock>{time}</clock> までに再開すれば待つほうが早く着く",
       "timeline": {
         "now": "いま",
         "breakEven": "分岐点 {time}",
         "deadline": "期限 {time}",
         "summary": {
-          "before": "おおよその再開見込み {from}〜{to} は、分岐点 {breakEven} より前です。待つほうが早く着く見込みです。",
-          "straddle": "おおよその再開見込み {from}〜{to} が、分岐点 {breakEven} をまたいでいます。見込みが延びれば、切り替えたほうが早く着きます。",
-          "after": "おおよその再開見込み {from}〜{to} は、分岐点 {breakEven} を越えています。切り替えたほうが早く着く見込みです。"
+          "before": "再開見込み {from}〜{to} は分岐点 {breakEven} より前。待つほうが早く着く見込み。",
+          "straddle": "再開見込み {from}〜{to} は分岐点 {breakEven} をまたぐ。見込みが延びたら切り替える。",
+          "after": "再開見込み {from}〜{to} は分岐点 {breakEven} より後。切り替えるほうが早く着く見込み。"
         },
         "caption": {
           "before": "おおよその再開 {from}〜{to} は<em>分岐点より前</em>",
@@ -161,7 +164,7 @@
     },
     "resumeChance": {
       "title": "再開の見込み",
-      "waitFaster": "待ったほうが早く着く見込み",
+      "waitFaster": "分岐点までに再開する見込み",
       "waitOnTime": "待って期限に間に合う見込み",
       "chance": {
         "under": "1割未満",
@@ -174,10 +177,10 @@
         "tenths": "{n}割"
       },
       "lead": {
-        "fromNow": "{fromNow}後の {time} には、{chance}の見込みで動いています",
-        "sinceOnset": "発生から{since}の {time} には、{chance}の見込みで動いています",
-        "both": "発生から{since}、いまから{fromNow}後の {time} には、{chance}の見込みで動いています",
-        "plain": "{time} には、{chance}の見込みで動いています"
+        "fromNow": "{fromNow}後の {time} までに再開する見込みは{chance}",
+        "sinceOnset": "発生から{since}の {time} までに再開する見込みは{chance}",
+        "both": "発生から{since}。いまから{fromNow}後の {time} までに再開する見込みは{chance}",
+        "plain": "{time} までに再開する見込みは{chance}"
       },
       "duration": {
         "minutes": "{minutes}分",
@@ -191,8 +194,8 @@
       "sr": {
         "ticks": "時刻ごとの再開の見込み: {items}。",
         "tick": "{time} {chance}",
-        "waitFaster": "待ったほうが早く着く見込みは{chance}。",
-        "waitOnTime": "期限に間に合うには {time} までに動く必要があり、待って間に合う見込みは{chance}。"
+        "waitFaster": "分岐点までに再開する見込みは{chance}。",
+        "waitOnTime": "期限に間に合うには {time} までの再開が必要。待って間に合う見込みは{chance}。"
       }
     },
     "switchStep": {
@@ -232,7 +235,7 @@
       "recommended": "おすすめ",
       "transferService": "振替輸送",
       "pending": "調べています…",
-      "empty": "運転再開を待つのが確実です",
+      "empty": "運転再開を待つ",
       "stale": "更新中",
       "note": "乗車時間と運賃は概算です。",
       "legs": {
@@ -259,7 +262,7 @@
         "weather": "気象",
         "computation": "計算"
       },
-      "openKnowledge": "知見で見る"
+      "openKnowledge": "知見を見る"
     },
     "flow": {
       "title": "よくある流れ",
@@ -274,28 +277,30 @@
       }
     },
     "addInfo": {
-      "title": "情報を追加",
-      "lead": "新しい掲示や発表があれば入力してください。判断を更新します。"
+      "title": "情報を追加する",
+      "lead": "新しい掲示や発表を入れる。判断を更新する。"
     },
     "sheet": "判断の詳細",
     "status": "{line} 見合わせ",
     "statusOnly": "見合わせ",
     "premise": {
       "title": "この判断の前提",
-      "destinationHub": "行き先は{station}で考えています。{direction}方面の主な駅です",
-      "destinationTerminal": "行き先は終点の{station}で考えています",
-      "onTrain": "電車の中なので、{station}駅にいるとして考えています",
-      "elapsedUnknown": "止まった時刻は、いまとして数えています",
-      "causeUnknown": "原因は決めつけず、分岐点を動く目安にしています",
-      "betweenStations": "駅と駅の間なので、{station}に着いてからの行動で考えています"
+      "trainsAheadPhoto": "走行位置の画像から前の列車を {types} と読みました",
+      "trainsAheadPhotoNone": "走行位置の画像から前に列車はいないと読みました",
+      "destinationHub": "行き先は{direction}方面の主な駅の{station}と仮定する",
+      "destinationTerminal": "行き先は終点の{station}と仮定する",
+      "onTrain": "車内の位置は{station}駅と仮定する",
+      "elapsedUnknown": "止まった時刻はいまと仮定する",
+      "causeUnknown": "原因は未確認。分岐点を動く目安にする",
+      "betweenStations": "駅と駅の間にいる。{station}に着いてからの行動を示す"
     },
     "nextCheck": {
       "title": "次に確かめること",
-      "cause": "放送や掲示で、止まった原因を確かめてください",
-      "resume": "次の放送で「再開見込み」が出たら、もう一度入れてください",
-      "departSoon": "車内の放送で「まもなく発車します」が流れたら、そのまま乗っていて大丈夫です",
-      "transfer": "「振替輸送」の案内が出たら、もう一度入れてください",
-      "signals": "次の様子が見えたら、もう一度入れてください",
+      "cause": "放送や掲示で止まった原因を確かめる",
+      "resume": "再開見込みの放送を聞いたら入れ直す",
+      "departSoon": "「まもなく発車」の放送が流れたらそのまま乗る",
+      "transfer": "振替輸送の案内が出たら入れ直す",
+      "signals": "次の様子が見えたら入れ直す",
       "action": "いまの様子を入れ直す"
     },
     "trainPosition": {
@@ -305,12 +310,12 @@
       "aheadNone": "前に詰まっている列車はいない",
       "aheadUnknown": "前の列車 分からない",
       "ahead": "前に詰まっている列車 {types}",
-      "aheadPattern": "前の列車 ふだんの間隔で走行（推定）",
+      "aheadPattern": "前の列車はふだんの間隔と推定",
       "estimated": "推定",
       "edit": "直す",
-      "nextQuestion": "次に着く駅はどこですか",
-      "ownQuestion": "乗っている電車の種別はどれですか",
-      "aheadQuestion": "前に止まっている列車を、近い順に押してください",
+      "nextQuestion": "次に着く駅を選ぶ",
+      "ownQuestion": "乗っている電車の種別を選ぶ",
+      "aheadQuestion": "前に止まっている列車を近い順に押す",
       "aheadQueue": "近い順",
       "aheadEmpty": "まだ押していません",
       "removeLast": "最後の 1 つを消す",
@@ -327,7 +332,16 @@
       "unknown": "分からない",
       "unknownType": "種別は分からない"
     },
-    "tripBetween": "{from}〜{to}"
+    "tripBetween": "{from}〜{to}",
+    "change": {
+      "title": "判断が変わりました",
+      "before": "前の判断",
+      "after": "今の判断",
+      "announcement": "きっかけ",
+      "probability": "待つほうが早い見込み",
+      "notCalculated": "未算出",
+      "noAnnouncement": "新しい発表はありません"
+    }
   },
   "replay": {
     "heading": "デモを見る",
@@ -464,7 +478,7 @@
       "p3": "乗車時間と運賃は概算です。実際の時刻や運賃と異なることがあります。",
       "p4": "現在地と入力内容は判断にのみ使い、保存しません。"
     },
-    "intro": "マツカエルは「待つ」と「乗り換える」を掛けた名前です。駅で迷う時間を、少しでも短くしたいと考えています。",
+    "intro": "みちあかりは、止まった駅で先が見えないときに、次の一手を照らす明かりという意味です。",
     "knowledgeLink": "判断に使う知見ナレッジを見る"
   },
   "knowledge": {
@@ -516,22 +530,26 @@
     }
   },
   "entry": {
-    "question": "いま、どこで止まっていますか",
-    "hint": "地図の駅を触ってください。電車の中なら近くの駅で大丈夫です",
+    "locationNote": "現在地は端末内で近くの駅を探すために使う。位置は保存しない。",
+    "nearbyStations": "現在地の近くの駅",
+    "nearbyDistance": "約{distance}",
+    "nearestEmpty": "近くの駅が見つからない。地図か検索で駅を選ぶ。",
+    "question": "いま止まっている場所を選ぶ",
+    "hint": "エリアを押す。地図を広げて近くの駅を選ぶ。",
     "searchPlaceholder": "駅名・よみがなで探す",
     "mapLabel": "駅を選ぶ地図",
     "back": "戻る",
     "here": "いま",
     "around": "{station}のあたり",
-    "areaQuestion": "どの駅ですか",
-    "areaHint": "{area}の駅です。地図の丸か、下から選んでください",
-    "lineQuestion": "止まっている路線はどれですか",
-    "lineHint": "乗っていた路線か、乗る予定だった路線です",
-    "nearby": "近くの駅は{station}です（約{distance}）",
+    "areaQuestion": "駅を選ぶ",
+    "areaHint": "{area}の駅を地図か下の一覧から選ぶ",
+    "lineQuestion": "どの電車に乗る予定でしたか",
+    "lineHint": "利用する路線を選んでください",
+    "nearby": "最寄りは{station}。距離は約{distance}",
     "suspended": "見合わせ",
-    "destinationQuestion": "どこまで行きますか",
+    "destinationQuestion": "行き先を選ぶ",
     "destinationLabel": "行き先",
-    "destinationPlaceholder": "駅名・よみがな（例: 三ノ宮）",
+    "destinationPlaceholder": "駅名・よみがなで探す",
     "suggestions": "主な駅",
     "from": "出発",
     "to": "行き先",
@@ -540,40 +558,35 @@
     "methods": {
       "photo": {
         "title": "撮る",
-        "heading": "掲示や画面を撮ってください"
+        "heading": "掲示や画面を撮る"
       },
       "paste": {
         "title": "貼る",
-        "heading": "発表の文章を貼ってください"
+        "heading": "発表の文章を貼る"
       }
     },
     "demoNote": "架空のシナリオで判断の流れを再生",
     "quickPicks": "よく使う駅",
-    "directionQuestion": "どっち方面ですか",
-    "directionHint": "電車が向かう方向を選んでください",
+    "directionQuestion": "向かう方面を選ぶ",
+    "directionHint": "電車が向かう方向を選ぶ",
     "directionName": "{names}方面",
     "destinationHint": "{direction}方面の主な駅です",
     "destinationUndecided": "まだ決めていない",
-    "destinationUndecidedNote": "方面だけで進みます",
+    "destinationUndecidedNote": "方面だけで進む",
     "destinationSearchLabel": "ほかの駅を探す",
-    "positionQuestion": "いまどこにいますか",
-    "positionStation": "{station}駅にいる",
-    "positionStationNote": "ホームや改札",
     "positionTrain": "電車の中・駅に止まっている",
-    "positionTrainNote": "ホームに着いている",
-    "positionNearQuestion": "どの駅に止まっていますか",
-    "positionNearHint": "止まっている駅を押してください",
     "progress": "{current} / {total}・{step}",
     "steps": {
       "line": "路線",
       "direction": "方面",
       "destination": "行き先",
       "position": "いまどこ",
-      "situation": "様子"
+      "situation": "様子",
+      "route": "乗る電車"
     },
-    "tripHub": "方面の主な駅で考えます",
-    "tripTerminal": "方面の終点で考えます",
-    "causeQuestion": "放送で何と言っていましたか",
+    "tripHub": "方面の主な駅を行き先にする",
+    "tripTerminal": "方面の終点を行き先にする",
+    "causeQuestion": "放送で聞いた原因を選ぶ",
     "causes": {
       "person": "人身事故",
       "inCar": "非常ボタン・急病",
@@ -582,29 +595,38 @@
       "rain": "大雨",
       "unknown": "聞き取れなかった・言っていない"
     },
-    "elapsedQuestion": "止まってどれくらいですか",
+    "elapsedQuestion": "止まってからの時間を選ぶ",
     "elapsed": {
       "now": "いま止まった",
       "m10": "10分くらい",
       "m30": "30分以上",
       "unknown": "分からない"
     },
-    "resumeQuestion": "再開の見込みを言っていましたか",
+    "resumeQuestion": "放送で聞いた再開見込みを選ぶ",
     "resume": {
       "stated": "時刻を言っていた",
       "statedNote": "押して時刻を選ぶ",
       "undecided": "見込みは未定と言っていた",
       "unknown": "言っていない・分からない"
     },
-    "resumeTimeQuestion": "何時ごろと言っていましたか",
+    "resumeTimeQuestion": "放送で聞いた時刻を選ぶ",
     "answers": {
       "cause": "放送の原因",
       "elapsed": "止まってから"
     },
     "nextStation": "次は{station}",
-    "positionBetween": "電車の中・駅と駅の間",
-    "positionBetweenNote": "次の駅に着いてから考えます",
-    "positionBetweenTrip": "駅と駅の間。次に着く駅で考えます"
+    "positionBetweenTrip": "駅と駅の間。次に着く駅を出発にする",
+    "locationQuestion": "いまいる場所を選んでください",
+    "locationStation": "駅にいる",
+    "locationTrain": "電車の中にいる",
+    "trainLineQuestion": "乗っている路線を選んでください",
+    "trainLineSearch": "路線名で探す",
+    "trainSegmentQuestion": "いまいる駅の間を選んでください",
+    "trainSegmentHint": "電車の進む向きに駅を並べています",
+    "trainSegmentConfirm": "この駅の間にいる",
+    "trainStoppedHint": "駅に停車中なら駅を選んでください",
+    "destinationStationHint": "行き先の駅を選んでください",
+    "routeInferred": "{line}・{direction} 変更する"
   },
   "status": {
     "notFound": {

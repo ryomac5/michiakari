@@ -1,19 +1,19 @@
 "use client";
 
 import { type Dispatch, useCallback, useEffect, useRef } from "react";
-import type { EntryAction } from "./flow";
+import { type EntryAction, selectEntryHistoryAction } from "./flow";
 
 // 入口の段を端末の履歴につなぐ。段が 1 つ深くなるたびに同じ URL の履歴を 1 つ積み、
 // 端末の戻る操作（popstate）でその深さの段まで引く。URL は変えないので、?mock=1 などはそのまま残る
 
 const depthKey = "entryDepth";
 
-function readDepth(state: unknown): number {
+function readDepth(state: unknown): number | null {
   const value = (state as Record<string, unknown> | null)?.[depthKey];
-  return typeof value === "number" ? value : 0;
+  return typeof value === "number" ? value : null;
 }
 
-function readHistoryDepth(): number {
+function readHistoryDepth(): number | null {
   return readDepth(window.history.state);
 }
 
@@ -21,6 +21,9 @@ function readHistoryDepth(): number {
 export function useEntryHistory(depth: number, dispatch: Dispatch<EntryAction>, ready: boolean) {
   const depthRef = useRef(depth);
   depthRef.current = depth;
+  const readyRef = useRef(ready);
+  readyRef.current = ready;
+  const initializedRef = useRef(false);
   // 自分で履歴を引いたときの行き先の深さ。その popstate は段を変えない
   const pendingRef = useRef<number | null>(null);
 
@@ -29,22 +32,38 @@ export function useEntryHistory(depth: number, dispatch: Dispatch<EntryAction>, 
     window.history.go(target - from);
   }, []);
 
-  // 段と履歴の深さをそろえる。深くなったら積み、履歴のほうが深ければ（判断の画面から戻ったときなど）履歴を引く
+  // 復元時は履歴に段を合わせ、通常の進行・選び直しでは段に履歴を合わせる
   useEffect(() => {
-    if (!ready) return;
-    const historyDepth = readHistoryDepth();
-    if (depth > historyDepth) {
-      for (let d = historyDepth + 1; d <= depth; d++) {
-        window.history.pushState({ ...window.history.state, [depthKey]: d }, "");
-      }
-    } else if (depth < historyDepth) {
-      travel(depth, historyDepth);
+    if (!ready || window.location.pathname !== "/" || pendingRef.current !== null) return;
+    const storedDepth = readHistoryDepth();
+    const action = selectEntryHistoryAction(depth, storedDepth, !initializedRef.current);
+    // backTo による段の更新が反映されるまで復元扱いを保つ（Strict Mode の再実行も同じ）。
+    initializedRef.current = action.type !== "restore";
+    switch (action.type) {
+      case "restore":
+        dispatch({ type: "backTo", depth: action.depth });
+        break;
+      case "write":
+        if (action.initialize) {
+          window.history.replaceState({ ...window.history.state, [depthKey]: 0 }, "");
+        }
+        for (let d = action.from + 1; d <= action.to; d++) {
+          window.history.pushState({ ...window.history.state, [depthKey]: d }, "");
+        }
+        break;
+      case "travel":
+        travel(action.depth, storedDepth ?? 0);
+        break;
+      case "none":
+        break;
     }
-  }, [depth, ready, travel]);
+  }, [depth, dispatch, ready, travel]);
 
   useEffect(() => {
     function handlePop(e: PopStateEvent) {
       const value = readDepth(e.state);
+      // 復元前や別画面への移動はルーターに任せ、入口の段として扱わない。
+      if (!readyRef.current || window.location.pathname !== "/" || value === null) return;
       const current = depthRef.current;
       if (pendingRef.current === value) {
         // 自分で引いた履歴が着いた。段はもう合っている

@@ -1,10 +1,11 @@
 /// <reference lib="dom" />
 // page 内で動かす関数（evaluate）のために DOM の型を読む
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
+import { chooseTrainDirection } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -12,8 +13,6 @@ import { expect, test } from "../support/test.ts";
 // 追加の問いは出さず、次の駅・種別・前の列車を既定値で置いて判断を出す。前提は判断の画面のチップで直せる
 // 結論は次の駅に着いてからの行動で書き、「あと N 分」で始めない。決定論モードの agent とダミーの内容で確かめる
 
-const kobeLine = "大阪|jr-west.東海道線|JR神戸線";
-const toKobe = `${kobeLine}>jr-west.東海道線.神戸`;
 const screenshotRoot = fileURLToPath(new URL("../screenshots/between-stations/", import.meta.url));
 
 test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -120,20 +119,16 @@ async function reachPositionStep(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
   });
-  await page.getByTestId(testIds.start.originSearch).fill("大阪");
-  await page.getByTestId(testIds.start.originOption("大阪")).click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "station");
-  await page.getByTestId(testIds.start.line(kobeLine)).click();
-  await page.getByTestId(testIds.start.direction(toKobe)).click();
-  await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
-  await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+  await chooseTrainDirection(page, "JR神戸線", "神戸");
   await expect(page.getByTestId(testIds.start.positionBetween)).toBeVisible();
 }
 
 // 駅と駅の間を選び、人身事故・10 分くらい・見込みは言っていないで判断を始める
 async function startBetweenStations(page: Page): Promise<void> {
   await page.getByTestId(testIds.start.positionBetween).click();
-  // 次の駅・種別・前の列車は問わず、そのまま様子の段に進む
+  await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
+  await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+  // 駅間の後に行き先を答え、様子へ進む
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("塚本");
   await page.getByTestId(testIds.start.cause("person")).click();
@@ -175,7 +170,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(own).toContainText("普通に乗車");
       await expect(own).toHaveAttribute("data-source", "default");
       const ahead = page.getByTestId(testIds.judgment.trainPositionChip("ahead"));
-      await expect(ahead).toContainText("ふだんの間隔で走行");
+      await expect(ahead).toContainText("ふだんの間隔と推定");
       await expect(ahead).toContainText("推定");
       await expect(ahead).toHaveAttribute("data-source", "default");
       await expect(page.getByTestId(testIds.judgment.trainPositionHint)).toContainText(
@@ -185,7 +180,7 @@ for (const theme of ["light", "dark"] as const) {
         "推定であり、公式発表を優先してください",
       );
       // 既定値の理由は、ふだんの間隔とみた見込みを言い、「入れない」とは書かない
-      const reason = page.getByTestId(testIds.judgment.conclusionReason).first();
+      const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
       await expect(reason).toContainText("ふだんどおり");
       await expect(reason).not.toContainText("入れない");
 
@@ -223,7 +218,7 @@ test("別の鉄道の駅まで歩いて 20 分以上かかる塚本でも、地�
     "switch",
   );
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).not.toContainText("タクシー");
-  await expect(page.getByTestId(testIds.judgment.conclusionReason).first()).not.toContainText(
+  await expect(page.getByTestId(testIds.judgment.conclusionReasonDetail)).not.toContainText(
     "タクシー",
   );
 
@@ -272,11 +267,82 @@ test("判断の画面で前の列車のチップを押し、快速と普通を�
 
   // 判断が出し直され、理由に「前の快速は塚本に止まれない」事情が入る。「入れない」とは書かない
   await openSheet(page, "half");
-  const reason = page.getByTestId(testIds.judgment.conclusionReason).first();
-  await expect(reason).toContainText("前の快速は塚本に止まれないため", { timeout: 30_000 });
-  await expect(reason).toContainText("塚本の手前で動けず");
-  await expect(reason).toContainText("再開のあと");
+  const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
+  await expect(reason).toContainText("前の快速は塚本に止まれず", { timeout: 30_000 });
+  await expect(reason).toContainText("手前で止まっています");
+  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText("再開後");
   await expect(reason).not.toContainText("入れない");
   await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready");
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toContainText("塚本");
+});
+
+test("持ち込んだ走行位置画像の種別を判断入力に使う", async ({ page }) => {
+  await reachPositionStep(page);
+  await startBetweenStations(page);
+  await openSheet(page, "full");
+  const addInfo = page.getByTestId(testIds.judgment.addInfo);
+  await addInfo.getByTestId(testIds.situation.tab("photo")).click();
+
+  // 自作の画像 fixture。決定論モードでは名前に明示した並びを読む
+  await addInfo.getByTestId(testIds.situation.photoInput).setInputFiles({
+    name: "fixture-train-movement--rapid+local.png",
+    mimeType: "image/png",
+    buffer: readFileSync(new URL("../fixtures/tiles/pale.png", import.meta.url)),
+  });
+  await expect(addInfo.getByTestId(testIds.situation.photoPreview)).toBeVisible();
+  await addInfo.getByTestId(testIds.situation.submit("photo")).click();
+  await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready", {
+    timeout: 30_000,
+  });
+  await openSheet(page, "half");
+  await expect(page.getByTestId(testIds.judgment.conclusionReasonDetail)).toContainText(
+    "前の快速は塚本に止まれず",
+  );
+  const ahead = page.getByTestId(testIds.judgment.trainPositionChip("ahead"));
+  await expect(ahead).toContainText("前に詰まっている列車 快速・普通");
+  await expect(ahead).toHaveAttribute("data-source", "user");
+  await openSheet(page, "full");
+  await expect(page.getByTestId(testIds.judgment.premise)).toContainText(
+    "走行位置の画像から前の列車を 快速・普通 と読みました",
+  );
+
+  // 次の入力でも、読み取った並びを保持して判断する
+  await addInfo.getByTestId(testIds.situation.tab("paste")).click();
+  await addInfo.getByTestId(testIds.situation.pasteInput).fill("引き続き運転を見合わせています");
+  const nextRequest = page.waitForRequest(
+    (request) => request.method() === "POST" && new URL(request.url()).pathname === "/judge",
+  );
+  await addInfo.getByTestId(testIds.situation.submit("paste")).click();
+  expect((await nextRequest).postDataJSON().trainPosition).toMatchObject({
+    trainsAhead: ["rapid", "local"],
+    trainsAheadCount: null,
+    trainsAheadHeadwayMinutes: null,
+  });
+  await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready", {
+    timeout: 30_000,
+  });
+  await expect(ahead).toContainText("前に詰まっている列車 快速・普通");
+  await expect(page.getByTestId(testIds.judgment.premise)).toContainText(
+    "走行位置の画像から前の列車を 快速・普通 と読みました",
+  );
+
+  // 通信失敗後のリトライでも、画像の並びを判断入力に戻す
+  await page.route("**/judge", (route) => route.abort(), { times: 1 });
+  await addInfo.getByTestId(testIds.situation.pasteInput).fill("再開の見込みはまだ未定です");
+  await addInfo.getByTestId(testIds.situation.submit("paste")).click();
+  const retry = page.getByTestId(testIds.judgment.retryButton);
+  await expect(retry).toBeVisible();
+  const retryRequest = page.waitForRequest(
+    (request) => request.method() === "POST" && new URL(request.url()).pathname === "/judge",
+  );
+  await retry.click();
+  expect((await retryRequest).postDataJSON().trainPosition).toMatchObject({
+    trainsAhead: ["rapid", "local"],
+    trainsAheadCount: null,
+    trainsAheadHeadwayMinutes: null,
+  });
+  await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready", {
+    timeout: 30_000,
+  });
+  await expect(ahead).toContainText("前に詰まっている列車 快速・普通");
 });

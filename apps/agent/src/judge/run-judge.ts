@@ -179,6 +179,19 @@ export async function runJudge(
   }
   if (parsed) await sink.emit({ type: "observation_parsed", observation: parsed });
 
+  // 今回読んだ並びだけを反映し、以後の利用者による手直しを古い観測で上書きしない
+  if (request.trainPosition?.kind === "between_stations" && parsed?.trainsAhead !== undefined) {
+    request = {
+      ...request,
+      trainPosition: {
+        ...request.trainPosition,
+        trainsAhead: parsed.trainsAhead,
+        trainsAheadCount: null,
+        trainsAheadHeadwayMinutes: null,
+      },
+    };
+  }
+
   const session = createJudgeSession(
     {
       request,

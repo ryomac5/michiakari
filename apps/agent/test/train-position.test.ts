@@ -71,24 +71,24 @@ describe("駅間の車内にいる利用者の判断", () => {
     expect(judgment.headline).toMatch(/^塚本(に着い|で降りて|でも降りずに)/);
     expect(judgment.headline).not.toMatch(/^あと\d+分/);
     expect(judgment.headline).not.toMatch(/まで待って/);
-    expect(judgment.reason).toContain("前の列車との間隔はふだんどおりとみて");
-    expect(judgment.reason).toMatch(/塚本に着くのは\d+時\d+分ごろの見込みです。/);
+    expect(judgment.reason).toContain("前の列車との間隔はふだんどおりと仮定");
+    expect(judgment.reason).toMatch(/塚本には\d+時\d+分ごろに着く見込みです。/);
     expect(judgment.reason).not.toContain("入れない");
     expect(judgment.disclaimer).toContain("推定");
   });
 
   it("目の前の普通が次の駅に入ると、ホームがふさがっている事情を理由に書く", async () => {
     const judgment = findJudgment(await postJudge(app, buildRequest(observed(["local"]))));
-    expect(judgment.reason).toContain("塚本のホームに前の普通が止まっているため");
-    expect(judgment.reason).toContain("再開のあと");
+    expect(judgment.reason).toContain("塚本のホームに前の普通が止まっています");
+    expect(judgment.reason).toContain("再開後");
     expect(judgment.reason).not.toContain("入れない");
   });
 
   it("すぐ前の快速が次の駅に止まれなければ、その事情を理由に書く", async () => {
     const judgment = findJudgment(await postJudge(app, buildRequest(observed(["rapid", "local"]))));
-    expect(judgment.reason).toContain("前の快速は塚本に止まれないため");
-    expect(judgment.reason).toContain("塚本の手前で動けず");
-    expect(judgment.reason).toContain("再開のあと");
+    expect(judgment.reason).toContain("前の快速は塚本に止まれず");
+    expect(judgment.reason).toContain("手前で止まっています");
+    expect(judgment.reason).toContain("再開後");
     expect(judgment.reason).not.toContain("入れない");
   });
 
@@ -97,7 +97,7 @@ describe("駅間の車内にいる利用者の判断", () => {
       await postJudge(app, buildRequest({ ...observed([]), ownTrainType: "rapid" }, "尼崎")),
     );
     expect(judgment.headline).toMatch(/^尼崎/);
-    expect(judgment.reason).toContain("快速は塚本に止まれないので");
+    expect(judgment.reason).toContain("快速は塚本に止まれません");
   });
 
   it("前の列車が先に発車するぶんの遅れは、乗ったまま待つ側の到着にも足す", async () => {
@@ -126,5 +126,54 @@ describe("駅間の車内にいる利用者の判断", () => {
       expect(judgment.reason).toBe(plain.reason);
       expect(judgment.action).toBe(plain.action);
     }
+  });
+});
+
+describe("走行位置画像を判断へ反映する", () => {
+  it("画像から読んだ快速・普通で既定の並びと間隔を置き換える", async () => {
+    const request = buildRequest(defaults);
+    request.observations.push({
+      ...buildEntryObservation(),
+      id: "cause",
+      observedAt: now,
+      eventTypeCandidates: [{ eventType: "person_accident", confidence: "high" }],
+    });
+    request.newInput = {
+      type: "photo",
+      imageBase64: "aGVsbG8=",
+      mediaType: "image/png",
+      fileName: "fixture-train-movement--rapid+local.png",
+    };
+    const events = await postJudge(app, request);
+    const parsed = events.find((e) => e.type === "observation_parsed");
+    expect(parsed?.type === "observation_parsed" && parsed.observation.trainsAhead).toEqual([
+      "rapid",
+      "local",
+    ]);
+    const actual = findJudgment(events);
+    const expected = findJudgment(
+      await postJudge(app, {
+        ...request,
+        newInput: null,
+        trainPosition: observed(["rapid", "local"]),
+      }),
+    );
+    expect(actual.reason).toBe(expected.reason);
+    expect(actual.options).toEqual(expected.options);
+    expect(actual.reason).toContain("前の快速は塚本に止まれず");
+    expect(actual.reason).not.toContain("前の列車との間隔はふだんどおりと仮定");
+  });
+
+  it("過去の画像は利用者が手直しした並びを上書きしない", async () => {
+    const request = buildRequest(observed(["local"]));
+    request.observations.push({
+      ...buildEntryObservation(),
+      id: "old-photo",
+      source: "photo",
+      kind: "train_movement",
+      trainsAhead: ["rapid", "local"],
+    });
+    const judgment = findJudgment(await postJudge(app, request));
+    expect(judgment.reason).toContain("塚本のホームに前の普通が止まっています");
   });
 });

@@ -1,8 +1,9 @@
 // 駅の英語名の上書き。既定は station-readings.ts の読みをヘボン式にしたもの
 // 複合語の区切りや空港などの訳語を、各社が駅名標で使う表記に近づける
-// キーは駅名。読みのある駅だけを書く
+// キーは駅名。読みのある駅だけに適用する
 
 export const STATION_NAME_EN_OVERRIDES: Readonly<Record<string, string>> = {
+  新開地: "Shinkaichi",
   大阪梅田: "Osaka-umeda",
   東梅田: "Higashi-Umeda",
   西梅田: "Nishi-Umeda",

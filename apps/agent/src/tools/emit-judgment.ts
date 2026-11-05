@@ -13,18 +13,18 @@ export const DecisionSchema = JudgmentSchema.pick({
   evidence: true,
 }).extend({
   headline: JudgmentSchema.shape.headline.describe(
-    `結論カードに大きく出る一言。結論だけを書き、理由や経緯は入れない。日本語は ${ja.target} 字程度で上限 ${ja.max} 字、英語は ${en.target} 文字程度で上限 ${en.max} 文字。例: 「いま振替に切り替えてください」「あと25分は待てます」「21時05分まで待って、だめなら切り替え」。判断しない旨の言い回しは書かない`,
+    `結論カードに大きく出る一言。結論だけを書き、理由や経緯は入れない。日本語は ${ja.target} 字程度で上限 ${ja.max} 字、英語は ${en.target} 文字程度で上限 ${en.max} 文字。例: 「いま振替に切り替える」「あと25分は待つ」「21時05分までに動かなければ切り替える」。判断しない旨の言い回しは書かない`,
   ),
   reason: z
     .string()
     .min(1)
     .describe(
-      `結論の理由。見出しの下に出る。判断の根拠を、再開見込みと分岐点などの比較の形で 1〜2 文で書く。日本語は ${reasonLimits.ja.target} 字程度で上限 ${reasonLimits.ja.max} 字、英語は ${reasonLimits.en.target} 文字程度で上限 ${reasonLimits.en.max} 文字。例: 「再開見込み23時40分頃が、分岐点23時23分より遅いためです。」「21時05分を過ぎると別の路線のほうが早く着きます。放送で原因が分かれば、もっと確かに言えます。」`,
+      `結論の理由。要約には先頭の1文だけが出る。1文1主張にする。先頭は日本語40〜50字以内、英語100文字以内。括弧で補足せず読点で節を足さない。判断の根拠を、再開見込みと分岐点などの比較の形で 1〜2 文で書く。日本語は ${reasonLimits.ja.target} 字程度で上限 ${reasonLimits.ja.max} 字、英語は ${reasonLimits.en.target} 文字程度で上限 ${reasonLimits.en.max} 文字。例: 「再開見込み23時40分頃は分岐点23時23分より後です。」「21時05分を過ぎると別の路線のほうが早く着きます。」`,
     ),
   breakEvenExplanation: z
     .string()
     .describe(
-      "分岐点の意味だけを「◯時◯分までに再開しなければ、◯◯のほうが早く着きます」の形で書く。理由は reason に書き、ここには繰り返さない",
+      "compute_break_even の explanationTemplate をそのまま使う。通常は「◯時◯分までに再開すれば◯時◯分着の◯◯より待つほうが早く着きます」の形。期限が理由のときや過ぎた境目もテンプレートに従う。理由は reason に分ける",
     ),
 });
 export type Decision = z.infer<typeof DecisionSchema>;

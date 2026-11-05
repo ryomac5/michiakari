@@ -19,6 +19,15 @@ import { DestinationMarker, HubMarker, PlaceMarker, StopMarker } from "./EntryMa
 import type { EntryArea, EntryHub, EntryPlace, Position } from "./entry-places";
 import { pickLocalized, pickPlaceName } from "./entry-places";
 import type { EntryStage } from "./flow";
+import {
+  buildEdgeHubRect,
+  type EdgeHub,
+  type HubLabel,
+  placeEdgeHubs,
+  selectVisibleHubs,
+} from "./visible-hubs";
+import { type MapStation, STATION_LABEL_MIN_ZOOM, selectVisibleStations } from "./visible-stations";
+import { buildStopLabelRect, keepStopsIfSame, selectVisibleStops } from "./visible-stops";
 
 // 入口の地図。関西 → エリア → 駅の順に寄り、行き先を選んだら出発と行き先を結ぶ
 // 段ごとに出す印を絞り、地図そのものは淡く沈める
@@ -41,6 +50,7 @@ export type MapStop = {
 
 type EntryMapProps = {
   geo: MapGeoData | null;
+  stations: MapStation[];
   stage: EntryStage;
   hubs: EntryHub[];
   area: EntryArea | null;
@@ -70,6 +80,7 @@ const labelMargin = { x: 96, y: 44 };
 const durationMs = 650;
 // 駅の段で一緒に収める、まわりの駅までの距離（m）
 const nearbyMeters = 600;
+const minimumAreaZoom = STATION_LABEL_MIN_ZOOM + 0.5;
 
 function buildRailColor(palette: MapPalette) {
   // 遠くでは無彩色、寄るほど路線色にする
@@ -217,38 +228,6 @@ function buildPadding(
   return padding;
 }
 
-type EdgeHub = { hub: EntryHub; x: number; y: number; angle: number };
-
-// 画面の外の丸を、画面の中心からその丸へ向かう線と、縁の矩形との交点に置く
-function placeEdgeHubs(
-  hubs: EntryHub[],
-  project: (p: Position) => { x: number; y: number },
-  size: { width: number; height: number },
-  insets: { top: number; bottom: number; left: number },
-): EdgeHub[] {
-  const box = {
-    left: insets.left + 16,
-    right: size.width - 16,
-    top: insets.top + 16,
-    bottom: size.height - insets.bottom - 16,
-  };
-  const cx = (box.left + box.right) / 2;
-  const cy = (box.top + box.bottom) / 2;
-  return hubs.flatMap((hub) => {
-    const p = project(hub.position);
-    if (p.x >= box.left && p.x <= box.right && p.y >= box.top && p.y <= box.bottom) return [];
-    const dx = p.x - cx;
-    const dy = p.y - cy;
-    // 札の幅と高さの半分だけ内側に寄せる
-    const sx = dx === 0 ? Infinity : ((dx > 0 ? box.right - 64 : box.left + 64) - cx) / dx;
-    const sy = dy === 0 ? Infinity : ((dy > 0 ? box.bottom - 24 : box.top + 24) - cy) / dy;
-    const scale = Math.min(sx, sy);
-    return [
-      { hub, x: cx + dx * scale, y: cy + dy * scale, angle: (Math.atan2(dy, dx) * 180) / Math.PI },
-    ];
-  });
-}
-
 export function EntryMap(props: EntryMapProps) {
   const t = useTranslations("entry");
   const locale = useLocale();
@@ -263,6 +242,10 @@ export function EntryMap(props: EntryMapProps) {
   const callbacksRef = useRef(props);
   callbacksRef.current = props;
   const [map, setMap] = useState<MapLibreMap | null>(null);
+  const [visiblePlaces, setVisiblePlaces] = useState<EntryPlace[]>([]);
+  const [visibleStops, setVisibleStops] = useState<MapStop[]>([]);
+  const hereLabel = t("here");
+  const [zoom, setZoom] = useState(0);
   const [markerClass, setMarkerClass] = useState<typeof Marker | null>(null);
 
   useEffect(() => {
@@ -398,11 +381,16 @@ export function EntryMap(props: EntryMapProps) {
     if (stage === "area" && area) {
       const bounds = computeBounds([area.center, ...area.places.map((p) => p.position)]);
       if (bounds) {
-        map.fitBounds(bounds, {
+        const camera = map.cameraForBounds(bounds, {
           padding: buildPadding(map, current, { x: labelMargin.x + 16, y: labelMargin.y + 8 }),
           maxZoom: 15.8,
-          duration,
         });
+        if (camera)
+          map.flyTo({
+            ...camera,
+            zoom: Math.max(minimumAreaZoom, camera.zoom ?? minimumAreaZoom),
+            duration,
+          });
       }
       return;
     }
@@ -418,21 +406,44 @@ export function EntryMap(props: EntryMapProps) {
   }, [map, cameraKey]);
 
   // 見える範囲の外にある丸は、その向きの画面の縁に札を出す
+  // 地図の上の丸は、縁の札と互いの札を避ける向きにし、収まらない丸は出さない
   const [edgeHubs, setEdgeHubs] = useState<EdgeHub[]>([]);
+  const [hubLabels, setHubLabels] = useState<HubLabel[]>([]);
   useEffect(() => {
-    if (!map || stage !== "kansai") {
+    if (!map || (stage !== "kansai" && stage !== "area")) {
       setEdgeHubs([]);
+      setHubLabels([]);
       return;
     }
     const update = () => {
       const canvas = map.getCanvas();
-      setEdgeHubs(
-        placeEdgeHubs(
-          hubs,
-          (p) => map.project(p),
-          { width: canvas.clientWidth, height: canvas.clientHeight },
-          { top, bottom, left },
-        ),
+      const project = (p: Position) => map.project(p);
+      const edges =
+        stage === "kansai"
+          ? placeEdgeHubs(
+              hubs,
+              project,
+              { width: canvas.clientWidth, height: canvas.clientHeight },
+              { top, bottom, left },
+              locale,
+            )
+          : [];
+      setEdgeHubs(edges);
+      const onEdge = new Set(edges.map((e) => e.hub.areaId));
+      setHubLabels(
+        selectVisibleHubs({
+          hubs: hubs.filter((h) => !onEdge.has(h.areaId)),
+          edges: edges.map((e) => buildEdgeHubRect(e, locale)),
+          project,
+          view: {
+            left: left + 8,
+            top: top + 8,
+            right: canvas.clientWidth - right - 8,
+            bottom: canvas.clientHeight - bottom - mapAttributionHeight - 8,
+          },
+          locale,
+          narrow,
+        }),
       );
     };
     update();
@@ -440,7 +451,84 @@ export function EntryMap(props: EntryMapProps) {
     return () => {
       map.off("move", update);
     };
-  }, [map, stage, hubs, top, bottom, left]);
+  }, [map, stage, hubs, top, right, bottom, left, locale, narrow]);
+
+  useEffect(() => {
+    if (!map) return;
+    const update = () => {
+      const currentZoom = map.getZoom();
+      setZoom(currentZoom);
+      const canvas = map.getCanvas();
+      setVisiblePlaces(
+        selectVisibleStations({
+          stations: props.stations,
+          zoom: currentZoom,
+          view: {
+            left: left + 8,
+            top: top + 8,
+            right: canvas.clientWidth - right - 8,
+            bottom: canvas.clientHeight - bottom - mapAttributionHeight - 8,
+          },
+          project: (position) => map.project(position),
+          locale,
+          selectedKey: stage === "station" ? place?.key : undefined,
+        }),
+      );
+      // 選んだ駅の名前の札を避けて、画面の上で重ならない駅の札だけを出す
+      const selectedShown = place && stage !== "kansai" && stage !== "area" && stage !== "station";
+      const blockers = selectedShown
+        ? [
+            buildStopLabelRect(
+              map.project(place.position),
+              `${hereLabel}${pickPlaceName(place, locale)}${"　".repeat(place.lines.length)}`,
+              place.side[narrow ? "narrow" : "wide"],
+            ),
+          ]
+        : [];
+      const next = selectVisibleStops({
+        stops,
+        project: (position) => map.project(position),
+        blockers,
+      });
+      // 出す札が同じなら配列を差し替えず、印を作り直さない
+      setVisibleStops((prev) => keepStopsIfSame(prev, next));
+    };
+    update();
+    map.on("moveend", update);
+    map.on("resize", update);
+    return () => {
+      map.off("moveend", update);
+      map.off("resize", update);
+    };
+  }, [
+    map,
+    props.stations,
+    top,
+    right,
+    bottom,
+    left,
+    locale,
+    stage,
+    place,
+    stops,
+    narrow,
+    hereLabel,
+  ]);
+
+  // 視点が動いている間は印を出し、段の切り替え直後の寄せと指の操作がぶつからないようにする
+  const [moving, setMoving] = useState(false);
+  useEffect(() => {
+    if (!map) return;
+    const start = () => setMoving(true);
+    const end = () => setMoving(false);
+    setMoving(map.isMoving());
+    map.on("movestart", start);
+    map.on("moveend", end);
+    return () => {
+      map.off("movestart", start);
+      map.off("moveend", end);
+    };
+  }, [map]);
 
   props.apiRef.current = {
     zoomToOrigin: (zoom) =>
@@ -464,7 +552,6 @@ export function EntryMap(props: EntryMapProps) {
       }),
   };
 
-  const edgeKey = edgeHubs.map((e) => e.hub.areaId).join(",");
   // 段ごとの印。関西は大きな丸、エリアと駅は駅の丸、行き先を選んだら出発と行き先だけ
   const entries = useMemo(() => {
     type Entry = {
@@ -479,19 +566,20 @@ export function EntryMap(props: EntryMapProps) {
       anchor: "center",
       offset: [0, 0],
     });
-    // 縁の札で示す丸は、地図の上には出さない
-    if (stage === "kansai") {
-      const onEdge = new Set(edgeKey.split(","));
-      return hubs
-        .filter((h) => !onEdge.has(h.areaId))
-        .map((h) => at(`hub:${h.areaId}`, h.position));
+    // 縁の札で示す丸と、札が収まらない丸は、地図の上には出さない
+    if ((stage === "kansai" || stage === "area") && zoom < STATION_LABEL_MIN_ZOOM) {
+      return hubLabels.map(({ hub }) => at(`hub:${hub.areaId}`, hub.position));
     }
     // 駅を選んだあとは、選んだ駅と札だけを出す
     const places =
-      stage !== "area" && stage !== "station" && place ? [place] : (area?.places ?? []);
+      stage === "kansai" || stage === "area" || stage === "station"
+        ? visiblePlaces
+        : place
+          ? [place]
+          : [];
     const list = places.map((p) => at(`place:${p.key}`, p.position));
     if (!showTrip) {
-      for (const s of stops) list.push(at(`stop:${s.key}`, s.position));
+      for (const s of visibleStops) list.push(at(`stop:${s.key}`, s.position));
     }
     if (showTrip && destinationPosition) {
       list.push({
@@ -502,7 +590,7 @@ export function EntryMap(props: EntryMapProps) {
       });
     }
     return list;
-  }, [stage, hubs, area, place, showTrip, destinationPosition, edgeKey, stops]);
+  }, [stage, hubLabels, visiblePlaces, zoom, place, showTrip, destinationPosition, visibleStops]);
   const hosts = useMarkerHosts(map, markerClass, entries);
   const side = narrow ? "narrow" : "wide";
 
@@ -511,11 +599,14 @@ export function EntryMap(props: EntryMapProps) {
       data-testid={testIds.start.map}
       data-stage={stage}
       data-ready={map !== null}
+      data-detail={zoom >= STATION_LABEL_MIN_ZOOM ? "stations" : "areas"}
+      data-zoom={zoom.toFixed(2)}
+      data-moving={moving}
       aria-label={t("mapLabel")}
       className="fixed inset-0 z-0 bg-background"
     >
       <div ref={containerRef} className="h-full w-full" />
-      {edgeHubs.map(({ hub, x, y, angle }) => (
+      {(zoom < STATION_LABEL_MIN_ZOOM ? edgeHubs : []).map(({ hub, x, y, angle }) => (
         <button
           key={hub.areaId}
           type="button"
@@ -538,13 +629,15 @@ export function EntryMap(props: EntryMapProps) {
           return createPortal(<DestinationMarker label={destination.label} />, element, key);
         }
         if (key.startsWith("hub:")) {
-          const hub = hubs.find((h) => `hub:${h.areaId}` === key);
-          if (!hub) return null;
+          const hubLabel = hubLabels.find((l) => `hub:${l.hub.areaId}` === key);
+          if (!hubLabel) return null;
+          const { hub } = hubLabel;
           return createPortal(
             <HubMarker
               areaId={hub.areaId}
               label={pickLocalized(hub.label, locale)}
-              side={hub.side[side]}
+              side={hubLabel.side}
+              slide={hubLabel.slide}
               onSelect={() => props.onSelectHub(hub.areaId)}
             />,
             element,
@@ -552,7 +645,7 @@ export function EntryMap(props: EntryMapProps) {
           );
         }
         if (key.startsWith("stop:")) {
-          const target = stops.find((s) => `stop:${s.key}` === key);
+          const target = visibleStops.find((s) => `stop:${s.key}` === key);
           if (!target) return null;
           return createPortal(
             <StopMarker
@@ -568,8 +661,9 @@ export function EntryMap(props: EntryMapProps) {
           );
         }
         const target =
-          (place && `place:${place.key}` === key ? place : null) ??
-          area?.places.find((p) => `place:${p.key}` === key);
+          (stage === "kansai" || stage === "area" || stage === "station"
+            ? visiblePlaces.find((p) => `place:${p.key}` === key)
+            : null) ?? (place && `place:${place.key}` === key ? place : null);
         if (!target) return null;
         const selected = place?.key === target.key;
         return createPortal(

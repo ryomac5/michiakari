@@ -50,16 +50,14 @@ async function startWithPastedText(page: Page): Promise<void> {
   });
 
   // 駅は国土数値情報の実データからサーバーで探す。選ぶと地図がその駅に寄り、シートに路線が並ぶ
+  await page.getByTestId(testIds.start.positionStation).click();
   await page.getByTestId(testIds.start.originSearch).fill("大阪");
   await page.getByTestId(testIds.start.originOption("大阪")).click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "station");
-  const kobeLine = "大阪|jr-west.東海道線|JR神戸線";
-  await page.getByTestId(testIds.start.line(kobeLine)).click();
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
+
   // 路線を選ぶと方面を聞く。行き先は方面の外の駅も検索で選べる
-  await page.getByTestId(testIds.start.direction(`${kobeLine}>jr-west.東海道線.神戸`)).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await page.getByTestId(testIds.start.positionStation).click();
   await expect(page.getByTestId(testIds.start.trip)).toContainText("三ノ宮");
 
   // 状況の入力は別の画面に飛ばず、同じ地図の上のシートで続ける
@@ -100,7 +98,7 @@ test("駅を選び、貼り付けで状況を入れると、推論過程が順�
   // 残り時間は時刻と紛れない「あと N 分」で出し、時刻は文の中に置く
   await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(/^あと \d+ 分$/);
   await expect(page.getByTestId(testIds.judgment.breakEvenSentence)).toContainText(
-    /\d{2}:\d{2}\s?までに再開しなければ/,
+    /\d{2}:\d{2}\s?までに再開すれば/,
   );
 
   const disclaimer = page.getByTestId(testIds.judgment.disclaimer);

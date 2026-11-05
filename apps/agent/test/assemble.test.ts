@@ -121,7 +121,7 @@ describe("validateJudgment", () => {
       results,
       {
         action: "switch",
-        headline: "3時33分までに切り替えてください",
+        headline: "3時33分までに切り替える",
         reason: "理由",
         breakEvenExplanation: "説明",
         recommendedOptionId: "wait",
@@ -272,11 +272,11 @@ describe("checkDecisiveWording", () => {
     for (const text of ["Too early to decide.", "Can't judge yet", "Holding off for now."]) {
       expect(checkDecisiveWording("headline", text, "en")).toHaveLength(1);
     }
-    expect(checkDecisiveWording("headline", "21時05分まで待って、だめなら切り替え", "ja")).toEqual(
+    expect(checkDecisiveWording("headline", "21時05分までに動かなければ切り替える", "ja")).toEqual(
       [],
     );
     expect(
-      checkDecisiveWording("headline", "Wait until 21:05, then switch if still stopped.", "en"),
+      checkDecisiveWording("headline", "Wait until 21:05. Switch if still stopped.", "en"),
     ).toEqual([]);
   });
 

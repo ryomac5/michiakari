@@ -103,7 +103,7 @@ export function applyNetworkCorrections(
   const cached = corrected.get(network);
   if (cached && extensions === TERMINAL_EXTENSIONS) return cached;
 
-  let next = network;
+  let next: NetworkData = network;
   for (const ext of extensions) {
     const source = next.nodes.find((n) => n.stationId === ext.sourceStationId);
     const join = next.nodes.find((n) => n.stationId === ext.joinStationId);

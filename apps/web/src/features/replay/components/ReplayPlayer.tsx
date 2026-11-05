@@ -24,6 +24,7 @@ import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/
 import { StatusChip, TripChip } from "@/features/judgment/components/TripSummary";
 import { TypicalFlowSection } from "@/features/judgment/components/TypicalFlow";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
+import { buildJudgmentChange } from "@/features/judgment/judgment-change";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { selectSwitchStep } from "@/features/judgment/switch-step";
 import { testIds } from "@/features/judgment/testids";
@@ -255,6 +256,11 @@ export function ReplayPlayer({
                 {state.status === "ready" && display.judgment && current && (
                   <ConclusionCard
                     judgment={display.judgment}
+                    change={buildJudgmentChange(
+                      state.previousJudgment,
+                      display.judgment,
+                      latestEntry ? pickScenarioText(latestEntry.text, locale) : null,
+                    )}
                     badge={
                       changed && previousAction ? (
                         <ChangeBadge from={previousAction} to={current.action} />

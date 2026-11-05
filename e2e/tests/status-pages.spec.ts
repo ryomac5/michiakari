@@ -11,7 +11,14 @@ test("見つからない頁から、地図の入口へ戻れる", async ({ page 
   await expect(screen).toHaveAttribute("data-kind", "notFound");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("移動したか");
   await page.getByTestId(testIds.status.home).click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "kansai", {
+  // 入口は「いまどこ」の問いから始まり、駅にいると答えると関西の地図に出る
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "position", {
     timeout: 30_000,
   });
+  await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
+    timeout: 30_000,
+  });
+  await page.getByTestId(testIds.start.positionStation).click();
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "kansai");
+  await expect(page.getByTestId(testIds.start.prompt)).toBeVisible();
 });

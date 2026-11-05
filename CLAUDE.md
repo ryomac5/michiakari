@@ -20,6 +20,7 @@ Built with Claude: Japan 2026 ハッカソン（2026/11/2〜11/8）の提出作�
 | `docs/goals.md` | `/goal` で自律的に作業するときの規則 |
 | `docs/progress.md` | 作業記録。各ターンの終わりに追記する |
 | `knowledge/README.md` | 指令員の知見ナレッジの書式 |
+| `docs/guides/claude-code-usage.html` | Claude Code での作り方。フック、委譲、guard、メモリ |
 
 担当するWSが決まっている場合は、`docs/roadmap.md` の該当箇所を必ず読んでから着手する。
 

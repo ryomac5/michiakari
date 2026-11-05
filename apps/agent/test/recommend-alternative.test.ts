@@ -196,7 +196,7 @@ describe("塚本から三ノ宮への判断: タクシーを勧める", () => {
       60_000,
     );
     expect(breakEven?.explanation).toMatch(
-      /までに動かなければ、タクシーでないと.+に間に合いません。$/,
+      /までに再開すれば.+着のタクシーに切り替えず期限に間に合います。$/,
     );
     // タクシーより早く着くかは比べない
     expect(chance?.waitFaster).toBeNull();
@@ -212,7 +212,7 @@ describe("塚本から三ノ宮への判断: タクシーを勧める", () => {
     const judgment = findJudgment(await postJudge(noRail, buildRequest(deadline)));
     expect(judgment.breakEven?.time).toBe(plain.breakEven?.time);
     expect(judgment.breakEven?.explanation).toBe(plain.breakEven?.explanation);
-    expect(judgment.breakEven?.explanation).toContain("タクシーのほうが早く着きます");
+    expect(judgment.breakEven?.explanation).toContain("着のタクシーより待つほうが早く着きます");
     expect(judgment.breakEven?.resumeChance?.waitFaster).not.toBeNull();
   });
 

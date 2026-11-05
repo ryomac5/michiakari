@@ -1,24 +1,39 @@
 import { cn } from "@/lib/utils";
 
-// マツカエルのロゴマーク。緑の丸い体に目を 2 つ載せたカエル。src/app/icon.svg と同じ形
+// みちあかりのロゴマーク。暗い角丸の地に分かれ道を描き、進む側の先を黄色の信号灯が照らす。src/app/icon.svg と同じ形
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" className={cn("shrink-0", className)} aria-hidden focusable="false">
-      <circle cx="20" cy="18" r="11" fill="#2f9e5b" />
-      <circle cx="44" cy="18" r="11" fill="#2f9e5b" />
-      <circle cx="32" cy="36" r="25" fill="#2f9e5b" />
-      <ellipse cx="32" cy="44" rx="15" ry="11" fill="#8fd6a8" />
-      <circle cx="20" cy="18" r="6.5" fill="#ffffff" />
-      <circle cx="44" cy="18" r="6.5" fill="#ffffff" />
-      <circle cx="21" cy="19" r="3.2" fill="#0d1218" />
-      <circle cx="43" cy="19" r="3.2" fill="#0d1218" />
-      <path
-        d="M22 34 Q32 41 42 34"
-        fill="none"
-        stroke="#0d1218"
-        strokeWidth="3.2"
-        strokeLinecap="round"
+      <rect
+        x="2"
+        y="2"
+        width="60"
+        height="60"
+        rx="16"
+        fill="#1c2431"
+        stroke="#4a5568"
+        strokeWidth="2"
       />
+      <path
+        d="M31 58 V38 L15 22"
+        fill="none"
+        stroke="#f8f1dc"
+        strokeOpacity="0.4"
+        strokeWidth="7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M31 58 V38 L42 26"
+        fill="none"
+        stroke="#f8f1dc"
+        strokeWidth="7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="44" cy="21" r="17" fill="#f6b73c" fillOpacity="0.3" />
+      <circle cx="44" cy="21" r="12" fill="#f6b73c" />
+      <circle cx="41.5" cy="18.5" r="4.5" fill="#fff3c4" />
     </svg>
   );
 }
