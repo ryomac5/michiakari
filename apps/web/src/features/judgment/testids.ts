@@ -4,6 +4,10 @@ export type { SituationTab } from "../../lib/testids";
 
 export const testIds = {
   ...sharedTestIds,
+  judgment: {
+    ...sharedTestIds.judgment,
+    conclusionReasonDetail: "judgment-conclusion-reason-detail",
+  },
   start: {
     ...sharedTestIds.start,
     intro: "start-intro",

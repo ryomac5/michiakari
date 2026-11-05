@@ -79,7 +79,7 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
 
   // 理由は、発表の時刻をもとにした推定だと分かる言い方にする
   await openSheet(page, "half");
-  const reason = page.locator(`[data-testid^="${testIds.judgment.conclusionReason}"]`).last();
+  const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
   await expect(reason).toContainText("発表の再開見込み");
   await expect(reason).toContainText("見込みどおりなら");
   await expect(reason).not.toContainText(nonDecisive);
@@ -103,7 +103,7 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
   await openSheet(page, "full");
   const sentence = await page.getByTestId(testIds.judgment.breakEvenSentence).textContent();
   expect(toMinuteOfDay(statedLabel)).toBeGreaterThan(toMinuteOfDay(sentence ?? ""));
-  const reason = page.locator(`[data-testid^="${testIds.judgment.conclusionReason}"]`).last();
+  const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
   await expect(reason).toContainText("発表の再開見込み");
   await expect(reason).toContainText("見込みどおりでも");
   await expect(reason).not.toContainText(nonDecisive);

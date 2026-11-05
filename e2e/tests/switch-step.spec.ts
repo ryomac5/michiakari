@@ -117,7 +117,7 @@ async function stepUntil(page: Page, observationId: string): Promise<void> {
 
 // 折り返しを止めた範囲が、どれも 1 行に収まっていること
 async function expectUnbrokenRuns(page: Page, label: string): Promise<void> {
-  const reason = page.getByTestId(testIds.judgment.conclusionReason).first();
+  const reason = page.getByTestId(testIds.judgment.conclusionReason);
   if ((await reason.count()) === 0) return;
   const broken = await reason.evaluate((el) =>
     [...el.querySelectorAll<HTMLElement>("span.whitespace-nowrap")]

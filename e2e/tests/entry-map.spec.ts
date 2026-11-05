@@ -199,7 +199,11 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   await expect(premise).toContainText("車内の位置は本町駅と仮定する");
   await expect(premise).toContainText("止まった時刻はいまと仮定する");
   await expect(premise).toContainText("分岐点を動く目安");
-  for (const part of [premise, nextCheck, page.getByTestId(testIds.judgment.conclusionReason)]) {
+  for (const part of [
+    premise,
+    nextCheck,
+    page.getByTestId(testIds.judgment.conclusionReasonDetail),
+  ]) {
     await expect(part).not.toContainText(nonDecisive);
   }
 

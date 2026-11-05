@@ -58,20 +58,39 @@ describe("結論カードの理由", () => {
     expect(selectCardReason(buildJudgment(reason))).toBe(summary);
   });
 
-  it("要約に出ない補足を詳細に全文で残す", () => {
+  it("要約に出ない補足だけを詳細に残す", () => {
     const reason =
       "塚本には再開後の22時40分ごろに着く見込みです。前の快速は塚本に止まれず手前で止まっています。";
     const judgment = buildJudgment(reason);
     expect(selectCardReason(judgment)).toBe("塚本には再開後の22時40分ごろに着く見込みです。");
     const html = renderToStaticMarkup(createElement(ConclusionDetail, { judgment }));
-    expect(html).toContain(`${testIds.judgment.conclusionReason}-detail`);
+    expect(html).toContain(testIds.judgment.conclusionReasonDetail);
     expect(html).toContain("前の快速は塚本に止まれず手前で止まっています。");
-    expect(html).toContain("22時40分");
+    expect(html).not.toContain("22時40分");
   });
 
-  it("1文で済む理由は詳細に重ねない", () => {
-    const judgment = buildJudgment("このまま待つほうが早く着きます。");
-    expect(renderToStaticMarkup(createElement(ConclusionDetail, { judgment }))).toBe("");
+  it("英語でも要約を除いた補足だけを詳細に残す", () => {
+    const judgment = buildJudgment("Stay on board. This assumes usual spacing.");
+    const html = renderToStaticMarkup(createElement(ConclusionDetail, { judgment }));
+    expect(html).toContain(testIds.judgment.conclusionReasonDetail);
+    expect(html).toContain("This assumes usual spacing.");
+    expect(html).not.toContain("Stay on board.");
+  });
+
+  it.each(["このまま待つほうが早く着きます。", "Stay on board.   "])(
+    "残りが空の理由は詳細に重ねない: %s",
+    (reason) => {
+      const judgment = buildJudgment(reason);
+      expect(renderToStaticMarkup(createElement(ConclusionDetail, { judgment }))).toBe("");
+    },
+  );
+
+  it("要約がない理由にも詳細専用のtestidを付ける", () => {
+    const judgment = { ...buildJudgment("運転再開を待つ。"), typicalFlow: undefined };
+    const html = renderToStaticMarkup(createElement(ConclusionDetail, { judgment }));
+    expect(html).toContain(`data-testid="${testIds.judgment.conclusionReasonDetail}"`);
+    expect(html).not.toContain(`data-testid="${testIds.judgment.conclusionReason}"`);
+    expect(html).toContain("運転再開を待つ。");
   });
 
   it("判断・理由がないときや流れの確信度が高くないときは要約を出さない", () => {

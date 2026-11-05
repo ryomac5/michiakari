@@ -93,9 +93,9 @@ for (const theme of ["light", "dark"] as const) {
       await expect(lead).toContainText("発生から");
       await expect(lead).toContainText("までに再開する見込みは");
       // 理由の最後にも確率の 1 文が入る
-      await expect(
-        page.locator(`[data-testid^="${testIds.judgment.conclusionReason}"]`).last(),
-      ).toContainText(/分岐点の\d{1,2}時\d{2}分までに再開する見込みは1割未満です/);
+      await expect(page.getByTestId(testIds.judgment.conclusionReasonDetail)).toContainText(
+        /分岐点の\d{1,2}時\d{2}分までに再開する見込みは1割未満です/,
+      );
       await waitForMapReady(page);
       await page.screenshot({
         path: `${screenshotDir}resume-chance-person-accident-${theme}-390x844.png`,
@@ -113,9 +113,9 @@ for (const theme of ["light", "dark"] as const) {
       const later = await readTicks(page);
       const laterTenths = Number(await waitFaster.getAttribute("data-tenths"));
       expect(laterTenths).toBeGreaterThanOrEqual(5);
-      await expect(
-        page.locator(`[data-testid^="${testIds.judgment.conclusionReason}"]`).last(),
-      ).toContainText(/分岐点の\d{1,2}時\d{2}分までに再開する見込みは/);
+      await expect(page.getByTestId(testIds.judgment.conclusionReasonDetail)).toContainText(
+        /分岐点の\d{1,2}時\d{2}分までに再開する見込みは/,
+      );
       expect(later.map((t) => t.tenths).join(",")).not.toBe(ticks.map((t) => t.tenths).join(","));
     });
 
@@ -269,9 +269,9 @@ test("切り替える判断でも確率の時点と分岐点が一致し比較�
   const chanceSentence = `分岐点の${clock(judgment.breakEven.time)}までに再開する見込みは1割未満です。`;
   expect(judgment.reason.endsWith(chanceSentence)).toBe(true);
   await openSheet(page, "half");
-  await expect(
-    page.locator(`[data-testid^="${testIds.judgment.conclusionReason}"]`).last(),
-  ).toContainText(chanceSentence);
+  await expect(page.getByTestId(testIds.judgment.conclusionReasonDetail)).toContainText(
+    chanceSentence,
+  );
   const alternative = judgment.options.find((option) => option.id === judgment.recommendedOptionId);
   if (!alternative) throw new Error("推奨経路がありません");
   await openSheet(page, "half");
@@ -286,8 +286,8 @@ test("再開見込みの延長後は分岐点後の遅めの時刻と確率を�
     await page.getByTestId(testIds.replay.nextButton).click();
     await waitForJudged(page, id);
   }
-  const reason = page.locator(`[data-testid^="${testIds.judgment.conclusionReason}"]`).last();
-  await expect(reason).toContainText("延長後");
+  const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
+  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText("延長後");
   await expect(reason).toContainText(
     "遅めの見込みでは分岐点より後の0時00分までの再開確率は8割です。",
   );

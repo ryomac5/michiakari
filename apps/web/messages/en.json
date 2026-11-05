@@ -24,8 +24,8 @@
     "short": "Estimate only. Follow official notices."
   },
   "start": {
-    "introAudience": "Find your next step when Kansai trains stop.",
-    "introProblem": "Compare waiting with switching routes.",
+    "introAudience": "For anyone stranded by a train disruption in Kansai.",
+    "introProblem": "Service notices say what happened, not what to do.",
     "introSolution": "Use a former dispatcher’s estimates to decide.",
     "originLabel": "Where are you?",
     "locate": "Use my location",

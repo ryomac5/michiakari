@@ -75,9 +75,11 @@ export function ConclusionDetail({ judgment }: { judgment: Judgment }) {
   const t = useTranslations("judgment");
   const locale = useLocale();
   const { lead, rest } = splitHeadline(judgment.headline);
-  // 要約に収まらない補足は、開いたシートで全文を読めるようにする
+  // 要約に出した先頭の文を除き、補足だけを開いたシートに出す
   const cardReason = selectCardReason(judgment);
-  const reason = cardReason && cardReason === judgment.reason ? null : (judgment.reason ?? rest);
+  const reason = cardReason
+    ? judgment.reason?.slice(cardReason.length).trim()
+    : (judgment.reason ?? rest);
   const recommended = judgment.options.find((o) => o.id === judgment.recommendedOptionId);
   const remaining = judgment.estimate.remaining;
 
@@ -100,11 +102,7 @@ export function ConclusionDetail({ judgment }: { judgment: Judgment }) {
     <div className="flex flex-col gap-2.5">
       {reason && (
         <p
-          data-testid={
-            cardReason
-              ? `${testIds.judgment.conclusionReason}-detail`
-              : testIds.judgment.conclusionReason
-          }
+          data-testid={testIds.judgment.conclusionReasonDetail}
           className="text-[15px] leading-relaxed text-pretty"
         >
           <NoBreakText text={reason} />

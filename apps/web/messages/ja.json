@@ -24,8 +24,8 @@
     "short": "推定であり、公式発表を優先してください。"
   },
   "start": {
-    "introAudience": "関西の運転見合わせで次の行動を決める。",
-    "introProblem": "再開の見込みから待つか乗り換えるかを決める。",
+    "introAudience": "関西の運転見合わせで足が止まった人へ。",
+    "introProblem": "運行情報は何が起きたかまでしか伝えない。",
     "introSolution": "元指令員の知見から次の一手を選ぶ。",
     "originLabel": "いまいる駅",
     "locate": "現在地を使う",
