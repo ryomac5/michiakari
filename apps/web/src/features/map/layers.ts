@@ -216,6 +216,10 @@ export function buildDataLayers(
   const railColor: ExpressionSpecification | string = focus
     ? ["case", blocked, palette.blocked, relevant, ["get", "color"], palette.rail]
     : palette.rail;
+  // 全体を見る表示では、止まっている路線と乗る路線を残し、関係のない路線を細く淡くする
+  // 関係する路線が分からないうちは、すべて同じ太さで描く
+  const dimOthers = !focus && mode.relevantLineIds.length > 0;
+  const kept: ExpressionSpecification = ["any", blocked, relevant];
   const railWidth: ExpressionSpecification = focus
     ? [
         "interpolate",
@@ -226,10 +230,22 @@ export function buildDataLayers(
         16,
         ["case", blocked, 4, relevant, 3.5, 1.2],
       ]
-    : byZoom(0.6, 2);
+    : dimOthers
+      ? [
+          "interpolate",
+          ["exponential", 1.5],
+          ["zoom"],
+          10,
+          ["case", kept, 0.9, 0.4],
+          16,
+          ["case", kept, 2.5, 1.2],
+        ]
+      : byZoom(0.6, 2);
   const railOpacity: ExpressionSpecification | number = focus
     ? ["case", blocked, 0.3, relevant, 0.7, palette.railOpacity * 0.45]
-    : palette.railOpacity;
+    : dimOthers
+      ? ["case", kept, palette.railOpacity, palette.railOpacity * 0.35]
+      : palette.railOpacity;
   // 案内に出す路線にだけ白い縁を付け、背景の地図から浮かせる
   const railCasingOpacity: ExpressionSpecification | number = focus
     ? ["case", relevant, 0.85, 0]
