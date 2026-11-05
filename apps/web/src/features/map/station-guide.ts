@@ -488,6 +488,17 @@ export function buildStationGuide(
   };
 }
 
+// 隠さずに出す札。現在地、降りる駅、地図に描く経路の駅、おすすめの星の駅
+export function listRequiredLabelKeys(
+  stations: readonly Pick<GuideStation, "key" | "recommended" | "starred">[],
+): string[] {
+  return [
+    "here",
+    "alight",
+    ...stations.filter((station) => station.recommended || station.starred).map((s) => s.key),
+  ];
+}
+
 export type DockedStationRow = { key: string; optionId: string | null; text: string };
 
 // 地図に収まらず一覧へ移した駅の行。おすすめの印は星の付く駅だけに付ける

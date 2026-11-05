@@ -362,6 +362,18 @@ export function measureLabelOverlap(input: LayoutInput, layout: LabelLayout): nu
   );
 }
 
+// 必須の札どうしの重なりの合計（px²）。任意の札との重なりは数えない
+export function measureRequiredLabelOverlap(
+  input: LayoutInput,
+  layout: LabelLayout,
+  requiredKeys: readonly string[],
+): number {
+  return measureLabelOverlap(
+    { ...input, items: input.items.filter((item) => requiredKeys.includes(item.key)) },
+    layout,
+  );
+}
+
 // 札がほかの駅の印を覆う面積の合計（px²）。隠した札の印も覆わないものとして数える
 export function measureDotOverlap(input: LayoutInput, layout: LabelLayout): number {
   const visible = input.items.filter((item) => !layout.hidden?.includes(item.key));
@@ -603,7 +615,9 @@ export function chooseStationLabelLayout(
   const layout = chooseVisibleLabelLayout(last, requiredKeys);
   // ほかの札を隠しても必須の札どうしが触れるなら、札を地図から外して一覧へ移し、ほかの札も隠す
   // はみ出すだけなら札は読めるので、地図に残す
-  if (measureLabelOverlap(last, layout) === 0) return { ...layout, compactRecommended: true };
+  if (measureRequiredLabelOverlap(last, layout, requiredKeys) === 0) {
+    return { ...layout, compactRecommended: true };
+  }
   return {
     ...layout,
     docked: last.items.filter((item) => requiredKeys.includes(item.key)).map((item) => item.key),

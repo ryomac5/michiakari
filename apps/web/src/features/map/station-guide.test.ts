@@ -14,6 +14,7 @@ import {
   findRingLabelPoint,
   type GuideStation,
   listDockedStationRows,
+  listRequiredLabelKeys,
   type StationGuideInput,
 } from "./station-guide";
 
@@ -400,5 +401,19 @@ describe("listDockedStationRows", () => {
       "おすすめ · 梅田駅 · 梅田線 · 徒歩 5 分",
       "表示中 · 福島駅 · 福島線 · 徒歩 5 分",
     ]);
+  });
+});
+
+describe("listRequiredLabelKeys", () => {
+  const station = (key: string, recommended: boolean, starred: boolean) =>
+    ({ key, recommended, starred }) as GuideStation;
+
+  it("別の経路を選んでいる間も、おすすめの星の駅を必須の札に残す", () => {
+    const keys = listRequiredLabelKeys([
+      station("梅田", false, true),
+      station("福島", true, false),
+      station("中津", false, false),
+    ]);
+    expect(keys).toEqual(["here", "alight", "梅田", "福島"]);
   });
 });

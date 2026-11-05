@@ -63,6 +63,7 @@ import {
   findRingLabelPoint,
   listBoardingStationIds,
   listDockedStationRows,
+  listRequiredLabelKeys,
   type StationGuide,
 } from "./station-guide";
 import { mapTestIds } from "./testids";
@@ -430,11 +431,11 @@ function layoutAutoPlacements(
     }),
     blockers: [toggle],
   });
-  return chooseStationLabelLayout(buildInput(false), buildInput(true), [
-    "here",
-    "alight",
-    ...guide.stations.filter((station) => station.recommended).map((station) => station.key),
-  ]);
+  return chooseStationLabelLayout(
+    buildInput(false),
+    buildInput(true),
+    listRequiredLabelKeys(guide.stations),
+  );
 }
 
 // 出発は丸、行き先はピン。色はテーマの文字色に合わせる
