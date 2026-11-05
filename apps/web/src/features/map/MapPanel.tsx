@@ -15,13 +15,11 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import { buildAutoFocusArea } from "./auto-focus";
 import {
   type BoxSize,
-  chooseLabelLayout,
-  compactStationSlides,
+  chooseStationLabelLayout,
   constrainFitPadding,
   type LabelLayout,
   type LayoutInput,
-  measureLabelOverlap,
-  measureLayoutOverlap,
+  overlapArea,
   projectToWorld,
   type Rect,
 } from "./bubble-layout";
@@ -115,8 +113,6 @@ const focusMaxZoom = { configured: 16.2, auto: 15.5 };
 const initialOriginZoom = 15.8;
 // おすすめの吹き出しの高さのおよそ（px）
 const recommendedBubbleHeight = 130;
-// わずかな重なりも、おすすめの札を縮める判断に含める
-const overlapTolerance = 0;
 const labelMeasurementPadding = 2;
 // 現在地と降りる駅の札を、辺の方向へずらせる量の候補（px）。四方に置いても駅の印や札に重なるとき、ずらして避ける
 const labelSlides = [
@@ -346,6 +342,7 @@ function layoutAutoPlacements(
   measuredSizes: Readonly<Record<string, BoxSize>>,
 ): AutoLayout | null {
   if (!guide.bounds) return null;
+  const canvas = map.getCanvas();
   const padding = buildGuidePadding(map, insets, narrow, guide);
   const camera = map.cameraForBounds(guide.bounds, {
     padding,
@@ -353,7 +350,6 @@ function layoutAutoPlacements(
   });
   const zoom = camera?.zoom;
   if (zoom === undefined) return null;
-  const canvas = map.getCanvas();
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
   const [[west, south], [east, north]] = guide.bounds;
@@ -429,36 +425,11 @@ function layoutAutoPlacements(
     }),
     blockers: [toggle],
   });
-  const fullInput = buildInput(false);
-  const preferred: LabelLayout = {
-    placements: { here: herePreferred, alight: "bottom", ...stationPlacements },
-    slides: {},
-  };
-  // 既定の札が収まる画面では、これまでの置き場所を保つ。
-  const full =
-    measureLayoutOverlap(fullInput, preferred) === 0 ? preferred : chooseLabelLayout(fullInput);
-  const fullOverlap = measureLayoutOverlap(fullInput, full);
-  if (fullOverlap <= overlapTolerance) {
-    return { ...full, compactRecommended: false };
-  }
-  const compactInput = buildInput(true);
-  let compact = chooseLabelLayout(compactInput);
-  if (narrow && measureLayoutOverlap(compactInput, compact) > overlapTolerance) {
-    const slidingInput = {
-      ...compactInput,
-      items: compactInput.items.map((item) => ({
-        ...item,
-        slides: item.slides ?? compactStationSlides,
-      })),
-    };
-    compact = chooseLabelLayout(slidingInput);
-  }
-  const fullLabels = measureLabelOverlap(fullInput, full);
-  const compactLabels = measureLabelOverlap(compactInput, compact);
-  return compactLabels < fullLabels ||
-    (compactLabels === fullLabels && measureLayoutOverlap(compactInput, compact) < fullOverlap)
-    ? { ...compact, compactRecommended: true }
-    : { ...full, compactRecommended: false };
+  return chooseStationLabelLayout(buildInput(false), buildInput(true), [
+    "here",
+    "alight",
+    ...guide.stations.filter((station) => station.recommended).map((station) => station.key),
+  ]);
 }
 
 // 出発は丸、行き先はピン。色はテーマの文字色に合わせる
@@ -862,6 +833,7 @@ export function MapPanel(props: MapPanelProps) {
   // 到達範囲の札を、寄せたあとの画面で吹き出しや線と重ならない向きに置き直す。地図が止まるたびに選び直す
   useEffect(() => {
     if (!map || !scene || reachLabelCandidates.length === 0) return;
+    let lastLabels = "";
     const place = () => {
       const canvas = map.getCanvas();
       const origin = canvas.getBoundingClientRect();
@@ -918,7 +890,13 @@ export function MapPanel(props: MapPanelProps) {
       for (const candidate of reachLabelCandidates) {
         const size = estimateReachLabelSize(candidate.label);
         const pick = chooseReachLabelCandidate(
-          candidate.points.map((p) => ({ key: p, point: toScreen(p) })),
+          candidate.points
+            .map((p) => ({ key: p, point: toScreen(p) }))
+            .filter((candidate) =>
+              boxes.every(
+                (box) => overlapArea(buildReachLabelRect(candidate.point, size), box) === 0,
+              ),
+            ),
           { size, view: viewRect, boxes, polylines },
         );
         // 見える範囲に収まる向きが無ければ、欠けた札を出すより出さない。範囲の意味は凡例が示す
@@ -927,11 +905,17 @@ export function MapPanel(props: MapPanelProps) {
         // 20 分の札は 10 分の札とも重ねない
         boxes.push(buildReachLabelRect(pick.point, size));
       }
+      const signature = JSON.stringify(chosen);
+      if (signature === lastLabels) return;
+      lastLabels = signature;
       setSourceData(map, sourceIds.reachLabels, buildReachLabelCollection(chosen));
     };
     place();
     map.on("moveend", place);
+    // 実寸の再計測で札が動いたあとも、最後の描画位置で避け直す。
+    map.on("render", place);
     return () => {
+      map.off("render", place);
       map.off("moveend", place);
     };
   }, [map, geo, scene, guide, mode, reachLabelCandidates, top, right, bottom, left]);
@@ -1038,18 +1022,23 @@ export function MapPanel(props: MapPanelProps) {
         );
       });
       // 置ける点が無ければ札は出さない。止まっていることは現在地の札と上部の帯が示す
-      setBlockedTagPosition(chosen ?? null);
+      setBlockedTagPosition((previous) => {
+        const next = chosen ?? null;
+        return previous?.[0] === next?.[0] && previous?.[1] === next?.[1] ? previous : next;
+      });
     };
     place();
     map.on("movestart", hide);
     map.on("moveend", place);
+    map.on("render", place);
     return () => {
+      map.off("render", place);
       map.off("movestart", hide);
       map.off("moveend", place);
     };
   }, [map, blockedPath, view, guide, top, right, bottom, left]);
 
-  // 手で整えた駅も、設定の向きを好みとして、寄せたあとの画面で重ならない配置を選ぶ
+  // 手で整えた向きは好みとして保ち、重なる場合は画面サイズによらず置き直す
   // 駅間の車内の人の現在地と降りる駅の札は、手で整えた範囲でも、駅の印やボタンに重ならない置き場所を選ぶ
   const autoPlacements = useMemo(
     () =>
@@ -1092,18 +1081,23 @@ export function MapPanel(props: MapPanelProps) {
             },
           ]
         : []),
-      ...guide.stations.map((s) => {
-        const placement = placeStation(s);
-        const slide = autoPlacements?.slides[s.key] ?? 0;
-        const [x, y] = markerOffset[placement];
-        const horizontal = placement === "top" || placement === "bottom";
-        return {
-          key: `station:${s.key}`,
-          position: s.position,
-          anchor: markerAnchor[placement],
-          offset: [x + (horizontal ? slide : 0), y + (horizontal ? 0 : slide)] as [number, number],
-        };
-      }),
+      ...guide.stations
+        .filter((s) => !autoPlacements?.hidden?.includes(s.key))
+        .map((s) => {
+          const placement = placeStation(s);
+          const slide = autoPlacements?.slides[s.key] ?? 0;
+          const [x, y] = markerOffset[placement];
+          const horizontal = placement === "top" || placement === "bottom";
+          return {
+            key: `station:${s.key}`,
+            position: s.position,
+            anchor: markerAnchor[placement],
+            offset: [x + (horizontal ? slide : 0), y + (horizontal ? 0 : slide)] as [
+              number,
+              number,
+            ],
+          };
+        }),
     ];
   }, [view, guide, placeStation, autoPlacements]);
   const tagEntries = useMemo(
@@ -1150,6 +1144,8 @@ export function MapPanel(props: MapPanelProps) {
             w: Math.ceil(rect.width) + labelMeasurementPadding,
             h: Math.ceil(rect.height) + labelMeasurementPadding,
           };
+          // 描画前の札は寸法が 0 になるので、見積もりを上書きしない
+          if (rect.width === 0 || rect.height === 0) continue;
           if (previous[sizeKey]?.w === size.w && previous[sizeKey]?.h === size.h) continue;
           next[sizeKey] = size;
           changed = true;

@@ -89,6 +89,22 @@ for (const viewport of [
             },
           );
           await waitForFiniteAnimations(page);
+          await expect(
+            page.getByTestId(mapTestIds.here).locator(":scope > [data-placement]"),
+          ).toBeVisible();
+          const recommendedId = await page
+            .getByTestId(testIds.judgment.map)
+            .getAttribute("data-recommended-option");
+          if (recommendedId) {
+            const key = await page
+              .getByTestId(testIds.judgment.option(recommendedId))
+              .getAttribute("data-station");
+            if (key && key !== "here") {
+              const recommended = page.getByTestId(mapTestIds.station(key));
+              await expect(recommended).toHaveAttribute("data-recommended", "true");
+              await expect(recommended).toBeVisible();
+            }
+          }
           await expectLabelsApart(
             page.locator(
               // ボタンの 44px のタップ領域ではなく、表示している札の面を測る
