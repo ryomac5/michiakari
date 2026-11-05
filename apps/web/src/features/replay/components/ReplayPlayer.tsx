@@ -9,13 +9,13 @@ import { MapSheet, sheetTopInset } from "@/components/MapSheet";
 import { SheetSection, useMapChrome } from "@/components/SheetSection";
 import { Button } from "@/components/ui/button";
 import { selectTimelineBasis } from "@/features/judgment/break-even-timeline";
-import { BreakEvenDetail, BreakEvenSummary } from "@/features/judgment/components/BreakEvenPanel";
-import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
 import {
-  ConclusionCard,
-  ConclusionDetail,
-  selectCardReason,
-} from "@/features/judgment/components/ConclusionCard";
+  BreakEvenDetail,
+  BreakEvenMetric,
+  ResumeOutlook,
+} from "@/features/judgment/components/BreakEvenPanel";
+import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
+import { ConclusionCard, ConclusionDetail } from "@/features/judgment/components/ConclusionCard";
 import { Disclaimer } from "@/features/judgment/components/Disclaimer";
 import { EvidenceSection } from "@/features/judgment/components/EvidenceSection";
 import { JudgmentError } from "@/features/judgment/components/JudgmentError";
@@ -29,7 +29,7 @@ import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { selectSwitchStep } from "@/features/judgment/switch-step";
 import { testIds } from "@/features/judgment/testids";
 import { formatClockTime } from "@/features/judgment/time";
-import { useOptionFocus } from "@/features/judgment/use-option-focus";
+import { useOptionFocus, useOptionSelection } from "@/features/judgment/use-option-focus";
 import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import { MapLegend } from "@/features/map/MapLegend";
 import { MapPanel, selectRouteTone } from "@/features/map/MapPanel";
@@ -84,6 +84,7 @@ export function ReplayPlayer({
   const [reachSource, setReachSource] = useState<ReachSource | null>(null);
   const [guide, setGuide] = useState<StationGuide | null>(null);
   const { highlightId, focusOption } = useOptionFocus(chrome.setSnap);
+  const { selectedOptionId, selectOption } = useOptionSelection(chrome.setSnap, state.judgedAt);
 
   const nowIso = resolveScenarioTime(scenario.start_time, player.clockMinutes);
   const now = useMemo(() => new Date(nowIso), [nowIso]);
@@ -99,7 +100,6 @@ export function ReplayPlayer({
   const disclaimerExtra =
     display.judgment?.disclaimer ?? state.previousJudgment?.disclaimer ?? null;
   const options = display.options ?? noOptions;
-  const tone = selectRouteTone(options, display.recommendedOptionId);
 
   // 表示中の判断と、その一つ前の判断の行動
   const current = state.status === "ready" ? history.at(-1) : undefined;
@@ -147,6 +147,12 @@ export function ReplayPlayer({
     showOnset: true,
   };
   const switchStep = selectSwitchStep(display.judgment ?? null);
+  // 一覧で押した選択肢を地図に描く。判断が変わって選択肢が消えたら推奨に戻す
+  const mapOptionId = options.some((o) => o.id === selectedOptionId)
+    ? selectedOptionId
+    : display.recommendedOptionId;
+  // 凡例も地図と同じ選択中の選択肢の色にする
+  const tone = selectRouteTone(options, mapOptionId);
 
   return (
     <div
@@ -206,6 +212,7 @@ export function ReplayPlayer({
         destination={destination}
         options={options}
         recommendedOptionId={display.recommendedOptionId}
+        selectedOptionId={mapOptionId}
         blockedSection={started ? (lastWithSection?.section ?? null) : null}
         blockedLine={blockedLine}
         insets={{ ...chrome.insets, top: chrome.insets.top + announcementInset }}
@@ -266,19 +273,17 @@ export function ReplayPlayer({
                         <ChangeBadge from={previousAction} to={current.action} />
                       ) : undefined
                     }
+                    metric={<BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />}
                   />
                 )}
-                {started && !streaming && (
-                  <BreakEvenSummary
-                    {...breakEvenProps}
-                    hideMeaning={selectCardReason(display.judgment) !== null}
-                    switchStep={switchStep}
-                    switchLineColor={
-                      guide?.optionMarks.find((m) => m.optionId === switchStep?.optionId)?.color
-                    }
-                  />
-                )}
+                {/* 判断が確定する前と失敗時も、境目の状態を属性で残す */}
+                {started &&
+                  !streaming &&
+                  !(state.status === "ready" && display.judgment && current) && (
+                    <BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />
+                  )}
                 {started && <Disclaimer />}
+                {state.status === "ready" && <ResumeOutlook {...breakEvenProps} />}
               </div>
             </div>
           }
@@ -292,22 +297,10 @@ export function ReplayPlayer({
                 </SheetSection>
               )}
               {display.judgment && (
-                <SheetSection className="empty:hidden">
+                <SheetSection>
                   <ConclusionDetail judgment={display.judgment} />
                 </SheetSection>
               )}
-              <SheetSection>
-                {typicalFlow ? (
-                  <TypicalFlowSection
-                    flow={typicalFlow}
-                    estimate={display.estimate}
-                    expanded={chrome.desktop || chrome.snap === "full"}
-                    testIds={{ section: testIds.replay.phaseStrip, phase: testIds.replay.phase }}
-                  />
-                ) : (
-                  <PhaseStrip estimate={display.estimate} catalog={catalog} />
-                )}
-              </SheetSection>
               {display.breakEven && (
                 <SheetSection>
                   <BreakEvenDetail {...breakEvenProps} />
@@ -321,16 +314,22 @@ export function ReplayPlayer({
                   pending={streaming}
                   marks={guide?.optionMarks}
                   highlightId={highlightId}
+                  selectedId={mapOptionId}
+                  onSelect={selectOption}
                 />
               </SheetSection>
               <SheetSection>
-                <MapLegend tone={tone} reachSource={reachSource} />
+                {typicalFlow ? (
+                  <TypicalFlowSection
+                    flow={typicalFlow}
+                    estimate={display.estimate}
+                    expanded={chrome.desktop || chrome.snap === "full"}
+                    testIds={{ section: testIds.replay.phaseStrip, phase: testIds.replay.phase }}
+                  />
+                ) : (
+                  <PhaseStrip estimate={display.estimate} catalog={catalog} />
+                )}
               </SheetSection>
-              {state.status === "ready" && (
-                <SheetSection>
-                  <ReasoningLog state={state} catalog={catalog} />
-                </SheetSection>
-              )}
               <SheetSection>
                 <EvidenceSection
                   estimate={display.estimate}
@@ -339,7 +338,16 @@ export function ReplayPlayer({
                   catalog={catalog}
                   disclaimer={disclaimerExtra}
                   showPhases={typicalFlow === null}
+                  flow={typicalFlow}
                 />
+              </SheetSection>
+              {state.status === "ready" && (
+                <SheetSection>
+                  <ReasoningLog state={state} catalog={catalog} />
+                </SheetSection>
+              )}
+              <SheetSection>
+                <MapLegend tone={tone} reachSource={reachSource} />
               </SheetSection>
               <SheetSection>
                 <ReplayHistory

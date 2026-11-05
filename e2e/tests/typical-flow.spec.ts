@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { openReplay, openSheet, waitForJudged } from "../support/replay.ts";
+import { loadReplayKnowledge, openReplay, openSheet, waitForJudged } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
 // よくある流れの欄と、短く終わる事象で慌てず待つと伝える結論
@@ -32,14 +32,17 @@ test("車内対応のリプレイでは、止まった直後でも待つにな�
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   await expect(conclusion).toHaveAttribute("data-action", "wait");
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText(reassuring);
-  // 流れが読める事象なので、確信度は低にならない
-  await expect(conclusion).not.toContainText("確信度 低");
+  // 流れが読める事象なので、見込みの確かさは低にならない
+  await expect(page.getByTestId(testIds.judgment.confidence)).not.toHaveAttribute(
+    "data-level",
+    "low",
+  );
   await expectBlockedTagClearOfToggle(page);
 
   // 半分では 1 行の要約だけ、全部開くと帯と見込みの根拠が出る
   await openSheet(page, "half");
   await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(
-    "5〜10分ほどで終わることが多い",
+    "車内対応はふつう5〜10分で終わります",
   );
   await expectFlow(page, testIds.replay.phaseStrip, "in_car_response");
   const current = page.getByTestId(testIds.replay.phase("stopped_for_check"));
@@ -48,7 +51,10 @@ test("車内対応のリプレイでは、止まった直後でも待つにな�
   await openSheet(page, "full");
   await expect(current).toBeVisible();
   await expect(current).toContainText("約2分");
-  await expect(page.getByTestId(`${testIds.replay.phaseStrip}-basis`)).toBeVisible();
+  // 知見の根拠の文は出さず、数値から組み立てた要約を添える
+  const basis = page.getByTestId(`${testIds.replay.phaseStrip}-basis`);
+  await expect(basis).toBeVisible();
+  await expect(basis).toHaveText("流れが読みやすいふつう5〜10分で終わる");
   // 帯の各段の目安の合計は、再開までの見込み 5〜10 分の下端にそろう
   const minutes = await page
     .getByTestId(testIds.replay.phaseStrip)
@@ -85,11 +91,15 @@ test("人身事故のリプレイでは、よくある流れで再開まで 1 �
   // 発生直後でも、1 時間はかかる見込みが分岐点より後なので切り替えを言い切る
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   await expect(conclusion).toHaveAttribute("data-action", "switch");
-  await expect(conclusion).not.toContainText("確信度 低");
-  await openSheet(page, "half");
-  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(
-    "人身事故は、再開まで1時間ほどかかるのがふつうです",
+  await expect(page.getByTestId(testIds.judgment.confidence)).not.toHaveAttribute(
+    "data-level",
+    "low",
   );
+  // 理由の先頭は、知見の数値から組み立てたよくある流れの一文
+  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toHaveText(
+    "人身事故はふつう1時間ほどで再開します。",
+  );
+  await openSheet(page, "half");
   await expectFlow(page, testIds.replay.phaseStrip, "person_accident");
   await expect(page.getByTestId(testIds.replay.phase("initial"))).toHaveAttribute(
     "data-position",
@@ -126,7 +136,7 @@ test("入口で「非常ボタン・急病」を選ぶと、待つの判断と�
 
   await openSheet(page, "half");
   await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(
-    "車内対応は5〜10分ほどで終わることが多いです",
+    "車内対応はふつう5〜10分で終わります",
   );
   await expectFlow(page, testIds.judgment.flow, "in_car_response");
   // 段階はよくある流れの欄にまとめ、根拠の中には重ねて出さない
@@ -137,6 +147,27 @@ test("入口で「非常ボタン・急病」を選ぶと、待つの判断と�
   await expect(nextCheck).not.toContainText("再開見込み");
   await page.getByTestId(testIds.judgment.evidenceToggle).click();
   await expect(page.getByTestId(testIds.judgment.phaseTimeline)).toHaveCount(0);
+  // 根拠を開いても、知見の本文は出さない。事象の名前と数値から組み立てた要約を出す
+  const knowledge = loadReplayKnowledge().find((k) => k.id === "in_car_response");
+  if (!knowledge) throw new Error("車内対応の知見がありません");
+  const evidence = page.getByTestId(testIds.judgment.evidence);
+  await expect(page.getByTestId(testIds.judgment.evidenceItem("in_car_response"))).toContainText(
+    "車内対応のよくある流れ · ふつう5〜10分で終わる",
+  );
+  const sheet = page.getByTestId(testIds.judgment.sheet);
+  const knowledgeTexts = [
+    knowledge.summary.ja,
+    knowledge.predictability?.basis?.ja,
+    ...knowledge.phases.flatMap((phase) => [
+      phase.description,
+      phase.guidance.ja,
+      ...phase.signals.map((signal) => signal.description),
+    ]),
+  ].filter((text): text is string => typeof text === "string" && text.length > 0);
+  for (const text of knowledgeTexts) {
+    await expect(evidence).not.toContainText(text);
+    await expect(sheet).not.toContainText(text);
+  }
   await expect(page.getByTestId(testIds.judgment.flowPhase("stopped_for_check"))).toBeVisible();
 });
 

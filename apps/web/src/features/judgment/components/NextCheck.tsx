@@ -60,7 +60,8 @@ function usePremises(): string[] {
   return items;
 }
 
-// 今の段階の次の段階に出る兆候。知見の説明は日本語だけなので、英語の画面では出さない
+// 今の段階の次の段階に出る兆候。知見の説明の文は出さず、放送で聞こえる言い回しの例で示す
+// 例は日本語だけなので、英語の画面では出さない
 function listNextSignals(
   catalog: KnowledgeCatalog,
   estimate: Estimate,
@@ -72,7 +73,9 @@ function listNextSignals(
   if (!event) return [];
   const index = event.phases.findIndex((p) => p.id === estimate.phaseId);
   const next = event.phases[index + 1];
-  return (next?.signals ?? []).slice(0, Math.max(0, limit)).map((s) => s.description);
+  return (next?.signals ?? [])
+    .flatMap((s) => (s.example_phrases[0] ? [`「${s.example_phrases[0]}」`] : []))
+    .slice(0, Math.max(0, limit));
 }
 
 export function PremiseSection() {

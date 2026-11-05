@@ -7,6 +7,7 @@ import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import {
   loadReplayScenarios,
   openReplay,
+  openSheet,
   waitForFiniteAnimations,
   waitForJudged,
 } from "../support/replay.ts";
@@ -207,6 +208,44 @@ test("大阪駅では現在地のまわりに寄せ、乗り換え候補の駅�
   // 選択肢の行にも、吹き出しと同じ駅が添えてある
   const key = (await recommended.getAttribute("data-testid"))?.replace("judgment-map-station-", "");
   await expect(option).toHaveAttribute("data-station", key ?? "");
+
+  // ほかの選択肢の行を押すと、シートを閉じて地図をその選択肢の経路と乗る駅に描き直す
+  const other = page
+    .locator(
+      `[data-testid^='judgment-option-'][data-recommended='false']:not([data-station='']):not([data-station='here']):not([data-station='${key}'])`,
+    )
+    .first();
+  const otherId = (await other.getAttribute("data-testid"))?.replace("judgment-option-", "") ?? "";
+  const otherKey = (await other.getAttribute("data-station")) ?? "";
+  expect(otherId).not.toBe("");
+  await other.getByRole("button").click();
+  await expect(page.getByTestId(testIds.judgment.sheet)).toHaveAttribute("data-snap", "collapsed");
+  await expect(map).toHaveAttribute("data-selected-option", otherId);
+  await expect(map).toHaveAttribute("data-recommended-option", optionId ?? "");
+  await expect(other).toHaveAttribute("data-selected", "true");
+  // 地図の見方の経路の色も、地図と同じ選択中の選択肢の色になる
+  const otherKind = (await other.getAttribute("data-kind")) ?? "";
+  const otherTone = otherKind === "wait" ? "wait" : "switch";
+  await expect(map).toHaveAttribute("data-route-tone", otherTone);
+  await expect(page.getByTestId(mapTestIds.legend)).toHaveAttribute("data-tone", otherTone);
+  const selected = page.getByTestId(mapTestIds.station(otherKey));
+  await expect(selected).toHaveAttribute("data-recommended", "true");
+  // おすすめの星は推奨の選択肢の駅に残す
+  await expect(selected).toHaveAttribute("data-starred", "false");
+  await expect(page.getByTestId(mapTestIds.station(key ?? ""))).toHaveAttribute(
+    "data-starred",
+    "true",
+  );
+  await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+  await waitForFiniteAnimations(page);
+  await page.screenshot({ path: `${screenshotDir}map-focus-selected-390x844.png` });
+
+  // 待つ選択肢を選ぶと、地図の経路と地図の見方の色がどちらも待つ色に変わる
+  await openSheet(page, "full");
+  const waitOption = page.locator("[data-testid^='judgment-option-'][data-kind='wait']").first();
+  await waitOption.getByRole("button").click();
+  await expect(map).toHaveAttribute("data-route-tone", "wait");
+  await expect(page.getByTestId(mapTestIds.legend)).toHaveAttribute("data-tone", "wait");
 });
 
 test("「全体を見る」で経路の全体に切り替え、もう一度押すと現在地のまわりに戻る", async ({

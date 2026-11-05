@@ -1,8 +1,10 @@
 "use client";
 
 import type { Judgment } from "@repo/schema";
+import { CornerDownRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import { splitHeadline } from "../headline";
 import type { buildJudgmentChange } from "../judgment-change";
 import { testIds } from "../testids";
@@ -13,25 +15,27 @@ import { NoBreakText } from "./NoBreakText";
 
 export { ActionPill } from "./ActionPill";
 
-// 見込みが立てやすい事象では、理由に事象のよくある流れが入る。行動の理由がすぐ伝わるよう、閉じたシートに理由を出す
+// 理由の先頭の 1 文。閉じたシートで見出しの下に出す
 export function selectCardReason(judgment: Judgment | null): string | null {
-  if (judgment?.typicalFlow?.predictability.level !== "high") return null;
-  return judgment.reason?.match(/^.*?(?:。|[.!?](?=\s|$)|$)/s)?.[0] || null;
+  return judgment?.reason?.match(/^.*?(?:。|[.!?](?=\s|$)|$)/s)?.[0]?.trim() || null;
 }
 
-// 結論を一つだけ大きく出す。閉じたシートに収まるよう、ピルと見出しと、流れが読める事象では理由だけにする
+// ひと目で分かる段。行動の見出し 1 行と、待つときの次の手、理由 1 行、数字 1 つだけを出す
 export function ConclusionCard({
   judgment,
   badge,
   change,
+  metric,
 }: {
   judgment: Judgment;
   // ピルの横に添える印（リプレイの「判断が変わりました」）
   badge?: ReactNode;
   change?: ReturnType<typeof buildJudgmentChange>;
+  // 右上に置く数字。境目までの残り時間か到着の見込み
+  metric?: ReactNode;
 }) {
-  const t = useTranslations("judgment");
-  const { lead } = splitHeadline(judgment.headline);
+  const t = useTranslations("judgment.conclusion");
+  const { lead, rest } = splitHeadline(judgment.headline);
   const cardReason = selectCardReason(judgment);
 
   return (
@@ -45,21 +49,29 @@ export function ConclusionCard({
         <div className="flex min-w-0 items-center gap-2">
           <ActionPill action={judgment.action} />
           {badge}
-          <span className="ml-auto shrink-0 text-[12px] text-muted">
-            {t("conclusion.confidence", { level: t(`confidence.${judgment.estimate.confidence}`) })}
-          </span>
+          <div className="ml-auto">{metric}</div>
         </div>
         <h2
           id="conclusion-headline"
           data-testid={testIds.judgment.conclusionHeadline}
-          className="line-clamp-2 text-[22px] leading-[1.3] font-bold tracking-tight text-balance"
+          className="text-[24px] leading-[1.25] font-bold tracking-tight text-balance"
         >
-          <NoBreakText text={lead} />
+          <NoBreakText text={lead.replace(/。$/, "")} />
         </h2>
+        {rest && (
+          <p
+            data-testid={testIds.judgment.conclusionNext}
+            className="-mt-1 flex items-center gap-1.5 text-[15px] font-semibold text-muted"
+          >
+            <CornerDownRight className="size-4 shrink-0" strokeWidth={2} aria-hidden />
+            <span className="sr-only">{t("next")}: </span>
+            <NoBreakText text={rest} />
+          </p>
+        )}
         {cardReason && (
           <p
             data-testid={testIds.judgment.conclusionReason}
-            className="line-clamp-3 text-[15px] leading-snug text-pretty"
+            className="line-clamp-2 text-[15px] leading-snug text-pretty"
           >
             <NoBreakText text={cardReason} />
           </p>
@@ -70,36 +82,29 @@ export function ConclusionCard({
   );
 }
 
-// 半分開いたときに見せる理由と補足
+// 開いて読む段の先頭。理由の残りの文と、見込みの確かさ
 export function ConclusionDetail({ judgment }: { judgment: Judgment }) {
   const t = useTranslations("judgment");
   const locale = useLocale();
-  const { lead, rest } = splitHeadline(judgment.headline);
-  // 要約に出した先頭の文を除き、補足だけを開いたシートに出す
   const cardReason = selectCardReason(judgment);
-  const reason = cardReason
-    ? judgment.reason?.slice(cardReason.length).trim()
-    : (judgment.reason ?? rest);
+  // 閉じたシートに出した先頭の文を除き、残りだけを出す
+  const reason = cardReason ? (judgment.reason ?? "").slice(cardReason.length).trim() : "";
   const recommended = judgment.options.find((o) => o.id === judgment.recommendedOptionId);
   const remaining = judgment.estimate.remaining;
+  const level = judgment.estimate.confidence;
 
   const chips: string[] = [];
-  // 切り替えでは、閉じたシートが切り替え先の到着を出すので重ねない
-  if (recommended && judgment.action === "hold") {
-    chips.push(
-      lead.includes(recommended.label)
-        ? t("conclusion.arrival", { time: formatClockTime(recommended.arrivalTime, locale) })
-        : t("conclusion.recommended", {
-            label: recommended.label,
-            time: formatClockTime(recommended.arrivalTime, locale),
-          }),
-    );
+  // 待つときは、待った場合の到着を添える。切り替えでは閉じたシートが到着を出すので重ねない
+  if (recommended && judgment.action !== "switch") {
+    chips.push(t("conclusion.arrival", { time: formatClockTime(recommended.arrivalTime, locale) }));
   }
   if (remaining && judgment.breakEven === null) chips.push(t("conclusion.remaining", remaining));
-  if (!reason && chips.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-2.5">
+      {reason && (
+        <h2 className="text-[13px] font-medium text-muted">{t("conclusion.reasonTitle")}</h2>
+      )}
       {reason && (
         <p
           data-testid={testIds.judgment.conclusionReasonDetail}
@@ -109,6 +114,16 @@ export function ConclusionDetail({ judgment }: { judgment: Judgment }) {
         </p>
       )}
       <ul className="flex flex-wrap gap-1.5 text-[12px] text-muted">
+        <li
+          data-testid={testIds.judgment.confidence}
+          data-level={level}
+          className={cn(
+            "rounded-lg px-2.5 py-1",
+            level === "low" ? "bg-hold-surface text-hold" : "bg-foreground/[0.06]",
+          )}
+        >
+          {t("conclusion.confidence", { level: t(`confidence.${level}`) })}
+        </li>
         {chips.map((chip) => (
           <li key={chip} className="rounded-lg bg-foreground/[0.06] px-2.5 py-1 tabular-nums">
             {chip}

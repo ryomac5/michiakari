@@ -92,7 +92,7 @@ export function StationBubble({
   const t = useTranslations("map");
   const status = station.suspended ? t("statusSuspended") : t("statusRunning");
   const label = [
-    station.recommended ? t("recommended") : null,
+    station.starred ? t("recommended") : null,
     `${station.name} ${station.operator}`,
     station.lines.map((l) => l.name).join("、"),
     status,
@@ -104,9 +104,7 @@ export function StationBubble({
 
   const body = compact ? (
     <span className="flex items-center gap-1.5">
-      {station.recommended && (
-        <Star className="size-3 shrink-0 fill-current text-switch" aria-hidden />
-      )}
+      {station.starred && <Star className="size-3 shrink-0 fill-current text-switch" aria-hidden />}
       <span className="flex gap-0.5">
         {station.lines.slice(0, 3).map((line) => (
           <LineSwatch key={line.lineId} line={line} />
@@ -114,7 +112,7 @@ export function StationBubble({
       </span>
       <span className="text-[12px] font-semibold whitespace-nowrap">{station.shortName}</span>
       <span className="text-[12px] font-semibold whitespace-nowrap text-muted tabular-nums">
-        {t("minutesShort", { minutes: station.walkMinutes })}
+        {t("walkShort", { minutes: station.walkMinutes })}
       </span>
     </span>
   ) : variant === "medium" ? (
@@ -125,7 +123,7 @@ export function StationBubble({
           <span className="ml-1.5 text-[11px] font-normal text-muted">{station.operator}</span>
         </span>
         <span className="shrink-0 text-[13px] font-bold tabular-nums">
-          {t("minutesShort", { minutes: station.walkMinutes })}
+          {t("walkShort", { minutes: station.walkMinutes })}
         </span>
       </span>
       <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted">
@@ -151,7 +149,7 @@ export function StationBubble({
     </span>
   ) : (
     <span className="flex w-[172px] flex-col gap-1.5 text-left sm:w-[196px]">
-      {station.recommended && (
+      {station.starred && (
         <span className="flex items-center gap-1 text-[11px] font-bold text-switch">
           <Star className="size-3 fill-current" aria-hidden />
           {t("recommended")}
@@ -213,6 +211,7 @@ export function StationBubble({
   const testProps = {
     "data-testid": mapTestIds.station(station.key),
     "data-recommended": station.recommended,
+    "data-starred": station.starred,
     "data-status": station.suspended ? "suspended" : "running",
     "data-walk-minutes": station.walkMinutes,
     "data-placement": placement,

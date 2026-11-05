@@ -126,16 +126,17 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   await expect(conclusion).toBeVisible({ timeout: 30_000 });
-  // 原因を聞き取れなくても、分岐点の時刻まで待ち、動かなければ切り替える行動で言い切る
+  // 原因を聞き取れなくても、境目の時刻まで待ち、動かなければ乗る路線を次の手として言い切る
   await expect(conclusion).toHaveAttribute("data-action", "hold");
-  await expect(conclusion).toContainText("低");
-  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toContainText(
-    /\d{1,2}時\d{2}分までに動かなければ切り替える/,
+  await expect(page.getByTestId(testIds.judgment.confidence)).toHaveAttribute("data-level", "low");
+  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText(
+    /^\d{1,2}時\d{2}分まで待つ$/,
   );
+  await expect(page.getByTestId(testIds.judgment.conclusionNext)).toContainText("動かなければ");
   await expect(conclusion).not.toContainText(nonDecisive);
-  // 分岐点の意味を一文で添える
+  // 境目の意味を開いたシートで一文で添える
   await expect(page.getByTestId(testIds.judgment.breakEvenMeaning)).toContainText(
-    "この時刻までに再開すれば待つほうが早く着く",
+    "境目の時刻までに動けば待つほうが早く着きます",
   );
 
   // 地図は止まっている御堂筋線と、乗り換えられる駅を語る
@@ -161,12 +162,8 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   await expect(premise).toContainText("方面の主な駅");
   await expect(premise).toContainText("車内の位置は本町駅と仮定する");
   await expect(premise).toContainText("止まった時刻はいまと仮定する");
-  await expect(premise).toContainText("分岐点を動く目安");
-  for (const part of [
-    premise,
-    nextCheck,
-    page.getByTestId(testIds.judgment.conclusionReasonDetail),
-  ]) {
+  await expect(premise).toContainText("境目の時刻を動く目安");
+  for (const part of [premise, nextCheck, page.getByTestId(testIds.judgment.conclusionReason)]) {
     await expect(part).not.toContainText(nonDecisive);
   }
 

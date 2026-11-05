@@ -303,11 +303,9 @@ export function SelectPanel({
               >
                 {checked && <Check className="size-3.5" strokeWidth={3} />}
               </span>
-              <span className="flex flex-col gap-1">
-                <span className="text-[14px] font-medium">{signal.description}</span>
-                {signal.example_phrases[0] && (
-                  <span className="text-[12px] text-muted">「{signal.example_phrases[0]}」</span>
-                )}
+              {/* 知見の説明の文は出さず、放送で聞こえる言い回しの例を選ぶ札にする */}
+              <span className="text-[14px] font-medium">
+                {signal.example_phrases[0] ? `「${signal.example_phrases[0]}」` : signal.id}
               </span>
             </label>
           );

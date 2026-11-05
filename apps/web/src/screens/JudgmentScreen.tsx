@@ -9,13 +9,13 @@ import { HeaderBackButton } from "@/components/HeaderBackButton";
 import { MapSheet } from "@/components/MapSheet";
 import { SheetSection, useMapChrome } from "@/components/SheetSection";
 import { selectTimelineBasis } from "@/features/judgment/break-even-timeline";
-import { BreakEvenDetail, BreakEvenSummary } from "@/features/judgment/components/BreakEvenPanel";
-import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
 import {
-  ConclusionCard,
-  ConclusionDetail,
-  selectCardReason,
-} from "@/features/judgment/components/ConclusionCard";
+  BreakEvenDetail,
+  BreakEvenMetric,
+  ResumeOutlook,
+} from "@/features/judgment/components/BreakEvenPanel";
+import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
+import { ConclusionCard, ConclusionDetail } from "@/features/judgment/components/ConclusionCard";
 import { Disclaimer } from "@/features/judgment/components/Disclaimer";
 import { EvidenceSection } from "@/features/judgment/components/EvidenceSection";
 import { JudgmentError } from "@/features/judgment/components/JudgmentError";
@@ -30,7 +30,7 @@ import { type OriginLine, type TripContext, useJudgmentSession } from "@/feature
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { selectSwitchStep } from "@/features/judgment/switch-step";
 import { testIds } from "@/features/judgment/testids";
-import { useOptionFocus } from "@/features/judgment/use-option-focus";
+import { useOptionFocus, useOptionSelection } from "@/features/judgment/use-option-focus";
 import { MapLegend } from "@/features/map/MapLegend";
 import { MapPanel, selectRouteTone } from "@/features/map/MapPanel";
 import type { BlockedDirection, ReachSource } from "@/features/map/scene";
@@ -76,6 +76,7 @@ export function JudgmentScreen() {
   const [reachSource, setReachSource] = useState<ReachSource | null>(null);
   const [guide, setGuide] = useState<StationGuide | null>(null);
   const { highlightId, focusOption } = useOptionFocus(chrome.setSnap);
+  const { selectedOptionId, selectOption } = useOptionSelection(chrome.setSnap, state.judgedAt);
   const known = [...observations, ...state.observations];
   const blockedLine = known.findLast((o) => o.line !== null)?.line ?? null;
   const lineLabel = useLineLabel(blockedLine);
@@ -101,7 +102,6 @@ export function JudgmentScreen() {
     display.judgment?.disclaimer ?? state.previousJudgment?.disclaimer ?? null;
   const options = display.options ?? noOptions;
   const typicalFlow = display.settled?.judgment.typicalFlow ?? null;
-  const tone = selectRouteTone(options, display.recommendedOptionId);
   const breakEvenProps = {
     breakEven: display.breakEven,
     known: display.breakEvenKnown,
@@ -113,6 +113,12 @@ export function JudgmentScreen() {
     showOnset: typeof tripContext?.elapsedMinutes === "number",
   };
   const switchStep = selectSwitchStep(display.judgment ?? null);
+  // 一覧で押した選択肢を地図に描く。判断が変わって選択肢が消えたら推奨に戻す
+  const mapOptionId = options.some((o) => o.id === selectedOptionId)
+    ? selectedOptionId
+    : display.recommendedOptionId;
+  // 凡例も地図と同じ選択中の選択肢の色にする
+  const tone = selectRouteTone(options, mapOptionId);
 
   return (
     <div data-testid={testIds.judgment.screen} data-status={state.status} className="h-dvh">
@@ -140,6 +146,7 @@ export function JudgmentScreen() {
         destination={destination}
         options={options}
         recommendedOptionId={display.recommendedOptionId}
+        selectedOptionId={mapOptionId}
         blockedSection={blockedSection}
         blockedLine={blockedLine}
         blockedDirection={blockedDirection}
@@ -177,20 +184,16 @@ export function JudgmentScreen() {
                   onRetry={retry}
                 />
               )}
+              {/* 1 段目: 行動の見出し、理由、数字 1 つ、推定である旨 */}
               {state.status === "ready" && display.judgment && (
-                <ConclusionCard judgment={display.judgment} />
-              )}
-              {!streaming && (
-                <BreakEvenSummary
-                  {...breakEvenProps}
-                  hideMeaning={selectCardReason(display.judgment) !== null}
-                  switchStep={switchStep}
-                  switchLineColor={
-                    guide?.optionMarks.find((m) => m.optionId === switchStep?.optionId)?.color
-                  }
+                <ConclusionCard
+                  judgment={display.judgment}
+                  metric={<BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />}
                 />
               )}
               <Disclaimer />
+              {/* 2 段目: 再開の見込みの図 */}
+              {state.status === "ready" && <ResumeOutlook {...breakEvenProps} />}
             </div>
           }
         >
@@ -200,11 +203,29 @@ export function JudgmentScreen() {
               <WeatherPanel weather={display.weather} stale={display.weatherStale} />
             </SheetSection>
           )}
+          {/* 3 段目: 理由の残り、境目の見方、ほかの選択肢、よくある流れ、根拠、判断の過程 */}
           {display.judgment && (
-            <SheetSection className="empty:hidden">
+            <SheetSection>
               <ConclusionDetail judgment={display.judgment} />
             </SheetSection>
           )}
+          {display.breakEven && (
+            <SheetSection>
+              <BreakEvenDetail {...breakEvenProps} />
+            </SheetSection>
+          )}
+          <SheetSection>
+            <OptionList
+              options={display.options}
+              recommendedOptionId={display.recommendedOptionId}
+              stale={display.optionsStale}
+              pending={streaming}
+              marks={guide?.optionMarks}
+              highlightId={highlightId}
+              selectedId={mapOptionId}
+              onSelect={selectOption}
+            />
+          </SheetSection>
           {typicalFlow && (
             <SheetSection>
               <TypicalFlowSection
@@ -229,29 +250,6 @@ export function JudgmentScreen() {
             />
           )}
           {state.status === "ready" && <PremiseSection />}
-          {display.breakEven && (
-            <SheetSection>
-              <BreakEvenDetail {...breakEvenProps} />
-            </SheetSection>
-          )}
-          <SheetSection>
-            <OptionList
-              options={display.options}
-              recommendedOptionId={display.recommendedOptionId}
-              stale={display.optionsStale}
-              pending={streaming}
-              marks={guide?.optionMarks}
-              highlightId={highlightId}
-            />
-          </SheetSection>
-          <SheetSection>
-            <MapLegend tone={tone} reachSource={reachSource} />
-          </SheetSection>
-          {state.status === "ready" && (
-            <SheetSection>
-              <ReasoningLog state={state} catalog={catalog} />
-            </SheetSection>
-          )}
           <SheetSection>
             <EvidenceSection
               estimate={display.estimate}
@@ -260,7 +258,16 @@ export function JudgmentScreen() {
               catalog={catalog}
               disclaimer={disclaimerExtra}
               showPhases={typicalFlow === null}
+              flow={typicalFlow}
             />
+          </SheetSection>
+          {state.status === "ready" && (
+            <SheetSection>
+              <ReasoningLog state={state} catalog={catalog} />
+            </SheetSection>
+          )}
+          <SheetSection>
+            <MapLegend tone={tone} reachSource={reachSource} />
           </SheetSection>
           <SheetSection
             testId={testIds.judgment.addInfo}
