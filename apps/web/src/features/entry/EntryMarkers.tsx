@@ -5,7 +5,7 @@ import { testIds } from "@/features/judgment/testids";
 import { cn } from "@/lib/utils";
 import type { LabelSide } from "./areas";
 
-// 入口の地図の印。押せる範囲は丸を中心にした 44px の四角で、名前の札はその外側に出す
+// 入口の地図の印。押せる範囲は丸を中心にした 48px の四角で、名前の札はその外側に出す
 
 const labelSideClass: Record<LabelSide, string> = {
   right: "left-[calc(50%+14px)] top-1/2 -translate-y-1/2",
@@ -48,7 +48,7 @@ function MarkerButton({
       aria-pressed={pressed}
       onClick={stop(onClick)}
       className={cn(
-        "group relative flex size-11 animate-fade-in items-center justify-center rounded-full transition-opacity duration-200",
+        "group relative flex size-12 animate-fade-in items-center justify-center rounded-full transition-opacity duration-200",
         dim && "opacity-45 hover:opacity-100",
       )}
     >

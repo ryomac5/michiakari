@@ -663,19 +663,32 @@ export function StartScreen() {
         below={
           entry.stage === "kansai" ? (
             <>
-              <PromptCard
-                ref={promptRef}
-                locateStatus={locateStatus}
-                message={locateMessage}
-                onLocate={locate}
-                nearest={nearest}
-                onSelect={openPlace}
-                quickPicks={desktop ? hubs : null}
-                onQuickPick={(stationName) => {
-                  const choice = data ? findStationChoice(data, stationName) : null;
-                  if (choice) openPlace(choice);
-                }}
-              />
+              <div ref={promptRef} className="flex flex-col gap-2">
+                <div
+                  data-testid={testIds.start.intro}
+                  className="glass-strong rounded-[20px] px-4 py-3 text-[14px] leading-snug"
+                >
+                  <p data-testid={testIds.start.introAudience}>{t("start.introAudience")}</p>
+                  <p data-testid={testIds.start.introProblem} className="mt-1 text-muted">
+                    {t("start.introProblem")}
+                  </p>
+                  <p data-testid={testIds.start.introSolution} className="mt-1 font-semibold">
+                    {t("start.introSolution")}
+                  </p>
+                </div>
+                <PromptCard
+                  locateStatus={locateStatus}
+                  message={locateMessage}
+                  onLocate={locate}
+                  nearest={nearest}
+                  onSelect={openPlace}
+                  quickPicks={desktop ? hubs : null}
+                  onQuickPick={(stationName) => {
+                    const choice = data ? findStationChoice(data, stationName) : null;
+                    if (choice) openPlace(choice);
+                  }}
+                />
+              </div>
               {desktop && <DemoDock inline />}
             </>
           ) : undefined

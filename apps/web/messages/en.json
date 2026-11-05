@@ -24,6 +24,9 @@
     "short": "Estimate only. Follow official notices."
   },
   "start": {
+    "introAudience": "For rail passengers stranded by service suspensions in Kansai.",
+    "introProblem": "Service notices alone leave you unsure whether to wait or switch routes.",
+    "introSolution": "A former dispatcher’s expertise guides your choice with recovery estimates and actions.",
     "originLabel": "Where are you?",
     "locate": "Use my location",
     "locating": "Getting your location…",
