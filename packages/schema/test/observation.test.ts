@@ -105,3 +105,20 @@ describe("文章の上限", () => {
     );
   });
 });
+
+describe("走行位置画像の種別", () => {
+  it.each([
+    { trainsAhead: [] },
+    { trainsAhead: ["local", "rapid", "special_rapid", "limited_express", "unknown"] },
+  ])("前の列車の並び $trainsAhead を保持する", ({ trainsAhead }) => {
+    expect(ObservationSchema.parse({ ...validObservation, trainsAhead }).trainsAhead).toEqual(
+      trainsAhead,
+    );
+  });
+
+  it("列挙外の種別を拒否する", () => {
+    expect(
+      ObservationSchema.safeParse({ ...validObservation, trainsAhead: ["express"] }).success,
+    ).toBe(false);
+  });
+});

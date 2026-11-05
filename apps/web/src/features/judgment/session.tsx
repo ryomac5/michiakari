@@ -15,6 +15,7 @@ import {
 import type { CauseAnswer, EntryMethod } from "@/features/entry/flow";
 import { type KnowledgeCatalog, mergeCatalogs } from "@/features/knowledge/catalog";
 import type { ElapsedOption } from "@/features/situation/plain-questions";
+import { applyTrainMovement } from "@/features/situation/train-movement";
 import type { NearestStationLabel, StationNames } from "@/features/stations/describe";
 import { JudgmentChangeContext } from "./components/JudgmentChangeCard";
 import { personAccidentCatalog } from "./fixtures/person-accident";
@@ -148,6 +149,7 @@ export function JudgmentSessionProvider({
   const lastInputRef = useRef<RawInput | null>(null);
   // 判断の要求は、入口で決めた直後にも出す。state の反映を待たずに読めるよう ref にも持つ
   const trainPositionRef = useRef<TrainPosition | null>(null);
+  const trainPositionMetaRef = useRef(defaultTrainPositionMeta);
 
   useEffect(() => {
     setMockEnabled(isMockRequested(window.location.search));
@@ -157,6 +159,7 @@ export function JudgmentSessionProvider({
   const setTrainPosition = useCallback(
     (position: TrainPosition | null, meta: TrainPositionMeta = defaultTrainPositionMeta) => {
       trainPositionRef.current = position;
+      trainPositionMetaRef.current = meta;
       setTrainPositionState(position);
       setTrainPositionMeta(meta);
     },
@@ -186,7 +189,18 @@ export function JudgmentSessionProvider({
       const parsed: Observation[] = [];
       for await (const event of stream(request, { signal: controller.signal })) {
         if (controller.signal.aborted) return;
-        if (event.type === "observation_parsed") parsed.push(event.observation);
+        if (event.type === "observation_parsed") {
+          parsed.push(event.observation);
+          const position = applyTrainMovement(trainPositionRef.current, event.observation);
+          if (position !== trainPositionRef.current) {
+            const meta = trainPositionMetaRef.current;
+            setTrainPosition(position, {
+              ...meta,
+              edited: { ...meta.edited, trainsAhead: true },
+              trainsAheadFromPattern: false,
+            });
+          }
+        }
         setState((prev) => reduceJudgmentState(prev, event));
       }
       // 解釈済みの観測は次の要求で返送する。途中で失敗しても読み取れた分は残す
@@ -195,7 +209,7 @@ export function JudgmentSessionProvider({
         lastInputRef.current = null;
       }
     },
-    [origin, destination, locale, mockEnabled],
+    [origin, destination, locale, mockEnabled, setTrainPosition],
   );
 
   const submitInput = useCallback(

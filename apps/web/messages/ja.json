@@ -282,6 +282,8 @@
     "statusOnly": "見合わせ",
     "premise": {
       "title": "この判断の前提",
+      "trainsAheadPhoto": "走行位置の画像から前の列車を {types} と読みました",
+      "trainsAheadPhotoNone": "走行位置の画像から前に列車はいないと読みました",
       "destinationHub": "行き先は{station}で考えています。{direction}方面の主な駅です",
       "destinationTerminal": "行き先は終点の{station}で考えています",
       "onTrain": "電車の中なので、{station}駅にいるとして考えています",

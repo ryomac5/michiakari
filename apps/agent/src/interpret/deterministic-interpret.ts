@@ -1,11 +1,12 @@
-import type {
-  Confidence,
-  DetectedSignal,
-  EventTypeCandidate,
-  Knowledge,
-  ObservableKind,
-  Observation,
-  RawInput,
+import {
+  type Confidence,
+  type DetectedSignal,
+  type EventTypeCandidate,
+  type Knowledge,
+  type ObservableKind,
+  type Observation,
+  type RawInput,
+  TrainTypeSchema,
 } from "@repo/schema";
 import type { LineInfo } from "../alternatives/provider.ts";
 import {
@@ -146,14 +147,29 @@ export function interpretSelection(
   };
 }
 
-// 写真以外の入力を解釈する。写真は API キーが無いと読めないので null
+// 決定論モードの画像 fixture は fixture-train-movement--rapid+local.png の名前で並びを指定する
+function interpretPhotoFixture(
+  input: Extract<RawInput, { type: "photo" }>,
+  ctx: InterpretContext,
+): Observation | null {
+  const match = input.fileName?.match(/^fixture-train-movement--([a-z_+]+)\.(?:png|jpe?g|webp)$/);
+  if (!match) return null;
+  const parsed = TrainTypeSchema.array().safeParse(match[1] === "none" ? [] : match[1]?.split("+"));
+  if (!parsed.success) return null;
+  return {
+    ...interpretText({ source: "photo", kind: "train_movement", text: "" }, ctx),
+    trainsAhead: parsed.data,
+  };
+}
+
+// fixture 以外の写真は API キーが無いと読めないので null
 export function interpretRawInputDeterministically(
   input: RawInput,
   ctx: InterpretContext,
 ): Observation | null {
   switch (input.type) {
     case "photo":
-      return null;
+      return interpretPhotoFixture(input, ctx);
     case "selection":
       return interpretSelection(input, ctx);
     case "text":

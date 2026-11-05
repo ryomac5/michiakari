@@ -58,3 +58,13 @@ export const LINE_TYPES = [
 ] as const;
 export const LineTypeSchema = z.enum(LINE_TYPES);
 export type LineType = z.infer<typeof LineTypeSchema>;
+
+// 列車の種別。入口の選択肢と同じ 5 値。unknown は普通として控えめに扱う
+export const TrainTypeSchema = z.enum([
+  "local",
+  "rapid",
+  "special_rapid",
+  "limited_express",
+  "unknown",
+]);
+export type TrainType = z.infer<typeof TrainTypeSchema>;

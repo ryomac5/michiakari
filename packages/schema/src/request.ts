@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { IsoDateTimeSchema, LangSchema } from "./common.ts";
+import { IsoDateTimeSchema, LangSchema, TrainTypeSchema } from "./common.ts";
 import { MAX_INPUT_TEXT_LENGTH, ObservationSchema, RawInputSchema } from "./observation.ts";
 
 // POST /judge の入力
@@ -21,15 +21,7 @@ export const UserConstraintsSchema = z.object({
 });
 export type UserConstraints = z.infer<typeof UserConstraintsSchema>;
 
-// 列車の種別。入口の選択肢と同じ 5 値。unknown は普通として控えめに扱う
-export const TrainTypeSchema = z.enum([
-  "local",
-  "rapid",
-  "special_rapid",
-  "limited_express",
-  "unknown",
-]);
-export type TrainType = z.infer<typeof TrainTypeSchema>;
+export { type TrainType, TrainTypeSchema } from "./common.ts";
 
 // 前に詰まっている本数の目安。種別の並びが分からないときに使う
 export const TrainsAheadCountSchema = z.enum(["none", "few", "many", "unknown"]);

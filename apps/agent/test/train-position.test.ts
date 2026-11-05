@@ -128,3 +128,52 @@ describe("駅間の車内にいる利用者の判断", () => {
     }
   });
 });
+
+describe("走行位置画像を判断へ反映する", () => {
+  it("画像から読んだ快速・普通で既定の並びと間隔を置き換える", async () => {
+    const request = buildRequest(defaults);
+    request.observations.push({
+      ...buildEntryObservation(),
+      id: "cause",
+      observedAt: now,
+      eventTypeCandidates: [{ eventType: "person_accident", confidence: "high" }],
+    });
+    request.newInput = {
+      type: "photo",
+      imageBase64: "aGVsbG8=",
+      mediaType: "image/png",
+      fileName: "fixture-train-movement--rapid+local.png",
+    };
+    const events = await postJudge(app, request);
+    const parsed = events.find((e) => e.type === "observation_parsed");
+    expect(parsed?.type === "observation_parsed" && parsed.observation.trainsAhead).toEqual([
+      "rapid",
+      "local",
+    ]);
+    const actual = findJudgment(events);
+    const expected = findJudgment(
+      await postJudge(app, {
+        ...request,
+        newInput: null,
+        trainPosition: observed(["rapid", "local"]),
+      }),
+    );
+    expect(actual.reason).toBe(expected.reason);
+    expect(actual.options).toEqual(expected.options);
+    expect(actual.reason).toContain("前の快速は塚本に止まれないため");
+    expect(actual.reason).not.toContain("前の列車との間隔はふだんどおりとみて");
+  });
+
+  it("過去の画像は利用者が手直しした並びを上書きしない", async () => {
+    const request = buildRequest(observed(["local"]));
+    request.observations.push({
+      ...buildEntryObservation(),
+      id: "old-photo",
+      source: "photo",
+      kind: "train_movement",
+      trainsAhead: ["rapid", "local"],
+    });
+    const judgment = findJudgment(await postJudge(app, request));
+    expect(judgment.reason).toContain("塚本のホームに前の普通が止まっているため");
+  });
+});

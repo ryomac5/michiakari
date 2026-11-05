@@ -31,7 +31,12 @@ export async function preparePhoto(file: File): Promise<{ input: PhotoInput; pre
   bitmap.close();
   const dataUrl = canvas.toDataURL("image/jpeg", jpegQuality);
   return {
-    input: { type: "photo", imageBase64: stripDataUrlPrefix(dataUrl), mediaType: "image/jpeg" },
+    input: {
+      type: "photo",
+      imageBase64: stripDataUrlPrefix(dataUrl),
+      mediaType: "image/jpeg",
+      fileName: file.name,
+    },
     previewUrl: dataUrl,
   };
 }

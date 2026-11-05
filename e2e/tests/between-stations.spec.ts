@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 // page 内で動かす関数（evaluate）のために DOM の型を読む
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
@@ -279,4 +279,75 @@ test("判断の画面で前の列車のチップを押し、快速と普通を�
   await expect(reason).not.toContainText("入れない");
   await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready");
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toContainText("塚本");
+});
+
+test("持ち込んだ走行位置画像の種別を判断入力に使う", async ({ page }) => {
+  await reachPositionStep(page);
+  await startBetweenStations(page);
+  await openSheet(page, "full");
+  const addInfo = page.getByTestId(testIds.judgment.addInfo);
+  await addInfo.getByTestId(testIds.situation.tab("photo")).click();
+
+  // 自作の画像 fixture。決定論モードでは名前に明示した並びを読む
+  await addInfo.getByTestId(testIds.situation.photoInput).setInputFiles({
+    name: "fixture-train-movement--rapid+local.png",
+    mimeType: "image/png",
+    buffer: readFileSync(new URL("../fixtures/tiles/pale.png", import.meta.url)),
+  });
+  await expect(addInfo.getByTestId(testIds.situation.photoPreview)).toBeVisible();
+  await addInfo.getByTestId(testIds.situation.submit("photo")).click();
+  await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready", {
+    timeout: 30_000,
+  });
+  await openSheet(page, "half");
+  await expect(page.getByTestId(testIds.judgment.conclusionReason).first()).toContainText(
+    "前の快速は塚本に止まれないため",
+  );
+  const ahead = page.getByTestId(testIds.judgment.trainPositionChip("ahead"));
+  await expect(ahead).toContainText("前に詰まっている列車 快速・普通");
+  await expect(ahead).toHaveAttribute("data-source", "user");
+  await openSheet(page, "full");
+  await expect(page.getByTestId(testIds.judgment.premise)).toContainText(
+    "走行位置の画像から前の列車を 快速・普通 と読みました",
+  );
+
+  // 次の入力でも、読み取った並びを保持して判断する
+  await addInfo.getByTestId(testIds.situation.tab("paste")).click();
+  await addInfo.getByTestId(testIds.situation.pasteInput).fill("引き続き運転を見合わせています");
+  const nextRequest = page.waitForRequest(
+    (request) => request.method() === "POST" && new URL(request.url()).pathname === "/judge",
+  );
+  await addInfo.getByTestId(testIds.situation.submit("paste")).click();
+  expect((await nextRequest).postDataJSON().trainPosition).toMatchObject({
+    trainsAhead: ["rapid", "local"],
+    trainsAheadCount: null,
+    trainsAheadHeadwayMinutes: null,
+  });
+  await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready", {
+    timeout: 30_000,
+  });
+  await expect(ahead).toContainText("前に詰まっている列車 快速・普通");
+  await expect(page.getByTestId(testIds.judgment.premise)).toContainText(
+    "走行位置の画像から前の列車を 快速・普通 と読みました",
+  );
+
+  // 通信失敗後のリトライでも、画像の並びを判断入力に戻す
+  await page.route("**/judge", (route) => route.abort(), { times: 1 });
+  await addInfo.getByTestId(testIds.situation.pasteInput).fill("再開の見込みはまだ未定です");
+  await addInfo.getByTestId(testIds.situation.submit("paste")).click();
+  const retry = page.getByTestId(testIds.judgment.retryButton);
+  await expect(retry).toBeVisible();
+  const retryRequest = page.waitForRequest(
+    (request) => request.method() === "POST" && new URL(request.url()).pathname === "/judge",
+  );
+  await retry.click();
+  expect((await retryRequest).postDataJSON().trainPosition).toMatchObject({
+    trainsAhead: ["rapid", "local"],
+    trainsAheadCount: null,
+    trainsAheadHeadwayMinutes: null,
+  });
+  await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready", {
+    timeout: 30_000,
+  });
+  await expect(ahead).toContainText("前に詰まっている列車 快速・普通");
 });
