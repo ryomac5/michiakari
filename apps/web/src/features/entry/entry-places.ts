@@ -74,6 +74,8 @@ const hubSnapMeters = 3000;
 const genericRadiusMeters = 1300;
 const genericPlaceLimit = 6;
 const stationChoiceRadiusMeters = 1000;
+// 指の幅から出した距離の上限（m）。丸に寄せる範囲と同じにし、それより遠い駅は「その近く」と感じない
+const maxTapReachMeters = hubSnapMeters;
 
 // JR の東海道線は、走る場所で通称が変わる。大阪を境に西は JR神戸線、東は JR京都線
 const tokaidoNicknames = {
@@ -242,7 +244,7 @@ export function findAreaAt(data: EntryData, point: Position, reachMeters = 0): E
   if (hub) return resolveConfiguredArea(data, hub.hub.areaId);
   const area = buildNearbyArea(data, point);
   if (area || reachMeters <= genericRadiusMeters) return area;
-  const nearest = findNearestGroupPosition(data, point, reachMeters);
+  const nearest = findNearestGroupPosition(data, point, Math.min(reachMeters, maxTapReachMeters));
   return nearest ? buildNearbyArea(data, nearest) : null;
 }
 

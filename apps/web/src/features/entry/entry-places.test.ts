@@ -72,6 +72,12 @@ describe("findAreaAt", () => {
     expect(findAreaAt(data, [135.2, 34.45])).toBeNull();
     expect(findAreaAt(data, [135.2, 34.45], 4000)).toBeNull();
   });
+
+  it("引いた地図で海の上を押しても、指の幅が遠い駅まで届かない", () => {
+    // 拡大率 7 の関西あたりでは、指の幅 44px が約 22km になる
+    expect(findAreaAt(data, [135.2, 34.45], 22000)).toBeNull();
+    expect(findAreaAt(data, [135.3, 34.55], 22000)).toBeNull();
+  });
 });
 
 describe("openStationChoice", () => {
