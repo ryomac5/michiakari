@@ -408,8 +408,8 @@ function buildDecisionReason(input: DecisionTextInput): string {
     case "unknown_event":
       if (!be) {
         return ja
-          ? "いまは運転再開を待つ。放送で原因を確かめる。"
-          : "Wait for service to resume. Listen for the cause.";
+          ? "待つ場合と比べられる代わりの経路がないため運転再開を待ちます。"
+          : "Wait for service to resume because there is no alternative route to compare.";
       }
       return ja
         ? `${be}を過ぎると${target}のほうが早く着きます。`
@@ -432,8 +432,8 @@ function buildDecisionReason(input: DecisionTextInput): string {
     case "low_confidence":
       if (!be) {
         return ja
-          ? "いまは運転再開を待つ。再開見込みの放送を確かめる。"
-          : "Wait for service to resume. Listen for a restart time.";
+          ? "待つ場合と比べられる代わりの経路がないため運転再開を待ちます。"
+          : "Wait for service to resume because there is no alternative route to compare.";
       }
       if (!p50 || !p80) {
         return ja

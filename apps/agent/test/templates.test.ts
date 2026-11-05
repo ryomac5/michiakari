@@ -107,6 +107,29 @@ describe("buildDecisionText", () => {
     );
   });
 
+  for (const reason of ["unknown_event", "low_confidence"] as const) {
+    for (const language of ["ja", "en"] as const) {
+      it(`${reason}・${language} は分岐点なしで待つ理由を示し、次の確認を重ねない`, () => {
+        const text = buildDecisionText({
+          reason,
+          language,
+          breakEvenMinutesFromNow: null,
+          bestOption: null,
+          ...NO_OUTLOOK,
+        });
+        expect(text.headline).toBe(
+          language === "ja" ? "運転再開を待つ" : "Wait for service to resume.",
+        );
+        expect(text.reason).toBe(
+          language === "ja"
+            ? "待つ場合と比べられる代わりの経路がないため運転再開を待ちます。"
+            : "Wait for service to resume because there is no alternative route to compare.",
+        );
+        expect(text.reason).not.toMatch(/確かめる|Listen for/);
+      });
+    }
+  }
+
   it("待つときの見出しは分岐点までの分を示す", () => {
     const input = {
       reason: "resume_before_break_even" as const,
