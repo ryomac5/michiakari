@@ -37,6 +37,26 @@ export const RouteOptionSchema = z.object({
 });
 export type RouteOption = z.infer<typeof RouteOptionSchema>;
 
+// 近くのバス停の確認候補。国土数値情報 P11 の停留所の位置と徒歩の目安だけを持つ
+// 到着時刻を持たないので、到着の比較・境目・おすすめには入れない。時刻と運行可否は出さない
+export const BUS_CHECK_LIMIT = 3;
+
+export const BusCheckSchema = z.object({
+  // 元データの版とレコードの対応。例: P11-22_27:1234
+  id: z.string().min(1),
+  stopName: z.string().min(1),
+  operator: z.string().min(1),
+  lon: z.number().min(-180).max(180),
+  lat: z.number().min(-90).max(90),
+  // 起点の駅か現在地から停留所までの徒歩の概算（分）
+  walkMinutes: NonNegativeIntSchema,
+  // 事業者の公式の案内。トップか路線案内のページ。確認済みの URL が無ければ null
+  officialUrl: z.url().nullable(),
+  // 位置情報の資料の年
+  dataYear: z.number().int(),
+});
+export type BusCheck = z.infer<typeof BusCheckSchema>;
+
 // 1 割単位に丸めた確率。0 は 1 割未満、10 は 9 割以上を表し、0% と 100% は出さない
 export const ChanceTenthsSchema = z.number().int().min(0).max(10);
 export type ChanceTenths = z.infer<typeof ChanceTenthsSchema>;
@@ -106,6 +126,8 @@ export const JudgmentSchema = z.object({
   disclaimer: z.string().min(1),
   // 事象のよくある流れ。サーバーが知見から詰める。原因が分からないときは入れない
   typicalFlow: TypicalFlowSchema.optional(),
+  // 近くのバス停の確認候補。サーバーが代替手段の算出から詰める。無ければ画面は欄を出さない
+  busChecks: z.array(BusCheckSchema).max(BUS_CHECK_LIMIT).optional(),
 });
 export type Judgment = z.infer<typeof JudgmentSchema>;
 
