@@ -208,28 +208,33 @@ test("駅と駅の間にいる人の判断にも、確率の帯と待ったほ�
   expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(844);
 });
 
-test("入口から判断しても帯が出て、止まってからの時間を答えたときだけ「発生から」が付く", async ({
-  page,
-}) => {
-  await startFromEntry(page, "m10");
-  const band = page.getByTestId(testIds.judgment.resumeChance);
-  await expect(band).toBeVisible();
-  await expect(band).toHaveAttribute("data-onset", "known");
-  const lead = page.getByTestId(testIds.judgment.resumeChanceLead);
-  await expect(lead).toContainText("発生から");
-  await expect(lead).toContainText("見込みで動いています");
-  await expect(page.getByTestId(testIds.judgment.resumeChanceWaitFaster)).toBeVisible();
-  // 10 分前に止まったので、最初の目盛りの発生からの分は 10 分より後
-  const ticks = await readTicks(page);
-  expect(ticks.length).toBeGreaterThanOrEqual(4);
-  expect(ticks[0]?.sinceOnset ?? 0).toBeGreaterThan(10);
+for (const { clock, sinceOnset } of [
+  { clock: "22:01:00", sinceOnset: 19 },
+  { clock: "22:09:59", sinceOnset: 10 },
+]) {
+  test(`入口の${clock}の判断では経過時間を答えたときだけ「発生から」が付く`, async ({ page }) => {
+    await page.clock.setFixedTime(new Date(`2026-11-05T${clock}+09:00`));
+    await startFromEntry(page, "m10");
+    const band = page.getByTestId(testIds.judgment.resumeChance);
+    await expect(band).toBeVisible();
+    await expect(band).toHaveAttribute("data-onset", "known");
+    const lead = page.getByTestId(testIds.judgment.resumeChanceLead);
+    await expect(lead).toContainText("発生から");
+    await expect(lead).toContainText("見込みで動いています");
+    await expect(page.getByTestId(testIds.judgment.resumeChanceWaitFaster)).toBeVisible();
+    // 未来の目盛りでも直前の秒からは経過分が10分に丸められる
+    const ticks = await readTicks(page);
+    expect(ticks.length).toBeGreaterThanOrEqual(4);
+    expect(ticks[0]?.sinceOnset).toBe(sinceOnset);
+    expect(ticks[0]?.label).toContain("22:10");
 
-  await startFromEntry(page, "unknown");
-  await expect(band).toBeVisible();
-  await expect(band).toHaveAttribute("data-onset", "unknown");
-  await expect(lead).not.toContainText("発生から");
-  await expect(lead).toContainText("見込みで動いています");
-});
+    await startFromEntry(page, "unknown");
+    await expect(band).toBeVisible();
+    await expect(band).toHaveAttribute("data-onset", "unknown");
+    await expect(lead).not.toContainText("発生から");
+    await expect(lead).toContainText("見込みで動いています");
+  });
+}
 
 test("切り替える判断でも確率の時点と分岐点が一致し比較先の到着時刻が出る", async ({ page }) => {
   await openReplay(page, "person_accident_last_train", 60);

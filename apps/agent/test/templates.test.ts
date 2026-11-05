@@ -145,6 +145,43 @@ describe("buildDecisionText", () => {
     );
   });
 
+  it("流れと確率を添えても再開見込みと分岐点を残し90字以内に収める", () => {
+    const input = {
+      reason: "resume_after_break_even" as const,
+      language: "ja" as const,
+      breakEvenMinutesFromNow: 13,
+      bestOption: null,
+      ...OUTLOOK,
+      flow: {
+        outlook: "long" as const,
+        sentence: "人身事故は、再開まで1時間ほどかかるのがふつうです。",
+        inReason: true,
+      },
+      chance: {
+        waitFaster: 0,
+        comparisonTime: OUTLOOK.breakEvenTime,
+        waitOnTime: null,
+        keyTick: null,
+      },
+    };
+    const comparison = "再開見込み23時40分頃が、分岐点23時23分より遅いためです。";
+    const chance = "分岐点の23時23分までに再開する見込みは1割未満です。";
+    const text = buildDecisionText(input);
+    expect(text.reason).toBe(`${input.flow.sentence}${comparison}${chance}`);
+    expect([...text.reason].length).toBeLessThanOrEqual(90);
+
+    const longerFlow = buildDecisionText({
+      ...input,
+      flow: {
+        ...input.flow,
+        sentence:
+          "人身事故は、関係機関による確認が終わるまで再開を待つため1時間ほどかかるのがふつうです。",
+      },
+    });
+    expect(longerFlow.reason).toBe(`${comparison}${chance}`);
+    expect([...longerFlow.reason].length).toBeLessThanOrEqual(90);
+  });
+
   it("待つときの理由は、見込みが分岐点より早いか、差が小さいかで書き分ける", () => {
     const base = {
       reason: "resume_before_break_even" as const,

@@ -187,6 +187,25 @@ describe("computeResumeChance", () => {
     expect(withoutOnset.ticks.every((t) => t.sinceOnsetMinutes === null)).toBe(true);
   });
 
+  it.each([
+    { clock: "22:01:00", onset: "21:51:00", minutes: 19 },
+    { clock: "22:09:59", onset: "21:59:59", minutes: 10 },
+  ])("現在時刻が$clockでも最初の目盛りは未来で経過分は丸める", ({ clock, onset, minutes }) => {
+    const now = `2026-11-05T${clock}+09:00`;
+    const chance = computeResumeChance(
+      buildInput({
+        now,
+        onsetTime: `2026-11-05T${onset}+09:00`,
+        samples: [1, 2, 3, 4],
+        firstTrainWaitMinutes: 0,
+        breakEvenTime: null,
+      }),
+    );
+    expect(chance.ticks[0]?.time).toBe(at("22:10"));
+    expect(parseIsoToMs(chance.ticks[0]?.time ?? "")).toBeGreaterThan(parseIsoToMs(now));
+    expect(chance.ticks[0]?.sinceOnsetMinutes).toBe(minutes);
+  });
+
   it("人身事故では、発生から下限の時刻までの目盛りが 1 割未満になる", () => {
     const onset = at("22:10");
     const estimate = estimateBranchAwareRemaining(personAccident, "initial", 0, {

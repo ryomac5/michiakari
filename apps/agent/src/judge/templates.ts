@@ -591,9 +591,6 @@ function buildFlowFollowUp(input: DecisionTextInput, outlook: FlowOutlook): stri
   const ja = input.language === "ja";
   const be = input.breakEvenTime ? formatClock(input.breakEvenTime, input.language) : null;
   const target = nameSwitchTarget(input.bestOption, input.language);
-  if (be && input.reason === "resume_after_break_even") {
-    return ja ? `分岐点${be}より再開が遅れます。` : `Resumption is expected after ${be}.`;
-  }
   if (outlook === "short" && input.reason === "resume_before_break_even") {
     return ja ? "このまま待つほうが早く着きます。" : "Staying put gets you there sooner.";
   }
