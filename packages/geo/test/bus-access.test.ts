@@ -19,18 +19,28 @@ describe("listWalkAccessBusStops", () => {
     stop("a:2", "近い停留所", "架空バス", [135.5, 34.7015]),
     stop("a:3", "中くらいの停留所", "架空バス", [135.5, 34.703]),
     stop("b:1", "近い停留所", "別の架空バス", [135.5, 34.702]),
+    stop("b:2", "中くらいの停留所", "別の架空バス", [135.5, 34.6955]),
     stop("a:4", "遠い停留所", "架空バス", [135.5, 34.72]),
   ];
+  const base = { stops, origin, maxWalkMinutes: 10, sameNameMeters: 300, limit: 3 };
 
-  it("徒歩の短い順に上限の内側を返し、同じ名前と事業者は近いほうにまとめる", () => {
-    const result = listWalkAccessBusStops({ stops, origin, maxWalkMinutes: 10, limit: 3 });
-    expect(result.map((r) => r.stop.id)).toEqual(["a:1", "b:1", "a:3"]);
-    expect(result.map((r) => r.walkMinutes)).toEqual([2, 4, 6]);
+  it("同じ名前で近い停留所は 1 件にまとめ、事業者を並べる", () => {
+    const result = listWalkAccessBusStops(base);
+    expect(result.map((r) => r.name)).toEqual([
+      "近い停留所",
+      "中くらいの停留所",
+      "中くらいの停留所",
+    ]);
+    expect(result[0]?.stops.map((s) => s.id)).toEqual(["a:1", "b:1"]);
+    expect(result[0]?.walkMinutes).toBe(2);
+    // 同じ名前でも離れた停留所は別の件にする
+    expect(result[1]?.stops.map((s) => s.id)).toEqual(["a:3"]);
+    expect(result[2]?.stops.map((s) => s.id)).toEqual(["b:2"]);
   });
 
   it("上限の分を超える停留所と limit を超える件数は返さない", () => {
-    expect(listWalkAccessBusStops({ stops, origin, maxWalkMinutes: 3, limit: 3 })).toHaveLength(1);
-    expect(listWalkAccessBusStops({ stops, origin, maxWalkMinutes: 10, limit: 1 })).toHaveLength(1);
+    expect(listWalkAccessBusStops({ ...base, maxWalkMinutes: 3 })).toHaveLength(1);
+    expect(listWalkAccessBusStops({ ...base, limit: 1 })).toHaveLength(1);
   });
 });
 
@@ -59,7 +69,7 @@ describe("parseBusStops", () => {
 });
 
 describe("生成したバス停のデータ", () => {
-  it("出典と件数を持ち、大阪の駅の近くに停留所がある", () => {
+  it("出典と件数を持ち、大阪の駅の近くに停留所があり、高速バスの停留所は収めない", () => {
     const meta = loadBusStopMeta();
     const stops = loadBusStops();
     expect(meta?.dataYear).toBe(2022);
@@ -70,8 +80,10 @@ describe("生成したバス停のデータ", () => {
       stops,
       origin: [135.4959, 34.7025],
       maxWalkMinutes: 10,
+      sameNameMeters: 300,
       limit: 3,
     });
     expect(near.length).toBeGreaterThan(0);
+    expect(stops.some((s) => s.name.includes("高速バス"))).toBe(false);
   });
 });

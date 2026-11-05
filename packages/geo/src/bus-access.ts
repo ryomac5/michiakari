@@ -1,10 +1,14 @@
 import { estimateWalkMinutes } from "@repo/core";
+import { computeDistanceMeters } from "./distance.ts";
 import type { BusOperatorLink, BusStop, BusStopCollection, LonLat } from "./types.ts";
 
 // 駅か位置から歩いて確かめに行けるバス停。到着時刻は持たず、確認先の候補だけを返す
 
+// 同じ名前で近い停留所のまとまり。stops は徒歩の短い順で、事業者ごとに 1 つ
 export type WalkAccessBusStop = {
-  stop: BusStop;
+  name: string;
+  stops: BusStop[];
+  // いちばん近い停留所までの徒歩の分
   walkMinutes: number;
 };
 
@@ -13,6 +17,8 @@ export type BusStopQuery = {
   origin: LonLat;
   // 徒歩の上限（分）
   maxWalkMinutes: number;
+  // 同じ名前の停留所をまとめる距離（m）
+  sameNameMeters: number;
   limit: number;
 };
 
@@ -31,20 +37,33 @@ export function parseBusStops(
   }));
 }
 
-// 同じ名前で同じ事業者の停留所は、近いほうの 1 つにまとめる
-const buildStopKey = (stop: BusStop) => `${stop.operator}\u0000${stop.name}`;
-
-// 徒歩の短い順に、上限の分の内側の停留所を limit 件まで返す。徒歩は core の概算
-export function listWalkAccessBusStops(query: BusStopQuery): WalkAccessBusStop[] {
-  const nearest = new Map<string, WalkAccessBusStop>();
-  for (const stop of query.stops) {
-    const walkMinutes = estimateWalkMinutes(query.origin, stop.lonLat);
-    if (walkMinutes > query.maxWalkMinutes) continue;
-    const key = buildStopKey(stop);
-    const current = nearest.get(key);
-    if (!current || walkMinutes < current.walkMinutes) nearest.set(key, { stop, walkMinutes });
+// 停留所を、先に置いた近いほうの同じ名前のまとまりに足す。同じ事業者は重ねない
+function addToGroups(
+  groups: WalkAccessBusStop[],
+  stop: BusStop,
+  walkMinutes: number,
+  sameNameMeters: number,
+): void {
+  const group = groups.find(
+    (g) =>
+      g.name === stop.name &&
+      g.stops[0] !== undefined &&
+      computeDistanceMeters(g.stops[0].lonLat, stop.lonLat) <= sameNameMeters,
+  );
+  if (!group) {
+    groups.push({ name: stop.name, stops: [stop], walkMinutes });
+    return;
   }
-  return [...nearest.values()]
-    .sort((a, b) => a.walkMinutes - b.walkMinutes || a.stop.id.localeCompare(b.stop.id))
-    .slice(0, Math.max(0, query.limit));
+  if (!group.stops.some((s) => s.operator === stop.operator)) group.stops.push(stop);
+}
+
+// 徒歩の短い順に、上限の分の内側の停留所をまとめて limit 件まで返す。徒歩は core の概算
+export function listWalkAccessBusStops(query: BusStopQuery): WalkAccessBusStop[] {
+  const reachable = query.stops
+    .map((stop) => ({ stop, walkMinutes: estimateWalkMinutes(query.origin, stop.lonLat) }))
+    .filter((r) => r.walkMinutes <= query.maxWalkMinutes)
+    .sort((a, b) => a.walkMinutes - b.walkMinutes || a.stop.id.localeCompare(b.stop.id));
+  const groups: WalkAccessBusStop[] = [];
+  for (const r of reachable) addToGroups(groups, r.stop, r.walkMinutes, query.sameNameMeters);
+  return groups.slice(0, Math.max(0, query.limit));
 }

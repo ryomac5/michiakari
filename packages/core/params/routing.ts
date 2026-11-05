@@ -34,3 +34,6 @@ export const ACCESS_WALK_MAX_MINUTES_EXTENDED = 25;
 
 // バス停を確認候補に出すときの、停留所までの徒歩の上限（分）。出典: 開発者の推定（仮）
 export const BUS_CHECK_MAX_WALK_MINUTES = 10;
+
+// 同じ名前のバス停を 1 件にまとめる距離（m）。道の両側や会社ごとの標柱を 1 行で見せる。出典: 開発者の推定（仮）
+export const BUS_STOP_SAME_NAME_METERS = 300;
