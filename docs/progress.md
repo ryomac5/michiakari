@@ -15,11 +15,17 @@
 
 ## 記録
 
+### 2026-11-05 / T1 / 再レビュー指摘の修正
+- やったこと: judgment-flowの期待値を「までに再開すれば」に更新。確率の比較時刻と期限時刻と目盛りのコメントを実装にそろえた。
+- 確認結果: 通常installはENOTFOUND。既存キャッシュのoffline install、typecheck、lint、core 280件、agent 199件、guardは成功。
+- 確認結果: 関連e2eは15件の収集に成功。ポート制約により実行はスケジューラに委ねる。判断規則と90字上限は変更なし。
+- 残課題: claude モードの分岐点と確率の文型が決定論モードと食い違う。T9 で直す。
+
 ### 2026-11-05 / T1 / 結論と再開確率の比較時点を統一
 - やったこと: 判断規則と90字上限を維持し日英の確率文と分岐点の比較先・到着時刻を整備。発表見込みの理由に分岐点時刻を復元。
 - やったこと: 最大7割の固定データで確率文の欠落2件を再現。coreに分岐点後の最初の目盛りへのfallbackを追加し関連テストを同じdescribeへ集約。
 - 確認結果: frozen installは通常参照先でENOTFOUND、既存キャッシュ指定で成功。typecheck、lint、core 280件、agent 199件、guardは成功。
-- 残課題: 指定e2eはlisten EPERM 0.0.0.0:3101で起動不可。スケジューラで検証する。scope外のprompts/judgment-system.md、tools/emit-judgment.ts、architecture.md、ux.md、web/messages/ja.jsonの旧文型は後続で統一する。
+- 残課題: claude モードの分岐点と確率の文型が決定論モードと食い違う。T9 で直す。
 
 ### 2026-11-04 / 統合 / 入口から判断、デモ録画までの 2 日間のまとめ
 

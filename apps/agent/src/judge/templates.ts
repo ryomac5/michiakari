@@ -123,11 +123,14 @@ export type ChanceTextInput = {
   laterOutlook?: boolean;
   // 待ったほうが早く着く確率。代替手段が無ければ null
   waitFaster: number | null;
+  // 判断で比較した分岐点の再開時刻。分岐点が無ければ null
   comparisonTime?: string | null;
+  // 待って期限に間に合うための再開時刻。期限か待つ経路が無ければ null
   deadlineResumeTime?: string | null;
   // 待って期限に間に合う確率。期限が無ければ null
   waitOnTime: number | null;
-  // 代替手段も期限も無いときに使う目盛り。5 割に達する最初の目盛り
+  // 通常は5割に達する最初の目盛り、無ければ最後
+  // laterOutlookなら分岐点後の8割以上の最初、無ければ分岐点後の最初
   keyTick: { time: string; tenths: number } | null;
 };
 
