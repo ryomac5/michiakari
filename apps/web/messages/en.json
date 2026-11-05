@@ -327,7 +327,16 @@
       "unknown": "not sure",
       "unknownType": "type unknown"
     },
-    "tripBetween": "{from}–{to}"
+    "tripBetween": "{from}–{to}",
+    "change": {
+      "title": "The recommendation changed",
+      "before": "Before",
+      "after": "Now",
+      "announcement": "Trigger",
+      "probability": "Chance waiting is faster",
+      "notCalculated": "Not calculated",
+      "noAnnouncement": "No new announcement"
+    }
   },
   "replay": {
     "heading": "Watch the demo",

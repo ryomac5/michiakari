@@ -327,7 +327,16 @@
       "unknown": "分からない",
       "unknownType": "種別は分からない"
     },
-    "tripBetween": "{from}〜{to}"
+    "tripBetween": "{from}〜{to}",
+    "change": {
+      "title": "判断が変わりました",
+      "before": "前の判断",
+      "after": "今の判断",
+      "announcement": "きっかけ",
+      "probability": "待つほうが早い見込み",
+      "notCalculated": "未算出",
+      "noAnnouncement": "新しい発表はありません"
+    }
   },
   "replay": {
     "heading": "デモを見る",
