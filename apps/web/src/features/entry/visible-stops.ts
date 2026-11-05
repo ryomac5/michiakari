@@ -76,3 +76,14 @@ export function selectVisibleStops<T extends StopLabel>(input: {
     return [{ ...stop, side: chosen }];
   });
 }
+
+// キー・配置・札の文字が前と同じなら前の配列を返し、印を作り直さない
+export function keepStopsIfSame<T extends StopLabel>(prev: T[], next: T[]): T[] {
+  const same =
+    prev.length === next.length &&
+    prev.every((s, i) => {
+      const n = next[i];
+      return n !== undefined && s.key === n.key && s.side === n.side && s.label === n.label;
+    });
+  return same ? prev : next;
+}

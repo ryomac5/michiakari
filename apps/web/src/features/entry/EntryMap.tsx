@@ -27,7 +27,7 @@ import {
   selectVisibleHubs,
 } from "./visible-hubs";
 import { type MapStation, STATION_LABEL_MIN_ZOOM, selectVisibleStations } from "./visible-stations";
-import { buildStopLabelRect, selectVisibleStops } from "./visible-stops";
+import { buildStopLabelRect, keepStopsIfSame, selectVisibleStops } from "./visible-stops";
 
 // 入口の地図。関西 → エリア → 駅の順に寄り、行き先を選んだら出発と行き先を結ぶ
 // 段ごとに出す印を絞り、地図そのものは淡く沈める
@@ -491,12 +491,7 @@ export function EntryMap(props: EntryMapProps) {
         blockers,
       });
       // 出す札が同じなら配列を差し替えず、印を作り直さない
-      setVisibleStops((prev) =>
-        prev.length === next.length &&
-        prev.every((s, i) => s.key === next[i]?.key && s.side === next[i]?.side)
-          ? prev
-          : next,
-      );
+      setVisibleStops((prev) => keepStopsIfSame(prev, next));
     };
     update();
     map.on("moveend", update);

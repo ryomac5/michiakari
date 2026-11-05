@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Position } from "./entry-places";
-import { buildStopLabelRect, type StopLabel, selectVisibleStops } from "./visible-stops";
+import {
+  buildStopLabelRect,
+  keepStopsIfSame,
+  type StopLabel,
+  selectVisibleStops,
+} from "./visible-stops";
 
 // 経度と緯度をそのまま画面の座標として扱う
 const project = (position: Position) => ({ x: position[0], y: position[1] });
@@ -35,5 +40,22 @@ describe("selectVisibleStops", () => {
   it("方面の札は重なっても落とさない", () => {
     const stops = [stop("北", 100, 100, 0), stop("南", 104, 104, 180)];
     expect(selectVisibleStops({ stops, project, blockers: [] })).toHaveLength(2);
+  });
+});
+
+describe("keepStopsIfSame", () => {
+  it("キーと配置と札の文字が同じなら、前の配列をそのまま返す", () => {
+    const prev = [stop("三ノ宮", 100, 100)];
+    expect(keepStopsIfSame(prev, [stop("三ノ宮", 100, 100)])).toBe(prev);
+  });
+  it("文字だけが変わったら、新しい配列を返す", () => {
+    const prev = [stop("三ノ宮", 100, 100)];
+    const next = [{ ...stop("三ノ宮", 100, 100), label: "Sannomiya" }];
+    expect(keepStopsIfSame(prev, next)).toBe(next);
+  });
+  it("配置が変わったら、新しい配列を返す", () => {
+    const prev = [stop("三ノ宮", 100, 100)];
+    const next = [{ ...stop("三ノ宮", 100, 100), side: "right" as const }];
+    expect(keepStopsIfSame(prev, next)).toBe(next);
   });
 });
