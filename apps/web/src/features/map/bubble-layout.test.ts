@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   chooseBubblePlacements,
   chooseLabelLayout,
+  compactStationSlides,
+  constrainFitPadding,
   type LayoutInput,
   type LayoutItem,
+  measureLabelOverlap,
   measureLayoutCost,
   measureLayoutOverlap,
   overlapArea,
@@ -15,6 +18,28 @@ import {
 
 const view = { left: 0, top: 0, right: 400, bottom: 800 };
 const size = { w: 100, h: 30 };
+
+describe("constrainFitPadding", () => {
+  it("375×667 でも上下の余白で寄せる計算が失敗しない", () => {
+    const padding = constrainFitPadding(
+      { w: 375, h: 667 },
+      { top: 78, right: 0, bottom: 400, left: 0 },
+      { top: 186, right: 215, bottom: 30, left: 80 },
+    );
+    expect(667 - padding.top - padding.bottom).toBeCloseTo(64);
+    expect(375 - padding.left - padding.right).toBeGreaterThanOrEqual(64);
+  });
+
+  it("390×844 で収まっていた余白は変えない", () => {
+    expect(
+      constrainFitPadding(
+        { w: 390, h: 844 },
+        { top: 78, right: 0, bottom: 500, left: 0 },
+        { top: 56, right: 215, bottom: 30, left: 80 },
+      ),
+    ).toEqual({ top: 134, right: 215, bottom: 530, left: 80 });
+  });
+});
 
 describe("chooseBubblePlacements", () => {
   it("近い 2 つの駅の札は、互いに重ならない向きに置く", () => {
@@ -197,6 +222,86 @@ describe("chooseLabelLayout: ずらしと覆ってはいけないもの", () => 
     const layout = chooseLabelLayout({ items, here: { x: 200, y: 300 }, view });
     expect(layout.slides.a).toBe(0);
   });
+});
+
+describe("chooseLabelLayout: 375×667 の狭い地図", () => {
+  it("四方だけでは重なる密集した駅も、札を少しずらして見える範囲に収める", () => {
+    const items: LayoutItem[] = [
+      {
+        key: "here",
+        point: { x: 110, y: 170 },
+        size: { w: 154, h: 36 },
+        gap: 20,
+        slides: [-64, -48, -32, -16, 0, 16, 32, 48, 64],
+      },
+      { key: "a", point: { x: 160, y: 141 }, size: { w: 160, h: 46 }, gap: 12 },
+      { key: "b", point: { x: 151, y: 180 }, size: { w: 160, h: 46 }, gap: 12 },
+      { key: "c", point: { x: 142, y: 134 }, size: { w: 112, h: 46 }, gap: 12 },
+      { key: "d", point: { x: 133, y: 173 }, size: { w: 112, h: 46 }, gap: 12 },
+    ];
+    const input: LayoutInput = {
+      items,
+      here: items[0]?.point ?? { x: 110, y: 170 },
+      view: { left: 8, top: 78, right: 367, bottom: 259 },
+    };
+    expect(measureLabelOverlap(input, chooseLabelLayout(input))).toBeGreaterThan(0);
+    const slidingInput = {
+      ...input,
+      items: items.map((item) => ({ ...item, slides: item.slides ?? compactStationSlides })),
+    };
+    const layout = chooseLabelLayout(slidingInput);
+    expect(measureLabelOverlap(slidingInput, layout)).toBe(0);
+    expect(measureLayoutOverlap(slidingInput, layout)).toBe(0);
+    for (const item of items.slice(1)) {
+      expect(Math.abs(layout.slides[item.key] ?? 0)).toBeLessThanOrEqual(32);
+    }
+  });
+
+  it("収まる組み合わせがなくても、固定した向きを保って配置を返す", () => {
+    const input: LayoutInput = {
+      items: [{ key: "large", point: { x: 187, y: 160 }, size: { w: 196, h: 150 }, gap: 12 }],
+      here: { x: 187, y: 160 },
+      view: { left: 8, top: 78, right: 367, bottom: 259 },
+      fixed: { large: "top" },
+    };
+    const layout = chooseLabelLayout(input);
+    expect(layout.placements.large).toBe("top");
+    expect(layout.slides.large).toBe(0);
+    expect(measureLayoutOverlap(input, layout)).toBeGreaterThan(0);
+  });
+
+  it.each([34, 44])(
+    "札の高さが %ipx でも、向きの好みのためにわずかな重なりを残さない",
+    (height) => {
+      const input: LayoutInput = {
+        items: [
+          {
+            key: "here",
+            point: { x: 176, y: 142 },
+            size: { w: 150, h: 34 },
+            gap: 20,
+            slides: [-16, -8, 0, 8, 16],
+          },
+          { key: "a", point: { x: 133, y: 134 }, size: { w: 108, h: height }, gap: 12 },
+          { key: "b", point: { x: 253, y: 189 }, size: { w: 108, h: height }, gap: 12 },
+          { key: "c", point: { x: 174, y: 178 }, size: { w: 108, h: height }, gap: 12 },
+        ],
+        here: { x: 187, y: 160 },
+        view: { left: 8, top: 78, right: 367, bottom: 259 },
+      };
+      const layout = chooseLabelLayout(input);
+      expect(measureLayoutOverlap(input, layout)).toBe(0);
+      const boxes = input.items.map((item) =>
+        placeBox(item, layout.placements[item.key] ?? "right", layout.slides[item.key] ?? 0),
+      );
+      boxes.forEach((box, i) => {
+        expect(overlapArea(box, input.view)).toBeCloseTo(
+          (box.right - box.left) * (box.bottom - box.top),
+        );
+        for (const other of boxes.slice(i + 1)) expect(overlapArea(box, other)).toBe(0);
+      });
+    },
+  );
 });
 
 describe("placeBox", () => {

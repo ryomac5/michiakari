@@ -8,6 +8,27 @@ export type ScreenPoint = { x: number; y: number };
 export type BoxSize = { w: number; h: number };
 export type Rect = { left: number; top: number; right: number; bottom: number };
 
+// 小画面でも寄せる計算が成立するよう、地図に最低限の幅と高さを残す。
+export function constrainFitPadding(size: BoxSize, insets: Rect, margins: Rect): Rect {
+  const minimumMapSpan = 64;
+  const scaleX = Math.min(
+    1,
+    Math.max(0, size.w - insets.left - insets.right - minimumMapSpan) /
+      (margins.left + margins.right),
+  );
+  const scaleY = Math.min(
+    1,
+    Math.max(0, size.h - insets.top - insets.bottom - minimumMapSpan) /
+      (margins.top + margins.bottom),
+  );
+  return {
+    left: insets.left + margins.left * scaleX,
+    right: insets.right + margins.right * scaleX,
+    top: insets.top + margins.top * scaleY,
+    bottom: insets.bottom + margins.bottom * scaleY,
+  };
+}
+
 export type LayoutItem = {
   key: string;
   point: ScreenPoint;
@@ -21,6 +42,8 @@ export type LayoutItem = {
 };
 
 export const bubblePlacements: readonly BubblePlacement[] = ["top", "right", "bottom", "left"];
+// 狭い地図で四方だけでは収まらないとき、小さな駅の札も少しずらす。
+export const compactStationSlides = [0, -16, 16, -32, 32] as const;
 
 // 置き場所ごとの札の矩形。札の尾が点を指すよう、点の反対側に札を置く。slide は辺の方向へのずらし
 export function placeBox(item: LayoutItem, placement: BubblePlacement, slide = 0): Rect {
@@ -196,7 +219,7 @@ export function chooseLabelLayout(input: LayoutInput): LabelLayout {
   let best: LabelChoice[] | null = null;
   let bestCost = Number.POSITIVE_INFINITY;
   const picked: number[] = [];
-  const visit = (i: number, cost: number) => {
+  const visit = (i: number, cost: number, avoidOverlap: "all" | "labels" | "none") => {
     if (cost >= bestCost) return;
     if (i === choices.length) {
       bestCost = cost;
@@ -206,16 +229,36 @@ export function chooseLabelLayout(input: LayoutInput): LabelLayout {
     const candidates = choices[i] as LabelChoice[];
     for (let k = 0; k < candidates.length; k++) {
       const rect = (rects[i] as Rect[])[k] as Rect;
+      if (
+        avoidOverlap === "all" &&
+        (outsideArea(rect, input.view) > 0 ||
+          input.blockers?.some((blocker) => overlapArea(rect, blocker) > 0) ||
+          input.items.some((other, j) => j !== i && overlapArea(rect, dotRect(other)) > 0))
+      ) {
+        continue;
+      }
       let next = cost + ((own[i] as number[])[k] as number);
+      let overlaps = false;
       for (let j = 0; j < i; j++) {
         const other = (rects[j] as Rect[])[picked[j] as number] as Rect;
-        next += overlapArea(rect, other) * weights.label;
+        const area = overlapArea(rect, other);
+        if (avoidOverlap !== "none" && area > 0) {
+          overlaps = true;
+          break;
+        }
+        next += area * weights.label;
       }
+      if (overlaps) continue;
       picked[i] = k;
-      visit(i + 1, next);
+      visit(i + 1, next, avoidOverlap);
     }
   };
-  visit(0, 0);
+  // 収まる組み合わせがあるなら、好みや移動量のために札の重なりを残さない
+  visit(0, 0, "all");
+  // 印や余白まで避けられない場合も、札どうしが離れる組み合わせを先に探す。
+  if (best === null) visit(0, 0, "labels");
+  // 大きなおすすめなど、収まらない場合は従来の面積評価で縮小の判断につなぐ
+  if (best === null) visit(0, 0, "none");
   const chosen = (best ?? []) as LabelChoice[];
   return {
     placements: Object.fromEntries(
@@ -241,6 +284,17 @@ export function measureLayoutOverlap(input: LayoutInput, layout: LabelLayout): n
     });
   });
   return total;
+}
+
+export function measureLabelOverlap(input: LayoutInput, layout: LabelLayout): number {
+  const boxes = input.items.map((item) =>
+    placeBox(item, layout.placements[item.key] ?? "right", layout.slides[item.key] ?? 0),
+  );
+  return boxes.reduce(
+    (total, box, i) =>
+      total + boxes.slice(i + 1).reduce((area, other) => area + overlapArea(box, other), 0),
+    0,
+  );
 }
 
 // 最も重なりの少ない置き場所の組み合わせを返す

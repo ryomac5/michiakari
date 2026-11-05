@@ -2,6 +2,7 @@
 
 import { ArrowRight, ArrowRightLeft, Footprints, Star } from "lucide-react";
 import { useTranslations } from "next-intl";
+import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import type { BubblePlacement } from "./focus-areas";
 import type { GuideLine, GuideStation, StationGuide } from "./station-guide";
@@ -13,12 +14,12 @@ import { mapTestIds } from "./testids";
 export type BubbleVariant = "full" | "medium" | "compact";
 
 const tailClass: Record<BubblePlacement, string> = {
-  top: "after:top-full after:left-1/2 after:-translate-x-1/2 after:border-t-[var(--bubble-bg)] after:border-x-transparent after:border-b-transparent",
+  top: "after:top-full after:left-[clamp(6px,calc(50%_-_var(--bubble-slide)),calc(100%_-_6px))] after:-translate-x-1/2 after:border-t-[var(--bubble-bg)] after:border-x-transparent after:border-b-transparent",
   bottom:
-    "after:bottom-full after:left-1/2 after:-translate-x-1/2 after:border-b-[var(--bubble-bg)] after:border-x-transparent after:border-t-transparent",
-  left: "after:left-full after:top-1/2 after:-translate-y-1/2 after:border-l-[var(--bubble-bg)] after:border-y-transparent after:border-r-transparent",
+    "after:bottom-full after:left-[clamp(6px,calc(50%_-_var(--bubble-slide)),calc(100%_-_6px))] after:-translate-x-1/2 after:border-b-[var(--bubble-bg)] after:border-x-transparent after:border-t-transparent",
+  left: "after:left-full after:top-[clamp(6px,calc(50%_-_var(--bubble-slide)),calc(100%_-_6px))] after:-translate-y-1/2 after:border-l-[var(--bubble-bg)] after:border-y-transparent after:border-r-transparent",
   right:
-    "after:right-full after:top-1/2 after:-translate-y-1/2 after:border-r-[var(--bubble-bg)] after:border-y-transparent after:border-l-transparent",
+    "after:right-full after:top-[clamp(6px,calc(50%_-_var(--bubble-slide)),calc(100%_-_6px))] after:-translate-y-1/2 after:border-r-[var(--bubble-bg)] after:border-y-transparent after:border-l-transparent",
 };
 
 function LineSwatch({ line }: { line: GuideLine }) {
@@ -79,11 +80,13 @@ export function StationBubble({
   placement,
   variant,
   onSelect,
+  slide = 0,
 }: {
   station: GuideStation;
   placement: BubblePlacement;
   variant: BubbleVariant;
   onSelect: (() => void) | null;
+  slide?: number;
 }) {
   const compact = variant === "compact";
   const t = useTranslations("map");
@@ -205,6 +208,7 @@ export function StationBubble({
     compact ? "bg-surface px-2 py-1.5" : "bg-surface px-3 py-2.5",
     station.recommended && "ring-2 ring-switch-border",
   );
+  const style = { "--bubble-slide": `${slide}px` } as CSSProperties;
 
   const testProps = {
     "data-testid": mapTestIds.station(station.key),
@@ -220,7 +224,7 @@ export function StationBubble({
 
   if (!onSelect) {
     return (
-      <div {...testProps} role="img" aria-label={label} className={className}>
+      <div {...testProps} role="img" aria-label={label} className={className} style={style}>
         {body}
       </div>
     );
@@ -234,7 +238,9 @@ export function StationBubble({
       onClick={onSelect}
       className="flex min-h-11 items-center"
     >
-      <span className={className}>{body}</span>
+      <span className={className} style={style}>
+        {body}
+      </span>
     </button>
   );
 }
