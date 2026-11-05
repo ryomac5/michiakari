@@ -28,6 +28,7 @@ import { EntrySheet } from "@/features/entry/EntrySheet";
 import {
   type AnsweredItem,
   AreaStep,
+  CauseKindStep,
   CauseStep,
   computeDirectionAngle,
   DestinationStep,
@@ -81,15 +82,11 @@ import { useGpsPosition } from "@/features/entry/use-gps-position";
 import { listMapStations } from "@/features/entry/visible-stations";
 import { type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { testIds } from "@/features/judgment/testids";
-import { pickLocalized as pickCatalogName } from "@/features/knowledge/catalog";
 import { loadMapGeoData, type MapGeoData } from "@/features/map/geo-data";
 import type { MapInsets } from "@/features/map/MapPanel";
 import { findFocusArea } from "@/features/map/station-guide";
-import {
-  findElapsedOption,
-  listCauseOptions,
-  listResumeTimeOptions,
-} from "@/features/situation/plain-questions";
+import { type CauseAnswer, resolveCauseEventType } from "@/features/situation/cause-categories";
+import { findElapsedOption, listResumeTimeOptions } from "@/features/situation/plain-questions";
 import {
   findNearestChoices,
   type NearestStationChoice,
@@ -221,7 +218,6 @@ export function StartScreen() {
         : [],
     [data, entry.line, directions, direction],
   );
-  const causeOptions = useMemo(() => listCauseOptions(catalog), [catalog]);
   // 再開見込みの時刻の候補。問いに入った時刻から並べる
   const resumeTimes = useMemo(
     () => (entry.stage === "resume" ? listResumeTimeOptions(new Date()) : []),
@@ -356,10 +352,10 @@ export function StartScreen() {
             ? note
             : null;
 
-  function handleTap(point: Position) {
+  function handleTap(point: Position, reachMeters: number) {
     if (!data) return;
     if (entry.stage === "position" || entry.stage === "kansai") {
-      const area = findAreaAt(data, point);
+      const area = findAreaAt(data, point, reachMeters);
       if (area) dispatch({ type: "openArea", area });
     } else if (entry.stage === "destination" && !onTrain) {
       // 検索や近くの駅から来た人はエリアの段を通っていないので、地図の段へ戻す。無ければ留まる
@@ -667,19 +663,17 @@ export function StartScreen() {
           : null;
 
   // ここまでに答えた原因と時間のチップ。押すとその問いまで引いて選び直す
-  function nameCause(eventType: string | null): string {
-    if (eventType === null) return t("entry.causes.unknown");
-    const option = causeOptions.find((o) => o.eventType === eventType);
-    if (option?.kind === "preset") return t(`entry.causes.${option.id}`);
-    const event = catalog.find((e) => e.id === eventType);
-    return event ? pickCatalogName(event.name, locale) : eventType;
+  // 種類まで答えたらその種類、そうでなければ大分類の呼び名
+  function nameCause(cause: CauseAnswer): string {
+    if (cause.kind && cause.kind !== "other") return t(`entry.causeKinds.${cause.kind}`);
+    return t(`entry.causes.${cause.category ?? "unknown"}`);
   }
   const answered: AnsweredItem[] = [
     ...(entry.cause
       ? [
           {
             kind: "cause" as const,
-            label: nameCause(entry.cause.eventType),
+            label: nameCause(entry.cause),
             onEdit: () => goToDepth(getDepth("cause")),
           },
         ]
@@ -695,9 +689,9 @@ export function StartScreen() {
       : []),
   ];
 
-  // 3 問目の答えで判断を始める。原因が分からなければ事象の無い観測で判断する
+  // 3 問目の答えで判断を始める。原因が分からないか、大分類に知見が無ければ事象の無い観測で判断する
   function submitAnswers(answer: ResumeAnswer) {
-    const eventType = entry.cause?.eventType ?? null;
+    const eventType = resolveCauseEventType(entry.cause, catalog);
     const elapsed = entry.elapsed ? findElapsedOption(entry.elapsed) : null;
     setPendingResume(answer.time?.id ?? answer.id);
     void submit(eventType ? { type: "selection", eventType, signalIds: [] } : null, {
@@ -969,9 +963,9 @@ export function StartScreen() {
             )}
             {entry.stage === "cause" && (
               <CauseStep
-                options={causeOptions}
-                catalog={catalog}
-                onSelect={(eventType) => dispatch({ type: "chooseCause", cause: { eventType } })}
+                onSelect={(category) =>
+                  dispatch({ type: "chooseCause", cause: { category, kind: null } })
+                }
                 onMethod={(method) => dispatch({ type: "chooseMethod", method })}
               />
             )}
@@ -981,6 +975,14 @@ export function StartScreen() {
                 trip={tripLine}
                 busy={handingOff || judgment.status === "streaming"}
                 onSubmit={(input) => void submit(input)}
+              />
+            )}
+            {entry.stage === "causeKind" && entry.cause?.category && (
+              <CauseKindStep
+                trip={tripLine}
+                answers={answered}
+                category={entry.cause.category}
+                onSelect={(kind) => dispatch({ type: "chooseCauseKind", kind })}
               />
             )}
             {entry.stage === "elapsed" && entry.cause && (

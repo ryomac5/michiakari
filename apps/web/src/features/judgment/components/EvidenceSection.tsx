@@ -2,7 +2,6 @@
 
 import type { DetectedSignal, Estimate, Evidence, TypicalFlow } from "@repo/schema";
 import {
-  ArrowUpRight,
   BookOpen,
   Calculator,
   ChevronDown,
@@ -12,14 +11,11 @@ import {
   Radio,
   TriangleAlert,
 } from "lucide-react";
-import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { buildEvidenceHref, buildSignalHref } from "@/features/knowledge/anchors";
 import {
   findCatalogEvent,
-  findCatalogSignal,
   type KnowledgeCatalog,
   pickLocalized,
 } from "@/features/knowledge/catalog";
@@ -100,13 +96,12 @@ export function EvidenceSection({
             <ul className="flex flex-col gap-2">
               {evidence.map((item) => {
                 const Icon = evidenceIcons[item.kind];
-                const href = buildEvidenceHref(item, estimate?.eventType ?? null, catalog);
                 return (
                   <li
                     key={`${item.kind}-${item.id}`}
                     data-testid={testIds.judgment.evidenceItem(item.id)}
                   >
-                    <EvidenceCard href={href}>
+                    <EvidenceCard>
                       <Icon
                         className="mt-0.5 size-4 shrink-0 text-muted"
                         strokeWidth={1.75}
@@ -242,17 +237,13 @@ function SignalList({
       {signals.length === 0 && <p className="text-[14px] text-muted">{t("noSignals")}</p>}
       <ul className="flex flex-col gap-2">
         {signals.map((signal) => {
-          const known = findCatalogSignal(catalog, signal.eventType, signal.signalId);
           const note = buildSignalNote(catalog, signal.eventType, signal.signalId, locale);
           return (
             <li
               key={`${signal.eventType}-${signal.signalId}`}
               data-testid={testIds.judgment.signal(signal.signalId)}
             >
-              <EvidenceCard
-                href={known ? buildSignalHref(signal.signalId) : null}
-                testId={testIds.judgment.signalLink(signal.signalId)}
-              >
+              <EvidenceCard>
                 <Radio
                   className="mt-0.5 size-4 shrink-0 text-muted"
                   strokeWidth={1.75}
@@ -274,30 +265,7 @@ function SignalList({
   );
 }
 
-// 根拠の 1 項目。知見に対応する箇所があれば、知見の閲覧画面へのリンクにする
-function EvidenceCard({
-  href,
-  testId,
-  children,
-}: {
-  href: string | null;
-  testId?: string;
-  children: ReactNode;
-}) {
-  const t = useTranslations("judgment.evidence");
-  const className = "flex items-start gap-3 rounded-xl bg-surface p-3";
-  if (href === null) return <div className={className}>{children}</div>;
-  return (
-    <Link
-      href={href}
-      data-testid={testId}
-      className={cn(className, "min-h-11 transition-colors hover:bg-surface-raised")}
-    >
-      {children}
-      <span className="flex shrink-0 items-center gap-0.5 self-center text-muted">
-        <span className="sr-only">{t("openKnowledge")}</span>
-        <ArrowUpRight className="size-4" strokeWidth={1.75} aria-hidden />
-      </span>
-    </Link>
-  );
+// 根拠の 1 項目
+function EvidenceCard({ children }: { children: ReactNode }) {
+  return <div className="flex items-start gap-3 rounded-xl bg-surface p-3">{children}</div>;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, ChevronRight, FlaskConical, Info, Map as MapIcon, Menu, X } from "lucide-react";
+import { ChevronRight, FlaskConical, Info, Map as MapIcon, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
@@ -78,9 +78,6 @@ export function AppMenu({ mock = false }: { mock?: boolean }) {
         <nav aria-label={t("menu.label")} className="flex flex-col">
           <MenuLink href="/" icon={<MapIcon />}>
             {t("home")}
-          </MenuLink>
-          <MenuLink href="/knowledge" testId={testIds.app.knowledgeLink} icon={<BookOpen />}>
-            {t("knowledge")}
           </MenuLink>
           <MenuLink href="/about" testId={testIds.app.aboutLink} icon={<Info />}>
             {t("about")}

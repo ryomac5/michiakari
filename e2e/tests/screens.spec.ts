@@ -135,20 +135,6 @@ async function expectFirstViewport(page: Page, variant: Variant, label: string) 
   expect(lines, `${label}: 見出しが 4 行を超えている`).toBeLessThanOrEqual(4);
 }
 
-// PC 幅では、段階ごとに左に YAML の抜粋、右に構造化した表示が並ぶこと
-async function expectKnowledgeSideBySide(page: Page, label: string) {
-  const phase = page.locator("[data-testid^='knowledge-phase-']").first();
-  const phaseId = (await phase.getAttribute("data-testid"))?.replace("knowledge-phase-", "");
-  const yaml = page.locator(`[data-testid$='-${phaseId}'][data-testid^='knowledge-yaml-']`);
-  await expect(yaml, `${label}: YAML の抜粋が見えない`).toBeVisible();
-  await expect(yaml).toContainText(`id: ${phaseId}`);
-  const [yamlBox, phaseBox] = [await yaml.boundingBox(), await phase.boundingBox()];
-  expect(
-    (yamlBox?.x ?? 0) + (yamlBox?.width ?? 0),
-    `${label}: YAML が左に無い`,
-  ).toBeLessThanOrEqual(phaseBox?.x ?? 0);
-}
-
 for (const variant of variants) {
   test.describe(`画面 ${variant.name}`, () => {
     test.use({ viewport: { width: variant.width, height: variant.height }, deviceScaleFactor: 2 });
@@ -278,14 +264,6 @@ for (const variant of variants) {
       await expect(page.getByTestId(testIds.about.screen)).toBeVisible({ timeout: 30_000 });
       await capture(page, variant, "09-about", true);
       await checkScreen(page, "このアプリについて");
-
-      await page.getByTestId(testIds.about.knowledgeLink).click();
-      await expect(page.getByTestId(testIds.knowledge.screen)).toBeVisible({ timeout: 30_000 });
-      await expect(page.getByTestId(testIds.knowledge.notice)).toBeVisible();
-      await capture(page, variant, "14-knowledge");
-      await capture(page, variant, "15-knowledge-full", true);
-      await checkScreen(page, "知見ナレッジ");
-      if (variant.width === desktop.width) await expectKnowledgeSideBySide(page, "知見ナレッジ");
 
       await page.goto("/no-such-page");
       await expect(page.getByTestId(testIds.status.screen)).toBeVisible({ timeout: 30_000 });

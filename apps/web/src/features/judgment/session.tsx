@@ -100,7 +100,7 @@ export type TripContext = {
   trainsAheadFromPattern?: boolean;
   // 止まってからの分。分からなければ null。選んで答えたときだけ持つ
   elapsedMinutes?: number | null;
-  // 原因を聞き取れなかった。選んで答えたときだけ持つ
+  // 原因が分からないか、選んだ大分類に知見が無い。選んで答えたときだけ持つ
   causeUnknown?: boolean;
   // 様子の段で答えたこと。入口に戻ったとき、最後に答えた問いから再開する
   entryAnswers?: EntryAnswers;

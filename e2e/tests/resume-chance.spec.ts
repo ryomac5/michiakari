@@ -162,7 +162,8 @@ async function startFromEntry(page: Page, elapsed: "m10" | "unknown"): Promise<v
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
-  await page.getByTestId(testIds.start.cause("inCar")).click();
+  await page.getByTestId(testIds.start.cause("passenger")).click();
+  await page.getByTestId(testIds.start.causeKind("inCar")).click();
   await page.getByTestId(testIds.start.elapsed(elapsed)).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
@@ -180,7 +181,8 @@ async function startBetweenStations(page: Page): Promise<void> {
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
-  await page.getByTestId(testIds.start.cause("person")).click();
+  await page.getByTestId(testIds.start.cause("passenger")).click();
+  await page.getByTestId(testIds.start.causeKind("person")).click();
   await page.getByTestId(testIds.start.elapsed("m10")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
