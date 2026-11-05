@@ -233,13 +233,32 @@ export function buildNearbyArea(data: EntryData, center: Position): EntryArea | 
 }
 
 // 関西の段で触った点から寄せるエリア。近くに手で整えたエリアがあればそれを、無ければ駅データから作る
-export function findAreaAt(data: EntryData, point: Position): EntryArea | null {
+// reachMeters は指の幅を地図の距離にしたもの。点の近くに駅が無ければ、その中で一番近い駅のまわりで作る
+export function findAreaAt(data: EntryData, point: Position, reachMeters = 0): EntryArea | null {
   const hub = listEntryHubs(data)
     .map((h) => ({ hub: h, meters: computeDistanceMeters(point, h.position) }))
     .filter((h) => h.meters <= hubSnapMeters)
     .sort((a, b) => a.meters - b.meters)[0];
   if (hub) return resolveConfiguredArea(data, hub.hub.areaId);
-  return buildNearbyArea(data, point);
+  const area = buildNearbyArea(data, point);
+  if (area || reachMeters <= genericRadiusMeters) return area;
+  const nearest = findNearestGroupPosition(data, point, reachMeters);
+  return nearest ? buildNearbyArea(data, nearest) : null;
+}
+
+function findNearestGroupPosition(
+  data: EntryData,
+  point: Position,
+  maxMeters: number,
+): Position | null {
+  const nearest = data.catalog.groups
+    .map((group) => ({
+      position: toPosition(group.choice),
+      meters: computeDistanceMeters(point, toPosition(group.choice)),
+    }))
+    .filter((g) => g.meters <= maxMeters)
+    .sort((a, b) => a.meters - b.meters)[0];
+  return nearest?.position ?? null;
 }
 
 // 検索や現在地で選んだ駅を、その駅を含むエリアの中の 1 つとして開く

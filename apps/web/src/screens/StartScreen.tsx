@@ -356,10 +356,10 @@ export function StartScreen() {
             ? note
             : null;
 
-  function handleTap(point: Position) {
+  function handleTap(point: Position, reachMeters: number) {
     if (!data) return;
     if (entry.stage === "position" || entry.stage === "kansai") {
-      const area = findAreaAt(data, point);
+      const area = findAreaAt(data, point, reachMeters);
       if (area) dispatch({ type: "openArea", area });
     } else if (entry.stage === "destination" && !onTrain) {
       // 検索や近くの駅から来た人はエリアの段を通っていないので、地図の段へ戻す。無ければ留まる
