@@ -1,6 +1,6 @@
 "use client";
 
-import type { MouseEvent, ReactNode } from "react";
+import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { testIds } from "@/features/judgment/testids";
 import { cn } from "@/lib/utils";
 import type { LabelSide } from "./areas";
@@ -21,9 +21,16 @@ function stop(handler: () => void) {
   };
 }
 
+// 札を辺の方向へずらす量（px）。上下に置くなら横へ、左右に置くなら縦へずらす
+function buildSlideStyle(side: LabelSide, slide: number): CSSProperties | undefined {
+  if (slide === 0) return undefined;
+  return side === "top" || side === "bottom" ? { marginLeft: slide } : { marginTop: slide };
+}
+
 function MarkerButton({
   label,
   side,
+  slide = 0,
   onClick,
   testId,
   dim = false,
@@ -33,6 +40,7 @@ function MarkerButton({
 }: {
   label: string;
   side: LabelSide;
+  slide?: number;
   onClick: () => void;
   testId: string;
   dim?: boolean;
@@ -59,6 +67,7 @@ function MarkerButton({
           "absolute flex items-center gap-1.5 whitespace-nowrap rounded-full bg-surface text-foreground shadow-[0_2px_10px_rgb(0_0_0/0.16)] ring-1 ring-[var(--glass-border)] transition-transform duration-150 group-hover:scale-[1.04] group-active:scale-95",
           labelSideClass[side],
         )}
+        style={buildSlideStyle(side, slide)}
       >
         {children}
       </span>
@@ -71,17 +80,20 @@ export function HubMarker({
   areaId,
   label,
   side,
+  slide,
   onSelect,
 }: {
   areaId: string;
   label: string;
   side: LabelSide;
+  slide: number;
   onSelect: () => void;
 }) {
   return (
     <MarkerButton
       label={label}
       side={side}
+      slide={slide}
       onClick={onSelect}
       testId={testIds.start.hub(areaId)}
       dot={

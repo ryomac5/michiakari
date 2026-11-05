@@ -122,16 +122,16 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   await expect(conclusion).toBeVisible({ timeout: 30_000 });
-  // 原因を聞き取れなくても、いまは待ち、分岐点を過ぎたら切り替える形で言い切る
+  // 原因を聞き取れなくても、分岐点の時刻まで待ち、動かなければ切り替える行動で言い切る
   await expect(conclusion).toHaveAttribute("data-action", "hold");
   await expect(conclusion).toContainText("低");
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toContainText(
-    /\d{1,2}時\d{2}分まで待って/,
+    /\d{1,2}時\d{2}分までに動かなければ切り替える/,
   );
   await expect(conclusion).not.toContainText(nonDecisive);
   // 分岐点の意味を一文で添える
   await expect(page.getByTestId(testIds.judgment.breakEvenMeaning)).toContainText(
-    "この時刻までに動かなければ",
+    "この時刻までに再開すれば待つほうが早く着く",
   );
 
   // 地図は止まっている御堂筋線と、乗り換えられる駅を語る
