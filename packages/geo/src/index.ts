@@ -24,6 +24,15 @@ export {
   type TransferLink,
 } from "./graph.ts";
 export {
+  type BetweenPositionCandidate,
+  findPositionCandidates,
+  POSITION_THRESHOLDS,
+  type PositionCandidate,
+  type PositionNetwork,
+  type PositionQuery,
+  type StationPositionCandidate,
+} from "./position-candidates.ts";
+export {
   type BlockedSection,
   createRouter,
   type FindAlternativeRoutesInput,

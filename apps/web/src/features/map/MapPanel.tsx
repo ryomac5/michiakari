@@ -74,6 +74,8 @@ export type MapPanelProps = {
   destination: Place;
   options: RouteOption[];
   recommendedOptionId: string | null;
+  // 選択肢の一覧で押した選択肢。地図はこの経路と乗る駅を描く。省略時は推奨
+  selectedOptionId?: string | null;
   // 止まっている区間。観測から分かったもの
   blockedSection: Section | null;
   // 止まっている路線の名前（観測の line）。無ければ「待つ」経路の路線から推し量る
@@ -296,7 +298,7 @@ function estimateBubbleSize(
   if (!narrow) return { w: 200, h: 64 };
   // 路線色の印と分数のぶんを足す。おすすめの小さな札は、星の分だけ広い
   return {
-    w: estimateTextWidth(station.shortName, 12) + 76 + (station.recommended ? 16 : 0),
+    w: estimateTextWidth(station.shortName, 12) + 100 + (station.starred ? 16 : 0),
     // 上下の配置では 44px のタップ領域を基準にアンカーが付く。
     h: 44,
   };
@@ -551,7 +553,9 @@ export function MapPanel(props: MapPanelProps) {
     blockedDirection,
     trainPosition,
   } = props;
-  const tone = selectRouteTone(options, recommendedOptionId);
+  // 地図に描く選択肢。一覧で押したものがあればそれ、無ければ推奨
+  const focusOptionId = props.selectedOptionId ?? recommendedOptionId;
+  const tone = selectRouteTone(options, focusOptionId);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const paletteRef = useRef(palette);
@@ -646,7 +650,7 @@ export function MapPanel(props: MapPanelProps) {
               origin,
               destination,
               options,
-              recommendedOptionId,
+              recommendedOptionId: focusOptionId,
               blockedSection,
               blockedLine,
               blockedDirection,
@@ -661,7 +665,7 @@ export function MapPanel(props: MapPanelProps) {
       origin,
       destination,
       options,
-      recommendedOptionId,
+      focusOptionId,
       blockedSection,
       blockedLine,
       blockedDirection,
@@ -716,7 +720,8 @@ export function MapPanel(props: MapPanelProps) {
         ? buildStationGuide(geo, area, {
             origin,
             options,
-            recommendedOptionId,
+            recommendedOptionId: focusOptionId,
+            starOptionId: recommendedOptionId,
             blockedLineIds: scene.blockedLineIds,
             blockedLineName: blockedLine ?? null,
             language: locale === "en" ? "en" : "ja",
@@ -725,7 +730,19 @@ export function MapPanel(props: MapPanelProps) {
             blockedPath: scene.blocked.features[0]?.geometry.coordinates ?? null,
           })
         : null,
-    [geo, scene, area, origin, options, recommendedOptionId, blockedLine, locale, labels, between],
+    [
+      geo,
+      scene,
+      area,
+      origin,
+      options,
+      focusOptionId,
+      recommendedOptionId,
+      blockedLine,
+      locale,
+      labels,
+      between,
+    ],
   );
   const view: MapView = guide ? viewChoice : "overview";
 
@@ -738,11 +755,12 @@ export function MapPanel(props: MapPanelProps) {
     onGuideChange?.(guide);
   }, [guide, onGuideChange]);
 
-  // 推奨が乗り換えに変わったら、推奨の乗り換え駅が見えるよう現在地のまわりへ戻す
-  const recommendedKind = options.find((o) => o.id === recommendedOptionId)?.kind ?? null;
+  // 描く選択肢が乗り換えに変わったら、その乗り換え駅が見えるよう現在地のまわりへ戻す
+  const focusKind = options.find((o) => o.id === focusOptionId)?.kind ?? null;
+  const focusKey = focusKind === null || focusKind === "wait" ? null : focusOptionId;
   useEffect(() => {
-    if (recommendedKind !== null && recommendedKind !== "wait") setViewChoice("focus");
-  }, [recommendedKind]);
+    if (focusKey !== null) setViewChoice("focus");
+  }, [focusKey]);
 
   const mode: MapMode = useMemo(
     () => ({
@@ -1171,6 +1189,7 @@ export function MapPanel(props: MapPanelProps) {
       data-view={view}
       data-focus-area={guide?.areaId ?? ""}
       data-recommended-option={recommendedOptionId ?? ""}
+      data-selected-option={focusOptionId ?? ""}
       data-route-tone={tone}
       data-blocked={scene ? scene.blocked.features.length > 0 : false}
       data-reach-source={scene?.reachSource ?? ""}

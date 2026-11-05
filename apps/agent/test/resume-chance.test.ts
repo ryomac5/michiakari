@@ -94,7 +94,7 @@ describe("人身事故のリプレイの再開の見込み", () => {
     expect(chance.waitOnTime).not.toBeNull();
     expect(chance.resumeByForDeadline).not.toBeNull();
     expect(judgment.action).toBe("switch");
-    expect(judgment.reason).toMatch(/分岐点の\d{1,2}時\d{2}分までに再開する見込みは1割未満です。$/);
+    expect(judgment.reason).toMatch(/境目の\d{1,2}時\d{2}分までに動く見込みは1割未満です。$/);
   });
 
   it("発表が届くたびに確率が変わり、理由の最後に確率の 1 文が付く", async () => {
@@ -112,18 +112,18 @@ describe("人身事故のリプレイの再開の見込み", () => {
         expect(judgment.reason).toContain("延長後");
         expect(
           judgment.reason?.endsWith(
-            `遅めの見込みでは分岐点より後の${formatClock(tick.time, "ja")}までの再開確率は${formatChance(tick.tenths, "ja")}です。`,
+            `遅めに見ると境目より後の${formatClock(tick.time, "ja")}までに動く見込みは${formatChance(tick.tenths, "ja")}です。`,
           ),
         ).toBe(true);
-        expect(judgment.reason).not.toContain("分岐点の");
+        expect(judgment.reason).not.toContain("境目の");
         continue;
       }
       // 期限が理由でタクシーを勧める観測は、タクシーより早いかを比べず、待って期限に間に合う見込みを言う
       const byDeadline = requireChance(judgment).waitFaster === null;
       expect(judgment.reason, step.entry.id).toMatch(
         byDeadline
-          ? /期限に間に合う再開の境目は\d{1,2}時\d{2}分です。その時刻までの再開見込みは(\d割|1割未満|9割以上)です。$/
-          : /分岐点の\d{1,2}時\d{2}分までに再開する見込みは(\d割|1割未満|9割以上)です。$/,
+          ? /\d{1,2}時\d{2}分までに動けば期限に間に合います。その見込みは(\d割|1割未満|9割以上)です。$/
+          : /境目の\d{1,2}時\d{2}分までに動く見込みは(\d割|1割未満|9割以上)です。$/,
       );
     }
   });
@@ -176,10 +176,8 @@ describe("車内対応のリプレイの再開の見込み", () => {
     expect(tenMinutes?.tenths).toBeGreaterThanOrEqual(7);
     expect(chance.waitFaster).toBeGreaterThanOrEqual(9);
     expect(judgment.action).toBe("wait");
-    expect(judgment.reason).toMatch(/^車内対応は5〜10分ほどで終わることが多いです。/);
-    expect(judgment.reason).toMatch(
-      /分岐点の\d{1,2}時\d{2}分までに再開する見込みは(9割|9割以上)です。$/,
-    );
+    expect(judgment.reason).toMatch(/^車内対応はふつう5〜10分で終わります。/);
+    expect(judgment.reason).toMatch(/境目の\d{1,2}時\d{2}分までに動く見込みは(9割|9割以上)です。$/);
   });
 });
 
@@ -202,7 +200,7 @@ describe("原因が分からないときの再開の見込み", () => {
     expect(atStated?.tenths).toBe(5);
     expect(chance.waitFaster).not.toBeNull();
     expect(judgment.reason).toMatch(
-      /分岐点の\d{1,2}時\d{2}分までに再開する見込みは(\d割|1割未満|9割以上)です。$/,
+      /境目の\d{1,2}時\d{2}分までに動く見込みは(\d割|1割未満|9割以上)です。$/,
     );
   });
 });
@@ -218,7 +216,7 @@ describe("英語の判断", () => {
     const steps = await replayScenario(createTestApp(deps), english);
     const judgment = findJudgment(steps[0]?.events ?? []);
     expect(judgment.reason).toMatch(
-      /The chance of resuming by \d{2}:\d{2} is (\d0%|under 10%|over 90%)\.$/,
+      /Chance of restart by the \d{2}:\d{2} cutoff: (\d0%|under 10%|over 90%)\.$/,
     );
   });
 });
@@ -242,7 +240,7 @@ describe("formatChance と buildChanceSentence", () => {
       "待って期限に間に合う見込みは6割です。",
     );
     expect(buildChanceSentence({ waitFaster: null, waitOnTime: null, keyTick: tick }, "ja")).toBe(
-      "23時30分までに再開する見込みは5割です。",
+      "23時30分までに動く見込みは5割です。",
     );
     expect(buildChanceSentence({ waitFaster: null, waitOnTime: null, keyTick: null }, "ja")).toBe(
       null,
@@ -265,7 +263,7 @@ describe("formatChance と buildChanceSentence", () => {
     expect(short.reason).toMatch(/待ったほうが早く着く見込みは2割です。$/);
     const longFlow = {
       outlook: "long" as const,
-      sentence: "人身事故は、再開まで1時間ほどかかるのがふつうです。",
+      sentence: "人身事故はふつう1時間ほどで再開します。",
       inReason: true,
     };
     const withFlow = buildDecisionText({
@@ -273,13 +271,16 @@ describe("formatChance と buildChanceSentence", () => {
       reason: "resume_after_break_even",
       flow: longFlow,
     });
-    expect(withFlow.reason).toMatch(/^人身事故は、再開まで1時間ほどかかるのがふつうです。/);
+    expect(withFlow.reason).toMatch(/^人身事故はふつう1時間ほどで再開します。/);
     expect(withFlow.reason).toMatch(/待ったほうが早く着く見込みは2割です。$/);
     // 長い理由では、流れの一文を外して確率の一文を残す
     const crowded = buildDecisionText({
       ...base,
       reason: "resume_mostly_after_break_even",
-      flow: longFlow,
+      flow: {
+        ...longFlow,
+        sentence: "人身事故は関係機関の確認があるためふつう1時間ほどで再開します。",
+      },
     });
     expect(crowded.reason).not.toMatch(/^人身事故は/);
     expect(crowded.reason).toMatch(/待ったほうが早く着く見込みは2割です。$/);

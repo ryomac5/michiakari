@@ -17,10 +17,10 @@ const catalog: KnowledgeCatalog = [
 ];
 
 describe("buildSignalNote", () => {
-  it("日本語では知見の説明を返す", () => {
-    expect(buildSignalNote(catalog, "person_accident", "police_on_scene", "ja")).toBe(
-      "警察が到着した",
-    );
+  it("日本語でも知見の説明の文は出さず、段階の名前で組み立てる", () => {
+    const note = buildSignalNote(catalog, "person_accident", "police_on_scene", "ja");
+    expect(note).toBe("「現場確認」の段階の兆候");
+    expect(note).not.toContain("警察が到着した");
   });
 
   it("英語では日本語の説明を出さず、段階の英語名で組み立てる", () => {

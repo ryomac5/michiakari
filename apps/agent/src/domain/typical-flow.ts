@@ -22,7 +22,8 @@ export function formatDuration(minutes: number, language: Lang): string {
   return rest === 0 ? `${hours}時間` : `${hours}時間${rest}分`;
 }
 
-// 結論の理由の頭に置く一文。「人身事故は、再開まで1時間ほどかかるのがふつうです。」
+// 結論の理由の頭に置く一文。「人身事故はふつう1時間ほどで再開します。」
+// 知見の文は使わず、core が求めた分数だけで組み立てる
 export function buildFlowSentence(
   flow: TypicalFlow,
   eventName: string,
@@ -34,11 +35,11 @@ export function buildFlowSentence(
     const { p50, p80 } = flow.untilResume;
     const span = p50 === p80 ? `${p80}` : ja ? `${p50}〜${p80}` : `${p50}–${p80}`;
     return ja
-      ? `${eventName}は${span}分ほどで終わることが多いです。`
+      ? `${eventName}はふつう${span}分で終わります。`
       : `${eventName}: usually over in about ${span} min.`;
   }
   const duration = formatDuration(selectTypicalMinutes(flow), language);
   return ja
-    ? `${eventName}は、再開まで${duration}ほどかかるのがふつうです。`
+    ? `${eventName}はふつう${duration}ほどで再開します。`
     : `${eventName}: service usually resumes in about ${duration}.`;
 }

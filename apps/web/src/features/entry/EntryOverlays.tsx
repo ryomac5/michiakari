@@ -14,6 +14,27 @@ import { type EntryHub, pickLocalized } from "./entry-places";
 
 // 関西の段で地図の上に重ねる部品。上に問いかけと検索、下にデモへの札
 
+// 駅名の検索。関西の段の問いかけと、最初の段のシートの両方に置く
+export function LocationSearch({ onSelect }: { onSelect: (station: StationChoice) => void }) {
+  const t = useTranslations();
+  return (
+    <div className="flex items-start gap-2">
+      <div className="min-w-0 flex-1">
+        <StationSearch
+          hideLabel
+          label={t("start.originLabel")}
+          placeholder={t("entry.searchPlaceholder")}
+          onSelect={onSelect}
+          testIds={{
+            search: testIds.start.originSearch,
+            option: testIds.start.originOption,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export const PromptCard = forwardRef<
   HTMLDivElement,
   {
@@ -74,20 +95,7 @@ export const PromptCard = forwardRef<
           </button>
         ))}
       </div>
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <StationSearch
-            hideLabel
-            label={t("start.originLabel")}
-            placeholder={t("entry.searchPlaceholder")}
-            onSelect={onSelect}
-            testIds={{
-              search: testIds.start.originSearch,
-              option: testIds.start.originOption,
-            }}
-          />
-        </div>
-      </div>
+      <LocationSearch onSelect={onSelect} />
       {quickPicks && quickPicks.length > 0 && (
         <div className="flex flex-col gap-2 px-1 pt-1">
           <p className="text-[12px] font-medium text-muted">{t("entry.quickPicks")}</p>

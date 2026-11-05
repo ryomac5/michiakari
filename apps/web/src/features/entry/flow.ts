@@ -1,9 +1,12 @@
 import type { OriginLine } from "@/features/judgment/session";
 import type { ElapsedOption } from "@/features/situation/plain-questions";
 import type { EntryArea, EntryPlace } from "./entry-places";
+import type { GpsSegment } from "./gps-candidates";
 
 // 入口の段。駅にいる人は いまどこ → 関西 → エリア → 駅 → 行き先 → 原因 → 経過 → 再開見込み の順に進む
 // 車内の人は いまどこ → 路線 → 方面 → 駅間 → 行き先 → 原因 → 経過 → 再開見込み の順に進む
+// 現在地から駅を読み取った人は いまどこ → 行き先 へ進む
+// 駅の間を読み取った人は いまどこ → 行き先 へ進み、進む向きは行き先から決める。決まらなければ方面を聞く
 // history は実際に通った段の答えだけを積む。自動で決めた路線や方面は積まず、戻ると直前の段に戻る
 export type EntryStage =
   | "position"
@@ -25,6 +28,8 @@ type EntrySnapshot = {
   area: EntryArea | null;
   place: EntryPlace | null;
   line: OriginLine | null;
+  // 現在地から読み取った駅の間。向きを決めるまで路線の並びの順で持つ
+  segment: GpsSegment | null;
   direction: string | null;
   directionAuto: boolean;
   routeEditing: boolean;
@@ -44,7 +49,15 @@ export type EntryAction =
       place?: EntryPlace;
       area?: EntryArea;
     }
-  | { type: "chooseDirection"; direction: string }
+  | { type: "locateStation"; area: EntryArea; place: EntryPlace }
+  | {
+      type: "locateBetween";
+      line: OriginLine;
+      segment: GpsSegment;
+      place?: EntryPlace;
+      area?: EntryArea;
+    }
+  | { type: "chooseDirection"; direction: string; line?: OriginLine }
   | { type: "chooseDestination"; inferred?: { line: OriginLine; direction: string } }
   | { type: "choosePosition"; line?: OriginLine; direction?: string }
   | { type: "editRoute" }
@@ -61,6 +74,7 @@ export const initialEntryState: EntryState = {
   area: null,
   place: null,
   line: null,
+  segment: null,
   direction: null,
   directionAuto: false,
   routeEditing: false,
@@ -119,14 +133,42 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
             stage: action.location === "station" ? "kansai" : "station",
           })
         : state;
-    case "openArea":
-      return state.stage === "kansai"
-        ? advance(state, { stage: "area", area: action.area })
-        : state;
-    case "openPlace":
-      return state.location === "station" && ["kansai", "area"].includes(state.stage)
+    case "locateStation":
+      return state.stage === "position"
         ? advance(state, {
             stage: "destination",
+            location: "station",
+            area: action.area,
+            place: action.place,
+            line: null,
+            segment: null,
+            direction: null,
+          })
+        : state;
+    case "locateBetween":
+      return state.stage === "position"
+        ? advance(state, {
+            stage: "destination",
+            location: "train",
+            area: action.area ?? null,
+            place: action.place ?? null,
+            line: action.line,
+            segment: action.segment,
+            direction: null,
+            directionAuto: false,
+          })
+        : state;
+    // 最初の段からも、地図と検索でエリアと駅を直接選べる。選んだら駅にいる人として扱う
+    case "openArea":
+      return ["position", "kansai"].includes(state.stage)
+        ? advance(state, { stage: "area", location: "station", area: action.area })
+        : state;
+    case "openPlace":
+      return (state.location === "station" || state.stage === "position") &&
+        ["position", "kansai", "area"].includes(state.stage)
+        ? advance(state, {
+            stage: "destination",
+            location: "station",
             area: action.area,
             place: action.place,
             line: null,
@@ -148,7 +190,8 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
     case "chooseDirection":
       return state.stage === "direction" && state.line
         ? advance(state, {
-            stage: state.location === "train" ? "trainPosition" : "cause",
+            stage: state.location === "train" && !state.segment ? "trainPosition" : "cause",
+            line: action.line ?? state.line,
             direction: action.direction,
           })
         : state;
@@ -162,6 +205,18 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
         : state;
     case "chooseDestination":
       if (state.stage !== "destination") return state;
+      if (state.location === "train" && state.segment)
+        return advance(
+          state,
+          action.inferred
+            ? {
+                stage: "cause",
+                line: action.inferred.line,
+                direction: action.inferred.direction,
+                directionAuto: true,
+              }
+            : { stage: "direction" },
+        );
       if (state.location === "train") return advance(state, { stage: "cause" });
       return advance(
         state,
@@ -176,7 +231,13 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
       );
     case "editRoute":
       return state.stage === "cause"
-        ? advance(state, { stage: "station", line: null, direction: null, routeEditing: true })
+        ? advance(state, {
+            stage: "station",
+            line: null,
+            segment: null,
+            direction: null,
+            routeEditing: true,
+          })
         : state;
     case "chooseMethod":
       return state.stage === "cause"

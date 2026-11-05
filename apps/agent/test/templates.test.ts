@@ -30,6 +30,16 @@ const REASONS: DecisionReason[] = [
 
 const LONG_LABEL = "神戸電鉄三田線経由で振替輸送を使う長い経路名";
 
+// 大阪から大阪梅田まで歩いて阪急京都線に乗る経路の区間
+const HANKYU_WALK = { mode: "walk" as const, from: "大阪", to: "大阪梅田", minutes: 9 };
+const HANKYU_RIDE = {
+  mode: "ride" as const,
+  from: "大阪梅田",
+  to: "京都河原町",
+  minutes: 44,
+  line: "阪急京都線",
+};
+
 // 分岐点 23:23、再開見込み p50 23:40・p80 23:55、期限 23:50
 const OUTLOOK = {
   breakEvenTime: "2026-11-05T23:23:00+09:00",
@@ -67,10 +77,15 @@ describe("buildDecisionText", () => {
               bestOption,
               ...outlook,
             });
-            expect([...text.headline].length).toBeLessThanOrEqual(headlineLimits[language].target);
-            // 時刻を出すのは、待ちつつ分岐点を過ぎたら切り替える形の見出しだけ
+            // 見出しの 1 文目が大きく出る行動。2 文目は動かなかったときの次の手
+            const lead = text.headline.split(language === "ja" ? "。" : /(?<=\.)\s/)[0] ?? "";
+            expect([...lead].length).toBeLessThanOrEqual(headlineLimits[language].target);
+            expect([...text.headline].length).toBeLessThanOrEqual(headlineLimits[language].max);
+            // 時刻を出すのは、境目の時刻まで待つ形の見出しだけ
             if (/\d{1,2}(時\d{2}分|:\d{2})/.test(text.headline)) {
-              expect(["unknown_event", "low_confidence"]).toContain(reason);
+              expect(["unknown_event", "low_confidence", "resume_before_break_even"]).toContain(
+                reason,
+              );
             }
             expect(text.headline).not.toContain(LONG_LABEL);
             expect(checkDecisiveWording("headline", text.headline, language)).toEqual([]);
@@ -88,7 +103,7 @@ describe("buildDecisionText", () => {
     });
   }
 
-  it("保留の見出しは、分岐点まで待ち動かなければ切り替える形にする", () => {
+  it("保留の見出しは、境目まで待ち動かなければ乗る路線を添える形にする", () => {
     const input = {
       reason: "unknown_event" as const,
       breakEvenMinutesFromNow: 23,
@@ -96,11 +111,19 @@ describe("buildDecisionText", () => {
       ...OUTLOOK,
     };
     const ja = buildDecisionText({ ...input, language: "ja" });
-    expect(ja.headline).toBe("23時23分までに動かなければ切り替える");
-    expect(ja.reason).toBe("23時23分を過ぎると別の路線のほうが早く着きます。");
+    expect(ja.headline).toBe("23時23分まで待つ。動かなければ切り替える");
+    expect(ja.reason).toBe("23時23分を過ぎると別の路線が早く着きます。");
     expect(buildDecisionText({ ...input, language: "en" }).headline).toBe(
-      "Wait until 23:23. Switch if still stopped.",
+      "Wait until 23:23. If still stopped, switch.",
     );
+    // 乗る路線が分かれば、次の手にその路線を書く
+    const withLegs = buildDecisionText({
+      ...input,
+      language: "ja",
+      bestOption: { ...input.bestOption, legs: [HANKYU_WALK, HANKYU_RIDE] },
+    });
+    expect(withLegs.headline).toBe("23時23分まで待つ。動かなければ阪急京都線へ");
+    expect(withLegs.reason).toBe("23時23分を過ぎると阪急京都線が早く着きます。");
     // 分岐点が無ければ待つ形にする
     expect(buildDecisionText({ ...input, ...NO_OUTLOOK, language: "ja" }).headline).toBe(
       "運転再開を待つ",
@@ -122,37 +145,92 @@ describe("buildDecisionText", () => {
         );
         expect(text.reason).toBe(
           language === "ja"
-            ? "待つ場合と比べられる代わりの経路がないため運転再開を待ちます。"
-            : "Wait for service to resume because there is no alternative route to compare.",
+            ? "代わりの経路がないので運転再開を待ちます。"
+            : "No alternative route is available. Wait for service to resume.",
         );
         expect(text.reason).not.toMatch(/確かめる|Listen for/);
       });
     }
   }
 
-  it("待つときの見出しは分岐点までの分を示す", () => {
+  it("待つときの見出しは境目の時刻まで待つと言い、動かなければ乗る路線を添える", () => {
     const input = {
       reason: "resume_before_break_even" as const,
       breakEvenMinutesFromNow: 25,
-      bestOption: null,
-      ...NO_OUTLOOK,
+      bestOption: {
+        kind: "transfer" as const,
+        label: "阪急京都線経由",
+        isTransferService: false,
+        legs: [HANKYU_WALK, HANKYU_RIDE],
+      },
+      ...OUTLOOK,
+      marginP50Minutes: 10,
     };
-    expect(buildDecisionText({ ...input, language: "ja" }).headline).toBe("あと25分は待つ");
+    expect(buildDecisionText({ ...input, language: "ja" }).headline).toBe(
+      "23時23分まで待つ。動かなければ阪急京都線へ",
+    );
     expect(buildDecisionText({ ...input, language: "en" }).headline).toBe(
-      "Wait up to 25 more minutes.",
+      "Wait until 23:23. If still stopped, take the 阪急京都線.",
+    );
+    // 境目が無ければ、時刻を出さずに待つ
+    expect(buildDecisionText({ ...input, ...NO_OUTLOOK, language: "ja" }).headline).toBe(
+      "運転再開を待つ",
     );
   });
 
-  it("切り替えの見出しは手段の種類で呼び、理由は見出しと分ける", () => {
-    const text = buildDecisionText({
-      reason: "estimate_extended",
-      language: "ja",
+  it("切り替えの見出しは、乗る路線と歩いて向かう駅を言い切る", () => {
+    const base = {
+      reason: "estimate_extended" as const,
+      language: "ja" as const,
       breakEvenMinutesFromNow: 38,
-      bestOption: { kind: "transfer", label: "阪急京都線で振替", isTransferService: true },
       ...OUTLOOK,
+    };
+    const walkTo = buildDecisionText({
+      ...base,
+      bestOption: {
+        kind: "transfer",
+        label: "阪急京都線経由",
+        isTransferService: false,
+        legs: [HANKYU_WALK, HANKYU_RIDE],
+      },
     });
-    expect(text.headline).toBe("いま振替に切り替える");
-    expect(text.reason).toContain("延長");
+    expect(walkTo.headline).toBe("大阪梅田まで歩いて阪急京都線へ");
+    expect(walkTo.reason).toContain("延長");
+    const sameStation = buildDecisionText({
+      ...base,
+      bestOption: {
+        kind: "transfer",
+        label: "阪急京都線経由",
+        isTransferService: false,
+        legs: [HANKYU_RIDE],
+      },
+    });
+    expect(sameStation.headline).toBe("阪急京都線に乗り換える");
+    const transfer = buildDecisionText({
+      ...base,
+      bestOption: { kind: "transfer", label: "阪急京都線で振替", isTransferService: true },
+    });
+    expect(transfer.headline).toBe("振替輸送に切り替える");
+    const taxi = buildDecisionText({
+      ...base,
+      bestOption: { kind: "taxi", label: "タクシー", isTransferService: false },
+    });
+    expect(taxi.headline).toBe("タクシーに乗る");
+    expect(
+      buildDecisionText({
+        ...base,
+        language: "en",
+        bestOption: {
+          kind: "transfer",
+          label: "Via Hankyu Kyoto Line",
+          isTransferService: false,
+          legs: [
+            { ...HANKYU_WALK, to: "Osaka-umeda" },
+            { ...HANKYU_RIDE, from: "Osaka-umeda", line: "Hankyu Kyoto Line" },
+          ],
+        },
+      }).headline,
+    ).toBe("Walk to Osaka-umeda for the Hankyu Kyoto Line.");
   });
 
   it("理由は再開見込みと分岐点を比べる形で書く", () => {
@@ -163,14 +241,14 @@ describe("buildDecisionText", () => {
       ...OUTLOOK,
     };
     expect(buildDecisionText({ ...input, language: "ja" }).reason).toBe(
-      "再開見込み23時40分頃は分岐点23時23分より後です。",
+      "再開は23時40分頃の見込みで境目より後です。",
     );
     expect(buildDecisionText({ ...input, language: "en" }).reason).toBe(
-      "Expected restart 23:40 is after the decision point of 23:23.",
+      "Restart is expected around 23:40, after the 23:23 cutoff.",
     );
   });
 
-  it("流れと確率を添えても再開見込みと分岐点を残し90字以内に収める", () => {
+  it("流れと確率を添えても再開見込みと境目を残し90字以内に収める", () => {
     const input = {
       reason: "resume_after_break_even" as const,
       language: "ja" as const,
@@ -179,7 +257,7 @@ describe("buildDecisionText", () => {
       ...OUTLOOK,
       flow: {
         outlook: "long" as const,
-        sentence: "人身事故は、再開まで1時間ほどかかるのがふつうです。",
+        sentence: "人身事故はふつう1時間ほどで再開します。",
         inReason: true,
       },
       chance: {
@@ -189,8 +267,8 @@ describe("buildDecisionText", () => {
         keyTick: null,
       },
     };
-    const comparison = "再開見込み23時40分頃は分岐点23時23分より後です。";
-    const chance = "分岐点の23時23分までに再開する見込みは1割未満です。";
+    const comparison = "再開は23時40分頃の見込みで境目より後です。";
+    const chance = "境目の23時23分までに動く見込みは1割未満です。";
     const text = buildDecisionText(input);
     expect(text.reason).toBe(`${input.flow.sentence}${comparison}${chance}`);
     expect([...text.reason].length).toBeLessThanOrEqual(90);
@@ -200,14 +278,14 @@ describe("buildDecisionText", () => {
       flow: {
         ...input.flow,
         sentence:
-          "人身事故は、関係機関による確認が終わるまで再開を待つため1時間ほどかかるのがふつうです。",
+          "人身事故は、関係機関による確認が終わるまで再開を待つため1時間ほどかかるのがふつうです。関係機関の確認には時間がかかります。",
       },
     });
     expect(longerFlow.reason).toBe(`${comparison}${chance}`);
     expect([...longerFlow.reason].length).toBeLessThanOrEqual(90);
   });
 
-  it("待つときの理由は、見込みが分岐点より前か、差が小さいかで書き分ける", () => {
+  it("待つときの理由は、見込みが境目より前か、差が小さいかで書き分ける", () => {
     const base = {
       reason: "resume_before_break_even" as const,
       language: "ja" as const,
@@ -335,14 +413,14 @@ describe("期限が理由でタクシーを勧めるときの文", () => {
     );
     const passed = buildDecisionText({ ...base, reason: "break_even_passed" });
     expect(passed.reason).toBe(
-      "分岐点8時10分を過ぎています。いま再開しても期限の9時00分に間に合いません。",
+      "いま動いても期限の9時00分に間に合いません。境目の8時10分を過ぎています。",
     );
     for (const reason of ["unknown_event", "low_confidence", "break_even_passed"] as const) {
-      expect(buildDecisionText({ ...base, reason }).reason).not.toContain("のほうが早く着きます");
+      expect(buildDecisionText({ ...base, reason }).reason).not.toContain("が早く着きます");
     }
     // 期限が理由でなければ、これまでどおり代替手段のほうが早く着くと書く
     const plain = buildDecisionText({ ...base, deadlineBasis: null, reason: "low_confidence" });
-    expect(plain.reason).toContain("タクシーのほうが早く着きます");
+    expect(plain.reason).toContain("タクシーが早く着きます");
   });
 
   it("期限が理由の理由の文は、見出しと理由の上限に収まる", () => {
