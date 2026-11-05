@@ -2181,7 +2181,6 @@
 {"type":"Feature","properties":{"id":"P11-22_27:2330","name":"大阪駅前","operator":"IKEA"},"geometry":{"type":"Point","coordinates":[135.49772,34.70314]}},
 {"type":"Feature","properties":{"id":"P11-22_27:2331","name":"梅田","operator":"阪急バス"},"geometry":{"type":"Point","coordinates":[135.49774,34.70308]}},
 {"type":"Feature","properties":{"id":"P11-22_27:2335","name":"鶴見","operator":"大阪シティバス"},"geometry":{"type":"Point","coordinates":[135.5666,34.70291]}},
-{"type":"Feature","properties":{"id":"P11-22_27:2339","name":"大阪駅JR高速バスターミナル","operator":"神姫バス"},"geometry":{"type":"Point","coordinates":[135.49396,34.70265]}},
 {"type":"Feature","properties":{"id":"P11-22_27:2341","name":"扇町","operator":"大阪シティバス"},"geometry":{"type":"Point","coordinates":[135.51082,34.70256]}},
 {"type":"Feature","properties":{"id":"P11-22_27:2342","name":"源八橋","operator":"大阪シティバス"},"geometry":{"type":"Point","coordinates":[135.51622,34.70255]}},
 {"type":"Feature","properties":{"id":"P11-22_27:2344","name":"大野二丁目","operator":"大東市"},"geometry":{"type":"Point","coordinates":[135.61727,34.7025]}},

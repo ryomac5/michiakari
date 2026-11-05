@@ -29,6 +29,9 @@ export const BUS_STOP_STATION_RADIUS_METERS = Math.ceil(
   computeWalkReachMeters(BUS_CHECK_MAX_WALK_MINUTES),
 );
 
+// 名前にこの語を含む停留所は外す。P11 にバスの種類の区分が無く、高速バスは市内の代わりの手段にならないため
+export const EXCLUDED_BUS_STOP_NAME_PATTERNS: readonly string[] = ["高速バス"];
+
 // 緯度 1 度あたりの距離（m）。少し短めに取り、SQL の四角を広めにする
 const METERS_PER_DEGREE_LAT = 111_000;
 // 関西で最も北の緯度。経度 1 度の長さが最も短くなる側で四角を取る
@@ -49,6 +52,11 @@ async function computeSha256(path: string): Promise<string> {
   return createHash("sha256")
     .update(await readFile(path))
     .digest("hex");
+}
+
+// 代わりの手段にならない停留所を外す
+export function excludeUnusableStops(rows: readonly BusStopRow[]): BusStopRow[] {
+  return rows.filter((row) => !EXCLUDED_BUS_STOP_NAME_PATTERNS.some((p) => row.name.includes(p)));
 }
 
 // 駅のいずれかから半径の内側にある行だけを残す
@@ -112,7 +120,7 @@ export async function buildBusStops(options: {
     RADIUS_LON: degLon.toFixed(6),
   });
   const rows = filterNearStations(
-    candidates.map((r) => ({ ...r, record: Number(r.record) })),
+    excludeUnusableStops(candidates.map((r) => ({ ...r, record: Number(r.record) }))),
     options.stations,
     BUS_STOP_STATION_RADIUS_METERS,
   );
@@ -141,6 +149,7 @@ export async function buildBusStops(options: {
     notes: [
       "関西 6 府県の府県別のデータを読み、路線網の駅の代表点から stationRadiusMeters の内側の停留所だけを収めた",
       "停留所の名前、事業者、位置だけを収めた。系統、時刻、運行の可否は収めていない",
+      "名前に「高速バス」を含む停留所は、市内の代わりの手段にならないので外した",
       "事業者名は packages/data/config/bus-operators.ts で表示用に付け替えた",
       "位置は 2022 年の資料による。同じ道路の同じ名前の停留所は元データで 1 点にまとめられている",
       "座標は小数5桁に丸めた",

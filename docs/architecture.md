@@ -263,7 +263,7 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `signal_detected` | `{ signal: DetectedSignal }` | 根拠リストに追加 |
 | `weather_checked` | `{ source, readings, warnings, trend, summary }` | 雨量の推移と警報を出す。readings は 36 件・6 時間まで |
 | `phase_estimated` | `{ estimate: Estimate }` | タイムラインの「いまここ」を更新 |
-| `alternatives_computed` | `{ options: RouteOption[], busChecks?: BusCheck[] }` | 地図に経路と到達範囲を描画。busChecks は近くのバス停の確認候補で、比較に入らない |
+| `alternatives_computed` | `{ options: RouteOption[] }` | 地図に経路と到達範囲を描画 |
 | `break_even_computed` | `{ breakEven: BreakEven \| null }` | 分岐点の表示を更新 |
 | `judgment_ready` | `{ judgment: Judgment }` | 結論を確定表示 |
 | `error` | `{ message: string, retryable: boolean }` | 再試行の案内 |
@@ -426,7 +426,7 @@ agent は `compute_break_even` で詰め、`break_even_computed` と `judgment_r
 | `lookup_knowledge` | 事象種別 | 段階、兆候、所要時間の目安、利用者への提示方針 | YAML 読み込み |
 | `get_weather` | 区間の座標、時間幅 | 10分ごとの雨量、警報の発表状況 | 気象庁 |
 | `estimate_phase_and_remaining` | 事象種別、観測の列 | 段階 ID、段階の経過時間、残り時間分布、よくある流れと流れの一文。事象が null でも発表の見込み時刻があれば残り時間を返す。駅間の車内なら、ホームに着ける駅とそこに着く時刻、遅れる理由を `trainQueue` で返す | packages/core |
-| `find_alternatives` | 現在地、行き先、止まっている区間、時刻、制約 | 代替手段の一覧（徒歩・乗車・待ち・運賃）。駅間の車内なら、次の駅に着く見込みの時刻から探す。通常の徒歩の上限の中に鉄道の代替が無ければ、上限を広げて探す。近くのバス停を最大 3 件、`busChecks` として別に返す。バス停は到着時刻を持たないので、分岐点とおすすめには入れない | packages/geo + core |
+| `find_alternatives` | 現在地、行き先、止まっている区間、時刻、制約 | 代替手段の一覧（徒歩・乗車・待ち・運賃）。駅間の車内なら、次の駅に着く見込みの時刻から探す。通常の徒歩の上限の中に鉄道の代替が無ければ、上限を広げて探す | packages/geo + core |
 | `compute_break_even` | 待つ場合の条件、代替手段の到着時刻、期限 | 分岐点の時刻、勧める代替手段の id、比較表、時刻ごとの再開の見込みと待ったほうが早く着く確率。駅間の車内でも同じ標本から求める | packages/core |
 
 ## 6. 時刻表データがないことへの対応

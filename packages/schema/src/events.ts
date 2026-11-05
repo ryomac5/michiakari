@@ -1,13 +1,6 @@
 import { z } from "zod";
 import { IsoDateTimeSchema, NonNegativeIntSchema } from "./common.ts";
-import {
-  BreakEvenSchema,
-  BUS_CHECK_LIMIT,
-  BusCheckSchema,
-  EstimateSchema,
-  JudgmentSchema,
-  RouteOptionSchema,
-} from "./judgment.ts";
+import { BreakEvenSchema, EstimateSchema, JudgmentSchema, RouteOptionSchema } from "./judgment.ts";
 import { DetectedSignalSchema, ObservationSchema } from "./observation.ts";
 
 // SSE で送る判断イベント。種類を足すときは defineEvent で作り JudgmentEventSchema に並べる
@@ -35,8 +28,6 @@ export const PhaseEstimatedEventSchema = defineEvent("phase_estimated", {
 
 export const AlternativesComputedEventSchema = defineEvent("alternatives_computed", {
   options: z.array(RouteOptionSchema),
-  // 近くのバス停の確認候補。到着の比較には入らない
-  busChecks: z.array(BusCheckSchema).max(BUS_CHECK_LIMIT).optional(),
 });
 
 export const BreakEvenComputedEventSchema = defineEvent("break_even_computed", {

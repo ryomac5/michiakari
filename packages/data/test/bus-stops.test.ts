@@ -4,6 +4,7 @@ import {
   BUS_STOP_STATION_RADIUS_METERS,
   type BusStopRow,
   buildBusStopFeatures,
+  excludeUnusableStops,
   filterNearStations,
 } from "../src/bus-build.ts";
 
@@ -30,6 +31,14 @@ describe("filterNearStations", () => {
   it("半径は徒歩 10 分の概算で届く距離にそろえる", () => {
     expect(BUS_STOP_STATION_RADIUS_METERS).toBeGreaterThan(500);
     expect(BUS_STOP_STATION_RADIUS_METERS).toBeLessThan(800);
+  });
+});
+
+describe("excludeUnusableStops", () => {
+  it("名前に高速バスを含む停留所を外す", () => {
+    const terminal = { ...row(3, 135.5, 34.7), name: "架空駅高速バスターミナル" };
+    const city = row(4, 135.5, 34.7);
+    expect(excludeUnusableStops([terminal, city])).toEqual([city]);
   });
 });
 

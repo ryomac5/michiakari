@@ -6,7 +6,6 @@ import type {
   TrainQueueOutcome,
 } from "@repo/core";
 import type {
-  BusCheck,
   DurationDist,
   Estimate,
   JudgeRequest,
@@ -81,8 +80,6 @@ export type AlternativesToolResult = {
   waitOptionId: string;
   waitRouteMinutesAfterResume: number | null;
   blockedLine: string | null;
-  // 近くのバス停の確認候補。到着時刻を持たず、分岐点とおすすめの計算には渡さない
-  busChecks: BusCheck[];
   notes: string[];
 };
 
