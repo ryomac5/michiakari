@@ -625,13 +625,8 @@ export function StartScreen() {
     }
   }
 
-  // 地図の座標変換で端数が出ても44pxを下回らないよう、操作部品の高さに余裕を持たせる
   return (
-    <div
-      data-testid={testIds.start.screen}
-      data-stage={entry.stage}
-      className="h-dvh [&_[data-testid=start-map]_button]:min-h-12"
-    >
+    <div data-testid={testIds.start.screen} data-stage={entry.stage} className="h-dvh">
       <EntryMap
         geo={geo}
         stations={mapStations}
@@ -670,14 +665,14 @@ export function StartScreen() {
             <>
               <div ref={promptRef} className="flex flex-col gap-2">
                 <div
-                  data-testid="start-intro"
+                  data-testid={testIds.start.intro}
                   className="glass-strong rounded-[20px] px-4 py-3 text-[14px] leading-snug"
                 >
-                  <p data-testid="start-intro-audience">{t("start.introAudience")}</p>
-                  <p data-testid="start-intro-problem" className="mt-1 text-muted">
+                  <p data-testid={testIds.start.introAudience}>{t("start.introAudience")}</p>
+                  <p data-testid={testIds.start.introProblem} className="mt-1 text-muted">
                     {t("start.introProblem")}
                   </p>
-                  <p data-testid="start-intro-solution" className="mt-1 font-semibold">
+                  <p data-testid={testIds.start.introSolution} className="mt-1 font-semibold">
                     {t("start.introSolution")}
                   </p>
                 </div>

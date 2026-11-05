@@ -175,9 +175,9 @@ for (const variant of variants) {
       const messages = ja ? jaMessages : en;
       await waitForFiniteAnimations(page);
       for (const [id, text] of [
-        ["start-intro-audience", messages.start.introAudience],
-        ["start-intro-problem", messages.start.introProblem],
-        ["start-intro-solution", messages.start.introSolution],
+        [testIds.start.introAudience, messages.start.introAudience],
+        [testIds.start.introProblem, messages.start.introProblem],
+        [testIds.start.introSolution, messages.start.introSolution],
       ] as const) {
         await expect(page.getByTestId(id)).toHaveText(text);
         await expect(page.getByTestId(id)).toBeInViewport({ ratio: 1 });
@@ -186,7 +186,7 @@ for (const variant of variants) {
       await expect(page.getByText(messages.disclaimer.short, { exact: true })).toBeInViewport({
         ratio: 1,
       });
-      const introBox = await page.getByTestId("start-intro").boundingBox();
+      const introBox = await page.getByTestId(testIds.start.intro).boundingBox();
       const promptBox = await page.getByTestId(testIds.start.prompt).boundingBox();
       expect((introBox?.y ?? 0) + (introBox?.height ?? 0)).toBeLessThanOrEqual(promptBox?.y ?? 0);
       await capture(page, variant, "01-start");
@@ -200,7 +200,7 @@ for (const variant of variants) {
 
       // 地図の丸を触ってエリアへ寄り、駅を触るとシートに路線が並ぶ
       await page.getByTestId(testIds.start.hub("umeda")).click();
-      await expect(page.getByTestId("start-intro")).toHaveCount(0);
+      await expect(page.getByTestId(testIds.start.intro)).toHaveCount(0);
       await expect(page.getByTestId(testIds.start.place("osaka"))).toBeVisible();
       await capture(page, variant, "03-start-area");
       await checkScreen(page, "開始（エリア）");
