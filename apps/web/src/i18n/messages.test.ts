@@ -16,8 +16,8 @@ describe("メッセージファイル", () => {
   });
 
   it("アプリ名と副題は決めた表記どおり", () => {
-    expect([ja.app.name, ja.app.tagline]).toEqual(["マツカエル", "待つか、乗り換えるか。"]);
-    expect([en.app.name, en.app.tagline]).toEqual(["MatsuKaeru", "Wait, or switch?"]);
+    expect([ja.app.name, ja.app.tagline]).toEqual(["みちあかり", "待つか、乗り換えるか。"]);
+    expect([en.app.name, en.app.tagline]).toEqual(["Michiakari", "Wait, or switch?"]);
   });
 
   it("結論の近くに出す注意書きは vision.md 8 章の文言を含む", () => {

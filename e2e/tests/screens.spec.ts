@@ -168,9 +168,9 @@ for (const variant of variants) {
       });
       await expect(page.locator("html")).toHaveClass(variant.theme);
       await expect(page.getByTestId(testIds.app.homeLink)).toContainText(
-        ja ? "マツカエル" : "MatsuKaeru",
+        ja ? "みちあかり" : "Michiakari",
       );
-      await expect(page).toHaveTitle(ja ? /マツカエル/ : /MatsuKaeru/);
+      await expect(page).toHaveTitle(ja ? /みちあかり/ : /Michiakari/);
       await expect(page.getByTestId(testIds.start.hub("umeda"))).toBeVisible();
       const messages = ja ? jaMessages : en;
       await waitForFiniteAnimations(page);

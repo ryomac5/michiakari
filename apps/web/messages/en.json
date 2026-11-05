@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "MatsuKaeru",
+    "title": "Michiakari",
     "description": "Choose whether to wait or switch in Kansai. Use estimates from a former train dispatcher.",
     "home": "Start from the map",
     "about": "About this app",
@@ -10,7 +10,7 @@
       "toDark": "Use dark theme"
     },
     "mockBadge": "Showing fictional demo data",
-    "name": "MatsuKaeru",
+    "name": "Michiakari",
     "tagline": "Wait, or switch?",
     "skipToContent": "Skip to content",
     "knowledge": "Knowledge base",
@@ -445,7 +445,7 @@
     "alight": "Get off at"
   },
   "about": {
-    "title": "About MatsuKaeru",
+    "title": "About Michiakari",
     "why": {
       "title": "Why we built this",
       "p1": "When an incident happens, crews put safety and recovery first, so announcements tend to stop at what happened.",
@@ -453,7 +453,7 @@
     },
     "purpose": {
       "title": "Purpose",
-      "p1": "Service updates tell you what happened. MatsuKaeru goes one step further and suggests what to do.",
+      "p1": "Service updates tell you what happened. Michiakari goes one step further and suggests what to do.",
       "p2": "When service is suspended, it shows an estimate and an action to help you decide whether to wait or switch."
     },
     "approach": {
@@ -478,7 +478,7 @@
       "p3": "Ride times and fares are approximate and may differ from actual ones.",
       "p4": "Your location and input are used only to give advice and are never stored."
     },
-    "intro": "MatsuKaeru blends the Japanese “matsu” (wait) and “norikaeru” (switch trains). Kaeru also means frog. It aims to shorten the time you spend not knowing what to do.",
+    "intro": "Michiakari means a light on the path. When trains stop and the way ahead is unclear, it lights up your next move.",
     "knowledgeLink": "See the knowledge behind the advice"
   },
   "knowledge": {
