@@ -122,7 +122,7 @@ for (const viewport of [
       });
       await page.getByTestId(testIds.start.positionStation).click();
       const labels = page.locator(
-        '[data-testid^="start-hub-"] > span[aria-hidden], [data-testid^="start-place-"] > span[aria-hidden], [data-testid^="start-map-stop-"] > span[aria-hidden], [data-testid^="start-hub-edge-"]',
+        '[data-testid^="start-hub-"] > span[aria-hidden], [data-testid^="start-place-"] > [data-station-label], [data-testid^="start-map-stop-"] > span[aria-hidden], [data-testid^="start-hub-edge-"]',
       );
       await waitForFiniteAnimations(page);
       await expectLabelsApart(labels);
