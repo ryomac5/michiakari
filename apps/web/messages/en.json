@@ -13,7 +13,6 @@
     "name": "Michiakari",
     "tagline": "Wait, or switch?",
     "skipToContent": "Skip to content",
-    "knowledge": "Knowledge base",
     "menu": {
       "label": "Menu",
       "darkMode": "Dark mode",
@@ -265,7 +264,6 @@
         "weather": "Weather",
         "computation": "Calculation"
       },
-      "openKnowledge": "See in knowledge base",
       "describe": {
         "signal": "Announcement: \"{quote}\"",
         "event": "Typical flow of {event}",
@@ -498,47 +496,7 @@
       "p3": "Ride times and fares are approximate and may differ from actual ones.",
       "p4": "Your location and input are used only to give advice and are never stored."
     },
-    "intro": "Michiakari means a light on the path. When trains stop and the way ahead is unclear, it lights up your next move.",
-    "knowledgeLink": "See the knowledge behind the advice"
-  },
-  "knowledge": {
-    "title": "Knowledge base",
-    "lead": "The knowledge behind the advice. For each kind of disruption, it lists the phases and the signals you can see from outside.",
-    "notice": "The knowledge generalizes the developer's hands-on experience into signals observable from outside. It contains no internal company information.",
-    "dummy": "You are viewing dummy content for development. It is not the developer's knowledge and is not used for real advice.",
-    "empty": "Knowledge you add will appear here",
-    "file": "File: {file}",
-    "replay": "Watch in replay: {title}",
-    "phasesTitle": "Phase flow",
-    "duration": "About {p50}–{p80} min",
-    "durationLabel": "Typical duration",
-    "durationDetail": "Half end within {p50} min, 80% within {p80} min",
-    "description": "What it looks like",
-    "signals": "Signals",
-    "observableFrom": "Where you can observe it",
-    "examples": "Example announcements",
-    "exitSignals": "Link to the next phase",
-    "exitSignalsLead": "This phase ends when any of these signals is observed.",
-    "exitInPhase": "Signal of {phase}",
-    "noExit": "Final phase",
-    "guidance": "How to advise users",
-    "afterResume": "After service resumes",
-    "firstTrainWait": "Wait from resumption until a train you can board: {p50}–{p80} min",
-    "caveats": "Easy mistakes in judgment",
-    "externalFactors": "External factors",
-    "yaml": "The matching part of the knowledge file",
-    "yamlToggle": "Show YAML",
-    "backToTop": "Back to contents",
-    "observable": {
-      "announcement": "Announcement",
-      "signage": "Signage",
-      "station_broadcast": "Station broadcast",
-      "weather": "Weather",
-      "train_movement": "Train movement"
-    },
-    "overview": "Pick a disruption",
-    "phaseCount": "{count} phases",
-    "open": "See details"
+    "intro": "Michiakari means a light on the path. When trains stop and the way ahead is unclear, it lights up your next move."
   },
   "sheet": {
     "handle": "Expand or collapse details",

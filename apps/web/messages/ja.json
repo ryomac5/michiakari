@@ -13,7 +13,6 @@
     "name": "みちあかり",
     "tagline": "待つか、乗り換えるか。",
     "skipToContent": "本文へ移動",
-    "knowledge": "知見ナレッジ",
     "menu": {
       "label": "メニュー",
       "darkMode": "ダーク表示",
@@ -265,7 +264,6 @@
         "weather": "気象",
         "computation": "計算"
       },
-      "openKnowledge": "知見を見る",
       "describe": {
         "signal": "発表の「{quote}」",
         "event": "{event}のよくある流れ",
@@ -498,47 +496,7 @@
       "p3": "乗車時間と運賃は概算です。実際の時刻や運賃と異なることがあります。",
       "p4": "現在地と入力内容は判断にのみ使い、保存しません。"
     },
-    "intro": "みちあかりは、止まった駅で先が見えないときに、次の一手を照らす明かりという意味です。",
-    "knowledgeLink": "判断に使う知見ナレッジを見る"
-  },
-  "knowledge": {
-    "title": "知見ナレッジ",
-    "lead": "判断の裏にある知見です。事象ごとに、段階の流れと外から見える兆候をまとめました。",
-    "notice": "知見は、開発者の実務経験を、外から観察できる兆候にもとづいて一般化したものです。社内情報は含みません。",
-    "dummy": "いま表示しているのは開発用のダミーです。開発者の知見ではなく、本番の判断には使いません。",
-    "empty": "知見を追加すると、ここに並びます",
-    "file": "ファイル: {file}",
-    "replay": "リプレイで見る: {title}",
-    "phasesTitle": "段階の流れ",
-    "duration": "目安 {p50}〜{p80} 分",
-    "durationLabel": "所要時間の目安",
-    "durationDetail": "半数は {p50} 分以内、8 割は {p80} 分以内",
-    "description": "段階の様子",
-    "signals": "兆候",
-    "observableFrom": "観察できる経路",
-    "examples": "聞こえる案内の例",
-    "exitSignals": "次の段階へのつながり",
-    "exitSignalsLead": "次の兆候が観察されたら、この段階を抜けます。",
-    "exitInPhase": "{phase} の兆候",
-    "noExit": "最後の段階です",
-    "guidance": "利用者への提示方針",
-    "afterResume": "運転再開のあと",
-    "firstTrainWait": "再開から乗れる列車が来るまでの目安: {p50}〜{p80} 分",
-    "caveats": "判断を誤りやすい点",
-    "externalFactors": "外部の要因",
-    "yaml": "知見ファイルの該当部分",
-    "yamlToggle": "YAML を見る",
-    "backToTop": "目次へ戻る",
-    "observable": {
-      "announcement": "発表",
-      "signage": "掲示",
-      "station_broadcast": "駅の放送",
-      "weather": "気象",
-      "train_movement": "列車の動き"
-    },
-    "overview": "事象を選ぶ",
-    "phaseCount": "{count} つの段階",
-    "open": "詳しく見る"
+    "intro": "みちあかりは、止まった駅で先が見えないときに、次の一手を照らす明かりという意味です。"
   },
   "sheet": {
     "handle": "詳細の表示を切り替える",
