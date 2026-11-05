@@ -5,18 +5,18 @@ import {
   pickLocalized,
 } from "@/features/knowledge/catalog";
 
-// 兆候の補足文。知見の説明は日本語だけなので、英語では段階の英語名から組み立てる
+// 兆候の補足文。知見の説明の文は利用者に出さず、兆候が属する段階の名前で組み立てる
 export function buildSignalNote(
   catalog: KnowledgeCatalog,
   eventType: string,
   signalId: string,
   locale: string,
 ): string | null {
-  const signal = findCatalogSignal(catalog, eventType, signalId);
-  if (!signal) return null;
-  if (locale !== "en") return signal.description;
+  if (!findCatalogSignal(catalog, eventType, signalId)) return null;
   const phase = findCatalogEvent(catalog, eventType)?.phases.find((p) =>
     p.signals.some((s) => s.id === signalId),
   );
-  return phase ? `Seen in the "${pickLocalized(phase.name, locale)}" phase` : null;
+  if (!phase) return null;
+  const name = pickLocalized(phase.name, locale);
+  return locale === "en" ? `Seen in the "${name}" phase` : `「${name}」の段階の兆候`;
 }

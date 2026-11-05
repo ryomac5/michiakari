@@ -331,28 +331,36 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
           if (s.eventType !== knowledge.id || seen.has(s.signalId)) continue;
           seen.add(s.signalId);
           const phase = knowledge.phases.find((p) => p.signals.some((k) => k.id === s.signalId));
-          const known = phase?.signals.find((k) => k.id === s.signalId);
+          // 知見の本文は利用者に出さない。発表の引用と段階の名前だけで書く
           refs.push({
             kind: "signal",
             id: s.signalId,
             description:
               language === "en"
                 ? buildSignalEvidenceEn(s.signalId, s.quote, phase?.name.en ?? phase?.name.ja)
-                : `${known?.description ?? s.quote}「${s.quote}」`,
+                : phase
+                  ? `「${phase.name.ja}」の段階の兆候「${s.quote}」`
+                  : `発表の「${s.quote}」`,
           });
         }
       }
       refs.push({
         kind: "knowledge",
         id: knowledge.id,
-        description: knowledge.summary[language] ?? knowledge.summary.ja,
+        description:
+          language === "en"
+            ? `Typical flow of ${knowledge.name.en ?? knowledge.name.ja}`
+            : `${knowledge.name.ja}のよくある流れ`,
       });
       const phase = knowledge.phases.find((p) => p.id === state.estimate?.estimate.phaseId);
       if (phase) {
         refs.push({
           kind: "knowledge",
           id: phase.id,
-          description: phase.guidance[language] ?? phase.guidance.ja,
+          description:
+            language === "en"
+              ? `Current phase: ${phase.name.en ?? phase.name.ja}`
+              : `いまの段階は「${phase.name.ja}」`,
         });
       }
     }

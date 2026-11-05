@@ -72,6 +72,10 @@ for (const theme of ["light", "dark"] as const) {
       await expect(waitFaster).toContainText("1割未満");
       // 期限があるので、待って期限に間に合う見込みも出る
       await expect(page.getByTestId(testIds.judgment.resumeChanceWaitOnTime)).toBeVisible();
+      // 間に合うための再開の時刻は、到着の期限と取り違えない名前で示す
+      const resumeBy = page.getByTestId(testIds.judgment.resumeChanceResumeBy);
+      await expect(resumeBy).toHaveText(/^\d{2}:\d{2}までに動けば間に合う$/);
+      await expect(resumeBy).not.toContainText("期限");
 
       const ticks = await readTicks(page);
       expect(ticks.length).toBeGreaterThanOrEqual(4);
@@ -89,13 +93,15 @@ for (const theme of ["light", "dark"] as const) {
       // 分岐点の印が帯の上にあり、分岐点より後の棒は斜線になる
       await expect(page.getByTestId(testIds.judgment.resumeChanceBreakEven)).toBeAttached();
       expect(ticks.some((t) => t.side === "after")).toBe(true);
-      // 要点の 1 文は、発生からの言い方で 5 割以上の目盛りを言う
-      const lead = page.getByTestId(testIds.judgment.resumeChanceLead);
-      await expect(lead).toContainText("発生から");
-      await expect(lead).toContainText("までに再開する見込みは");
+      // 図と同じことを言う要点の文は出さず、図の右上に発生からの時間だけを添える
+      await expect(page.getByTestId(testIds.judgment.resumeChanceLead)).toHaveCount(0);
+      await expect(page.getByTestId(testIds.judgment.resumeChanceOnset)).toContainText("発生から");
+      // 境目の印に時刻を、点に境目までに動く見込みを添える
+      await expect(page.getByTestId(testIds.judgment.breakEvenTime)).toHaveText(/^\d{2}:\d{2}$/);
+      await expect(waitFaster).toBeVisible();
       // 理由の最後にも確率の 1 文が入る
       await expect(page.getByTestId(testIds.judgment.conclusionReasonDetail)).toContainText(
-        /分岐点の\d{1,2}時\d{2}分までに再開する見込みは1割未満です/,
+        /境目の\d{1,2}時\d{2}分までに動く見込みは1割未満です/,
       );
       await waitForMapReady(page);
       await page.screenshot({
@@ -115,7 +121,7 @@ for (const theme of ["light", "dark"] as const) {
       const laterTenths = Number(await waitFaster.getAttribute("data-tenths"));
       expect(laterTenths).toBeGreaterThanOrEqual(5);
       await expect(page.getByTestId(testIds.judgment.conclusionReasonDetail)).toContainText(
-        /分岐点の\d{1,2}時\d{2}分までに再開する見込みは/,
+        /境目の\d{1,2}時\d{2}分までに動く見込みは/,
       );
       expect(later.map((t) => t.tenths).join(",")).not.toBe(ticks.map((t) => t.tenths).join(","));
     });
@@ -137,9 +143,7 @@ for (const theme of ["light", "dark"] as const) {
       );
       const waitFaster = page.getByTestId(testIds.judgment.resumeChanceWaitFaster);
       expect(Number(await waitFaster.getAttribute("data-tenths"))).toBeGreaterThanOrEqual(9);
-      await expect(page.getByTestId(testIds.judgment.resumeChanceLead)).toContainText(
-        "までに再開する見込みは",
-      );
+      await expect(page.getByTestId(testIds.judgment.resumeChanceOnset)).toContainText("発生から");
       await waitForMapReady(page);
       await page.screenshot({ path: `${screenshotDir}resume-chance-in-car-${theme}-390x844.png` });
     });
@@ -191,9 +195,7 @@ test("駅と駅の間にいる人の判断にも、確率の帯と分岐点ま�
   await expect(band).toBeVisible();
   await expect(band).toHaveAttribute("data-onset", "known");
   await expect(page.getByTestId(testIds.judgment.resumeChanceWaitFaster)).toContainText(/割/);
-  await expect(page.getByTestId(testIds.judgment.resumeChanceLead)).toContainText(
-    "までに再開する見込みは",
-  );
+  await expect(page.getByTestId(testIds.judgment.resumeChanceOnset)).toContainText("発生から");
   const ticks = await readTicks(page);
   expect(ticks.length).toBeGreaterThanOrEqual(4);
   // 前提のチップが増えても、閉じたシートに注意書きまで収まる
@@ -213,9 +215,8 @@ for (const { clock, sinceOnset } of [
     const band = page.getByTestId(testIds.judgment.resumeChance);
     await expect(band).toBeVisible();
     await expect(band).toHaveAttribute("data-onset", "known");
-    const lead = page.getByTestId(testIds.judgment.resumeChanceLead);
-    await expect(lead).toContainText("発生から");
-    await expect(lead).toContainText("までに再開する見込みは");
+    const onset = page.getByTestId(testIds.judgment.resumeChanceOnset);
+    await expect(onset).toContainText(`発生から${sinceOnset}分`);
     await expect(page.getByTestId(testIds.judgment.resumeChanceWaitFaster)).toBeVisible();
     // 未来の目盛りでも直前の秒からは経過分が10分に丸められる
     const ticks = await readTicks(page);
@@ -226,8 +227,8 @@ for (const { clock, sinceOnset } of [
     await startFromEntry(page, "unknown");
     await expect(band).toBeVisible();
     await expect(band).toHaveAttribute("data-onset", "unknown");
-    await expect(lead).not.toContainText("発生から");
-    await expect(lead).toContainText("までに再開する見込みは");
+    await expect(onset).toHaveCount(0);
+    await expect(page.getByTestId(testIds.judgment.resumeChanceWaitFaster)).toBeVisible();
   });
 }
 
@@ -261,7 +262,7 @@ test("切り替える判断でも確率の時点と分岐点が一致し比較�
     const parts = time.formatToParts(new Date(iso));
     return `${Number(parts.find((part) => part.type === "hour")?.value)}時${parts.find((part) => part.type === "minute")?.value}分`;
   };
-  const chanceSentence = `分岐点の${clock(judgment.breakEven.time)}までに再開する見込みは1割未満です。`;
+  const chanceSentence = `境目の${clock(judgment.breakEven.time)}までに動く見込みは1割未満です。`;
   expect(judgment.reason.endsWith(chanceSentence)).toBe(true);
   await openSheet(page, "half");
   await expect(page.getByTestId(testIds.judgment.conclusionReasonDetail)).toContainText(
@@ -283,9 +284,7 @@ test("再開見込みの延長後は分岐点後の遅めの時刻と確率を�
   }
   const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
   await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText("延長後");
-  await expect(reason).toContainText(
-    "遅めの見込みでは分岐点より後の0時00分までの再開確率は8割です。",
-  );
+  await expect(reason).toContainText("遅めに見ると境目より後の0時00分までに動く見込みは8割です。");
   await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
     "data-action",
     "switch",

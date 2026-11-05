@@ -23,7 +23,7 @@ export function MapLegend({
   tone,
   reachSource,
 }: {
-  // 推奨経路の色。判断の種類に合わせる
+  // 地図に描いている経路の色。一覧で選んだ選択肢か推奨の選択肢の種類に合わせ、地図と同じにする
   tone: Action;
   // 円で概算したときだけ「概算」を添える
   reachSource: ReachSource | null;
@@ -37,17 +37,23 @@ export function MapLegend({
       id: "route",
       sample: renderSample(
         <>
-          <line x1="2" y1="8" x2="18" y2="8" stroke={palette.routeCasing} strokeWidth="7" />
-          <line x1="2" y1="8" x2="18" y2="8" stroke={accent} strokeWidth="4" />
           <line
-            x1="23"
+            x1="3"
             y1="8"
-            x2="31"
+            x2="29"
+            y2="8"
+            stroke={palette.routeCasing}
+            strokeWidth="7"
+            strokeLinecap="round"
+          />
+          <line
+            x1="3"
+            y1="8"
+            x2="29"
             y2="8"
             stroke={accent}
-            strokeWidth="3.5"
+            strokeWidth="4"
             strokeLinecap="round"
-            strokeDasharray="0 6"
           />
         </>,
       ),
@@ -128,7 +134,7 @@ export function MapLegend({
   ];
 
   return (
-    <div data-testid={mapTestIds.legend} className="flex flex-col gap-2">
+    <div data-testid={mapTestIds.legend} data-tone={tone} className="flex flex-col gap-2">
       <h3 className="text-[13px] font-medium text-muted">{labels.legend.title}</h3>
       <ul className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-[13px] sm:grid-cols-2 lg:grid-cols-1">
         {items.map((item) => (

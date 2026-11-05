@@ -43,3 +43,18 @@ export function useOptionFocus(setSnap: (snap: SheetSnap) => void) {
 
   return { highlightId, focusOption };
 }
+
+// 選択肢の一覧で押した選択肢。地図をその経路に描き直すため、シートを閉じて地図を見せる
+// 新しい判断が届いたら推奨に戻す
+export function useOptionSelection(setSnap: (snap: SheetSnap) => void, judgedAt: string | null) {
+  const [selected, setSelected] = useState<{ id: string; judgedAt: string | null } | null>(null);
+  const selectOption = useCallback(
+    (optionId: string) => {
+      setSelected({ id: optionId, judgedAt });
+      setSnap("collapsed");
+    },
+    [setSnap, judgedAt],
+  );
+  const selectedOptionId = selected?.judgedAt === judgedAt ? selected.id : null;
+  return { selectedOptionId, selectOption };
+}

@@ -1,18 +1,34 @@
-import { addMinutesToIso, computeWaitArrival, estimateWalkMinutes, type LonLat } from "@repo/core";
+import {
+  addMinutesToIso,
+  BUS_CHECK_MAX_WALK_MINUTES,
+  BUS_STOP_SAME_NAME_METERS,
+  computeWaitArrival,
+  estimateWalkMinutes,
+  type LonLat,
+} from "@repo/core";
 import {
   type BlockedSection,
+  type BusStop,
   formatLineName,
   formatRouteLabel,
   formatStationName,
   type GeoIndex,
   type LineInfo as GeoLineInfo,
   listLineDirections,
+  listWalkAccessBusStops,
   normalizeSearchText,
   type Router,
   type StationNode,
 } from "@repo/geo";
-import { loadGeoIndex, loadRouter } from "@repo/geo/node";
-import type { Lang, Place, RouteLeg, RouteOption } from "@repo/schema";
+import { loadBusStopMeta, loadBusStops, loadGeoIndex, loadRouter } from "@repo/geo/node";
+import {
+  BUS_CHECK_LIMIT,
+  type BusCheck,
+  type Lang,
+  type Place,
+  type RouteLeg,
+  type RouteOption,
+} from "@repo/schema";
 import { findLineNicknameEn } from "./line-names-en.ts";
 import type {
   AlternativesProvider,
@@ -31,13 +47,22 @@ const WAIT_OPTION_ID = "wait";
 export type GeoDeps = {
   router: Router;
   geo: GeoIndex;
+  // バス停留所。生成物が無ければ空
+  busStops: readonly BusStop[];
+  // バス停の位置情報の資料の年。生成物が無ければ null
+  busStopYear: number | null;
 };
 
 let sharedDeps: GeoDeps | null = null;
 
 // 路線ネットワークは 1 回だけ読み、プロセス内で使い回す
 export function loadSharedGeoDeps(): GeoDeps {
-  sharedDeps ??= { router: loadRouter(), geo: loadGeoIndex() };
+  sharedDeps ??= {
+    router: loadRouter(),
+    geo: loadGeoIndex(),
+    busStops: loadBusStops(),
+    busStopYear: loadBusStopMeta()?.dataYear ?? null,
+  };
   return sharedDeps;
 }
 
@@ -63,7 +88,32 @@ function sumWalkMinutes(legs: readonly RouteLeg[]): number {
 }
 
 export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): AlternativesProvider {
-  const { router, geo } = deps;
+  const { router, geo, busStops, busStopYear } = deps;
+
+  // 起点から歩いて確かめに行けるバス停。時刻を持たないので確認先の候補にとどめる
+  function listBusChecksAt(coord: LonLat, dataYear: number): BusCheck[] {
+    return listWalkAccessBusStops({
+      stops: busStops,
+      origin: coord,
+      maxWalkMinutes: BUS_CHECK_MAX_WALK_MINUTES,
+      sameNameMeters: BUS_STOP_SAME_NAME_METERS,
+      limit: BUS_CHECK_LIMIT,
+    }).flatMap(({ name, stops, walkMinutes }) => {
+      const [nearest] = stops;
+      if (!nearest) return [];
+      return [
+        {
+          id: nearest.id,
+          stopName: name,
+          operators: stops.map((s) => ({ name: s.operator, officialUrl: s.officialUrl })),
+          lon: nearest.lonLat[0],
+          lat: nearest.lonLat[1],
+          walkMinutes,
+          dataYear,
+        },
+      ];
+    });
+  }
 
   function resolveStation(name: string, lineHint: string | null): StationNode | null {
     const id = router.resolveStationId(normalizeStationName(name), lineHint ?? undefined);
@@ -376,5 +426,11 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
     return stations.length > 0 ? { lineId: section.lineId, stations } : null;
   }
 
-  return { findAlternatives, resolvePlace, listLines, listStationsAhead };
+  function listBusChecks(place: Place): BusCheck[] {
+    const origin = resolveEndpoint(place, null);
+    if (!origin || busStopYear === null) return [];
+    return listBusChecksAt(origin.coord, busStopYear);
+  }
+
+  return { findAlternatives, resolvePlace, listLines, listStationsAhead, listBusChecks };
 }

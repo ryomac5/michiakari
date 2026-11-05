@@ -81,28 +81,35 @@ describe("結論カードの理由", () => {
     "残りが空の理由は詳細に重ねない: %s",
     (reason) => {
       const judgment = buildJudgment(reason);
-      expect(renderToStaticMarkup(createElement(ConclusionDetail, { judgment }))).toBe("");
+      const html = renderToStaticMarkup(createElement(ConclusionDetail, { judgment }));
+      expect(html).not.toContain(testIds.judgment.conclusionReasonDetail);
+      expect(html).not.toContain(reason.trim());
     },
   );
 
-  it("要約がない理由にも詳細専用のtestidを付ける", () => {
-    const judgment = { ...buildJudgment("運転再開を待つ。"), typicalFlow: undefined };
+  it("流れが無くても、見込みの確かさが高くなくても、先頭の1文を要約にする", () => {
+    const judgment = {
+      ...buildJudgment("運転再開を待ちます。境目は21時05分です。"),
+      typicalFlow: undefined,
+    };
+    expect(selectCardReason(judgment)).toBe("運転再開を待ちます。");
     const html = renderToStaticMarkup(createElement(ConclusionDetail, { judgment }));
     expect(html).toContain(`data-testid="${testIds.judgment.conclusionReasonDetail}"`);
     expect(html).not.toContain(`data-testid="${testIds.judgment.conclusionReason}"`);
-    expect(html).toContain("運転再開を待つ。");
+    expect(html).toContain("境目は");
+    expect(html).not.toContain("運転再開を待ちます。");
   });
 
-  it("判断・理由がないときや流れの確信度が高くないときは要約を出さない", () => {
+  it("判断・理由がないときは要約を出さない", () => {
     expect(selectCardReason(null)).toBeNull();
     expect(selectCardReason(buildJudgment())).toBeNull();
-    const judgment = buildJudgment("運転再開を待つ。");
-    expect(selectCardReason({ ...judgment, typicalFlow: undefined })).toBeNull();
-    if (!judgment.typicalFlow) throw new Error("流れがありません");
-    judgment.typicalFlow.predictability.level = "medium";
-    expect(selectCardReason(judgment)).toBeNull();
-    expect(renderToStaticMarkup(createElement(ConclusionDetail, { judgment }))).toContain(
-      "運転再開を待つ。",
-    );
+  });
+
+  it("詳細に見込みの確かさを言い換えて出す", () => {
+    const judgment = buildJudgment("このまま待つほうが早く着きます。");
+    judgment.estimate.confidence = "low";
+    const html = renderToStaticMarkup(createElement(ConclusionDetail, { judgment }));
+    expect(html).toContain(`data-testid="${testIds.judgment.confidence}"`);
+    expect(html).toContain('data-level="low"');
   });
 });

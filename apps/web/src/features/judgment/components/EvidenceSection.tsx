@@ -1,6 +1,6 @@
 "use client";
 
-import type { DetectedSignal, Estimate, Evidence } from "@repo/schema";
+import type { DetectedSignal, Estimate, Evidence, TypicalFlow } from "@repo/schema";
 import {
   ArrowUpRight,
   BookOpen,
@@ -24,8 +24,10 @@ import {
   pickLocalized,
 } from "@/features/knowledge/catalog";
 import { cn } from "@/lib/utils";
+import { selectEvidenceText } from "../evidence-text";
 import { buildSignalNote } from "../signal-text";
 import { testIds } from "../testids";
+import { buildUsualText } from "./TypicalFlow";
 
 const evidenceIcons: Record<Evidence["kind"], LucideIcon> = {
   signal: Radio,
@@ -42,6 +44,7 @@ export function EvidenceSection({
   catalog,
   disclaimer = null,
   showPhases = true,
+  flow = null,
 }: {
   estimate: Estimate | null;
   signals: DetectedSignal[];
@@ -51,8 +54,26 @@ export function EvidenceSection({
   disclaimer?: string | null;
   // よくある流れの欄が段階を示すときは、ここでは段階を出さない
   showPhases?: boolean;
+  // よくある流れ。知見の項目に「ふつう1時間ほどで再開」を添える
+  flow?: TypicalFlow | null;
 }) {
   const t = useTranslations("judgment.evidence");
+  const tFlow = useTranslations("judgment.flow");
+  const locale = useLocale();
+  // 知見の本文は出さず、発表の引用と事象・段階の名前から項目の文を組み立てる
+  const describe = (item: Evidence): string => {
+    const text = selectEvidenceText(item, {
+      catalog,
+      eventType: estimate?.eventType ?? null,
+      signals,
+      locale,
+    });
+    if (text.key === "raw") return text.text;
+    const base = t(`describe.${text.key}`, text.values);
+    return text.key === "event" && flow?.eventType === item.id
+      ? `${base} · ${buildUsualText(tFlow, flow)}`
+      : base;
+  };
 
   return (
     <Collapsible
@@ -96,7 +117,7 @@ export function EvidenceSection({
                           {t(`kinds.${item.kind}`)} ·{" "}
                           <code className="font-mono break-all">{item.id}</code>
                         </p>
-                        <p className="text-[14px]">{item.description}</p>
+                        <p className="text-[14px]">{describe(item)}</p>
                       </div>
                     </EvidenceCard>
                   </li>

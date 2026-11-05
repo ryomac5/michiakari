@@ -161,6 +161,57 @@ describe("reduceEntry", () => {
     expect(reduceEntry(initialEntryState, { type: "restore", state: cause })).toEqual(cause);
   });
 });
+describe("現在地から読み取った位置", () => {
+  const segment = { from: "塚本", to: "尼崎" };
+  const locateBetween: EntryAction = { type: "locateBetween", line, segment, place, area };
+  it("駅を読み取ると駅にいる人として行き先へ進み、戻るといまどこへ戻る", () => {
+    const state = run([{ type: "locateStation", area, place }]);
+    expect(state).toMatchObject({ stage: "destination", location: "station", place, area });
+    expect(reduceEntry(state, { type: "back" })).toEqual(initialEntryState);
+  });
+  it("駅の間を読み取ると路線と駅間を飛ばして行き先へ進み、向きが決まれば様子へ進む", () => {
+    const destination = run([locateBetween]);
+    expect(destination).toMatchObject({
+      stage: "destination",
+      location: "train",
+      line,
+      segment,
+      direction: null,
+    });
+    const cause = reduceEntry(destination, {
+      type: "chooseDestination",
+      inferred: { line, direction },
+    });
+    expect(cause).toMatchObject({ stage: "cause", direction, directionAuto: true });
+    const stages = [];
+    let state = cause;
+    while (state.history.length) {
+      state = reduceEntry(state, { type: "back" });
+      stages.push(state.stage);
+    }
+    expect(stages).toEqual(["destination", "position"]);
+  });
+  it("行き先から向きが決まらなければ方面を聞き、答えると様子へ進む", () => {
+    const asked = run([locateBetween, { type: "chooseDestination" }]);
+    expect(asked.stage).toBe("direction");
+    const moved = { ...line, stationName: "尼崎" };
+    const cause = reduceEntry(asked, { type: "chooseDirection", direction, line: moved });
+    expect(cause).toMatchObject({ stage: "cause", line: moved, direction });
+    expect(reduceEntry(cause, { type: "back" }).stage).toBe("direction");
+  });
+  it("いまどこの段の外では読み取った位置を受け付けず、電車を変えると駅間を捨てる", () => {
+    const station = run([{ type: "chooseLocation", location: "station" }]);
+    expect(reduceEntry(station, locateBetween)).toBe(station);
+    const cause = run([
+      locateBetween,
+      { type: "chooseDestination", inferred: { line, direction } },
+    ]);
+    expect(reduceEntry(cause, { type: "editRoute" })).toMatchObject({
+      stage: "station",
+      segment: null,
+    });
+  });
+});
 describe("selectProgressIndex", () => {
   it("いまどこ・行き先・乗る電車・様子の順に印を出す", () => {
     expect(
@@ -244,5 +295,29 @@ describe("selectEntryHistoryAction", () => {
       type: "travel",
       depth: elapsedDepth,
     });
+  });
+});
+
+describe("最初の段からの駅の選択", () => {
+  it("駅にいるを先に選ばず駅を確定し、戻ると最初の段へ戻る", () => {
+    const state = reduceEntry(initialEntryState, { type: "openPlace", area, place });
+    expect(state).toMatchObject({ stage: "destination", location: "station", place });
+    expect(state.history).toHaveLength(1);
+    expect(reduceEntry(state, { type: "back" })).toEqual(initialEntryState);
+  });
+
+  it("最初の地図のエリアから駅を選べる", () => {
+    const state = run([
+      { type: "openArea", area },
+      { type: "openPlace", area, place },
+    ]);
+    expect(state).toMatchObject({ stage: "destination", location: "station", place });
+    expect(state.history.map((item) => item.stage)).toEqual(["position", "area"]);
+  });
+
+  it("車内と答えたあとは、エリアも駅も開かない", () => {
+    const onTrain = run([{ type: "chooseLocation", location: "train" }]);
+    expect(reduceEntry(onTrain, { type: "openArea", area })).toBe(onTrain);
+    expect(reduceEntry(onTrain, { type: "openPlace", area, place })).toBe(onTrain);
   });
 });

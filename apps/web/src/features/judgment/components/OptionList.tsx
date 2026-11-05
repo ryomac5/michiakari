@@ -2,7 +2,7 @@
 
 import { findMainRideLeg } from "@repo/geo";
 import type { RouteOption } from "@repo/schema";
-import { LoaderCircle, Star } from "lucide-react";
+import { LoaderCircle, MapPin, Star } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import type { OptionMark } from "@/features/map/station-guide";
 import { useLineTranslator } from "@/features/map/use-line-label";
@@ -12,6 +12,7 @@ import { testIds } from "../testids";
 import { formatClockTime, formatFare } from "../time";
 
 // 選択肢を簡潔な行で並べる。アイコン・名前・到着・徒歩・運賃。推奨は強調する
+// 行を押すと、その選択肢の経路を地図に描き直す
 export function OptionList({
   options,
   recommendedOptionId,
@@ -19,6 +20,8 @@ export function OptionList({
   pending,
   marks = [],
   highlightId = null,
+  selectedId = null,
+  onSelect,
 }: {
   options: RouteOption[] | null;
   recommendedOptionId: string | null;
@@ -28,6 +31,9 @@ export function OptionList({
   marks?: readonly OptionMark[];
   // 地図の吹き出しから移ってきた選択肢。しばらく目立たせる
   highlightId?: string | null;
+  // 地図に描いている選択肢と、押したときの動き
+  selectedId?: string | null;
+  onSelect?: (optionId: string) => void;
 }) {
   const t = useTranslations("judgment.options");
 
@@ -61,6 +67,8 @@ export function OptionList({
             recommended={option.id === recommendedOptionId}
             mark={marks.find((m) => m.optionId === option.id) ?? null}
             highlighted={option.id === highlightId}
+            selected={option.id === selectedId}
+            onSelect={onSelect ? () => onSelect(option.id) : null}
           />
         ))}
       </ul>
@@ -74,11 +82,15 @@ function OptionRow({
   recommended,
   mark,
   highlighted,
+  selected,
+  onSelect,
 }: {
   option: RouteOption;
   recommended: boolean;
   mark: OptionMark | null;
   highlighted: boolean;
+  selected: boolean;
+  onSelect: (() => void) | null;
 }) {
   const t = useTranslations("judgment.options");
   const locale = useLocale();
@@ -109,12 +121,24 @@ function OptionRow({
       data-first-line={firstRide?.lineId ?? ""}
       data-main-line={mainRide?.lineId ?? ""}
       data-highlighted={highlighted}
+      data-selected={selected}
       className={cn(
-        "flex items-start gap-3 rounded-2xl px-3 py-2.5 transition-shadow duration-300",
+        "relative flex items-start gap-3 rounded-2xl px-3 py-2.5 transition-shadow duration-300",
         recommended ? [tone.surface, "ring-1 ring-inset", tone.ring] : "bg-foreground/[0.03]",
+        selected && !recommended && "ring-2 ring-foreground/50 ring-inset",
         highlighted && "ring-2 ring-foreground ring-inset",
       )}
     >
+      {/* 行の全体を押せる面にする。中身の文は読み上げ用の名前に任せる */}
+      {onSelect && (
+        <button
+          type="button"
+          aria-pressed={selected}
+          aria-label={`${t("select")}: ${option.label}`}
+          onClick={onSelect}
+          className="absolute inset-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-foreground"
+        />
+      )}
       <span
         className={cn(
           "flex size-9 shrink-0 items-center justify-center rounded-full",
@@ -141,6 +165,12 @@ function OptionRow({
             <span className={cn("font-semibold", tone.text)}>
               <Star className="mr-0.5 inline size-3 -translate-y-px fill-current" aria-hidden />
               {t("recommended")} ·{" "}
+            </span>
+          )}
+          {selected && (
+            <span className="font-semibold text-foreground">
+              <MapPin className="mr-0.5 inline size-3 -translate-y-px" aria-hidden />
+              {t("selected")} ·{" "}
             </span>
           )}
           {option.isTransferService && <span>{t("transferService")} · </span>}

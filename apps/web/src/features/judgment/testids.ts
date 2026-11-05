@@ -7,6 +7,17 @@ export const testIds = {
   judgment: {
     ...sharedTestIds.judgment,
     conclusionReasonDetail: "judgment-conclusion-reason-detail",
+    // 待つ見出しの 2 文目。「動かなければ阪急京都線へ」
+    conclusionNext: "judgment-conclusion-next",
+    // 見込みの確かさ。data-level に low / medium / high を出す
+    confidence: "judgment-confidence",
+    // 再開の見込みの図の右上の「発生から28分」
+    resumeChanceOnset: "judgment-resume-chance-onset",
+    // 図の下の「22:55までに動けば間に合う」。到着の期限ではなく、間に合うための再開の時刻
+    resumeChanceResumeBy: "judgment-resume-chance-resume-by",
+    // 近くのバス停の確認候補の欄。時刻は出さない
+    busChecks: "judgment-bus-checks",
+    busCheck: (id: string) => `judgment-bus-check-${id}`,
   },
   start: {
     ...sharedTestIds.start,
@@ -18,5 +29,13 @@ export const testIds = {
     introProblem: "start-intro-problem",
     introSolution: "start-intro-solution",
     nearbyStation: (id: string) => `start-nearby-station-${id}`,
+    // 現在地から読み取る。data-status に読み取りの状態を出す
+    gps: "start-gps",
+    gpsLocate: "start-gps-locate",
+    gpsQuestion: "start-gps-question",
+    gpsConfirm: "start-gps-confirm",
+    gpsDismiss: "start-gps-dismiss",
+    gpsChoice: (key: string) => `start-gps-choice-${key}`,
+    gpsStatus: "start-gps-status",
   },
 };

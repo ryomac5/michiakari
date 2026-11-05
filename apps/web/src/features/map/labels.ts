@@ -15,6 +15,8 @@ export type MapLabels = {
     alternative: string;
     places: string;
   };
+  // 一覧で選んだ経路を地図に描いていることを示す札
+  selectedRoute: string;
   // 地図を推奨経路と区間の全体に戻すボタン
   recenter: string;
   // 徒歩の道と到達範囲の札
@@ -35,10 +37,11 @@ const ja: MapLabels = {
     blocked: "止まっている区間",
     reach: "徒歩20分の範囲。点線は10分",
     approx: "概算",
-    route: "おすすめの経路。点線は徒歩",
+    route: "地図に描いている経路。一覧で選び直せる",
     alternative: "ほかの選択肢",
     places: "出発と行き先",
   },
+  selectedRoute: "表示中",
   recenter: "経路の全体を表示",
   walkLabel: (minutes) => `徒歩 ${minutes} 分`,
   attribution: {
@@ -68,10 +71,11 @@ const en: MapLabels = {
     blocked: "Suspended section",
     reach: "20 min walk. Dotted is 10 min",
     approx: "approx.",
-    route: "Recommended route. Dotted is walking",
+    route: "Route shown on the map. Pick another in the list",
     alternative: "Other options",
     places: "Start and destination",
   },
+  selectedRoute: "Showing",
   recenter: "Show the whole route",
   walkLabel: (minutes) => `${minutes} min walk`,
   attribution: {

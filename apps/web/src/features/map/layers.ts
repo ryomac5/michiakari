@@ -103,19 +103,14 @@ export type MapMode = {
 const overviewMode: MapMode = { view: "overview", relevantLineIds: [], blockedLineIds: [] };
 
 // 片方の見せ方でだけ出す層
+// 選んだ経路は両方の見せ方で描く。徒歩は直線の点線を引かず、乗る駅の札が分数を示す
 const focusOnlyLayerIds = new Set([
   "walk-reach-outline-20",
-  "guide-walk-paths",
-  "guide-walk-labels",
   "guide-station-dots",
   "walk-reach-labels",
 ]);
 const overviewOnlyLayerIds = new Set([
   "alternative-routes",
-  "route-casing",
-  "route-ride",
-  "route-taxi",
-  "route-walk",
   "route-label",
   "key-station-dots",
   "key-station-labels",
@@ -130,7 +125,7 @@ function selectVisibility(layerId: string, view: MapView): "visible" | "none" {
 }
 
 // 経路の色を変える層。判断が変わったら塗りだけを差し替える
-export const routeColorLayerIds = ["route-ride", "route-taxi", "route-walk"] as const;
+export const routeColorLayerIds = ["route-ride", "route-taxi"] as const;
 
 // 地理院タイル（淡色地図）。低いコントラストで敷き、目印になる地名がうっすら見える程度にする
 const gsiPaleTiles = "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png";
@@ -173,13 +168,14 @@ export function buildBaseStyle(palette: MapPalette): StyleSpecification {
   };
 }
 
+// 線の太さは拡大率に合わせて指数で太らせる。引くと細く、寄ると太い
 const byZoom = (low: number, high: number): ExpressionSpecification => [
   "interpolate",
-  ["linear"],
+  ["exponential", 1.5],
   ["zoom"],
-  9,
+  10,
   low,
-  14,
+  16,
   high,
 ];
 
@@ -215,16 +211,45 @@ export function buildDataLayers(
     ["get", "lineId"],
     ["literal", [...mode.blockedLineIds]],
   ];
-  // 現在地のまわりでは、止まっている路線を赤、案内に出す路線を各社の色、ほかを淡い灰色にする
+  // 現在地のまわりでは、止まっている路線を赤、案内に出す路線を各社の色で細めに、ほかを細く淡い灰色にする
+  // 強く描くのは止まっている区間と選んだ経路だけにする
   const railColor: ExpressionSpecification | string = focus
     ? ["case", blocked, palette.blocked, relevant, ["get", "color"], palette.rail]
     : palette.rail;
+  // 全体を見る表示では、止まっている路線と乗る路線を残し、関係のない路線を細く淡くする
+  // 関係する路線が分からないうちは、すべて同じ太さで描く
+  const dimOthers = !focus && mode.relevantLineIds.length > 0;
+  const kept: ExpressionSpecification = ["any", blocked, relevant];
   const railWidth: ExpressionSpecification = focus
-    ? ["case", blocked, 3, relevant, 3, 1]
-    : byZoom(0.8, 2);
+    ? [
+        "interpolate",
+        ["exponential", 1.5],
+        ["zoom"],
+        10,
+        ["case", blocked, 1.2, relevant, 1.2, 0.4],
+        16,
+        ["case", blocked, 4, relevant, 3.5, 1.2],
+      ]
+    : dimOthers
+      ? [
+          "interpolate",
+          ["exponential", 1.5],
+          ["zoom"],
+          10,
+          ["case", kept, 0.9, 0.4],
+          16,
+          ["case", kept, 2.5, 1.2],
+        ]
+      : byZoom(0.6, 2);
   const railOpacity: ExpressionSpecification | number = focus
-    ? ["case", blocked, 0.35, relevant, 0.8, palette.railOpacity * 0.6]
-    : palette.railOpacity;
+    ? ["case", blocked, 0.3, relevant, 0.7, palette.railOpacity * 0.45]
+    : dimOthers
+      ? ["case", kept, palette.railOpacity, palette.railOpacity * 0.35]
+      : palette.railOpacity;
+  // 案内に出す路線にだけ白い縁を付け、背景の地図から浮かせる
+  const railCasingOpacity: ExpressionSpecification | number = focus
+    ? ["case", relevant, 0.85, 0]
+    : 0;
 
   return [
     // 20 分の範囲だけを淡く塗り、10 分は細い輪郭だけにする
@@ -255,6 +280,17 @@ export function buildDataLayers(
       paint: { "line-color": palette.reach, "line-width": 1, "line-opacity": 0.3 },
     },
     {
+      id: "rail-lines-casing",
+      type: "line",
+      source: sourceIds.lines,
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: {
+        "line-color": palette.routeCasing,
+        "line-width": byZoom(3, 6.5),
+        "line-opacity": railCasingOpacity,
+      },
+    },
+    {
       id: "rail-lines",
       type: "line",
       source: sourceIds.lines,
@@ -272,8 +308,8 @@ export function buildDataLayers(
       layout: { "line-cap": "round", "line-join": "round" },
       paint: {
         "line-color": palette.alternative,
-        "line-width": byZoom(2, 3),
-        "line-opacity": 0.35,
+        "line-width": byZoom(1.5, 3),
+        "line-opacity": 0.3,
       },
     },
     // 止まっている区間は細めの赤の破線にし、推奨経路の下に置く
@@ -282,7 +318,7 @@ export function buildDataLayers(
       type: "line",
       source: sourceIds.blocked,
       layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": palette.blockedCasing, "line-width": byZoom(5, 7) },
+      paint: { "line-color": palette.blockedCasing, "line-width": byZoom(5, 10) },
     },
     {
       id: "blocked-line",
@@ -291,7 +327,7 @@ export function buildDataLayers(
       layout: { "line-join": "round" },
       paint: {
         "line-color": palette.blocked,
-        "line-width": byZoom(3, 4.5),
+        "line-width": byZoom(2.5, 5.5),
         "line-dasharray": [2, 1.4],
       },
     },
@@ -304,7 +340,7 @@ export function buildDataLayers(
       layout: { "line-cap": "round", "line-join": "round" },
       paint: {
         "line-color": palette.routeCasing,
-        "line-width": byZoom(8, 11),
+        "line-width": byZoom(7, 13),
         "line-offset": routeOffset,
       },
     },
@@ -317,7 +353,7 @@ export function buildDataLayers(
       paint: {
         "line-color": accent,
         "line-color-transition": colorTransition,
-        "line-width": byZoom(5, 7),
+        "line-width": byZoom(4, 8),
         "line-offset": routeOffset,
       },
     },
@@ -329,34 +365,9 @@ export function buildDataLayers(
       paint: {
         "line-color": accent,
         "line-color-transition": colorTransition,
-        "line-width": byZoom(5, 7),
+        "line-width": byZoom(4, 8),
         "line-dasharray": [2, 1],
         "line-offset": routeOffset,
-      },
-    },
-    {
-      id: "route-walk",
-      type: "line",
-      source: sourceIds.route,
-      filter: ["==", ["get", "mode"], "walk"],
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: {
-        "line-color": accent,
-        "line-color-transition": colorTransition,
-        "line-width": 4,
-        "line-dasharray": [0, 2],
-      },
-    },
-    // 現在地から乗り換え候補の駅への徒歩の道。おすすめだけ太くアクセント色にする
-    {
-      id: "guide-walk-paths",
-      type: "line",
-      source: sourceIds.guideWalk,
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: {
-        "line-color": ["case", ["get", "recommended"], palette.route.switch, palette.textMuted],
-        "line-width": ["case", ["get", "recommended"], 5, 3],
-        "line-dasharray": [0, 1.8],
       },
     },
     {
@@ -472,28 +483,6 @@ export function buildDataLayers(
         "text-allow-overlap": false,
       },
       paint: { "text-color": palette.reach, ...halo, "text-halo-width": 2 },
-    },
-    {
-      id: "guide-walk-labels",
-      type: "symbol",
-      source: sourceIds.guideWalkLabels,
-      layout: {
-        "text-field": ["get", "label"],
-        "text-font": [
-          "case",
-          ["get", "recommended"],
-          ["literal", fontBold],
-          ["literal", fontRegular],
-        ],
-        "text-size": ["case", ["get", "recommended"], 13, 11],
-        "symbol-sort-key": ["case", ["get", "recommended"], 0, 1],
-        "text-padding": 2,
-      },
-      paint: {
-        "text-color": ["case", ["get", "recommended"], palette.text, palette.textMuted],
-        "text-halo-color": palette.textHalo,
-        "text-halo-width": 2.4,
-      },
     },
   ].map((layer) =>
     focusOnlyLayerIds.has(layer.id) || overviewOnlyLayerIds.has(layer.id)

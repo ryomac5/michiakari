@@ -27,7 +27,8 @@ const slides = [0, -16, 16, -32, 32] as const;
 const sideOrder: readonly LabelSide[] = ["right", "left", "top", "bottom"];
 
 export type EdgeHub = { hub: EntryHub; x: number; y: number; angle: number };
-export type HubLabel = { hub: EntryHub; side: LabelSide; slide: number };
+// box と dot は置いたときの画面上の札と丸の矩形。駅の札がこれを避ける
+export type HubLabel = { hub: EntryHub; side: LabelSide; slide: number; box: Rect; dot: Rect };
 
 function expandRect(rect: Rect, by: number): Rect {
   return {
@@ -153,7 +154,7 @@ export function selectVisibleHubs(input: {
   locale: string;
   narrow: boolean;
 }): HubLabel[] {
-  const picked: { hub: EntryHub; side: LabelSide; slide: number; box: Rect; dot: Rect }[] = [];
+  const picked: HubLabel[] = [];
   // 中心の丸の印は最初から避ける。札を先に置いた中心の丸が、後の中心の丸の印を隠さないようにする
   const coreDots = input.hubs
     .filter((hub) => hub.core)
@@ -200,5 +201,5 @@ export function selectVisibleHubs(input: {
   };
   for (const hub of input.hubs) if (hub.core) place(hub, true);
   for (const hub of input.hubs) if (!hub.core) place(hub, false);
-  return picked.map(({ hub, side, slide }) => ({ hub, side, slide }));
+  return picked;
 }

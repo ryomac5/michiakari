@@ -12,6 +12,8 @@ const runtimeContentFiles = [
 ];
 
 const nextConfig: NextConfig = {
+  // 開発サーバーと e2e の生成物を分け、同じ作業ツリーで同時に動かせるようにする
+  distDir: process.env.NEXT_DIST_DIR ?? ".next",
   transpilePackages: ["@repo/schema", "@repo/core", "@repo/geo"],
   // next dev が AGENTS.md を自動生成しないようにする
   agentRules: false,

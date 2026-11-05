@@ -62,6 +62,8 @@ import {
   findPointAtDistance,
   findRingLabelPoint,
   listBoardingStationIds,
+  listDockedStationRows,
+  listRequiredLabelKeys,
   type StationGuide,
 } from "./station-guide";
 import { mapTestIds } from "./testids";
@@ -74,6 +76,8 @@ export type MapPanelProps = {
   destination: Place;
   options: RouteOption[];
   recommendedOptionId: string | null;
+  // 選択肢の一覧で押した選択肢。地図はこの経路と乗る駅を描く。省略時は推奨
+  selectedOptionId?: string | null;
   // 止まっている区間。観測から分かったもの
   blockedSection: Section | null;
   // 止まっている路線の名前（観測の line）。無ければ「待つ」経路の路線から推し量る
@@ -120,6 +124,8 @@ const labelSlides = [
 ] as const;
 // 「全体を見る」のボタンの置き場所とおおよその大きさ（px）。札がボタンの下に入らないよう、置き場所の計算で避ける
 const viewToggleBox = { right: 12, bottom: 40, w: 140, h: 44, margin: 6 } as const;
+// 「表示中」の札の高さと上下の余白。駅の吹き出しで選んだ経路を示せないときだけ地図の上端に出す
+const selectedRouteTagSpace = 44;
 
 // 「全体を見る」のボタンが動き終えたあとの矩形。地図の左上が原点
 // 下の余白が変わるとボタンは 200ms かけて動く。動いている途中の矩形は測らず、余白から求める
@@ -296,7 +302,7 @@ function estimateBubbleSize(
   if (!narrow) return { w: 200, h: 64 };
   // 路線色の印と分数のぶんを足す。おすすめの小さな札は、星の分だけ広い
   return {
-    w: estimateTextWidth(station.shortName, 12) + 76 + (station.recommended ? 16 : 0),
+    w: estimateTextWidth(station.shortName, 12) + 100 + (station.starred ? 16 : 0),
     // 上下の配置では 44px のタップ領域を基準にアンカーが付く。
     h: 44,
   };
@@ -425,11 +431,11 @@ function layoutAutoPlacements(
     }),
     blockers: [toggle],
   });
-  return chooseStationLabelLayout(buildInput(false), buildInput(true), [
-    "here",
-    "alight",
-    ...guide.stations.filter((station) => station.recommended).map((station) => station.key),
-  ]);
+  return chooseStationLabelLayout(
+    buildInput(false),
+    buildInput(true),
+    listRequiredLabelKeys(guide.stations),
+  );
 }
 
 // 出発は丸、行き先はピン。色はテーマの文字色に合わせる
@@ -551,7 +557,9 @@ export function MapPanel(props: MapPanelProps) {
     blockedDirection,
     trainPosition,
   } = props;
-  const tone = selectRouteTone(options, recommendedOptionId);
+  // 地図に描く選択肢。一覧で押したものがあればそれ、無ければ推奨
+  const focusOptionId = props.selectedOptionId ?? recommendedOptionId;
+  const tone = selectRouteTone(options, focusOptionId);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const paletteRef = useRef(palette);
@@ -647,6 +655,7 @@ export function MapPanel(props: MapPanelProps) {
               destination,
               options,
               recommendedOptionId,
+              selectedOptionId: focusOptionId,
               blockedSection,
               blockedLine,
               blockedDirection,
@@ -662,6 +671,7 @@ export function MapPanel(props: MapPanelProps) {
       destination,
       options,
       recommendedOptionId,
+      focusOptionId,
       blockedSection,
       blockedLine,
       blockedDirection,
@@ -716,7 +726,8 @@ export function MapPanel(props: MapPanelProps) {
         ? buildStationGuide(geo, area, {
             origin,
             options,
-            recommendedOptionId,
+            recommendedOptionId: focusOptionId,
+            starOptionId: recommendedOptionId,
             blockedLineIds: scene.blockedLineIds,
             blockedLineName: blockedLine ?? null,
             language: locale === "en" ? "en" : "ja",
@@ -725,7 +736,19 @@ export function MapPanel(props: MapPanelProps) {
             blockedPath: scene.blocked.features[0]?.geometry.coordinates ?? null,
           })
         : null,
-    [geo, scene, area, origin, options, recommendedOptionId, blockedLine, locale, labels, between],
+    [
+      geo,
+      scene,
+      area,
+      origin,
+      options,
+      focusOptionId,
+      recommendedOptionId,
+      blockedLine,
+      locale,
+      labels,
+      between,
+    ],
   );
   const view: MapView = guide ? viewChoice : "overview";
 
@@ -738,22 +761,38 @@ export function MapPanel(props: MapPanelProps) {
     onGuideChange?.(guide);
   }, [guide, onGuideChange]);
 
-  // 推奨が乗り換えに変わったら、推奨の乗り換え駅が見えるよう現在地のまわりへ戻す
-  const recommendedKind = options.find((o) => o.id === recommendedOptionId)?.kind ?? null;
+  // 描く選択肢が乗り換えに変わったら、その乗り換え駅が見えるよう現在地のまわりへ戻す
+  const focusKind = options.find((o) => o.id === focusOptionId)?.kind ?? null;
+  const focusKey = focusKind === null || focusKind === "wait" ? null : focusOptionId;
   useEffect(() => {
-    if (recommendedKind !== null && recommendedKind !== "wait") setViewChoice("focus");
-  }, [recommendedKind]);
+    if (focusKey !== null) setViewChoice("focus");
+  }, [focusKey]);
 
   const mode: MapMode = useMemo(
     () => ({
       view,
-      relevantLineIds: guide?.relevantLineIds ?? [],
+      // 全体を見る表示では、乗り換えで乗る路線も残し、ほかを細く淡くする
+      relevantLineIds:
+        view === "overview"
+          ? [...new Set([...(guide?.relevantLineIds ?? []), ...(scene?.transferLineIds ?? [])])]
+          : (guide?.relevantLineIds ?? []),
       blockedLineIds: scene?.blockedLineIds ?? [],
     }),
     [view, guide, scene],
   );
 
-  const { top, right, bottom, left } = props.insets;
+  // 一覧で選んだ経路。乗る駅の吹き出しがあれば吹き出しに「表示中」を添える
+  // 吹き出しが無ければ地図の上端に札を出し、その分だけ地図の余白を広げる
+  const chosenOption = props.selectedOptionId
+    ? options.find((o) => o.id === props.selectedOptionId)
+    : undefined;
+  const shownStationKey =
+    chosenOption && view === "focus"
+      ? (guide?.stations.find((s) => s.recommended)?.key ?? null)
+      : null;
+  const floatingTag = chosenOption !== undefined && shownStationKey === null;
+  const { right, bottom, left } = props.insets;
+  const top = props.insets.top + (floatingTag ? selectedRouteTagSpace : 0);
   const [measuredSizes, setMeasuredSizes] = useState<Record<string, BoxSize>>({});
   // 「全体を見る」のボタン。止まっている路線の札と到達範囲の札は、このボタンを避けて置く
   const viewToggleRef = useRef<HTMLButtonElement>(null);
@@ -845,7 +884,7 @@ export function MapPanel(props: MapPanelProps) {
         ...map
           .getContainer()
           .querySelectorAll<HTMLElement>(
-            `[data-testid^="judgment-map-station-"], [data-testid="${mapTestIds.here}"] > div, [data-testid="${mapTestIds.alight}"] > p, [data-testid="${mapTestIds.blockedTag}"]`,
+            `[data-testid^="judgment-map-station-"], [data-testid="${mapTestIds.here}"] > div, [data-testid="${mapTestIds.alight}"] > p, [data-testid="${mapTestIds.blockedTag}"], [data-testid="${mapTestIds.selectedRoute}"]`,
           ),
       ].flatMap((el) => {
         const r = el.getBoundingClientRect();
@@ -1082,7 +1121,10 @@ export function MapPanel(props: MapPanelProps) {
           ]
         : []),
       ...guide.stations
-        .filter((s) => !autoPlacements?.hidden?.includes(s.key))
+        .filter(
+          (s) =>
+            !autoPlacements?.hidden?.includes(s.key) && !autoPlacements?.docked?.includes(s.key),
+        )
         .map((s) => {
           const placement = placeStation(s);
           const slide = autoPlacements?.slides[s.key] ?? 0;
@@ -1158,6 +1200,14 @@ export function MapPanel(props: MapPanelProps) {
     measure();
     return () => observer.disconnect();
   }, [hosts, narrow, guide]);
+  // 地図に収まらない札は、上端の一覧へ移す
+  const dockedRows = autoPlacements?.docked
+    ? listDockedStationRows(guide?.stations ?? [], autoPlacements.docked, {
+        recommended: t("recommended"),
+        shown: shownStationKey ? labels.selectedRoute : null,
+        walk: labels.walkLabel,
+      })
+    : null;
   const herePlacement =
     autoPlacements?.placements.here ??
     (area ? area.herePlacement[narrow ? "narrow" : "wide"] : "left");
@@ -1171,6 +1221,7 @@ export function MapPanel(props: MapPanelProps) {
       data-view={view}
       data-focus-area={guide?.areaId ?? ""}
       data-recommended-option={recommendedOptionId ?? ""}
+      data-selected-option={focusOptionId ?? ""}
       data-route-tone={tone}
       data-blocked={scene ? scene.blocked.features.length > 0 : false}
       data-reach-source={scene?.reachSource ?? ""}
@@ -1199,6 +1250,7 @@ export function MapPanel(props: MapPanelProps) {
           return createPortal(
             <HereMarker
               here={guide.here}
+              hideLabel={autoPlacements?.docked?.includes("here")}
               placement={herePlacement}
               slide={autoPlacements?.slides.here ?? 0}
               compact={narrow}
@@ -1211,6 +1263,7 @@ export function MapPanel(props: MapPanelProps) {
           return createPortal(
             <AlightMarker
               alight={guide.alight}
+              hideLabel={autoPlacements?.docked?.includes("alight")}
               placement={autoPlacements?.placements.alight ?? "bottom"}
               slide={autoPlacements?.slides.alight ?? 0}
             />,
@@ -1234,12 +1287,65 @@ export function MapPanel(props: MapPanelProps) {
                   : "medium"
             }
             onSelect={optionId && onSelectOption ? () => onSelectOption(optionId) : null}
+            shownLabel={station.key === shownStationKey ? labels.selectedRoute : null}
           />,
           element,
           key,
         );
       })}
 
+      {floatingTag && chosenOption && (
+        <p
+          data-testid={mapTestIds.selectedRoute}
+          className="glass absolute z-10 flex h-9 items-center gap-2 rounded-full px-3 text-[13px] font-semibold text-foreground"
+          style={{
+            top: props.insets.top + 8,
+            left: left + 12,
+            maxWidth: `calc(100% - ${left + right + 24}px)`,
+          }}
+        >
+          <span className="shrink-0 rounded-full bg-foreground px-2 py-0.5 text-[11px] font-bold text-background">
+            {labels.selectedRoute}
+          </span>
+          <span className="truncate">{chosenOption.label}</span>
+        </p>
+      )}
+      {view === "focus" && guide && dockedRows && (
+        <div
+          data-testid={mapTestIds.labelList}
+          className="absolute z-10 overflow-y-auto rounded-xl bg-surface p-2 break-words shadow-[0_2px_10px_rgb(0_0_0/0.16)]"
+          style={{
+            top: top + 8,
+            left: left + 8,
+            right: right + 8,
+            maxHeight: `calc(100% - ${top + bottom + viewToggleBox.bottom + viewToggleBox.h + 16}px)`,
+          }}
+        >
+          <p className="text-[13px] font-semibold">
+            <span className="text-focus">{t("here")}</span> {guide.here.name} ·{" "}
+            {guide.here.lines.map((line) => line.name).join(" · ")}
+          </p>
+          {guide.alight && (
+            <p className="mt-1 text-[13px] font-semibold">
+              <span className="text-focus">{t("alight")}</span> {guide.alight.name}
+            </p>
+          )}
+          {dockedRows.map((row) => (
+            <button
+              key={row.key}
+              type="button"
+              data-testid={mapTestIds.labelListRow(row.key)}
+              className="block min-h-11 w-full text-left text-[13px]"
+              disabled={!row.optionId || !onSelectOption}
+              onClick={() => {
+                if (row.optionId) onSelectOption?.(row.optionId);
+              }}
+            >
+              {row.text}
+            </button>
+          ))}
+        </div>
+      )}
       {guide ? (
         <button
           ref={viewToggleRef}

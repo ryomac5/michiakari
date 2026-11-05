@@ -1,27 +1,145 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { testIds } from "@/features/judgment/testids";
 import { pickStationName } from "@/features/stations/describe";
 import type { DirectionStop } from "./directions";
 import { SheetTitle } from "./EntrySheet";
 import { type EntryLine, pickLocalized } from "./entry-places";
+import type { GpsChoice } from "./gps-candidates";
+import type { GpsStatus } from "./use-gps-position";
 
 const buttonClass = "min-h-12 rounded-2xl bg-foreground/[0.05] px-4 py-3 text-left font-semibold";
 
-export function LocationStep({ onSelect }: { onSelect: (location: "station" | "train") => void }) {
+export type GpsProps = {
+  status: GpsStatus;
+  choices: GpsChoice[];
+  onLocate: () => void;
+  onConfirm: (choice: GpsChoice) => void;
+  onDismiss: () => void;
+};
+
+// 候補の呼び名。問いの形と、並べたときの形の 2 つ
+function useGpsLabel() {
+  const t = useTranslations("entry");
+  const locale = useLocale();
+  return (choice: GpsChoice, form: "question" | "choice") =>
+    choice.kind === "station"
+      ? t(form === "question" ? "gpsStationQuestion" : "gpsStationChoice", {
+          station: pickStationName(choice.choice, locale),
+        })
+      : t(form === "question" ? "gpsBetweenQuestion" : "gpsBetweenChoice", {
+          line: pickLocalized(choice.line.name, locale),
+          from: pickStationName(choice.from, locale),
+          to: pickStationName(choice.to, locale),
+        });
+}
+
+const gpsFailureKeys = {
+  denied: "gpsDenied",
+  unavailable: "gpsUnavailable",
+  unsupported: "gpsUnsupported",
+} as const;
+
+// 現在地から読み取る。候補が 1 つなら はい で確定し、複数なら近い順に並べて選ばせる
+function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps) {
+  const t = useTranslations("entry");
+  const label = useGpsLabel();
+  const located = status.kind === "located";
+  const failure =
+    status.kind === "failed"
+      ? t(gpsFailureKeys[status.reason])
+      : located && choices.length === 0
+        ? t("gpsNone")
+        : null;
+  const [only] = choices;
+  return (
+    <div className="flex flex-col gap-2" data-testid={testIds.start.gps} data-status={status.kind}>
+      {located && only && choices.length === 1 ? (
+        <div className="flex flex-col gap-2 rounded-2xl bg-foreground/[0.05] p-3">
+          <p className="font-semibold" data-testid={testIds.start.gpsQuestion}>
+            {label(only, "question")}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className={`${buttonClass} flex-1 bg-foreground text-background`}
+              data-testid={testIds.start.gpsConfirm}
+              onClick={() => onConfirm(only)}
+            >
+              {t("gpsYes")}
+            </button>
+            <button
+              type="button"
+              className={`${buttonClass} flex-1`}
+              data-testid={testIds.start.gpsDismiss}
+              onClick={onDismiss}
+            >
+              {t("gpsNo")}
+            </button>
+          </div>
+        </div>
+      ) : located && choices.length > 1 ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-semibold">{t("gpsPickQuestion")}</p>
+          {choices.map((choice) => (
+            <button
+              type="button"
+              key={choice.key}
+              className={buttonClass}
+              data-testid={testIds.start.gpsChoice(choice.key)}
+              onClick={() => onConfirm(choice)}
+            >
+              {label(choice, "choice")}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <button
+          type="button"
+          className={buttonClass}
+          data-testid={testIds.start.gpsLocate}
+          disabled={status.kind === "locating"}
+          onClick={onLocate}
+        >
+          {status.kind === "locating" ? t("gpsLocating") : t("gpsLocate")}
+        </button>
+      )}
+      {failure ? (
+        <p className="text-sm text-muted" data-testid={testIds.start.gpsStatus} role="status">
+          {failure} {t("gpsUndergroundNote")}
+        </p>
+      ) : (
+        <p className="text-xs text-muted">{t("gpsNote")}</p>
+      )}
+    </div>
+  );
+}
+
+// 最初の段。現在地の読み取り、駅名の検索、地図、車内の順に並べる
+export function LocationStep({
+  onSelect,
+  gps,
+  children,
+}: {
+  onSelect: (location: "station" | "train") => void;
+  gps: GpsProps;
+  children?: ReactNode;
+}) {
   const t = useTranslations("entry");
   return (
     <>
-      <SheetTitle title={t("locationQuestion")} />
+      <SheetTitle title={t("question")} />
+      <GpsLocate {...gps} />
+      {children}
       <button
         type="button"
         className={buttonClass}
         data-testid={testIds.start.positionStation}
         onClick={() => onSelect("station")}
       >
-        {t("locationStation")}
+        {t("locationMap")}
       </button>
       <button
         type="button"

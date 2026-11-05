@@ -11,6 +11,7 @@ import {
   measureLabelOverlap,
   measureLayoutCost,
   measureLayoutOverlap,
+  measureRequiredLabelOverlap,
   overlapArea,
   placeBox,
   type Rect,
@@ -635,5 +636,78 @@ describe("chooseStationLabelLayout: 375px 幅の密集した 6 札", () => {
       });
     }
     expect(measureLabelOverlap(input, layout)).toBe(0);
+  });
+});
+
+describe("chooseStationLabelLayout: 必須の札どうしが触れる画面", () => {
+  const input: LayoutInput = {
+    view: { left: 0, top: 0, right: 100, bottom: 50 },
+    here: { x: 50, y: 25 },
+    items: [
+      { key: "here", point: { x: 50, y: 25 }, size: { w: 176, h: 44 }, gap: 10 },
+      { key: "recommended", point: { x: 60, y: 25 }, size: { w: 150, h: 44 }, gap: 10 },
+      { key: "other", point: { x: 80, y: 25 }, size: { w: 120, h: 44 }, gap: 10 },
+    ],
+  };
+
+  it("必須の札を消したりはみ出させたりせず一覧へ移し、ほかの札は隠す", () => {
+    const result = chooseStationLabelLayout(input, input, ["here", "recommended"]);
+    expect(result.docked).toEqual(["here", "recommended"]);
+    expect(result.hidden).toEqual(["other"]);
+  });
+
+  it("必須の札が画面からはみ出すだけなら一覧へ移さない", () => {
+    const alone: LayoutInput = { ...input, items: input.items.slice(0, 1) };
+    const result = chooseStationLabelLayout(alone, alone, ["here"]);
+    expect(result.docked).toBeUndefined();
+  });
+
+  it("収まる画面では一覧へ移さない", () => {
+    const roomy: LayoutInput = { ...input, view: { left: 0, top: 0, right: 1000, bottom: 1000 } };
+    const spread: LayoutInput = {
+      ...roomy,
+      here: { x: 300, y: 300 },
+      items: [
+        { key: "here", point: { x: 300, y: 300 }, size: { w: 176, h: 44 }, gap: 10 },
+        { key: "recommended", point: { x: 700, y: 700 }, size: { w: 150, h: 44 }, gap: 10 },
+      ],
+    };
+    const result = chooseStationLabelLayout(spread, spread, ["here", "recommended"]);
+    expect(result.docked).toBeUndefined();
+  });
+});
+
+describe("measureRequiredLabelOverlap", () => {
+  const input: LayoutInput = {
+    view: { left: 0, top: 0, right: 400, bottom: 400 },
+    here: { x: 100, y: 100 },
+    items: [
+      { key: "here", point: { x: 100, y: 100 }, size: { w: 80, h: 30 }, gap: 10 },
+      { key: "recommended", point: { x: 300, y: 300 }, size: { w: 80, h: 30 }, gap: 10 },
+      { key: "other", point: { x: 100, y: 140 }, size: { w: 80, h: 30 }, gap: 10 },
+    ],
+  };
+
+  it("任意の札との重なりは数えず、必須の札どうしの重なりだけを数える", () => {
+    const layout = {
+      placements: { here: "right", recommended: "right", other: "right" } as const,
+      slides: { here: 0, recommended: 0, other: -40 },
+    };
+    expect(measureLabelOverlap(input, layout)).toBeGreaterThan(0);
+    expect(measureRequiredLabelOverlap(input, layout, ["here", "recommended"])).toBe(0);
+  });
+
+  it("必須の札どうしが重なれば数える", () => {
+    const close: LayoutInput = {
+      ...input,
+      items: input.items.map((item) =>
+        item.key === "recommended" ? { ...item, point: { x: 110, y: 105 } } : item,
+      ),
+    };
+    const layout = {
+      placements: { here: "right", recommended: "right", other: "right" } as const,
+      slides: {},
+    };
+    expect(measureRequiredLabelOverlap(close, layout, ["here", "recommended"])).toBeGreaterThan(0);
   });
 });
