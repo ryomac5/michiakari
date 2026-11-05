@@ -11,6 +11,9 @@ export const testIds = {
   start: {
     ...sharedTestIds.start,
     intro: "start-intro",
+    routeSummary: "start-route-summary",
+    trainLineSearch: "start-train-line-search",
+    trainSegment: "start-train-segment",
     introAudience: "start-intro-audience",
     introProblem: "start-intro-problem",
     introSolution: "start-intro-solution",

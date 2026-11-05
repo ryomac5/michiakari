@@ -102,13 +102,12 @@ test("入口で「非常ボタン・急病」を選ぶと、待つの判断と�
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
   });
+  await page.getByTestId(testIds.start.positionStation).click();
   await page.getByTestId(testIds.start.originSearch).fill("京橋");
   await page.getByTestId(testIds.start.originOption("京橋")).click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "station");
-  await page.locator("[data-testid^='start-line-京橋|jr-west.大阪環状線']").first().click();
-  await page.locator("[data-testid^='start-direction-']").first().click();
-  await page.getByTestId(testIds.start.destinationUndecided).click();
-  await page.getByTestId(testIds.start.positionStation).click();
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
+  await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
+  await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
 
   // 様子の段は方式を選ばせず、すぐに原因を聞く。原因、時間、再開見込みの順に答える
   const inCar = page.getByTestId(testIds.start.cause("inCar"));

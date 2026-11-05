@@ -171,6 +171,11 @@ for (const variant of variants) {
         ja ? "みちあかり" : "Michiakari",
       );
       await expect(page).toHaveTitle(ja ? /みちあかり/ : /Michiakari/);
+      await expect(page.getByTestId(testIds.start.positionStation)).toBeVisible();
+      await expect(page.getByTestId(testIds.start.positionTrain)).toBeVisible();
+      await capture(page, variant, "00-start-location");
+      await checkScreen(page, "開始（いまどこ）");
+      await page.getByTestId(testIds.start.positionStation).click();
       await expect(page.getByTestId(testIds.start.hub("umeda"))).toBeVisible();
       const messages = ja ? jaMessages : en;
       await waitForFiniteAnimations(page);
@@ -205,30 +210,16 @@ for (const variant of variants) {
       await capture(page, variant, "03-start-area");
       await checkScreen(page, "開始（エリア）");
       await page.getByTestId(testIds.start.place("osaka")).click();
-      const line = page.getByTestId(testIds.start.line("大阪|jr-west.東海道線|JR神戸線"));
-      await expect(line).toBeVisible();
-      await capture(page, variant, "03b-start-station");
-      await checkScreen(page, "開始（駅）");
-      await line.click();
-      // 方面・行き先・いまどこを 1 段ずつ聞く
-      const kobe = page.getByTestId(
-        testIds.start.direction("大阪|jr-west.東海道線|JR神戸線>jr-west.東海道線.神戸"),
-      );
-      await expect(kobe).toBeVisible();
-      await capture(page, variant, "03c-start-direction");
-      await checkScreen(page, "開始（方面）");
-      await kobe.click();
-      await expect(page.getByTestId(testIds.start.destinationUndecided)).toBeVisible();
-      await capture(page, variant, "03d-start-destination");
+      await expect(page.getByTestId(testIds.start.destinationSearch)).toBeVisible();
+      await capture(page, variant, "03b-start-destination");
       await checkScreen(page, "開始（行き先）");
       await page.getByTestId(testIds.start.destinationSearch).fill(ja ? "三ノ宮" : "sannomiya");
       await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-      await page.getByTestId(testIds.start.positionTrain).click();
-      await capture(page, variant, "03e-start-position");
-      await checkScreen(page, "開始（いまどこ）");
-      // 電車の中の問いから戻ると、駅か電車の中かの問いに戻る
-      await page.getByTestId(testIds.start.back).click();
-      await page.getByTestId(testIds.start.positionStation).click();
+      await expect(page.getByTestId(testIds.start.routeSummary)).toContainText(
+        ja ? "JR神戸線" : "JR Kobe Line",
+      );
+      await capture(page, variant, "03c-start-inferred-route");
+      await checkScreen(page, "開始（乗る電車の推定）");
       await expect(page.getByTestId(testIds.start.trip)).toContainText(ja ? "三ノ宮" : "Sannomiya");
       await expect(page.getByTestId(testIds.start.destinationPin)).toBeVisible();
       // 様子の段は、原因・止まってからの時間・再開の見込みの 3 問を 1 タップずつ聞く

@@ -178,6 +178,20 @@ export function listDirectionCandidates(direction: EntryDirection, limit = 5): D
   );
 }
 
+// 方面を決める前の行き先の候補。各方面の候補をつなぎ、重複を除いて隣の駅を末尾に回す
+export function mergeDirectionCandidates(directions: EntryDirection[]): DirectionStop[] {
+  const adjacentIds = new Set(
+    directions.flatMap((d) => (d.stops.length > 1 && d.stops[0] ? [d.stops[0].choice.id] : [])),
+  );
+  const merged = directions
+    .flatMap((d) => listDirectionCandidates(d))
+    .filter((stop, i, stops) => stops.findIndex((s) => s.choice.id === stop.choice.id) === i);
+  return [
+    ...merged.filter((s) => !adjacentIds.has(s.choice.id)),
+    ...merged.filter((s) => adjacentIds.has(s.choice.id)),
+  ];
+}
+
 // 地図の札に出す駅。候補の順に、現在地と先に選んだ札から離れた駅だけを残す
 // 離す距離は、札を出す範囲の広さに合わせて広げる
 export function pickSpreadStops(
@@ -211,4 +225,26 @@ export function listNearbyStops(
   const behind = directions.find((d) => d.key !== chosen.key)?.stops[0];
   const ahead = chosen.stops[0];
   return [behind, here, ahead].flatMap((s) => (s ? [s] : []));
+}
+
+// 車内の位置は、選んだ路線内の駅を進行方向に並べて選ぶ。方面名の直通先は含めない。
+export function listTrainPositionStops(
+  data: EntryData,
+  line: DirectionLine,
+  chosen: EntryDirection,
+): DirectionStop[] {
+  const directions = listEntryDirections(data, line);
+  const names = new Set(data.index.listStationsOnLine(line.lineId).map((s) => s.name));
+  const here = listNearbyStops(data, line, directions, chosen).find(
+    (s) => s.choice.name === line.stationName,
+  );
+  const stops = [
+    ...[...(directions.find((d) => d.key !== chosen.key)?.stops ?? [])].reverse(),
+    ...(here ? [here] : []),
+    ...chosen.stops,
+  ];
+  return stops.filter(
+    (stop, i) =>
+      names.has(stop.choice.name) && stops.findIndex((s) => s.choice.id === stop.choice.id) === i,
+  );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import type { RawInput } from "@repo/schema";
+import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
@@ -12,8 +13,15 @@ import {
   listDirectionCandidates,
   listEntryDirections,
   listNearbyStops,
+  listTrainPositionStops,
+  mergeDirectionCandidates,
   pickSpreadStops,
 } from "@/features/entry/directions";
+import {
+  LocationStep,
+  TrainLineStep,
+  TrainPositionStep,
+} from "@/features/entry/EntryLocationSteps";
 import { EntryMap, type EntryMapApi, type MapStop } from "@/features/entry/EntryMap";
 import { DemoDock, PromptCard } from "@/features/entry/EntryOverlays";
 import { EntrySheet } from "@/features/entry/EntrySheet";
@@ -27,7 +35,6 @@ import {
   ElapsedStep,
   EntryProgress,
   InputStep,
-  PositionStep,
   type ResumeAnswer,
   ResumeStep,
   StationStep,
@@ -54,6 +61,7 @@ import {
   selectProgressIndex,
   stageDepth,
 } from "@/features/entry/flow";
+import { inferEntryRoutes, listTrainLines } from "@/features/entry/infer-route";
 import { buildLineObservation } from "@/features/entry/seed";
 import {
   buildDefaultBetweenPosition,
@@ -161,12 +169,13 @@ export function StartScreen() {
   const [promptRef, promptHeight] = useElementHeight<HTMLDivElement>();
   const [dockRef, dockHeight] = useElementHeight<HTMLDivElement>();
   const [sheetHeight, setSheetHeight] = useState(0);
-  const depth = stageDepth(entry.stage);
+  const depth = stageDepth(entry);
+  const getDepth = (stage: Parameters<typeof stageDepth>[1]) => stageDepth(entry, stage);
   const [restored, setRestored] = useState(false);
   const goToDepth = useEntryHistory(depth, dispatch, restored);
   const nameDirection = useDirectionName();
   // 電車の中と答えたか。近い駅を聞いている間も true
-  const [onTrain, setOnTrain] = useState(false);
+  const onTrain = entry.location === "train";
   // 電車の中で選んだ近い駅。出発の駅をこの駅で近似する
   const [nearStop, setNearStop] = useState<DirectionStop | null>(null);
   // 駅と駅の間と答えたか。次の駅を出発の駅にし、前提は判断の画面のチップで直す
@@ -196,81 +205,59 @@ export function StartScreen() {
     [entry.stage],
   );
 
-  // エリアや関西まで引いたら、選んでいた出発の駅と路線を捨てる
-  const prevStageRef = useRef(entry.stage);
-  useEffect(() => {
-    const prev = prevStageRef.current;
-    prevStageRef.current = entry.stage;
-    if (depth < stageDepth(prev) && depth <= stageDepth("area")) {
-      setOrigin(null);
-      setOriginLine(null);
-      setNote(null);
-    }
-    if (depth >= stageDepth(prev)) return;
-    setPendingResume(null);
-    if (depth >= stageDepth("position")) return;
-    // いまどこの段より前に引いたら、電車の中の答えを捨てて出発を選んだ駅に戻す
-    setOnTrain(false);
-    if ((nearStop || between) && entry.line) {
-      setOrigin({ kind: "station", name: entry.line.stationName });
-    }
-    setNearStop(null);
-    setTrainPosition(null);
-  }, [
-    entry.stage,
-    entry.line,
-    depth,
-    nearStop,
-    between,
-    setOrigin,
-    setOriginLine,
-    setTrainPosition,
-  ]);
-
-  // 判断の画面から戻ったときは、選んだ駅・路線・行き先の状態に戻す
+  // 判断から戻る際は、実際に通った分岐と履歴をそのまま復元する。
   useEffect(() => {
     if (!data || restored) return;
     setRestored(true);
-    if (origin?.kind !== "station" || !originLine) return;
-    const choice = findStationChoice(data, originLine.stationName);
-    const opened = choice ? openStationChoice(data, choice) : null;
-    if (!opened) return;
-    dispatch({ type: "openPlace", area: opened.area, place: opened.place });
-    const lineDirections = listEntryDirections(data, originLine);
-    const auto = lineDirections.length === 1 ? (lineDirections[0]?.key ?? null) : null;
-    dispatch({ type: "chooseLine", line: originLine, autoDirection: auto });
-    const chosen = lineDirections.find((d) => d.key === tripContext?.directionKey);
-    if (!chosen || !tripContext || !destination) return;
-    if (!auto) dispatch({ type: "chooseDirection", direction: chosen.key });
-    dispatch({ type: "chooseDestination" });
+    if (!tripContext?.entryState || !originLine) return;
+    dispatch({ type: "restore", state: tripContext.entryState });
     setDestinationBasis(tripContext.destinationBasis);
+    setBetweenFromPattern(tripContext.trainsAheadFromPattern ?? false);
     if (tripContext.position === "trainAtStation") {
-      const stop = listNearbyStops(data, originLine, lineDirections, chosen).find(
-        (s) => s.choice.name === origin.name,
-      );
-      setOnTrain(true);
-      setNearStop(stop ?? null);
+      const restoredDirections = listEntryDirections(data, originLine);
+      const chosen = restoredDirections.find((d) => d.key === tripContext.directionKey);
+      if (chosen)
+        setNearStop(
+          [
+            ...listNearbyStops(data, originLine, restoredDirections, chosen),
+            ...restoredDirections.flatMap((d) => d.stops),
+          ].find((stop) => origin?.kind === "station" && stop.choice.name === origin.name) ?? null,
+        );
     }
-    // 駅と駅の間の前提は session の trainPosition に残っている。出どころの印だけ戻す
-    if (tripContext.position === "betweenStations") {
-      setBetweenFromPattern(tripContext.trainsAheadFromPattern ?? false);
+  }, [data, restored, origin, originLine, tripContext]);
+
+  useEffect(() => {
+    if (!restored) return;
+    if (entry.stage !== "resume") setPendingResume(null);
+    if (entry.stage === "position" || entry.stage === "kansai" || entry.stage === "area") {
+      setOrigin(null);
+      setOriginLine(null);
+      setTrainPosition(null);
+      setNearStop(null);
     }
-    dispatch({ type: "choosePosition" });
-    // 様子の段で答えたところまで進め、最後に答えた問いから選び直せるようにする
-    const answers = tripContext.entryAnswers;
-    if (!answers) return;
-    if (answers.cause) dispatch({ type: "chooseCause", cause: answers.cause });
-    else if (answers.method) dispatch({ type: "chooseMethod", method: answers.method });
-    if (answers.elapsed) dispatch({ type: "chooseElapsed", elapsed: answers.elapsed });
-  }, [data, restored, origin, originLine, destination, tripContext]);
+  }, [entry.stage, restored, setOrigin, setOriginLine, setTrainPosition]);
+
+  const selectPlace = useCallback(
+    (area: NonNullable<typeof entry.area>, place: EntryPlace) => {
+      if (entry.stage !== "kansai" && entry.stage !== "area") return;
+      const line = place.lines[0];
+      if (line) {
+        rememberStationName(line.stationName, line.stationNameEn);
+        setOrigin({ kind: "station", name: line.stationName });
+        setTrainPosition(buildStationPosition("at_station"));
+      }
+      dispatch({ type: "openPlace", area, place });
+    },
+    [entry.stage, rememberStationName, setOrigin, setTrainPosition],
+  );
 
   const openPlace = useCallback(
     (choice: StationChoice) => {
       if (!data) return;
       const opened = openStationChoice(data, choice);
-      if (opened) dispatch({ type: "openPlace", area: opened.area, place: opened.place });
+      if (opened) selectPlace(opened.area, opened.place);
     },
-    [data],
+    [data, selectPlace],
   );
 
   // 位置は端末内の駅データとの照合だけに使う。
@@ -315,8 +302,10 @@ export function StartScreen() {
     if (entry.stage === "kansai") {
       const area = findAreaAt(data, point);
       if (area) dispatch({ type: "openArea", area });
-    } else if (entry.stage === "station") {
-      goToDepth(stageDepth("area"));
+    } else if (entry.stage === "destination" && !onTrain) {
+      // 検索や近くの駅から来た人はエリアの段を通っていないので、地図の段へ戻す。無ければ留まる
+      const mapDepth = Math.max(getDepth("area"), getDepth("kansai"));
+      if (mapDepth >= 0) goToDepth(mapDepth);
     }
   }
 
@@ -327,8 +316,26 @@ export function StartScreen() {
     setOriginNearest(null);
     setOriginLine(line);
     const lineDirections = data ? listEntryDirections(data, line) : [];
-    const auto = lineDirections.length === 1 ? (lineDirections[0]?.key ?? null) : null;
-    dispatch({ type: "chooseLine", line, autoDirection: auto });
+    const matching =
+      !onTrain && !entry.routeEditing && destinationChoice && data && entry.place
+        ? inferEntryRoutes(data, entry.place, destinationChoice).filter(
+            (c) => c.line.key === line.key,
+          )
+        : [];
+    const auto =
+      matching.length === 1
+        ? (matching[0]?.direction.key ?? null)
+        : !onTrain && lineDirections.length === 1
+          ? (lineDirections[0]?.key ?? null)
+          : null;
+    const station = data ? findStationChoice(data, line.stationName) : null;
+    const opened = data && station ? openStationChoice(data, station) : null;
+    dispatch({
+      type: "chooseLine",
+      line,
+      autoDirection: auto,
+      ...(onTrain && opened ? opened : {}),
+    });
   }
 
   function chooseDirection(chosen: EntryDirection) {
@@ -347,7 +354,22 @@ export function StartScreen() {
       setDestination({ kind: "station", name: target });
     }
     setDestinationBasis(basis);
-    dispatch({ type: "chooseDestination" });
+    const targetChoice = typeof choice !== "string" ? choice : null;
+    const inferred =
+      !onTrain && data && entry.place && targetChoice
+        ? inferEntryRoutes(data, entry.place, targetChoice)
+        : [];
+    const candidate = inferred.length === 1 ? inferred[0] : null;
+    if (candidate) {
+      setOriginLine(candidate.line);
+      setOrigin({ kind: "station", name: candidate.line.stationName });
+    }
+    dispatch({
+      type: "chooseDestination",
+      inferred: candidate
+        ? { line: candidate.line, direction: candidate.direction.key }
+        : undefined,
+    });
   }
 
   // 行き先を決めずに、方面の先の主な駅か終点で進む
@@ -355,50 +377,53 @@ export function StartScreen() {
     if (direction) chooseDestination(direction.fallback.stop.choice, direction.fallback.kind);
   }
 
-  function chooseStation() {
-    if (!entry.line) return;
-    setOnTrain(false);
-    setNearStop(null);
-    setOrigin({ kind: "station", name: entry.line.stationName });
-    setTrainPosition(buildStationPosition("at_station"));
-    dispatch({ type: "choosePosition" });
-  }
-
   // 駅に止まっている車内なら、選んだ駅にいるとみなす
   function chooseNearStop(stop: DirectionStop) {
+    if (!entry.line || !data) return;
+    const line = {
+      ...entry.line,
+      stationName: stop.choice.name,
+      stationNameEn: stop.choice.nameEn,
+    };
+    const options = listEntryDirections(data, line);
+    const chosen = options.find((d) => d.key === entry.direction) ?? options[0];
+    if (!chosen) return;
+    setOriginLine(line);
     rememberStationName(stop.choice.name, stop.choice.nameEn);
     setNearStop(stop);
     setOrigin({ kind: "station", name: stop.choice.name });
     setTrainPosition(buildStationPosition("on_train_at_station"));
-    dispatch({ type: "choosePosition" });
+    dispatch({ type: "choosePosition", line, direction: chosen.key });
   }
 
   // 駅と駅の間なら、問いを重ねずに既定値で進む。次の駅を出発の駅にし、前提は判断の画面で直せる
-  function chooseBetween() {
-    if (!entry.line || !direction) return;
-    const defaults = buildDefaultBetweenPosition(entry.line, direction);
-    if (!defaults) {
-      chooseStation();
-      return;
-    }
-    const next = direction.stops[0];
-    if (next) rememberStationName(next.choice.name, next.choice.nameEn);
-    setOnTrain(false);
+  function chooseBetween(from: DirectionStop, to: DirectionStop) {
+    if (!entry.line || !direction || !data) return;
+    const line = {
+      ...entry.line,
+      stationName: from.choice.name,
+      stationNameEn: from.choice.nameEn,
+    };
+    const chosen = listEntryDirections(data, line).find(
+      (d) => d.stops[0]?.choice.id === to.choice.id,
+    );
+    if (!chosen) return;
+    const defaults = buildDefaultBetweenPosition(line, chosen);
+    if (!defaults) return;
+    rememberStationName(to.choice.name, to.choice.nameEn);
     setNearStop(null);
     setBetweenFromPattern(defaults.trainsAheadFromPattern);
+    setOriginLine(line);
     setTrainPosition(defaults.position, {
       edited: { nextStation: false, ownTrainType: false, trainsAhead: false },
       trainsAheadFromPattern: defaults.trainsAheadFromPattern,
     });
-    if (defaults.position.nextStation) {
-      setOrigin({ kind: "station", name: defaults.position.nextStation });
-    }
-    dispatch({ type: "choosePosition" });
+    setOrigin({ kind: "station", name: to.choice.name });
+    dispatch({ type: "choosePosition", line, direction: chosen.key });
   }
 
   function handleBack() {
-    if (entry.stage === "position" && onTrain) setOnTrain(false);
-    else goToDepth(depth - 1);
+    goToDepth(depth - 1);
   }
 
   // 判断を始め、出発の駅へ寄せてから判断の画面へ移る。地図はそのまま判断の地図に引き継ぐ
@@ -414,6 +439,7 @@ export function StartScreen() {
   ) {
     if (!entry.line || !direction || origin === null) return;
     setTripContext({
+      entryState: entry,
       directionKey: direction.key,
       directionLabel: direction.label,
       destinationBasis,
@@ -479,7 +505,27 @@ export function StartScreen() {
         label: destinationLabel,
       }
     : null;
-  const candidates = direction ? listDirectionCandidates(direction) : [];
+  const suggestedDirections =
+    data && entry.place ? entry.place.lines.flatMap((line) => listEntryDirections(data, line)) : [];
+  const candidates = direction
+    ? listDirectionCandidates(direction)
+    : mergeDirectionCandidates(suggestedDirections);
+  const routeCandidates =
+    data && entry.place && destinationChoice
+      ? inferEntryRoutes(data, entry.place, destinationChoice)
+      : [];
+  const routePlace =
+    entry.place && routeCandidates.length && !entry.routeEditing
+      ? {
+          ...entry.place,
+          lines: entry.place.lines.filter((line) =>
+            routeCandidates.some((c) => c.line.key === line.key),
+          ),
+        }
+      : entry.place;
+  const trainLines = useMemo(() => (data ? listTrainLines(data) : []), [data]);
+  const trainStops =
+    direction && data && entry.line ? listTrainPositionStops(data, entry.line, direction) : [];
   const placePosition = entry.place?.position ?? null;
   // 電車の中で近い駅を選んだら、地図の現在地もその駅に移す
   const mapPlace =
@@ -495,14 +541,14 @@ export function StartScreen() {
   const angles = Object.fromEntries(
     directions.map((d) => [d.key, placePosition ? computeDirectionAngle(placePosition, d) : 0]),
   );
-  const progressIndex = selectProgressIndex(entry.stage);
+  const progressIndex = selectProgressIndex(entry.stage, entry.location);
   const tripLine =
     entry.line && destination ? (
       <TripLine
         originName={lineOriginName}
         destinationName={destinationLabel}
         line={entry.line}
-        onEditDestination={() => goToDepth(stageDepth("destination"))}
+        onEditDestination={() => goToDepth(getDepth("destination"))}
       />
     ) : null;
   const destinationNote =
@@ -528,7 +574,7 @@ export function StartScreen() {
           {
             kind: "cause" as const,
             label: nameCause(entry.cause.eventType),
-            onEdit: () => goToDepth(stageDepth("cause")),
+            onEdit: () => goToDepth(getDepth("cause")),
           },
         ]
       : []),
@@ -537,7 +583,7 @@ export function StartScreen() {
           {
             kind: "elapsed" as const,
             label: t(`entry.elapsed.${entry.elapsed}`),
-            onEdit: () => goToDepth(stageDepth("elapsed")),
+            onEdit: () => goToDepth(getDepth("elapsed")),
           },
         ]
       : []),
@@ -557,9 +603,9 @@ export function StartScreen() {
 
   // シートの答えと同じものを、地図の札にも置く
   function buildMapStops(): MapStop[] {
-    if (!entry.line || !placePosition) return [];
+    if (!placePosition) return [];
     const from = placePosition;
-    const color = entry.line.color;
+    const color = entry.line?.color ?? entry.place?.lines[0]?.color ?? "#626264";
     // 東西に並ぶ札は上に、南北に並ぶ札は右に出す。方面の札は文字が長いので、向きに合わせて上か下に出す
     const sideOf = (position: Position, long = false): MapStop["side"] => {
       const dx = (position[0] - from[0]) * Math.cos((from[1] * Math.PI) / 180);
@@ -591,6 +637,11 @@ export function StartScreen() {
     }
     // 札が重ならないよう、離れた主な駅だけを地図に出す。シートには全部の候補を出す
     // 方面の呼び名に出した駅を先に置き、方面の向きが地図でも分かるようにする
+    if (entry.stage === "destination" && !direction) {
+      return pickSpreadStops(candidates, from).map((stop) =>
+        toStop(`destination-${stop.choice.id}`, stop),
+      );
+    }
     if (entry.stage === "destination" && direction) {
       const ordered = [
         ...direction.landmarks,
@@ -601,7 +652,7 @@ export function StartScreen() {
       );
     }
     // 選んだ駅は現在地の丸が受け持つので、隣の駅だけを札にする
-    if (entry.stage === "position" && onTrain) {
+    if (entry.stage === "trainPosition" && onTrain) {
       return nearby
         .filter((stop) => stop.choice.id !== entry.line?.stationName)
         .map((stop) => toStop(`near-${stop.choice.id}`, stop));
@@ -637,7 +688,7 @@ export function StartScreen() {
         lineId={entry.line?.lineId ?? null}
         destination={destinationMarker}
         stops={mapStops}
-        focus={entry.stage === "position" && !onTrain ? nearby.map((s) => s.position) : []}
+        focus={entry.stage === "trainPosition" ? trainStops.map((s) => s.position) : []}
         onSelectStop={selectMapStop}
         insets={insets}
         narrow={narrow}
@@ -648,18 +699,36 @@ export function StartScreen() {
         }}
         onSelectPlace={(place: EntryPlace) => {
           // 選んだ駅の丸を押しても、ここまでの答えは捨てない。電車の中なら近い駅の答えにする
-          if (place.key === entry.place?.key && stageDepth(entry.stage) > stageDepth("station")) {
+          if (
+            place.key === entry.place?.key &&
+            entry.stage !== "area" &&
+            entry.stage !== "kansai"
+          ) {
             const here = nearby.find((s) => s.choice.id === entry.line?.stationName);
-            if (entry.stage === "position" && onTrain && here) chooseNearStop(here);
+            if (entry.stage === "trainPosition" && onTrain && here) chooseNearStop(here);
             return;
           }
           const area = data ? findAreaAt(data, place.position) : null;
-          if (area) dispatch({ type: "openPlace", area, place });
+          if (area) selectPlace(area, place);
         }}
         onTap={handleTap}
       />
       <AppHeader
         variant="map"
+        // 関西の段はシートが無いので、帯のロゴの場所にいまどこの問いへ戻る札を置く
+        leading={
+          entry.stage === "kansai" ? (
+            <button
+              type="button"
+              data-testid={testIds.start.back}
+              onClick={handleBack}
+              className="pointer-events-auto inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-full pr-3 pl-1 text-[14px] font-medium text-muted transition-colors hover:bg-foreground/5 hover:text-foreground active:scale-[0.97]"
+            >
+              <ChevronLeft className="size-5" strokeWidth={2} aria-hidden />
+              {t("entry.back")}
+            </button>
+          ) : undefined
+        }
         below={
           entry.stage === "kansai" ? (
             <>
@@ -706,13 +775,19 @@ export function StartScreen() {
             {entry.stage === "area" && entry.area && (
               <AreaStep
                 area={entry.area}
-                onSelect={(place) =>
-                  entry.area && dispatch({ type: "openPlace", area: entry.area, place })
-                }
+                onSelect={(place) => entry.area && selectPlace(entry.area, place)}
               />
             )}
-            {entry.stage === "station" && entry.place && (
-              <StationStep place={entry.place} note={note} onSelect={chooseLine} />
+            {entry.stage === "position" && (
+              <LocationStep
+                onSelect={(location) => dispatch({ type: "chooseLocation", location })}
+              />
+            )}
+            {entry.stage === "station" && onTrain && (
+              <TrainLineStep lines={trainLines} onSelect={chooseLine} />
+            )}
+            {entry.stage === "station" && !onTrain && routePlace && (
+              <StationStep place={routePlace} note={note} onSelect={chooseLine} />
             )}
             {entry.stage === "direction" && entry.line && (
               <DirectionStep
@@ -723,7 +798,7 @@ export function StartScreen() {
                 onSelect={chooseDirection}
               />
             )}
-            {entry.stage === "destination" && entry.line && direction && (
+            {entry.stage === "destination" && (
               <DestinationStep
                 originName={lineStationName}
                 line={entry.line}
@@ -734,18 +809,30 @@ export function StartScreen() {
                 onFreeText={(text) => chooseDestination(text)}
               />
             )}
-            {entry.stage === "position" && entry.line && (
-              <PositionStep
-                originName={lineStationName}
-                line={entry.line}
-                onTrain={onTrain}
-                nearby={nearby}
-                hereId={entry.line.stationName}
-                onStation={chooseStation}
-                onTrainChosen={() => setOnTrain(true)}
+            {entry.stage === "trainPosition" && direction && (
+              <TrainPositionStep
+                key={direction.key}
+                stops={trainStops}
+                initialIndex={Math.max(
+                  0,
+                  trainStops.findIndex((stop) => stop.choice.name === entry.line?.stationName),
+                )}
                 onBetween={chooseBetween}
                 onNearStop={chooseNearStop}
               />
+            )}
+            {entry.stage === "cause" && entry.line && direction && (
+              <button
+                type="button"
+                className="min-h-12 truncate text-left text-sm font-semibold"
+                data-testid={testIds.start.routeSummary}
+                onClick={() => dispatch({ type: "editRoute" })}
+              >
+                {t("entry.routeInferred", {
+                  line: locale === "en" ? entry.line.name.en : entry.line.name.ja,
+                  direction: nameDirection(direction),
+                })}
+              </button>
             )}
             {entry.stage === "cause" && entry.line && (
               <TripCard
@@ -760,8 +847,8 @@ export function StartScreen() {
                 destinationName={destinationLabel}
                 destinationNote={destinationNote}
                 line={entry.line}
-                onEditLine={() => goToDepth(stageDepth("station"))}
-                onEditDestination={() => goToDepth(stageDepth("destination"))}
+                onEditLine={() => dispatch({ type: "editRoute" })}
+                onEditDestination={() => goToDepth(getDepth("destination"))}
               />
             )}
             {entry.stage === "cause" && (

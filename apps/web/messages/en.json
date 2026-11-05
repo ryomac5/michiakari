@@ -543,8 +543,8 @@
     "around": "Around {station}",
     "areaQuestion": "Pick your station",
     "areaHint": "Pick a station near {area} on the map or below",
-    "lineQuestion": "Pick the stopped line",
-    "lineHint": "Pick the line you took or planned to take",
+    "lineQuestion": "Which train were you planning to take?",
+    "lineHint": "Choose the line you plan to use.",
     "nearby": "Your nearest station is {station}, about {distance} away",
     "suspended": "Suspended",
     "destinationQuestion": "Pick your destination",
@@ -574,20 +574,15 @@
     "destinationUndecided": "Not sure yet",
     "destinationUndecidedNote": "Go with the direction only",
     "destinationSearchLabel": "Find another station",
-    "positionQuestion": "Pick where you are now",
-    "positionStation": "At {station}",
-    "positionStationNote": "Platform or gates",
     "positionTrain": "On a train, stopped at a station",
-    "positionTrainNote": "At a platform",
-    "positionNearQuestion": "Pick the station where your train is stopped",
-    "positionNearHint": "Tap the station you're stopped at",
     "progress": "{current} of {total}: {step}",
     "steps": {
       "line": "Line",
       "direction": "Direction",
       "destination": "Destination",
       "position": "Where",
-      "situation": "Situation"
+      "situation": "Situation",
+      "route": "Your train"
     },
     "tripHub": "Using a major station that way",
     "tripTerminal": "Using the end of the line",
@@ -620,9 +615,18 @@
       "elapsed": "Stopped for"
     },
     "nextStation": "Next: {station}",
-    "positionBetween": "On a train, between stations",
-    "positionBetweenNote": "Plan what to do after reaching the next station",
-    "positionBetweenTrip": "Between stations. Start from the next station"
+    "positionBetweenTrip": "Between stations. Start from the next station",
+    "locationQuestion": "Choose where you are now",
+    "locationStation": "At a station",
+    "locationTrain": "On a train",
+    "trainLineQuestion": "Choose the line you are riding",
+    "trainLineSearch": "Search for a line",
+    "trainSegmentQuestion": "Choose the stations you are between",
+    "trainSegmentHint": "Stations are listed in your direction of travel.",
+    "trainSegmentConfirm": "I am between these stations",
+    "trainStoppedHint": "Select a station if your train is stopped there.",
+    "destinationStationHint": "Choose your destination station.",
+    "routeInferred": "{line} · {direction} Change"
   },
   "status": {
     "notFound": {

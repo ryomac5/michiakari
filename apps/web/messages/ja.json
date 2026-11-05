@@ -543,8 +543,8 @@
     "around": "{station}のあたり",
     "areaQuestion": "駅を選ぶ",
     "areaHint": "{area}の駅を地図か下の一覧から選ぶ",
-    "lineQuestion": "止まっている路線を選ぶ",
-    "lineHint": "乗っていた路線か乗る予定の路線を選ぶ",
+    "lineQuestion": "どの電車に乗る予定でしたか",
+    "lineHint": "利用する路線を選んでください",
     "nearby": "最寄りは{station}。距離は約{distance}",
     "suspended": "見合わせ",
     "destinationQuestion": "行き先を選ぶ",
@@ -574,20 +574,15 @@
     "destinationUndecided": "まだ決めていない",
     "destinationUndecidedNote": "方面だけで進む",
     "destinationSearchLabel": "ほかの駅を探す",
-    "positionQuestion": "いまいる場所を選ぶ",
-    "positionStation": "{station}駅にいる",
-    "positionStationNote": "ホームや改札",
     "positionTrain": "電車の中・駅に止まっている",
-    "positionTrainNote": "ホームに着いている",
-    "positionNearQuestion": "止まっている駅を選ぶ",
-    "positionNearHint": "止まっている駅を押す",
     "progress": "{current} / {total}・{step}",
     "steps": {
       "line": "路線",
       "direction": "方面",
       "destination": "行き先",
       "position": "いまどこ",
-      "situation": "様子"
+      "situation": "様子",
+      "route": "乗る電車"
     },
     "tripHub": "方面の主な駅を行き先にする",
     "tripTerminal": "方面の終点を行き先にする",
@@ -620,9 +615,18 @@
       "elapsed": "止まってから"
     },
     "nextStation": "次は{station}",
-    "positionBetween": "電車の中・駅と駅の間",
-    "positionBetweenNote": "次の駅に着いてからの行動を示す",
-    "positionBetweenTrip": "駅と駅の間。次に着く駅を出発にする"
+    "positionBetweenTrip": "駅と駅の間。次に着く駅を出発にする",
+    "locationQuestion": "いまいる場所を選んでください",
+    "locationStation": "駅にいる",
+    "locationTrain": "電車の中にいる",
+    "trainLineQuestion": "乗っている路線を選んでください",
+    "trainLineSearch": "路線名で探す",
+    "trainSegmentQuestion": "いまいる駅の間を選んでください",
+    "trainSegmentHint": "電車の進む向きに駅を並べています",
+    "trainSegmentConfirm": "この駅の間にいる",
+    "trainStoppedHint": "駅に停車中なら駅を選んでください",
+    "destinationStationHint": "行き先の駅を選んでください",
+    "routeInferred": "{line}・{direction} 変更する"
   },
   "status": {
     "notFound": {

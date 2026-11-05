@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import type { JudgmentEvent } from "../../packages/schema/src/index.ts";
+import { chooseTrainDirection } from "../support/entry.ts";
 import {
   openReplay,
   openSheet,
@@ -151,13 +152,12 @@ async function startFromEntry(page: Page, elapsed: "m10" | "unknown"): Promise<v
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
   });
+  await page.getByTestId(testIds.start.positionStation).click();
   await page.getByTestId(testIds.start.originSearch).fill("京橋");
   await page.getByTestId(testIds.start.originOption("京橋")).click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "station");
-  await page.locator("[data-testid^='start-line-京橋|jr-west.大阪環状線']").first().click();
-  await page.locator("[data-testid^='start-direction-']").first().click();
-  await page.getByTestId(testIds.start.destinationUndecided).click();
-  await page.getByTestId(testIds.start.positionStation).click();
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
+  await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
+  await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
   await page.getByTestId(testIds.start.cause("inCar")).click();
   await page.getByTestId(testIds.start.elapsed(elapsed)).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
@@ -167,19 +167,14 @@ async function startFromEntry(page: Page, elapsed: "m10" | "unknown"): Promise<v
 
 // 大阪から JR 神戸線で三ノ宮へ向かう途中、駅と駅の間で止まった想定。人身事故・10 分くらい・見込みは言っていない
 async function startBetweenStations(page: Page): Promise<void> {
-  const kobeLine = "大阪|jr-west.東海道線|JR神戸線";
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
   });
-  await page.getByTestId(testIds.start.originSearch).fill("大阪");
-  await page.getByTestId(testIds.start.originOption("大阪")).click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "station");
-  await page.getByTestId(testIds.start.line(kobeLine)).click();
-  await page.getByTestId(testIds.start.direction(`${kobeLine}>jr-west.東海道線.神戸`)).click();
+  await chooseTrainDirection(page, "JR神戸線", "神戸");
+  await page.getByTestId(testIds.start.positionBetween).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await page.getByTestId(testIds.start.positionBetween).click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
   await page.getByTestId(testIds.start.cause("person")).click();
   await page.getByTestId(testIds.start.elapsed("m10")).click();

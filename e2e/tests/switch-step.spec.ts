@@ -55,14 +55,12 @@ test.describe("通常画面の判断の変化", () => {
     await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
       timeout: 30_000,
     });
+    await page.getByTestId(testIds.start.positionStation).click();
     await page.getByTestId(testIds.start.originSearch).fill("大阪");
     await page.getByTestId(testIds.start.originOption("大阪")).click();
-    const line = "大阪|jr-west.東海道線|JR神戸線";
-    await page.getByTestId(testIds.start.line(line)).click();
-    await page.getByTestId(testIds.start.direction(`${line}>jr-west.東海道線.神戸`)).click();
+
     await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
     await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-    await page.getByTestId(testIds.start.positionStation).click();
     await page.getByTestId(testIds.start.method("paste")).click();
     await page.getByTestId(testIds.situation.pasteInput).fill("人身事故で運転を見合わせています。");
     await page.getByTestId(testIds.situation.submit("paste")).click();

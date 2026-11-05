@@ -27,6 +27,7 @@ import {
   selectVisibleHubs,
 } from "./visible-hubs";
 import { type MapStation, STATION_LABEL_MIN_ZOOM, selectVisibleStations } from "./visible-stations";
+import { buildStopLabelRect, selectVisibleStops } from "./visible-stops";
 
 // 入口の地図。関西 → エリア → 駅の順に寄り、行き先を選んだら出発と行き先を結ぶ
 // 段ごとに出す印を絞り、地図そのものは淡く沈める
@@ -242,6 +243,8 @@ export function EntryMap(props: EntryMapProps) {
   callbacksRef.current = props;
   const [map, setMap] = useState<MapLibreMap | null>(null);
   const [visiblePlaces, setVisiblePlaces] = useState<EntryPlace[]>([]);
+  const [visibleStops, setVisibleStops] = useState<MapStop[]>([]);
+  const hereLabel = t("here");
   const [zoom, setZoom] = useState(0);
   const [markerClass, setMarkerClass] = useState<typeof Marker | null>(null);
 
@@ -471,6 +474,29 @@ export function EntryMap(props: EntryMapProps) {
           selectedKey: stage === "station" ? place?.key : undefined,
         }),
       );
+      // 選んだ駅の名前の札を避けて、画面の上で重ならない駅の札だけを出す
+      const selectedShown = place && stage !== "kansai" && stage !== "area" && stage !== "station";
+      const blockers = selectedShown
+        ? [
+            buildStopLabelRect(
+              map.project(place.position),
+              `${hereLabel}${pickPlaceName(place, locale)}${"　".repeat(place.lines.length)}`,
+              place.side[narrow ? "narrow" : "wide"],
+            ),
+          ]
+        : [];
+      const next = selectVisibleStops({
+        stops,
+        project: (position) => map.project(position),
+        blockers,
+      });
+      // 出す札が同じなら配列を差し替えず、印を作り直さない
+      setVisibleStops((prev) =>
+        prev.length === next.length &&
+        prev.every((s, i) => s.key === next[i]?.key && s.side === next[i]?.side)
+          ? prev
+          : next,
+      );
     };
     update();
     map.on("moveend", update);
@@ -479,7 +505,35 @@ export function EntryMap(props: EntryMapProps) {
       map.off("moveend", update);
       map.off("resize", update);
     };
-  }, [map, props.stations, top, right, bottom, left, locale, stage, place?.key]);
+  }, [
+    map,
+    props.stations,
+    top,
+    right,
+    bottom,
+    left,
+    locale,
+    stage,
+    place,
+    stops,
+    narrow,
+    hereLabel,
+  ]);
+
+  // 視点が動いている間は印を出し、段の切り替え直後の寄せと指の操作がぶつからないようにする
+  const [moving, setMoving] = useState(false);
+  useEffect(() => {
+    if (!map) return;
+    const start = () => setMoving(true);
+    const end = () => setMoving(false);
+    setMoving(map.isMoving());
+    map.on("movestart", start);
+    map.on("moveend", end);
+    return () => {
+      map.off("movestart", start);
+      map.off("moveend", end);
+    };
+  }, [map]);
 
   props.apiRef.current = {
     zoomToOrigin: (zoom) =>
@@ -530,7 +584,7 @@ export function EntryMap(props: EntryMapProps) {
           : [];
     const list = places.map((p) => at(`place:${p.key}`, p.position));
     if (!showTrip) {
-      for (const s of stops) list.push(at(`stop:${s.key}`, s.position));
+      for (const s of visibleStops) list.push(at(`stop:${s.key}`, s.position));
     }
     if (showTrip && destinationPosition) {
       list.push({
@@ -541,7 +595,7 @@ export function EntryMap(props: EntryMapProps) {
       });
     }
     return list;
-  }, [stage, hubLabels, visiblePlaces, zoom, place, showTrip, destinationPosition, stops]);
+  }, [stage, hubLabels, visiblePlaces, zoom, place, showTrip, destinationPosition, visibleStops]);
   const hosts = useMarkerHosts(map, markerClass, entries);
   const side = narrow ? "narrow" : "wide";
 
@@ -552,6 +606,7 @@ export function EntryMap(props: EntryMapProps) {
       data-ready={map !== null}
       data-detail={zoom >= STATION_LABEL_MIN_ZOOM ? "stations" : "areas"}
       data-zoom={zoom.toFixed(2)}
+      data-moving={moving}
       aria-label={t("mapLabel")}
       className="fixed inset-0 z-0 bg-background"
     >
@@ -595,7 +650,7 @@ export function EntryMap(props: EntryMapProps) {
           );
         }
         if (key.startsWith("stop:")) {
-          const target = stops.find((s) => `stop:${s.key}` === key);
+          const target = visibleStops.find((s) => `stop:${s.key}` === key);
           if (!target) return null;
           return createPortal(
             <StopMarker

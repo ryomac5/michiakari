@@ -18,7 +18,6 @@ import {
   Siren,
   Timer,
   TrainFront,
-  TrainTrack,
   Wrench,
   Zap,
 } from "lucide-react";
@@ -104,7 +103,7 @@ export function LineTag({ line, suspended }: { line: OriginLine; suspended?: str
   );
 }
 
-// 進み具合の印。路線から様子までの 5 つの点で、いまの段を横長の点にする
+// 進み具合の印。現在地・行き先・電車・様子の4つを示す
 export function EntryProgress({ index }: { index: number }) {
   const t = useTranslations("entry");
   const step = progressSteps[index];
@@ -357,8 +356,8 @@ export function DestinationStep({
   onFreeText,
 }: {
   originName: string;
-  line: OriginLine;
-  direction: EntryDirection;
+  line: OriginLine | null;
+  direction: EntryDirection | null;
   candidates: DirectionStop[];
   onSelect: (station: StationChoice) => void;
   onUndecided: () => void;
@@ -373,13 +372,17 @@ export function DestinationStep({
         eyebrow={
           <Eyebrow>
             <HereName name={originName} />
-            <LineTag line={line} />
+            {line && <LineTag line={line} />}
           </Eyebrow>
         }
         title={t("destinationQuestion")}
-        hint={t("destinationHint", { direction: pickLocalized(direction.label, locale) })}
+        hint={
+          direction
+            ? t("destinationHint", { direction: pickLocalized(direction.label, locale) })
+            : t("destinationStationHint")
+        }
       />
-      <div className="flex flex-wrap gap-2">
+      <div className="flex max-h-48 flex-wrap gap-2 overflow-y-auto">
         {candidates.map((stop) => (
           <StopChip
             key={stop.choice.id}
@@ -388,24 +391,26 @@ export function DestinationStep({
             onClick={() => onSelect(stop.choice)}
           />
         ))}
-        <button
-          type="button"
-          data-testid={testIds.start.destinationUndecided}
-          onClick={onUndecided}
-          aria-label={`${t("destinationUndecided")}・${nameDirection(direction)}`}
-          className={cn(
-            chipBase,
-            "border-[1.5px] border-dashed border-foreground/25 hover:bg-foreground/[0.05]",
-          )}
-        >
-          <HelpCircle className="size-4 text-muted" strokeWidth={2} aria-hidden />
-          <span className="flex flex-col">
-            {t("destinationUndecided")}
-            <span className="text-[11px] font-medium text-muted">
-              {t("destinationUndecidedNote")}
+        {direction && (
+          <button
+            type="button"
+            data-testid={testIds.start.destinationUndecided}
+            onClick={onUndecided}
+            aria-label={`${t("destinationUndecided")}・${direction ? nameDirection(direction) : ""}`}
+            className={cn(
+              chipBase,
+              "border-[1.5px] border-dashed border-foreground/25 hover:bg-foreground/[0.05]",
+            )}
+          >
+            <HelpCircle className="size-4 text-muted" strokeWidth={2} aria-hidden />
+            <span className="flex flex-col">
+              {t("destinationUndecided")}
+              <span className="text-[11px] font-medium text-muted">
+                {t("destinationUndecidedNote")}
+              </span>
             </span>
-          </span>
-        </button>
+          </button>
+        )}
       </div>
       <StationSearch
         hideLabel
@@ -418,136 +423,6 @@ export function DestinationStep({
           option: testIds.start.destinationOption,
         }}
       />
-    </>
-  );
-}
-
-// いまどこにいるか。駅にいる、駅に止まっている車内、駅と駅の間の 3 つを聞く
-// 駅に止まっている車内なら、止まっている駅を道順に並べて聞く。駅と駅の間は既定値で先へ進む
-export function PositionStep({
-  originName,
-  line,
-  onTrain,
-  nearby,
-  hereId,
-  onStation,
-  onTrainChosen,
-  onBetween,
-  onNearStop,
-}: {
-  originName: string;
-  line: OriginLine;
-  onTrain: boolean;
-  nearby: DirectionStop[];
-  hereId: string;
-  onStation: () => void;
-  onTrainChosen: () => void;
-  onBetween: () => void;
-  onNearStop: (stop: DirectionStop) => void;
-}) {
-  const t = useTranslations("entry");
-  const locale = useLocale();
-  if (!onTrain) {
-    return (
-      <>
-        <SheetTitle
-          eyebrow={
-            <Eyebrow>
-              <HereName name={originName} />
-              <LineTag line={line} />
-            </Eyebrow>
-          }
-          title={t("positionQuestion")}
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            data-testid={testIds.start.positionStation}
-            onClick={onStation}
-            className={cn(cardBase, softChip, "col-span-2 min-h-[64px]")}
-          >
-            <MapPin className="size-6 shrink-0 text-focus" strokeWidth={2} aria-hidden />
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-[15px] leading-snug font-bold">
-                {t("positionStation", { station: originName })}
-              </span>
-              <span className="text-[12px] text-muted">{t("positionStationNote")}</span>
-            </span>
-          </button>
-          <button
-            type="button"
-            data-testid={testIds.start.positionTrain}
-            onClick={onTrainChosen}
-            className={cn(cardBase, "flex-col items-start gap-2", softChip)}
-          >
-            <TrainFront className="size-6 shrink-0" strokeWidth={2} aria-hidden />
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-[15px] leading-snug font-bold text-balance">
-                {t("positionTrain")}
-              </span>
-              <span className="text-[12px] text-muted">{t("positionTrainNote")}</span>
-            </span>
-          </button>
-          <button
-            type="button"
-            data-testid={testIds.start.positionBetween}
-            onClick={onBetween}
-            className={cn(cardBase, "flex-col items-start gap-2", softChip)}
-          >
-            <TrainTrack className="size-6 shrink-0" strokeWidth={2} aria-hidden />
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-[15px] leading-snug font-bold text-balance">
-                {t("positionBetween")}
-              </span>
-              <span className="text-[12px] text-muted">{t("positionBetweenNote")}</span>
-            </span>
-          </button>
-        </div>
-      </>
-    );
-  }
-  return (
-    <>
-      <SheetTitle
-        eyebrow={
-          <Eyebrow>
-            <span className="flex items-center gap-1.5">
-              <TrainFront className="size-4" strokeWidth={2} aria-hidden />
-              {t("positionTrain")}
-            </span>
-            <LineTag line={line} />
-          </Eyebrow>
-        }
-        title={t("positionNearQuestion")}
-        hint={t("positionNearHint")}
-      />
-      {/* 駅を道順に並べ、路線色の線でつなぐ。右が進む向き */}
-      <div className="relative grid grid-flow-col auto-cols-fr gap-2">
-        <span
-          aria-hidden
-          className="absolute top-1/2 right-6 left-6 h-1 -translate-y-1/2 rounded-full opacity-60"
-          style={{ backgroundColor: line.color }}
-        />
-        {nearby.map((stop) => (
-          <button
-            key={stop.choice.id}
-            type="button"
-            data-testid={testIds.start.nearStop(stop.choice.id)}
-            onClick={() => onNearStop(stop)}
-            className={cn(
-              "relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl bg-surface px-2 py-2 text-center text-[14px] leading-tight font-bold ring-1 ring-[var(--glass-border)] shadow-[0_1px_6px_rgb(0_0_0/0.10)] transition-transform duration-150 active:scale-[0.96]",
-              stop.choice.id === hereId && "ring-2 ring-focus",
-            )}
-          >
-            <span
-              aria-hidden
-              className="size-3 rounded-full border-[3px] bg-surface"
-              style={{ borderColor: line.color }}
-            />
-            {pickStationName(stop.choice, locale)}
-          </button>
-        ))}
-      </div>
     </>
   );
 }
