@@ -158,7 +158,7 @@ for (const scenario of scenarios) {
         const currentAction = await page
           .getByTestId(testIds.judgment.conclusion)
           .getAttribute("data-action");
-        const change = page.getByTestId("judgment-change");
+        const change = page.getByTestId(testIds.judgment.change);
         const chance = page.getByTestId(testIds.judgment.resumeChanceWaitFaster);
         const currentChance =
           (await chance.count()) > 0
@@ -167,7 +167,7 @@ for (const scenario of scenarios) {
         if (previousAction !== null && previousAction !== currentAction) {
           await expect(change).toHaveAttribute("data-from", previousAction);
           await expect(change).toHaveAttribute("data-to", currentAction ?? "");
-          await expect(page.getByTestId("judgment-change-probability")).toHaveText(
+          await expect(page.getByTestId(testIds.judgment.changeProbability)).toHaveText(
             `${previousChance} → ${currentChance}`,
           );
         } else {

@@ -70,7 +70,7 @@ test.describe("通常画面の判断の変化", () => {
     await expect(page).toHaveURL(/\/judgment$/);
     const conclusion = page.getByTestId(testIds.judgment.conclusion);
     await expect(conclusion).toHaveAttribute("data-action", "wait", { timeout: 30_000 });
-    await expect(page.getByTestId("judgment-change")).toHaveCount(0);
+    await expect(page.getByTestId(testIds.judgment.change)).toHaveCount(0);
 
     await openSheet(page, "full");
     const addInfo = page.getByTestId(testIds.judgment.addInfo);
@@ -79,11 +79,13 @@ test.describe("通常画面の判断の変化", () => {
     await addInfo.getByTestId(testIds.situation.submit("paste")).click();
     await expect(conclusion).toHaveAttribute("data-action", "switch", { timeout: 30_000 });
     await openSheet(page, "collapsed");
-    const change = page.getByTestId("judgment-change");
+    const change = page.getByTestId(testIds.judgment.change);
     await expect(change).toHaveAttribute("data-from", "wait");
     await expect(change).toHaveAttribute("data-to", "switch");
-    await expect(page.getByTestId("judgment-change-before")).toContainText(ja.judgment.action.wait);
-    await expect(page.getByTestId("judgment-change-after")).toContainText(
+    await expect(page.getByTestId(testIds.judgment.changeBefore)).toContainText(
+      ja.judgment.action.wait,
+    );
+    await expect(page.getByTestId(testIds.judgment.changeAfter)).toContainText(
       ja.judgment.action.switch,
     );
     await expect(change).toContainText("振替輸送を実施しています。");
@@ -92,7 +94,7 @@ test.describe("通常画面の判断の変化", () => {
       await conclusion.evaluate((element) =>
         element.nextElementSibling?.getAttribute("data-testid"),
       ),
-    ).toBe("judgment-change");
+    ).toBe(testIds.judgment.change);
     await waitForFiniteAnimations(page);
     for (const locator of [conclusion, change, page.getByTestId(testIds.judgment.disclaimer)]) {
       await expect(locator).toBeInViewport({ ratio: 1 });
@@ -146,7 +148,7 @@ for (const variant of variants) {
       const conclusion = page.getByTestId(testIds.judgment.conclusion);
       const breakEven = page.getByTestId(testIds.judgment.breakEven);
       const step = page.getByTestId(testIds.judgment.switchStep);
-      const change = page.getByTestId("judgment-change");
+      const change = page.getByTestId(testIds.judgment.change);
 
       await stepUntil(page, switchAfter);
       await expect(conclusion).toHaveAttribute("data-action", "switch");
@@ -193,16 +195,16 @@ for (const variant of variants) {
         await conclusion.evaluate((element) =>
           element.nextElementSibling?.getAttribute("data-testid"),
         ),
-      ).toBe("judgment-change");
+      ).toBe(testIds.judgment.change);
       await expect(change).toHaveAttribute("data-from", previousAction);
       await expect(change).toHaveAttribute("data-to", "wait");
-      await expect(page.getByTestId("judgment-change-before")).toContainText(
+      await expect(page.getByTestId(testIds.judgment.changeBefore)).toContainText(
         messages.judgment.action[previousAction],
       );
-      await expect(page.getByTestId("judgment-change-after")).toContainText(
+      await expect(page.getByTestId(testIds.judgment.changeAfter)).toContainText(
         messages.judgment.action.wait,
       );
-      await expect(page.getByTestId("judgment-change-announcement")).not.toBeEmpty();
+      await expect(page.getByTestId(testIds.judgment.changeAnnouncement)).not.toBeEmpty();
       await expect(change).toContainText(messages.judgment.change.probability);
       await expect(page.getByTestId(testIds.judgment.disclaimer)).toBeVisible();
       await expect(breakEven).toHaveAttribute("data-mode", "break-even");
@@ -214,8 +216,8 @@ for (const variant of variants) {
       for (const locator of [conclusion, change, page.getByTestId(testIds.judgment.disclaimer)]) {
         await expect(locator).toBeInViewport({ ratio: 1 });
       }
-      const beforeBox = await page.getByTestId("judgment-change-before").boundingBox();
-      const afterBox = await page.getByTestId("judgment-change-after").boundingBox();
+      const beforeBox = await page.getByTestId(testIds.judgment.changeBefore).boundingBox();
+      const afterBox = await page.getByTestId(testIds.judgment.changeAfter).boundingBox();
       expect(beforeBox?.x).toBeLessThan(afterBox?.x ?? 0);
     });
   });

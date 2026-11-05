@@ -1,5 +1,16 @@
 import { selectKeyTick } from "@repo/core";
 import type { ResumeChance, ResumeChanceTick } from "@repo/schema";
+import type { useTranslations } from "next-intl";
+
+type Translate = ReturnType<typeof useTranslations<"judgment.resumeChance">>;
+
+// 1 割単位の確率の表示。0 は 1 割未満、10 は 9 割以上。棒の上は短い形にする
+export function formatTenths(t: Translate, tenths: number, compact = false): string {
+  const group = compact ? "bar" : "chance";
+  if (tenths <= 0) return t(`${group}.under`);
+  if (tenths >= 10) return t(`${group}.over`);
+  return t(`${group}.tenths`, { n: tenths });
+}
 
 // 時刻ごとの再開の見込みの帯に使う表示用の値。確率は agent の値をそのまま使い、位置と文字の置き場だけを求める
 
