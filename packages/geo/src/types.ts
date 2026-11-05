@@ -136,3 +136,57 @@ export type GeoMeta = {
   // pnpm data:walk を実行していなければ持たない
   walk?: WalkMeta;
 };
+
+// バス停留所。国土数値情報 P11 から pnpm data:build が bus-stops.geojson に書く
+// 時刻と系統の向きは持たない。位置と名前と事業者だけを確認候補に使う
+export type BusStopFeature = {
+  type: "Feature";
+  properties: {
+    // 元データの版とレコードの対応。例: P11-22_27:1234
+    id: string;
+    name: string;
+    // 表示用に正規化した事業者名
+    operator: string;
+  };
+  geometry: { type: "Point"; coordinates: LonLat };
+};
+
+export type BusStopCollection = {
+  type: "FeatureCollection";
+  features: BusStopFeature[];
+};
+
+// 事業者の公式の案内。確認済みの URL だけを持つ
+export type BusOperatorLink = {
+  name: string;
+  url: string;
+};
+
+// bus-stops-meta.json。出典、許諾、加工の内容、件数、事業者の案内
+export type BusStopMeta = {
+  generatedAt: string;
+  attribution: string;
+  dataYear: number;
+  source: {
+    name: string;
+    version: string;
+    url: string;
+    license: string;
+    licenseUrl: string;
+    archives: { dataset: string; zipUrl: string; sha256: string }[];
+  };
+  // 駅からこの直線距離の内側の停留所だけを収める
+  stationRadiusMeters: number;
+  notes: string[];
+  counts: { total: number; byDataset: Record<string, number> };
+  operatorLinks: BusOperatorLink[];
+};
+
+// 読み込んだ停留所。公式の案内の URL を事業者から引いて持つ
+export type BusStop = {
+  id: string;
+  name: string;
+  operator: string;
+  officialUrl: string | null;
+  lonLat: LonLat;
+};

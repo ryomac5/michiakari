@@ -1,0 +1,117 @@
+{
+  "generatedAt": "2026-11-05T14:29:20.959Z",
+  "attribution": "バス停の位置: 国土交通省「国土数値情報 バス停留所データ」2022年度版を加工して作成。ライセンス: CC BY 4.0",
+  "dataYear": 2022,
+  "source": {
+    "name": "国土数値情報（バス停留所データ）",
+    "version": "2022年度版（資料時点は概ね2022年8月）",
+    "url": "https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-P11-2022.html",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/deed.ja",
+    "archives": [
+      {
+        "dataset": "P11-22_25",
+        "zipUrl": "https://nlftp.mlit.go.jp/ksj/gml/data/P11/P11-22/P11-22_25_SHP.zip",
+        "sha256": "af6262e4d4f64550423728461d2c885d9b7086f5f4ec326f05fa42bc5d3a6ab8"
+      },
+      {
+        "dataset": "P11-22_26",
+        "zipUrl": "https://nlftp.mlit.go.jp/ksj/gml/data/P11/P11-22/P11-22_26_SHP.zip",
+        "sha256": "48e7368578c5e95ddd4577761a9d9c76e69b15a4727a51b84b4123ab77322e0d"
+      },
+      {
+        "dataset": "P11-22_27",
+        "zipUrl": "https://nlftp.mlit.go.jp/ksj/gml/data/P11/P11-22/P11-22_27_SHP.zip",
+        "sha256": "9e670e1396c460e231a1ddc8886209cc90ee5f9698bbc1e58904a04e11af283e"
+      },
+      {
+        "dataset": "P11-22_28",
+        "zipUrl": "https://nlftp.mlit.go.jp/ksj/gml/data/P11/P11-22/P11-22_28_SHP.zip",
+        "sha256": "361dc5343808177cb794dc2ea01e7081cc15cca217ea7397110916b6e450cd69"
+      },
+      {
+        "dataset": "P11-22_29",
+        "zipUrl": "https://nlftp.mlit.go.jp/ksj/gml/data/P11/P11-22/P11-22_29_SHP.zip",
+        "sha256": "86e9e7b0f56be2e86e5c9fbc0004acef0d7d777a2803deccf6c87bf838ed05ef"
+      },
+      {
+        "dataset": "P11-22_30",
+        "zipUrl": "https://nlftp.mlit.go.jp/ksj/gml/data/P11/P11-22/P11-22_30_SHP.zip",
+        "sha256": "6120e821737594fb1709df238c4a553ea2969133238ba0e8faeb4e2b3e4054ff"
+      }
+    ]
+  },
+  "stationRadiusMeters": 616,
+  "notes": [
+    "関西 6 府県の府県別のデータを読み、路線網の駅の代表点から stationRadiusMeters の内側の停留所だけを収めた",
+    "停留所の名前、事業者、位置だけを収めた。系統、時刻、運行の可否は収めていない",
+    "事業者名は packages/data/config/bus-operators.ts で表示用に付け替えた",
+    "位置は 2022 年の資料による。同じ道路の同じ名前の停留所は元データで 1 点にまとめられている",
+    "座標は小数5桁に丸めた"
+  ],
+  "counts": {
+    "total": 5661,
+    "byDataset": {
+      "P11-22_25": 321,
+      "P11-22_26": 1085,
+      "P11-22_27": 1942,
+      "P11-22_28": 1586,
+      "P11-22_29": 507,
+      "P11-22_30": 220
+    }
+  },
+  "operatorLinks": [
+    {
+      "name": "大阪シティバス",
+      "url": "https://citybus-osaka.co.jp/"
+    },
+    {
+      "name": "阪急バス",
+      "url": "https://www.hankyubus.co.jp/"
+    },
+    {
+      "name": "京阪バス",
+      "url": "https://www.keihanbus.jp/"
+    },
+    {
+      "name": "近鉄バス",
+      "url": "https://www.kintetsu-bus.co.jp/"
+    },
+    {
+      "name": "南海バス",
+      "url": "https://www.nankaibus.jp/"
+    },
+    {
+      "name": "阪神バス",
+      "url": "https://www.hanshin-bus.co.jp/"
+    },
+    {
+      "name": "京都バス",
+      "url": "https://www.kyotobus.jp/"
+    },
+    {
+      "name": "神姫バス",
+      "url": "https://www.shinkibus.co.jp/"
+    },
+    {
+      "name": "奈良交通",
+      "url": "https://www.narakotsu.co.jp/"
+    },
+    {
+      "name": "近江鉄道バス",
+      "url": "https://www.ohmitetudo.co.jp/bus/"
+    },
+    {
+      "name": "和歌山バス",
+      "url": "https://www.wakayamabus.co.jp/"
+    },
+    {
+      "name": "京都市バス",
+      "url": "https://www.city.kyoto.lg.jp/kotsu/"
+    },
+    {
+      "name": "神戸市バス",
+      "url": "https://kotsu.city.kobe.lg.jp/"
+    }
+  ]
+}
