@@ -1,4 +1,10 @@
 export {
+  type BusStopQuery,
+  listWalkAccessBusStops,
+  parseBusStops,
+  type WalkAccessBusStop,
+} from "./bus-access.ts";
+export {
   applyNetworkCorrections,
   buildExtendedStationId,
   listExtendedStationAliases,

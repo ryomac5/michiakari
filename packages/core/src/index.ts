@@ -162,6 +162,7 @@ export {
 export {
   computeHaversineMeters,
   computeWalkMinutesFromMeters,
+  computeWalkReachMeters,
   estimateWalkMinutes,
   type LonLat,
 } from "./walk.ts";

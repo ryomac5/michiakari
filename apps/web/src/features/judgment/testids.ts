@@ -15,6 +15,9 @@ export const testIds = {
     resumeChanceOnset: "judgment-resume-chance-onset",
     // 図の下の「22:55までに動けば間に合う」。到着の期限ではなく、間に合うための再開の時刻
     resumeChanceResumeBy: "judgment-resume-chance-resume-by",
+    // 近くのバス停の確認候補の欄。時刻は出さない
+    busChecks: "judgment-bus-checks",
+    busCheck: (id: string) => `judgment-bus-check-${id}`,
   },
   start: {
     ...sharedTestIds.start,

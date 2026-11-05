@@ -9,6 +9,7 @@ import type { LlmClient } from "../llm-client.ts";
 import type { Prompts } from "../prompts/load-prompts.ts";
 import type { RainFetcher } from "../tools/types.ts";
 import { assembleJudgment } from "./assemble.ts";
+import { attachBusChecks } from "./bus-checks.ts";
 import { runClaudeJudgment } from "./claude-judge.ts";
 import { decideDeterministically } from "./deterministic-decision.ts";
 import type { EventSink, JudgmentEventBody } from "./event-sink.ts";
@@ -152,7 +153,10 @@ async function finishDeterministically(session: JudgeSession, sink: EventSink): 
   );
   if (!checked.judgment)
     throw new Error(`決定論モードの判断が検証に通りません: ${checked.errors.join(" / ")}`);
-  await sink.emit({ type: "judgment_ready", judgment: checked.judgment });
+  await sink.emit({
+    type: "judgment_ready",
+    judgment: attachBusChecks(checked.judgment, session.ctx.provider, session.ctx.request.origin),
+  });
 }
 
 export async function runJudge(
@@ -214,7 +218,10 @@ export async function runJudge(
       });
       if (outcome.status === "aborted") return;
       if (outcome.status === "done") {
-        await sink.emit({ type: "judgment_ready", judgment: outcome.judgment });
+        await sink.emit({
+          type: "judgment_ready",
+          judgment: attachBusChecks(outcome.judgment, deps.provider, request.origin),
+        });
         return;
       }
       deps.logWarning(`判断を決定論モードに切り替えました: ${outcome.reason}`);

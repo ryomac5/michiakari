@@ -243,6 +243,13 @@
       "select": "Show on map",
       "selected": "Shown on map"
     },
+    "busChecks": {
+      "title": "Check buses too",
+      "walk": "About {minutes} min walk",
+      "link": "{operator} website",
+      "crowded": "When trains stop, buses tend to get crowded and run late.",
+      "note": "Stop locations are from {year} data. Check times and service on the official website."
+    },
     "evidence": {
       "title": "Why we think so",
       "phases": "Phases",
@@ -481,6 +488,7 @@
       "walk": "Walking routes and ranges: computed with Valhalla from © OpenStreetMap contributors data",
       "rail": "Railway data: processed from National Land Numerical Information (Railway), MLIT Japan",
       "ridership": "Station ridership: processed from National Land Numerical Information (Passengers by Station), MLIT Japan",
+      "busStops": "Bus stop locations: processed from National Land Numerical Information (Bus Stops), FY2022 edition, MLIT Japan. License: CC BY 4.0",
       "weather": "Weather data: Japan Meteorological Agency"
     },
     "notes": {

@@ -19,6 +19,9 @@ import { cn } from "@/lib/utils";
 // 国土数値情報のデータページ（data-sources.md 4 章）
 const railDataUrl = "https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N02-2025.html";
 const ridershipDataUrl = "https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-S12-2024.html";
+// バス停留所 P11 の 2022 年度版と、その許諾の CC BY 4.0
+const busStopDataUrl = "https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-P11-2022.html";
+const ccBy4Url = "https://creativecommons.org/licenses/by/4.0/deed.ja";
 
 export async function generateMetadata() {
   const t = await getTranslations("about");
@@ -147,6 +150,11 @@ export default async function AboutPage() {
             <li className="flex flex-col">
               <span>{t("attribution.ridership")}</span>
               <SourceLink href={ridershipDataUrl}>{ridershipDataUrl}</SourceLink>
+            </li>
+            <li className="flex flex-col">
+              <span>{t("attribution.busStops")}</span>
+              <SourceLink href={busStopDataUrl}>{busStopDataUrl}</SourceLink>
+              <SourceLink href={ccBy4Url}>{ccBy4Url}</SourceLink>
             </li>
             <li>{t("attribution.weather")}</li>
           </ul>

@@ -31,3 +31,9 @@ export const ACCESS_WALK_MAX_MINUTES = 15;
 // 通常の上限の中に鉄道の代替が 1 つも無いときに、乗る駅までの徒歩の上限を広げる先（分）。
 // 地図が歩ける駅として出す範囲に合わせる。10 分と 20 分の到達範囲の輪の外にある駅も含む。出典: 開発者の推定（仮）
 export const ACCESS_WALK_MAX_MINUTES_EXTENDED = 25;
+
+// バス停を確認候補に出すときの、停留所までの徒歩の上限（分）。出典: 開発者の推定（仮）
+export const BUS_CHECK_MAX_WALK_MINUTES = 10;
+
+// 同じ名前のバス停を 1 件にまとめる距離（m）。道の両側や会社ごとの標柱を 1 行で見せる。出典: 開発者の推定（仮）
+export const BUS_STOP_SAME_NAME_METERS = 300;
