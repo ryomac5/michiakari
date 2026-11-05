@@ -1,7 +1,7 @@
 // data-testid の一覧。リプレイ（WS7）と録画が使うので、値を変えるときは e2e も直す
 // e2e からも相対パスで読むので、このファイルは何も import しない
 // 命名規則: <画面>-<領域>[-<要素>]。すべて kebab-case
-//   画面: app（共通）/ start / situation / judgment / replay / about / knowledge
+//   画面: app（共通）/ start / situation / judgment / replay / about
 //   一覧の要素は末尾に -<id> を付ける（例: judgment-option-transfer_hankyu）
 //   状態は data-state・data-action などの属性で表し、testid には含めない
 
@@ -10,7 +10,6 @@ export const testIds = {
     header: "app-header",
     homeLink: "app-home-link",
     aboutLink: "app-about-link",
-    knowledgeLink: "app-knowledge-link",
     languageSwitch: "app-language-switch",
     language: (locale: string) => `app-language-${locale}`,
     themeToggle: "app-theme-toggle",
@@ -58,6 +57,8 @@ export const testIds = {
     nearStop: (id: string) => `start-near-stop-${id}`,
     // 様子の 3 つの問い。原因、止まってからの時間、再開の見込み
     cause: (id: string) => `start-cause-${id}`,
+    // 原因の大分類の続きで聞く種類
+    causeKind: (id: string) => `start-cause-kind-${id}`,
     elapsed: (id: string) => `start-elapsed-${id}`,
     resume: (id: string) => `start-resume-${id}`,
     // 放送で聞いた再開見込みの時刻。id は HHMM
@@ -160,7 +161,6 @@ export const testIds = {
     phaseTimeline: "judgment-phase-timeline",
     phase: (id: string) => `judgment-phase-${id}`,
     signal: (id: string) => `judgment-signal-${id}`,
-    signalLink: (id: string) => `judgment-signal-link-${id}`,
     evidenceItem: (id: string) => `judgment-evidence-item-${id}`,
     // 判断に使った雨量の推移。data-trend と data-reading-count（欠測を含む観測の数）を出す
     weather: "judgment-weather",
@@ -214,19 +214,6 @@ export const testIds = {
     // 作った理由
     why: "about-why",
     attribution: "about-attribution",
-    knowledgeLink: "about-knowledge-link",
-  },
-  // 知見ナレッジの閲覧画面
-  knowledge: {
-    screen: "knowledge-screen",
-    notice: "knowledge-notice",
-    dummyNotice: "knowledge-dummy-notice",
-    event: (id: string) => `knowledge-event-${id}`,
-    phase: (id: string) => `knowledge-phase-${id}`,
-    signal: (id: string) => `knowledge-signal-${id}`,
-    yaml: (id: string) => `knowledge-yaml-${id}`,
-    caveats: (id: string) => `knowledge-caveats-${id}`,
-    replayLink: (scenarioId: string) => `knowledge-replay-link-${scenarioId}`,
   },
 } as const;
 

@@ -59,8 +59,24 @@ describe("findAreaAt", () => {
     expect(area?.places.length).toBeLessThanOrEqual(6);
   });
 
+  it("駅の少し外を触っても、指の幅の中の一番近い駅のまわりでエリアを作る", () => {
+    // 八尾南の少し南。駅データから作るエリアの半径の外
+    const point: [number, number] = [135.5849, 34.5851];
+    expect(findAreaAt(data, point)).toBeNull();
+    const area = findAreaAt(data, point, 4000);
+    expect(area?.name).toBeNull();
+    expect(area?.places.map((p) => p.name.ja)).toContain("八尾南");
+  });
+
   it("駅の無い海の上では null を返す", () => {
     expect(findAreaAt(data, [135.2, 34.45])).toBeNull();
+    expect(findAreaAt(data, [135.2, 34.45], 4000)).toBeNull();
+  });
+
+  it("引いた地図で海の上を押しても、指の幅が遠い駅まで届かない", () => {
+    // 拡大率 7 の関西あたりでは、指の幅 44px が約 22km になる
+    expect(findAreaAt(data, [135.2, 34.45], 22000)).toBeNull();
+    expect(findAreaAt(data, [135.3, 34.55], 22000)).toBeNull();
   });
 });
 
