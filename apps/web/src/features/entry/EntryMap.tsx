@@ -74,11 +74,13 @@ type EntryMapProps = {
   apiRef: RefObject<EntryMapApi | null>;
   onSelectHub: (areaId: string) => void;
   onSelectPlace: (place: EntryPlace) => void;
-  // 印のない所を触ったとき
-  onTap: (point: Position) => void;
+  // 印のない所を触ったとき。reachMeters は指の幅を地図の距離にしたもの
+  onTap: (point: Position, reachMeters: number) => void;
 };
 
 const kansaiCenter: Position = [135.5, 34.75];
+// 何もない所を触ったとき、そのあたりの駅とみなす指の幅（px）。押せる部品の大きさにそろえる
+const tapReachPx = 44;
 // 様子を聞く段。行き先を選び終えているので、出発と行き先を弧で結び、視点は動かさない
 const situationStages = new Set<EntryStage>(["cause", "causeKind", "elapsed", "resume", "input"]);
 const sourceIds = { lines: "entry-lines", trip: "entry-trip" } as const;
@@ -309,7 +311,9 @@ export function EntryMap(props: EntryMapProps) {
         loaded.on("click", (e) => {
           const target = e.originalEvent.target as HTMLElement | null;
           if (target?.closest(".maplibregl-marker")) return;
-          callbacksRef.current.onTap([e.lngLat.lng, e.lngLat.lat]);
+          const point: Position = [e.lngLat.lng, e.lngLat.lat];
+          const edge = loaded.unproject([e.point.x + tapReachPx, e.point.y]);
+          callbacksRef.current.onTap(point, computeDistanceMeters(point, [edge.lng, edge.lat]));
         });
       })
       .catch(() => {});
