@@ -1,6 +1,7 @@
 "use client";
 
 import type { RawInput } from "@repo/schema";
+import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
@@ -13,6 +14,7 @@ import {
   listEntryDirections,
   listNearbyStops,
   listTrainPositionStops,
+  mergeDirectionCandidates,
   pickSpreadStops,
 } from "@/features/entry/directions";
 import {
@@ -301,7 +303,9 @@ export function StartScreen() {
       const area = findAreaAt(data, point);
       if (area) dispatch({ type: "openArea", area });
     } else if (entry.stage === "destination" && !onTrain) {
-      goToDepth(getDepth("area"));
+      // 検索や近くの駅から来た人はエリアの段を通っていないので、地図の段へ戻す。無ければ留まる
+      const mapDepth = Math.max(getDepth("area"), getDepth("kansai"));
+      if (mapDepth >= 0) goToDepth(mapDepth);
     }
   }
 
@@ -505,9 +509,7 @@ export function StartScreen() {
     data && entry.place ? entry.place.lines.flatMap((line) => listEntryDirections(data, line)) : [];
   const candidates = direction
     ? listDirectionCandidates(direction)
-    : suggestedDirections
-        .flatMap((d) => listDirectionCandidates(d))
-        .filter((stop, i, stops) => stops.findIndex((s) => s.choice.id === stop.choice.id) === i);
+    : mergeDirectionCandidates(suggestedDirections);
   const routeCandidates =
     data && entry.place && destinationChoice
       ? inferEntryRoutes(data, entry.place, destinationChoice)
@@ -713,6 +715,20 @@ export function StartScreen() {
       />
       <AppHeader
         variant="map"
+        // 関西の段はシートが無いので、帯のロゴの場所にいまどこの問いへ戻る札を置く
+        leading={
+          entry.stage === "kansai" ? (
+            <button
+              type="button"
+              data-testid={testIds.start.back}
+              onClick={handleBack}
+              className="pointer-events-auto inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-full pr-3 pl-1 text-[14px] font-medium text-muted transition-colors hover:bg-foreground/5 hover:text-foreground active:scale-[0.97]"
+            >
+              <ChevronLeft className="size-5" strokeWidth={2} aria-hidden />
+              {t("entry.back")}
+            </button>
+          ) : undefined
+        }
         below={
           entry.stage === "kansai" ? (
             <>

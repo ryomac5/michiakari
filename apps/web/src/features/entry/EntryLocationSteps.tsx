@@ -29,7 +29,7 @@ export function LocationStep({ onSelect }: { onSelect: (location: "station" | "t
         data-testid={testIds.start.positionTrain}
         onClick={() => onSelect("train")}
       >
-        {t("positionTrain")}
+        {t("locationTrain")}
       </button>
     </>
   );

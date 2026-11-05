@@ -2,6 +2,9 @@ import type { OriginLine } from "@/features/judgment/session";
 import type { ElapsedOption } from "@/features/situation/plain-questions";
 import type { EntryArea, EntryPlace } from "./entry-places";
 
+// 入口の段。駅にいる人は いまどこ → 関西 → エリア → 駅 → 行き先 → 原因 → 経過 → 再開見込み の順に進む
+// 車内の人は いまどこ → 路線 → 方面 → 駅間 → 行き先 → 原因 → 経過 → 再開見込み の順に進む
+// history は実際に通った段の答えだけを積む。自動で決めた路線や方面は積まず、戻ると直前の段に戻る
 export type EntryStage =
   | "position"
   | "kansai"

@@ -178,6 +178,20 @@ export function listDirectionCandidates(direction: EntryDirection, limit = 5): D
   );
 }
 
+// 方面を決める前の行き先の候補。各方面の候補をつなぎ、重複を除いて隣の駅を末尾に回す
+export function mergeDirectionCandidates(directions: EntryDirection[]): DirectionStop[] {
+  const adjacentIds = new Set(
+    directions.flatMap((d) => (d.stops.length > 1 && d.stops[0] ? [d.stops[0].choice.id] : [])),
+  );
+  const merged = directions
+    .flatMap((d) => listDirectionCandidates(d))
+    .filter((stop, i, stops) => stops.findIndex((s) => s.choice.id === stop.choice.id) === i);
+  return [
+    ...merged.filter((s) => !adjacentIds.has(s.choice.id)),
+    ...merged.filter((s) => adjacentIds.has(s.choice.id)),
+  ];
+}
+
 // 地図の札に出す駅。候補の順に、現在地と先に選んだ札から離れた駅だけを残す
 // 離す距離は、札を出す範囲の広さに合わせて広げる
 export function pickSpreadStops(

@@ -346,6 +346,8 @@ test("引いた地図はエリアだけを表示し、指で寄る操作でも�
   const places = page.locator("[data-testid^='start-place-']");
   await expect(map).toHaveAttribute("data-detail", "areas");
   await expect(places).toHaveCount(0);
+  // 駅にいると答えた直後の寄せが終わってから、指で寄る操作を始める
+  await expect(map).toHaveAttribute("data-moving", "false");
   const hub = await page.getByTestId(testIds.start.hub("umeda")).boundingBox();
   if (!hub) throw new Error("大阪のエリアがありません");
   await page.mouse.move(hub.x + hub.width / 2, hub.y + hub.height / 2);

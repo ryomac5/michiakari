@@ -7,6 +7,7 @@ import {
   listEntryDirections,
   listNearbyStops,
   listTrainPositionStops,
+  mergeDirectionCandidates,
   pickSpreadStops,
 } from "./directions";
 import { createEntryData, type EntryLine, findStationChoice, listGroupLines } from "./entry-places";
@@ -103,6 +104,20 @@ describe("listEntryDirections", () => {
     const south = listEntryDirections(data, line).find((d) => d.stops.length === 1);
     expect(south?.fallback).toMatchObject({ kind: "terminal" });
     expect(south?.fallback.stop.choice.name).toBe(findStationChoice(data, "中百舌鳥")?.name);
+  });
+});
+
+describe("mergeDirectionCandidates", () => {
+  it("方面を決める前の候補は、両方面をつないでも隣の駅を末尾に回す", () => {
+    const midosuji = findLine("心斎橋", "地下鉄御堂筋線");
+    const directions = listEntryDirections(data, midosuji);
+    const merged = mergeDirectionCandidates(directions);
+    const adjacent = directions.map((d) => d.stops[0]?.choice.id);
+    const names = merged.map((s) => s.choice.id);
+    expect(new Set(names).size).toBe(names.length);
+    const firstAdjacent = names.findIndex((id) => adjacent.includes(id));
+    const lastOther = names.map((id) => !adjacent.includes(id)).lastIndexOf(true);
+    expect(firstAdjacent).toBeGreaterThan(lastOther);
   });
 });
 
