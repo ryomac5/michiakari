@@ -40,8 +40,10 @@ export function buildWebServers(options: {
     {
       command: webCommand,
       env: buildWebEnv(options),
-      url: webUrl,
-      reuseExistingServer: !process.env.CI,
+      // リプレイの初回コンパイルを、テストの判断待ちより前に済ませる
+      url: `${webUrl}/replay`,
+      // 別ツリーや別の agent 設定で起動したサーバーを借りない
+      reuseExistingServer: false,
       timeout: options.webStartTimeoutMs ?? defaultWebStartTimeoutMs,
     },
     {
@@ -55,7 +57,7 @@ export function buildWebServers(options: {
         RATE_LIMIT_PER_MINUTE: "10000",
       },
       url: `${agentUrl}/health`,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 60_000,
     },
   ];

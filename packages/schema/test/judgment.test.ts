@@ -54,6 +54,34 @@ describe("JudgmentSchema", () => {
     ).toBe(false);
   });
 
+  it("busChecks は任意で、3 件までを受け入れ、到着時刻を持たない", () => {
+    const busCheck = {
+      id: "P11-22_27:1",
+      stopName: "架空停留所前",
+      operators: [{ name: "架空バス", officialUrl: "https://example.com/" }],
+      lon: 135.5,
+      lat: 34.7,
+      walkMinutes: 4,
+      dataYear: 2022,
+    };
+    expect(JudgmentSchema.safeParse({ ...validJudgment, busChecks: [busCheck] }).success).toBe(
+      true,
+    );
+    expect(
+      JudgmentSchema.safeParse({
+        ...validJudgment,
+        busChecks: [{ ...busCheck, operators: [{ name: "架空バス", officialUrl: null }] }],
+      }).success,
+    ).toBe(true);
+    expect(
+      JudgmentSchema.safeParse({ ...validJudgment, busChecks: Array(4).fill(busCheck) }).success,
+    ).toBe(false);
+    expect(
+      JudgmentSchema.safeParse({ ...validJudgment, busChecks: [{ ...busCheck, operators: [] }] })
+        .success,
+    ).toBe(false);
+  });
+
   it("disclaimer が空なら拒否する", () => {
     expect(JudgmentSchema.safeParse({ ...validJudgment, disclaimer: "" }).success).toBe(false);
   });

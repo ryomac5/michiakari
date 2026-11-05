@@ -1,9 +1,14 @@
 import type { BreakEvenResult, FlowOutlook } from "@repo/core";
-import type { Confidence } from "@repo/schema";
+import { type Confidence, ResumeChanceSchema } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { decisionParams, reasonLimits } from "../src/config.ts";
-import { applyDecisionRules, type RuleInput } from "../src/judge/deterministic-decision.ts";
-import { buildDecisionText } from "../src/judge/templates.ts";
+import {
+  applyDecisionRules,
+  buildChanceText,
+  type RuleInput,
+} from "../src/judge/deterministic-decision.ts";
+import { buildChanceSentence, buildDecisionText } from "../src/judge/templates.ts";
+import { decisionChances } from "./fixtures/decision-chance.ts";
 
 // 決定論モードの判断規則。保留より先に切り替えを言い切る場面を確かめる
 // 時刻と分は架空の場面。難波で原因が分からず止まった夜を模す
@@ -244,10 +249,8 @@ describe("発表の再開見込みで比べたときの文言", () => {
       reason: "stated_resume_before_break_even",
       marginP50Minutes: 21,
     });
-    expect(text.headline).toBe("あと36分は待てます");
-    expect(text.reason).toBe(
-      "発表の再開見込み22時20分が分岐点22時41分より早く、見込みどおりなら待つほうが早く着きます。",
-    );
+    expect(text.headline).toBe("22時41分まで待つ。動かなければ切り替える");
+    expect(text.reason).toBe("発表の再開が22時20分なら待つほうが早く着きます。");
     expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });
 
@@ -259,9 +262,27 @@ describe("発表の再開見込みで比べたときの文言", () => {
       resumeP80: "2026-11-05T23:00:00+09:00",
       marginP50Minutes: -9,
     });
-    expect(text.headline).toBe("いま別の路線に切り替えてください");
+    expect(text.headline).toBe("別の路線に切り替える");
     expect(text.reason).toBe(
-      "発表の再開見込み22時50分が分岐点22時41分より遅く、見込みどおりでも別の路線のほうが早く着くためです。",
+      "発表の再開が22時50分なら別の路線が早く着きます。境目の22時41分より後です。",
+    );
+    expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
+  });
+
+  it("発表時刻と分岐点の根拠を残したまま確率の一文が90字以内に収まる", () => {
+    const text = buildDecisionText({
+      ...base,
+      reason: "stated_resume_after_break_even",
+      resumeP50: "2026-11-05T22:50:00+09:00",
+      marginP50Minutes: -9,
+      chance: {
+        ...decisionChances.close,
+        comparisonTime: base.breakEvenTime,
+        keyTick: null,
+      },
+    });
+    expect(text.reason).toBe(
+      "発表の再開が22時50分なら別の路線が早く着きます。境目の22時41分より後です。境目の22時41分までに動く見込みは2割です。",
     );
     expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });
@@ -280,7 +301,7 @@ describe("大半が後のときの文言", () => {
       deadline: null,
       bestOption: { kind: "transfer", label: "Osaka Metro 四つ橋線", isTransferService: false },
     });
-    expect(text.headline).toBe("いま別の路線に切り替えてください");
+    expect(text.headline).toBe("別の路線に切り替える");
     expect(text.reason).toContain("あと4分");
     expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });
@@ -336,5 +357,144 @@ describe("期限が理由でタクシーを勧めるときの判断", () => {
     );
     expect(outcome.action).toBe("switch");
     expect(outcome.reason).toBe("break_even_passed");
+  });
+});
+
+describe("結論の根拠と確率の比較時点", () => {
+  it("確率の固定データは境界のスキーマを満たす", () => {
+    for (const chance of Object.values(decisionChances)) {
+      expect(ResumeChanceSchema.parse(chance)).toEqual(chance);
+    }
+  });
+
+  it("期限で切り替えるときは早着確率ではなく期限内到着確率を述べる", () => {
+    const input = buildInput({
+      eventType: "vehicle_failure",
+      confidence: "high",
+      result: buildResult({
+        minutesFromNow: 30,
+        marginP50Minutes: 10,
+        marginP80Minutes: 5,
+      }),
+    });
+    input.breakEven.deadline = "2026-11-05T23:00:00+09:00";
+    input.breakEven.comparison = [
+      {
+        scenario: "wait_p50",
+        optionId: "wait",
+        arrivalTime: "2026-11-05T23:05:00+09:00",
+        minutesFromNow: 35,
+        deadline: { onTime: false, marginMinutes: -5 },
+      },
+      {
+        scenario: "alternative",
+        optionId: "alt_1",
+        arrivalTime: "2026-11-05T22:55:00+09:00",
+        minutesFromNow: 25,
+        deadline: { onTime: true, marginMinutes: 5 },
+      },
+    ];
+    input.breakEven.resumeChance = decisionChances.deadline;
+    const outcome = applyDecisionRules(input);
+    expect(outcome).toMatchObject({ action: "switch", reason: "deadline_risk" });
+    const chance = buildChanceText(input.breakEven, outcome.reason);
+    if (!chance) throw new Error("比較時点の確率がありません");
+    const sentence = buildChanceSentence(chance, "ja");
+    expect(sentence).toContain("22時50分");
+    expect(sentence).toContain("2割");
+    expect(sentence).not.toContain("1割");
+  });
+
+  it("乗り換えの差が小さく待つときは低い確率を一般的な待つ価値と言い換えない", () => {
+    const input = buildInput({
+      eventType: "vehicle_failure",
+      confidence: "high",
+      result: buildResult({
+        minutesFromNow: 30,
+        marginP50Minutes: -1,
+        marginP80Minutes: -10,
+      }),
+    });
+    input.breakEven.resumeChance = decisionChances.close;
+    const outcome = applyDecisionRules(input);
+    expect(outcome.action).toBe("wait");
+    const chance = buildChanceText(input.breakEven, outcome.reason);
+    if (!chance) throw new Error("比較時点の確率がありません");
+    const sentence = buildChanceSentence(chance, "ja");
+    expect(sentence).toBe("境目の22時41分までに動く見込みは2割です。");
+    expect(buildChanceSentence(chance, "en")).toBe("Chance of restart by the 22:41 cutoff: 20%.");
+    expect(sentence).not.toContain("待ったほうが早く着く見込み");
+  });
+  it("見込みの幅の大半が後なら分岐点後の遅めの再開時点を述べる", () => {
+    const input = buildInput({
+      eventType: "vehicle_failure",
+      confidence: "low",
+      result: buildResult({
+        minutesFromNow: 4,
+        marginP50Minutes: 2,
+        marginP80Minutes: -18,
+      }),
+    });
+    input.breakEven.resumeChance = decisionChances.mostlyLate;
+    if (input.breakEven.result.kind !== "future" || !input.breakEven.result.resumeOutlook) {
+      throw new Error("再開見込みがありません");
+    }
+    input.breakEven.result.resumeOutlook.resumeP50 = "2026-11-05T22:39:00+09:00";
+    input.breakEven.result.resumeOutlook.resumeP80 = "2026-11-05T22:59:00+09:00";
+    const outcome = applyDecisionRules(input);
+    expect(outcome).toMatchObject({ action: "switch", reason: "resume_mostly_after_break_even" });
+    const chance = buildChanceText(input.breakEven, outcome.reason);
+    if (!chance) throw new Error("比較時点の確率がありません");
+    const sentence = buildChanceSentence(chance, "ja");
+    expect(sentence).toBe("遅めに見ると境目より後の23時00分までに動く見込みは9割です。");
+    expect(buildChanceSentence(chance, "en")).toBe(
+      "Later outlook: 90% chance of restart by 23:00, after the cutoff.",
+    );
+    expect(chance.waitFaster).toBeNull();
+    expect(sentence).not.toContain("待ったほうが早く着く見込み");
+  });
+
+  it("延長後の遅めの見込みで切り替えるときも分岐点後の確率を述べる", () => {
+    const input = buildInput({
+      eventType: "vehicle_failure",
+      confidence: "high",
+      remainingBasis: "stated",
+      result: buildResult({ minutesFromNow: 4, marginP50Minutes: 2, marginP80Minutes: -18 }),
+    });
+    input.estimate.statedExtended = true;
+    input.breakEven.resumeChance = decisionChances.mostlyLate;
+    const outcome = applyDecisionRules(input);
+    expect(outcome).toMatchObject({ action: "switch", reason: "estimate_extended" });
+    const chance = buildChanceText(input.breakEven, outcome.reason);
+    if (!chance) throw new Error("比較時点の確率がありません");
+    expect(chance.waitFaster).toBeNull();
+    expect(chance.waitOnTime).toBeNull();
+    expect(buildChanceSentence(chance, "ja")).toContain("境目より後の23時00分");
+  });
+
+  it.each([false, true])("目盛りが7割まででも確率文を残す。見込み延長=%s", (extended) => {
+    const input = buildInput({
+      eventType: "vehicle_failure",
+      confidence: extended ? "high" : "low",
+      remainingBasis: extended ? "stated" : "knowledge",
+      result: buildResult({ minutesFromNow: 4, marginP50Minutes: 2, marginP80Minutes: -18 }),
+    });
+    input.estimate.statedExtended = extended;
+    input.breakEven.resumeChance = decisionChances.cappedLate;
+    const outcome = applyDecisionRules(input);
+    expect(outcome).toMatchObject({
+      action: "switch",
+      reason: extended ? "estimate_extended" : "resume_mostly_after_break_even",
+    });
+    const chance = buildChanceText(input.breakEven, outcome.reason);
+    if (!chance) throw new Error("比較時点の確率がありません");
+    expect(chance.waitFaster).toBeNull();
+    expect(chance.waitOnTime).toBeNull();
+    expect(buildChanceSentence(chance, "ja")).toBe(
+      "遅めに見ると境目より後の22時50分までに動く見込みは6割です。",
+    );
+    expect(buildChanceSentence(chance, "en")).toBe(
+      "Later outlook: 60% chance of restart by 22:50, after the cutoff.",
+    );
   });
 });

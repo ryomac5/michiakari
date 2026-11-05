@@ -77,7 +77,7 @@ const interpretation: Interpretation = {
 const validDecision = {
   action: "hold",
   headline: "いまは待ち、動かなければ切り替え",
-  reason: "見込みの幅が大きく、分岐点を過ぎると代替手段のほうが早く着きます。",
+  reason: "分岐点を過ぎると代替手段のほうが早く着きます。再開見込みには幅があります。",
   breakEvenExplanation: "分岐点までに再開しなければ代替手段のほうが早く着きます",
   recommendedOptionId: null,
   evidence: [{ kind: "knowledge", id: knowledge.id, description: "知見の要約" }],
@@ -203,6 +203,27 @@ describe("claude モード", () => {
     expect(JSON.stringify(toolResult?.content)).toContain("tool_result");
   });
 
+  it("Claude にはバス停の候補を渡さず、判断の後に付け、見出し・理由・推奨には入れない", async () => {
+    const script = createScriptedLlm({
+      judgment: [...buildToolSequence(), replyWithTool("emit_judgment", validDecision)],
+    });
+    const { events, judgment, warnings } = await runWith(script);
+    expect(warnings).toEqual([]);
+    const busChecks = judgment?.busChecks ?? [];
+    expect(busChecks.length).toBeGreaterThan(0);
+    // Claude に送った内容に、busChecks の項目も停留所の ID も無い。停留所の名前は駅名と重なりうるので見ない
+    const sent = JSON.stringify(script.calls);
+    expect(sent).not.toContain("busChecks");
+    expect(sent).not.toContain("P11-22_");
+    for (const check of busChecks) {
+      expect(judgment?.headline).not.toContain(check.stopName);
+      expect(judgment?.reason ?? "").not.toContain(check.stopName);
+      expect(judgment?.recommendedOptionId).not.toBe(check.id);
+    }
+    const computed = events.find((e) => e.type === "alternatives_computed");
+    expect(computed && "busChecks" in computed).toBe(false);
+  });
+
   it("emit_judgment の検証に失敗したら、指摘を返して 1 回だけ再生成させる", async () => {
     const script = createScriptedLlm({
       judgment: [
@@ -281,7 +302,8 @@ describe("claude モード", () => {
     for (const n of [reasonLimits.ja.target, reasonLimits.ja.max, reasonLimits.en.max]) {
       expect(reason).toContain(String(n));
     }
-    expect(reason).toContain("もっと確かに言えます");
+    expect(reason).toContain("先頭の1文を見出しの下に出す");
+    expect(reason).toContain("再開は23時40分頃の見込みで境目より後です。");
     expect(tool?.input_schema.required).toContain("reason");
     expect(tool?.description).toContain(String(reasonLimits.ja.max));
   });
@@ -292,7 +314,8 @@ describe("claude モード", () => {
     for (const n of [headlineLimits.ja.target, headlineLimits.ja.max, headlineLimits.en.max]) {
       expect(headline).toContain(String(n));
     }
-    expect(headline).toContain("あと25分は待てます");
+    expect(headline).toContain("20時05分まで待つ。動かなければ阪急京都線へ");
+    expect(headline).toContain("大阪梅田まで歩いて阪急京都線へ");
     expect(tool?.description).toContain(String(headlineLimits.ja.max));
   });
 

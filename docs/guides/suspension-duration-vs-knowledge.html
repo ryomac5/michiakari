@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>運転見合わせの所要時間と知見の比較</title>
+<style>
+  :root { color-scheme: light dark; --fg: #1f2933; --bg: #fafaf8; --muted: #5f6b76; --line: #d5d9de; --head: #eceff2; --warn: #fff4d6; --accent: #1b5e9b; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #e6e9ec; --bg: #16191c; --muted: #9aa5b0; --line: #333a41; --head: #232a30; --warn: #3a3217; --accent: #7ab4e8; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.8 "Hiragino Sans", "Noto Sans JP", sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1 { font-size: 1.6rem; margin: 0 0 8px; }
+  h2 { font-size: 1.2rem; margin: 40px 0 12px; border-left: 4px solid var(--accent); padding-left: 10px; }
+  p.lead { color: var(--muted); margin: 0 0 16px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; margin: 12px 0; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--head); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.low td { background: var(--warn); }
+  .scroll { overflow-x: auto; }
+  ol li { margin: 10px 0; }
+  .note { color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>運転見合わせの所要時間と知見の比較</h1>
+<p class="lead">調査日は 2026-11-05。事例は docs/research/rail-suspensions の 51 件である。</p>
+
+<h2>目的</h2>
+<p>集めた事例の所要時間を、ダミーの知見の p50 と p80 と比べた。</p>
+<p>開発者が本物の知見を書くときの目安にする。</p>
+<p>ダミーの知見は開発用であり、正しさの基準ではない。</p>
+
+<h2>比べ方</h2>
+<p>事例の所要時間は、見合わせの開始から再開までの分数である。</p>
+<p>知見の p50 と p80 は、段階ごとの所要時間として持たれている。</p>
+<p>事例と同じ範囲にするため、見合わせの開始以後の段階を足し合わせた。</p>
+<p>大雨の雨が強まる段階は、見合わせの前なので外した。</p>
+<p>段階ごとの p80 を足した値は、全体の p80 とは一致しない。目安としてだけ読む。</p>
+<p>差は、知見から事例を引いた値である。負なら知見のほうが短い。</p>
+
+<h2>比較表</h2>
+<div class="scroll">
+<table>
+  <thead>
+    <tr>
+      <th>知見の事象</th>
+      <th>対応する事例の区分</th>
+      <th class="num">件数</th>
+      <th class="num">事例の中央値</th>
+      <th class="num">事例の p80</th>
+      <th class="num">知見の p50</th>
+      <th class="num">知見の p80</th>
+      <th class="num">中央値の差</th>
+      <th class="num">p80 の差</th>
+      <th>信頼度</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>person_accident</td>
+      <td>person_accident</td>
+      <td class="num">17</td>
+      <td class="num">100</td>
+      <td class="num">123</td>
+      <td class="num">65</td>
+      <td class="num">120</td>
+      <td class="num">-35</td>
+      <td class="num">-3</td>
+      <td>比較的高い。件数は最多である。</td>
+    </tr>
+    <tr class="low">
+      <td>heavy_rain</td>
+      <td>natural_rain</td>
+      <td class="num">2</td>
+      <td class="num">100</td>
+      <td class="num">124</td>
+      <td class="num">110</td>
+      <td class="num">220</td>
+      <td class="num">+10</td>
+      <td class="num">+96</td>
+      <td>極めて低い。2 件では分布にならない。</td>
+    </tr>
+    <tr class="low">
+      <td>vehicle_failure、救援あり</td>
+      <td>vehicle_failure</td>
+      <td class="num">5</td>
+      <td class="num">85</td>
+      <td class="num">93</td>
+      <td class="num">65</td>
+      <td class="num">130</td>
+      <td class="num">-20</td>
+      <td class="num">+37</td>
+      <td>低い。5 件で、71 分から 96 分に収まる。</td>
+    </tr>
+    <tr class="low">
+      <td>vehicle_failure、現場処置のみ</td>
+      <td>vehicle_failure</td>
+      <td class="num">5</td>
+      <td class="num">85</td>
+      <td class="num">93</td>
+      <td class="num">25</td>
+      <td class="num">60</td>
+      <td class="num">-60</td>
+      <td class="num">-33</td>
+      <td>低い。短い側に当たる事例は 1 件も無い。</td>
+    </tr>
+    <tr class="low">
+      <td>in_car_response</td>
+      <td>対応する区分なし</td>
+      <td class="num">0</td>
+      <td class="num">-</td>
+      <td class="num">-</td>
+      <td class="num">5</td>
+      <td class="num">10</td>
+      <td class="num">-</td>
+      <td class="num">-</td>
+      <td>比べられない。車内発火の 1 件は別の事象である。</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+<p class="note">色の付いた行は件数が 5 件以下である。単位は分である。車両故障は、救援の段階を通る場合と通らない場合の 2 通りで合計した。</p>
+
+<h2>対応づけ</h2>
+<table>
+  <thead><tr><th>知見の事象</th><th>事例の区分</th><th>対応の根拠</th></tr></thead>
+  <tbody>
+    <tr><td>person_accident</td><td>person_accident</td><td>名称も内容も一致する。</td></tr>
+    <tr><td>heavy_rain</td><td>natural_rain</td><td>大雨による見合わせである。natural_other の倒木と地震は別の原因なので含めない。</td></tr>
+    <tr><td>vehicle_failure</td><td>vehicle_failure</td><td>名称も内容も一致する。</td></tr>
+    <tr><td>in_car_response</td><td>なし</td><td>非常通報装置の扱いによる停車は、見合わせとして報じられにくい。</td></tr>
+  </tbody>
+</table>
+
+<h2>事象ごとの読み取り</h2>
+<table>
+  <thead><tr><th>事象</th><th>読み取り</th></tr></thead>
+  <tbody>
+    <tr><td>人身事故</td><td>p80 はほぼ一致した。中央値は知見が 35 分短く、事例は 25 分と 40 分の 2 件を除くと 71 分以上である。</td></tr>
+    <tr><td>大雨</td><td>中央値は近い。p80 の差は大きいが、2 件では何も言えない。</td></tr>
+    <tr><td>車両故障</td><td>事例は 71 分から 96 分で、救援ありの流れに近い。現場処置のみの流れは、事例の外にある。</td></tr>
+    <tr><td>車内対応</td><td>比べる事例が無く、開発者の経験だけが根拠になる。</td></tr>
+  </tbody>
+</table>
+
+<h2>情報源の偏り</h2>
+<p>情報源は京都新聞デジタルが 24 件、神戸新聞 NEXT が 11 件で、51 件の約 7 割を占める。</p>
+<p>京都と兵庫の路線に偏り、大阪と和歌山の事例は少ない。</p>
+<p>報道に残るのは長い事例なので、事例の所要時間は実際より長めに出る可能性がある。</p>
+<p>再開時刻は、記事の時点で再開済みという書き方が多く、実際より遅い値になりうる。</p>
+<p>これらの偏りは、事例の中央値が知見より長く出る向きに働く。</p>
+
+<h2>本物の知見を書くときの観点</h2>
+<ol>
+  <li>事例は長い側に偏るので、短く終わる事例を開発者の経験で足す。人身事故の中央値の差 35 分は、この偏りで説明できる範囲である。</li>
+  <li>車両故障は、救援の有無で 2 つの流れに分けて書く。事例はすべて救援側に近く、短い側は事例から裏づけられない。</li>
+  <li>大雨と車内対応は事例が足りない。事例の数値に寄せず、外から観察できる兆候に基づいて書く。</li>
+</ol>
+
+<h2>注意</h2>
+<p>事例は公開された報道と発表から手で集めた。数値は推定の材料であり、公式発表を優先すべきである。</p>
+<p>計算は docs/research/rail-suspensions/compare_with_dev_knowledge.py で再現できる。</p>
+</main>
+</body>
+</html>

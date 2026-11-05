@@ -187,6 +187,25 @@ describe("computeResumeChance", () => {
     expect(withoutOnset.ticks.every((t) => t.sinceOnsetMinutes === null)).toBe(true);
   });
 
+  it.each([
+    { clock: "22:01:00", onset: "21:51:00", minutes: 19 },
+    { clock: "22:09:59", onset: "21:59:59", minutes: 10 },
+  ])("現在時刻が$clockでも最初の目盛りは未来で経過分は丸める", ({ clock, onset, minutes }) => {
+    const now = `2026-11-05T${clock}+09:00`;
+    const chance = computeResumeChance(
+      buildInput({
+        now,
+        onsetTime: `2026-11-05T${onset}+09:00`,
+        samples: [1, 2, 3, 4],
+        firstTrainWaitMinutes: 0,
+        breakEvenTime: null,
+      }),
+    );
+    expect(chance.ticks[0]?.time).toBe(at("22:10"));
+    expect(parseIsoToMs(chance.ticks[0]?.time ?? "")).toBeGreaterThan(parseIsoToMs(now));
+    expect(chance.ticks[0]?.sinceOnsetMinutes).toBe(minutes);
+  });
+
   it("人身事故では、発生から下限の時刻までの目盛りが 1 割未満になる", () => {
     const onset = at("22:10");
     const estimate = estimateBranchAwareRemaining(personAccident, "initial", 0, {
@@ -434,6 +453,17 @@ describe("mergeBranchSamples", () => {
 });
 
 describe("selectKeyTick", () => {
+  it("最大7割なら比較時刻を過ぎた最初の目盛りを選ぶ", () => {
+    const ticks = [
+      { time: at("22:30"), tenths: 5, sinceOnsetMinutes: null },
+      { time: at("23:00"), tenths: 6, sinceOnsetMinutes: null },
+      { time: at("23:30"), tenths: 7, sinceOnsetMinutes: null },
+      { time: at("00:00", "06"), tenths: 7, sinceOnsetMinutes: null },
+    ];
+    expect(selectKeyTick(ticks, at("22:30"))).toEqual(ticks[1]);
+    expect(selectKeyTick(ticks, at("00:00", "06"))).toBeNull();
+  });
+
   it("5 割に達する最初の目盛りを選び、無ければ最後の目盛り", () => {
     const ticks = [
       { time: at("22:30"), tenths: 0, sinceOnsetMinutes: null },
@@ -444,5 +474,9 @@ describe("selectKeyTick", () => {
     expect(selectKeyTick(ticks)?.time).toBe(at("23:30"));
     expect(selectKeyTick(ticks.slice(0, 2))?.time).toBe(at("23:00"));
     expect(selectKeyTick([])).toBeNull();
+    expect(selectKeyTick(ticks, at("23:00"))?.time).toBe(at("00:00", "06"));
+    expect(selectKeyTick(ticks, at("00:00", "06"))).toBeNull();
+    expect(selectKeyTick(ticks.slice(0, 3), at("23:00"))).toEqual(ticks[2]);
+    expect(selectKeyTick([], at("23:00"))).toBeNull();
   });
 });

@@ -1,12 +1,13 @@
 /// <reference lib="dom" />
 // page 内で動かす関数（evaluate）のために DOM の型を読む
 import { fileURLToPath } from "node:url";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import {
   loadReplayScenarios,
   openReplay,
+  openSheet,
   waitForFiniteAnimations,
   waitForJudged,
 } from "../support/replay.ts";
@@ -39,6 +40,107 @@ async function stepTo(page: Page, observationId: string): Promise<void> {
 }
 
 const stations = (page: Page) => page.locator(`[data-testid^="judgment-map-station-"]`);
+
+async function expectLabelsApart(labels: Locator): Promise<void> {
+  await expect
+    .poll(() =>
+      labels.evaluateAll((elements) => elements.filter((el) => el.checkVisibility()).length),
+    )
+    .toBeGreaterThan(1);
+  await expect
+    .poll(() =>
+      labels.evaluateAll((elements) => {
+        const boxes = elements
+          .filter((el) => el.checkVisibility())
+          .map((el) => ({ name: el.textContent, rect: el.getBoundingClientRect() }));
+        if (boxes.length < 2) return ["表示中の札が2枚未満"];
+        return boxes.flatMap((a, i) =>
+          boxes.slice(i + 1).flatMap((b) => {
+            const width = Math.min(a.rect.right, b.rect.right) - Math.max(a.rect.left, b.rect.left);
+            const height =
+              Math.min(a.rect.bottom, b.rect.bottom) - Math.max(a.rect.top, b.rect.top);
+            return width > 0 && height > 0
+              ? [`${a.name} / ${b.name}: ${width.toFixed(2)}×${height.toFixed(2)}px`]
+              : [];
+          }),
+        );
+      }),
+    )
+    .toEqual([]);
+}
+
+for (const viewport of [
+  { width: 375, height: 667 },
+  { width: 390, height: 844 },
+]) {
+  test.describe(`${viewport.width}×${viewport.height} の地図の札`, () => {
+    test.use({ viewport });
+
+    for (const scenario of scenarios) {
+      test(`判断画面の札が重ならない: ${scenario.id}`, async ({ page }) => {
+        await openReplay(page, scenario.id);
+        for (const entry of scenario.timeline) {
+          await page.getByTestId(testIds.replay.nextButton).click();
+          await waitForJudged(page, entry.id);
+          await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute(
+            "data-state",
+            "ready",
+            {
+              timeout: 30_000,
+            },
+          );
+          await waitForFiniteAnimations(page);
+          await expect(
+            page.getByTestId(mapTestIds.here).locator(":scope > [data-placement]"),
+          ).toBeVisible();
+          const recommendedId = await page
+            .getByTestId(testIds.judgment.map)
+            .getAttribute("data-recommended-option");
+          if (recommendedId) {
+            const key = await page
+              .getByTestId(testIds.judgment.option(recommendedId))
+              .getAttribute("data-station");
+            if (key && key !== "here") {
+              const recommended = page.getByTestId(mapTestIds.station(key));
+              await expect(recommended).toHaveAttribute("data-recommended", "true");
+              await expect(recommended).toBeVisible();
+            }
+          }
+          await expectLabelsApart(
+            page.locator(
+              // ボタンの 44px のタップ領域ではなく、表示している札の面を測る
+              '[data-testid="judgment-map-here"] > [data-placement], [data-testid="judgment-map-alight"] > [data-placement], button[data-testid^="judgment-map-station-"] > span, div[data-testid^="judgment-map-station-"], [data-testid="judgment-map-blocked-tag"]',
+            ),
+          );
+        }
+      });
+    }
+
+    test("入口の関西・エリア・駅の札が重ならない", async ({ page }) => {
+      await page.goto("/?mock=1");
+      await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
+        timeout: 30_000,
+      });
+      await page.getByTestId(testIds.start.positionStation).click();
+      const labels = page.locator(
+        '[data-testid^="start-hub-"] > span[aria-hidden], [data-testid^="start-place-"] > [data-station-label], [data-testid^="start-map-stop-"] > span[aria-hidden], [data-testid^="start-hub-edge-"]',
+      );
+      await waitForFiniteAnimations(page);
+      await expectLabelsApart(labels);
+      await page.getByTestId(testIds.start.hub("umeda")).click();
+      await expect(page.getByTestId(testIds.start.place("osaka"))).toBeVisible();
+      await waitForFiniteAnimations(page);
+      await expectLabelsApart(labels);
+      await page.getByTestId(testIds.start.place("osaka")).click();
+      await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute(
+        "data-stage",
+        "destination",
+      );
+      await waitForFiniteAnimations(page);
+      await expectLabelsApart(labels);
+    });
+  });
+}
 
 test("大阪駅では現在地のまわりに寄せ、乗り換え候補の駅を吹き出しで出す", async ({ page }) => {
   if (!osaka) throw new Error("大阪駅のシナリオがありません");
@@ -106,6 +208,54 @@ test("大阪駅では現在地のまわりに寄せ、乗り換え候補の駅�
   // 選択肢の行にも、吹き出しと同じ駅が添えてある
   const key = (await recommended.getAttribute("data-testid"))?.replace("judgment-map-station-", "");
   await expect(option).toHaveAttribute("data-station", key ?? "");
+
+  // ほかの選択肢の行を押すと、シートを閉じて地図をその選択肢の経路と乗る駅に描き直す
+  const other = page
+    .locator(
+      `[data-testid^='judgment-option-'][data-recommended='false']:not([data-station='']):not([data-station='here']):not([data-station='${key}'])`,
+    )
+    .first();
+  const otherId = (await other.getAttribute("data-testid"))?.replace("judgment-option-", "") ?? "";
+  const otherKey = (await other.getAttribute("data-station")) ?? "";
+  expect(otherId).not.toBe("");
+  await other.getByRole("button").click();
+  await expect(page.getByTestId(testIds.judgment.sheet)).toHaveAttribute("data-snap", "collapsed");
+  await expect(map).toHaveAttribute("data-selected-option", otherId);
+  await expect(map).toHaveAttribute("data-recommended-option", optionId ?? "");
+  await expect(other).toHaveAttribute("data-selected", "true");
+  // 地図の見方の経路の色も、地図と同じ選択中の選択肢の色になる
+  const otherKind = (await other.getAttribute("data-kind")) ?? "";
+  const otherTone = otherKind === "wait" ? "wait" : "switch";
+  await expect(map).toHaveAttribute("data-route-tone", otherTone);
+  await expect(page.getByTestId(mapTestIds.legend)).toHaveAttribute("data-tone", otherTone);
+  const selected = page.getByTestId(mapTestIds.station(otherKey));
+  await expect(selected).toHaveAttribute("data-recommended", "true");
+  // おすすめの星は推奨の選択肢の駅に残す
+  await expect(selected).toHaveAttribute("data-starred", "false");
+  await expect(page.getByTestId(mapTestIds.station(key ?? ""))).toHaveAttribute(
+    "data-starred",
+    "true",
+  );
+  await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+  await waitForFiniteAnimations(page);
+  await page.screenshot({ path: `${screenshotDir}map-focus-selected-390x844.png` });
+  // 選んだ経路の乗る駅の吹き出しに「表示中」を添え、地図の上端の札は出さない
+  await expect(selected.locator("[data-shown='true']")).toBeVisible();
+  await expect(page.getByTestId(mapTestIds.selectedRoute)).toHaveCount(0);
+
+  // 待つ選択肢を選ぶと、地図の経路と地図の見方の色がどちらも待つ色に変わる
+  await openSheet(page, "full");
+  const waitOption = page.locator("[data-testid^='judgment-option-'][data-kind='wait']").first();
+  await waitOption.getByRole("button").click();
+  await expect(map).toHaveAttribute("data-route-tone", "wait");
+  await expect(page.getByTestId(mapTestIds.legend)).toHaveAttribute("data-tone", "wait");
+  // 待つ経路には乗る駅の吹き出しが無いので、地図の上端に「表示中」の札を出す
+  const tag = page.getByTestId(mapTestIds.selectedRoute);
+  await expect(tag).toBeVisible();
+  await expect(waitOption).toContainText((await tag.locator("span").nth(1).textContent()) ?? "");
+  await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+  await waitForFiniteAnimations(page);
+  await page.screenshot({ path: `${screenshotDir}map-focus-selected-wait-390x844.png` });
 });
 
 test("「全体を見る」で経路の全体に切り替え、もう一度押すと現在地のまわりに戻る", async ({

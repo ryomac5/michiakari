@@ -26,11 +26,14 @@ describe("決定論モードのシナリオ", () => {
 
       it("すべての観測で、見出しが目安の長さに収まる", async () => {
         const steps = await stepsPromise;
-        const limit = headlineLimits[scenario.user.language].target;
+        const { target, max } = headlineLimits[scenario.user.language];
         for (const step of steps) {
           const headline = findJudgment(step.events)?.headline ?? "";
           expect(headline.length, step.entry.id).toBeGreaterThan(0);
-          expect([...headline].length, step.entry.id).toBeLessThanOrEqual(limit);
+          // 1 文目が大きく出る行動。2 文目は動かなかったときの次の手
+          const lead = headline.split(/。|(?<=\.)\s/)[0] ?? "";
+          expect([...lead].length, step.entry.id).toBeLessThanOrEqual(target);
+          expect([...headline].length, step.entry.id).toBeLessThanOrEqual(max);
         }
       });
 

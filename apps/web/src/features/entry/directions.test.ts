@@ -6,6 +6,8 @@ import {
   listDirectionCandidates,
   listEntryDirections,
   listNearbyStops,
+  listTrainPositionStops,
+  mergeDirectionCandidates,
   pickSpreadStops,
 } from "./directions";
 import { createEntryData, type EntryLine, findStationChoice, listGroupLines } from "./entry-places";
@@ -105,6 +107,20 @@ describe("listEntryDirections", () => {
   });
 });
 
+describe("mergeDirectionCandidates", () => {
+  it("方面を決める前の候補は、両方面をつないでも隣の駅を末尾に回す", () => {
+    const midosuji = findLine("心斎橋", "地下鉄御堂筋線");
+    const directions = listEntryDirections(data, midosuji);
+    const merged = mergeDirectionCandidates(directions);
+    const adjacent = directions.map((d) => d.stops[0]?.choice.id);
+    const names = merged.map((s) => s.choice.id);
+    expect(new Set(names).size).toBe(names.length);
+    const firstAdjacent = names.findIndex((id) => adjacent.includes(id));
+    const lastOther = names.map((id) => !adjacent.includes(id)).lastIndexOf(true);
+    expect(firstAdjacent).toBeGreaterThan(lastOther);
+  });
+});
+
 describe("pickSpreadStops", () => {
   it("地図の札は、現在地と互いから離れた駅だけを残す", () => {
     const line = findLine("心斎橋", "地下鉄御堂筋線");
@@ -120,4 +136,60 @@ describe("pickSpreadStops", () => {
     expect(names).not.toContain("本町");
     expect(names).not.toContain("西中島南方");
   });
+});
+
+describe("京都と神戸の路線", () => {
+  it.each([
+    ["東寺", "近鉄京都線", ["京都", "大和西大寺・橿原神宮前"]],
+    ["七条", "京阪本線", ["三条・出町柳", "枚方市・淀屋橋"]],
+    ["神戸三宮", "阪神本線", ["尼崎・大阪梅田", "元町・高速神戸"]],
+  ])("%s の %s は駅で見る方面名と行き先を持つ", (station, observedName, labels) => {
+    const directions = listEntryDirections(data, findLine(station, observedName));
+    expect(directions.map((direction) => direction.label.ja).sort()).toEqual([...labels].sort());
+    for (const direction of directions) {
+      const candidates = listDirectionCandidates(direction);
+      expect(candidates.length).toBeGreaterThan(0);
+      for (const landmark of direction.landmarks) {
+        expect(candidates).toContain(landmark);
+        expect(landmark.choice.nameEn).toBeTruthy();
+      }
+      expect(direction.label.en).not.toMatch(/[一-龯]/);
+    }
+  });
+});
+
+describe("listTrainPositionStops", () => {
+  it("基準の駅の手前も含めて進行方向に並べ、選んだ駅間から方面を引き直せる", () => {
+    const line = findLine("大阪", "JR神戸線");
+    const direction = listEntryDirections(data, line).find((d) => d.label.ja.includes("三ノ宮"));
+    if (!direction) throw new Error("方面がありません");
+    const names = listTrainPositionStops(data, line, direction).map((s) => s.choice.name);
+    const osaka = names.indexOf("大阪");
+    expect(names.slice(osaka - 1, osaka + 3)).toEqual(["新大阪", "大阪", "塚本", "尼崎"]);
+    const changed = listEntryDirections(data, { ...line, stationName: "塚本" }).find(
+      (d) => d.stops[0]?.choice.name === "尼崎",
+    );
+    expect(changed?.stops[0]?.choice.name).toBe("尼崎");
+  });
+  it("方面の呼び名に含めた直通先を駅間の候補には入れない", () => {
+    const line = findLine("心斎橋", "地下鉄御堂筋線");
+    const direction = listEntryDirections(data, line)[0];
+    if (!direction) throw new Error("方面がありません");
+    const names = listTrainPositionStops(data, line, direction).map((s) => s.choice.name);
+    expect(names).toContain("江坂");
+    expect(names).not.toContain("千里中央");
+  });
+});
+
+it("駅にいる人の行き先候補は両方面から出し、地図にも選べる主な駅を残す", () => {
+  const group = data.catalog.groupById.get("心斎橋");
+  if (!group) throw new Error("駅がありません");
+  const candidates = listGroupLines(data, group)
+    .flatMap((line) => listEntryDirections(data, line))
+    .flatMap((direction) => listDirectionCandidates(direction))
+    .filter((stop, i, stops) => stops.findIndex((s) => s.choice.id === stop.choice.id) === i);
+  expect(candidates.map((s) => s.choice.name)).toEqual(expect.arrayContaining(["梅田", "難波"]));
+  expect(
+    pickSpreadStops(candidates, [group.choice.lon, group.choice.lat]).map((s) => s.choice.name),
+  ).toContain("梅田");
 });

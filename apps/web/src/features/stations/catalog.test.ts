@@ -20,6 +20,19 @@ function searchNames(query: string): string[] {
 }
 
 describe("buildStationCatalog", () => {
+  it("生成済みの網を書き換えず京都と神戸の駅名を補う", () => {
+    const before = network.nodes.find((node) => node.name === "東寺");
+    const originalName = before?.nameEn;
+    const localized = buildStationCatalog(network.nodes, network.lines);
+    expect(localized.groupById.get("東寺")?.choice.nameEn).toBe("Toji");
+    expect(localized.groupById.get("三宮・花時計前")?.choice.nameEn).toBe("Sannomiya-Hanadokeimae");
+    expect(before?.nameEn).toBe(originalName);
+    expect(network.lines).toHaveLength(index.listLines().length);
+    expect(searchStationChoices(index, localized, "toji").map((station) => station.name)).toContain(
+      "東寺",
+    );
+  });
+
   it("同名で近くにある別事業者の駅を 1 つにまとめる", () => {
     const umeda = catalog.groupById.get("大阪梅田");
     expect(umeda?.choice.operators.map((o) => o.name).sort()).toEqual(["阪急", "阪神"]);

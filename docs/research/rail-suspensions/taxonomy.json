@@ -1,0 +1,229 @@
+{
+  "version": 1,
+  "basis": "公開資料の事後分類。運用時に判明していた原因や、検証済みの予測モデルを意味しない。",
+  "groups": [
+    {
+      "id": "passenger",
+      "name": "人・旅客対応"
+    },
+    {
+      "id": "vehicle",
+      "name": "車両"
+    },
+    {
+      "id": "signaling",
+      "name": "信号・ポイント"
+    },
+    {
+      "id": "power",
+      "name": "電力"
+    },
+    {
+      "id": "obstruction",
+      "name": "線路・踏切の支障物"
+    },
+    {
+      "id": "infrastructure",
+      "name": "線路・構造物"
+    },
+    {
+      "id": "weather",
+      "name": "気象・自然"
+    },
+    {
+      "id": "major_accident",
+      "name": "衝突・脱線・火災"
+    }
+  ],
+  "types": [
+    {
+      "id": "person_collision",
+      "group_id": "passenger",
+      "name": "人との接触",
+      "definition": "列車と人の接触が報告された事象。立ち入りのみ、急病対応とは分ける。",
+      "existing_model_id": "person_accident"
+    },
+    {
+      "id": "medical_response",
+      "group_id": "passenger",
+      "name": "急病人対応",
+      "definition": "急病人への救護・搬送対応。非常ボタンが押された事実だけではこの種類に確定しない。",
+      "existing_model_id": null
+    },
+    {
+      "id": "passenger_conflict",
+      "group_id": "passenger",
+      "name": "車内旅客トラブル",
+      "definition": "旅客同士などのトラブルによる対応。急病対応と同日に重なっても分離して記録する。",
+      "existing_model_id": null
+    },
+    {
+      "id": "track_intrusion",
+      "group_id": "passenger",
+      "name": "線路内立ち入り",
+      "definition": "線路内への人の立ち入り。人との接触が報告された事象とは分ける。",
+      "existing_model_id": null
+    },
+    {
+      "id": "suspicious_object",
+      "group_id": "passenger",
+      "name": "不審物確認",
+      "definition": "駅や車内の物品について保安上の安全確認を行う事象。物品が危険だったとは断定しない。",
+      "existing_model_id": null
+    },
+    {
+      "id": "vehicle_failure",
+      "group_id": "vehicle",
+      "name": "車両故障・点検",
+      "definition": "車両の不具合や異常表示による点検。故障箇所が分からない場合は推測して細分しない。",
+      "existing_model_id": "vehicle_failure"
+    },
+    {
+      "id": "vehicle_smoke",
+      "group_id": "vehicle",
+      "name": "車両の発煙確認",
+      "definition": "車輪・機器などの煙が報告された事象。煙だけから火災とは断定しない。",
+      "existing_model_id": "vehicle_failure"
+    },
+    {
+      "id": "signal_failure",
+      "group_id": "signaling",
+      "name": "信号・保安装置の不具合",
+      "definition": "信号表示や列車検知・保安装置の異常。ポイントの転換不良が判明している場合は別種類も付ける。",
+      "existing_model_id": null
+    },
+    {
+      "id": "point_failure",
+      "group_id": "signaling",
+      "name": "ポイントの転換不良",
+      "definition": "進路を切り替える設備が正常に動かない事象。降雪などの引き金は別種類として併記する。",
+      "existing_model_id": null
+    },
+    {
+      "id": "power_outage",
+      "group_id": "power",
+      "name": "停電・送電設備の不具合",
+      "definition": "列車運転用の電力が失われる事象。倒木のような引き金と分けて記録する。",
+      "existing_model_id": null
+    },
+    {
+      "id": "vegetation_obstruction",
+      "group_id": "obstruction",
+      "name": "倒木・樹木の接触",
+      "definition": "樹木が線路や配電線に接触する事象。線路上の倒木と送電支障は副分類で区別する。",
+      "existing_model_id": null
+    },
+    {
+      "id": "foreign_object",
+      "group_id": "obstruction",
+      "name": "架線・線路の異物",
+      "definition": "シート・竹など人以外の物が列車の進路や架線を妨げる事象。飛来したと確認できない場合も含み、動物、構造物落下とは分ける。",
+      "existing_model_id": null
+    },
+    {
+      "id": "animal_collision",
+      "group_id": "obstruction",
+      "name": "動物との接触",
+      "definition": "動物と列車が接触する事象。車両損傷と救援の有無を別に記録する。",
+      "existing_model_id": null
+    },
+    {
+      "id": "crossing_obstruction",
+      "group_id": "obstruction",
+      "name": "踏切内の車両立ち往生",
+      "definition": "踏切内の自動車などの撤去が必要な事象。列車との衝突が報告されていなければ踏切衝突にしない。",
+      "existing_model_id": null
+    },
+    {
+      "id": "track_structure_damage",
+      "group_id": "infrastructure",
+      "name": "線路・軌道構造物の支障",
+      "definition": "レール周辺・軌道桁などの部材が損傷・脱落する事象。原因の確定は事後情報として扱う。",
+      "existing_model_id": null
+    },
+    {
+      "id": "building_falling_object",
+      "group_id": "infrastructure",
+      "name": "駅・トンネル設備の落下",
+      "definition": "駅やトンネルのコンクリート片・固定金具などが落下する事象。飛来物とは分ける。",
+      "existing_model_id": null
+    },
+    {
+      "id": "bridge_impact",
+      "group_id": "infrastructure",
+      "name": "橋げたの衝撃・確認",
+      "definition": "橋げたに衝撃の跡などがあり安全確認を行う事象。衝撃の原因を推測しない。",
+      "existing_model_id": null
+    },
+    {
+      "id": "track_smoke_check",
+      "group_id": "infrastructure",
+      "name": "線路付近の発煙確認",
+      "definition": "線路付近で煙や火花の申告があった事象。確認後に火災でなかった場合も発煙確認として残す。",
+      "existing_model_id": null
+    },
+    {
+      "id": "heat_rail_deformation",
+      "group_id": "infrastructure",
+      "name": "暑さによるレール変形の疑い",
+      "definition": "高温時にレールの変形が疑われた事象。疑いと確定を区別する。",
+      "existing_model_id": null
+    },
+    {
+      "id": "heavy_rain",
+      "group_id": "weather",
+      "name": "大雨",
+      "definition": "降雨による運休・確認。雨の弱まりを待つ場合と、設備が損傷した場合を別の変種として持つ。",
+      "existing_model_id": "heavy_rain"
+    },
+    {
+      "id": "strong_wind",
+      "group_id": "weather",
+      "name": "強風",
+      "definition": "風による運休。再開時刻を固定の復旧作業時間と同じようには扱わない。",
+      "existing_model_id": null
+    },
+    {
+      "id": "earthquake",
+      "group_id": "weather",
+      "name": "地震後の確認",
+      "definition": "地震に伴う運転の停止・設備確認。実例にない損傷の有無を決めつけない。",
+      "existing_model_id": null
+    },
+    {
+      "id": "lightning",
+      "group_id": "weather",
+      "name": "落雷",
+      "definition": "落雷が報告・推定された事象。信号や構造物に損傷が残ったかを副分類で分ける。",
+      "existing_model_id": null
+    },
+    {
+      "id": "snow_ice",
+      "group_id": "weather",
+      "name": "雪・凍結",
+      "definition": "降積雪や凍結。速度を落としただけの場合と、ポイントが動かず運休した場合を分ける。",
+      "existing_model_id": null
+    },
+    {
+      "id": "crossing_collision",
+      "group_id": "major_accident",
+      "name": "踏切での列車と車両の衝突",
+      "definition": "踏切で列車と道路上の車両が衝突した事象。自動車だけの立ち往生とは分ける。",
+      "existing_model_id": null
+    },
+    {
+      "id": "derailment",
+      "group_id": "major_accident",
+      "name": "脱線",
+      "definition": "列車の脱線が報告された事象。車両撤去や設備確認を伴う実例を記録する。",
+      "existing_model_id": null
+    },
+    {
+      "id": "onboard_fire",
+      "group_id": "major_accident",
+      "name": "車内の発火",
+      "definition": "車内の物品などの発火が報告された事象。車両機器の発煙とは分ける。",
+      "existing_model_id": null
+    }
+  ]
+}

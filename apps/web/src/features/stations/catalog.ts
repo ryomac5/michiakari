@@ -1,9 +1,10 @@
 import type { GeoIndex, LineInfo, StationNode } from "@repo/geo";
 import { computeDistanceMeters } from "@repo/geo";
 import { z } from "zod";
+import { STATION_NAME_EN_OVERRIDES } from "./station-names-en";
 
 // 駅検索の候補。国土数値情報の駅（路線ごと）を、同じ名前で近くにある駅どうし 1 つにまとめる
-// 英語名は @repo/geo のデータが持つもの（主要駅と全路線・全事業者）を使う
+// 英語名は駅データを使い、表示用の設定で補う
 
 export const StationChoiceSchema = z.object({
   // 検索結果の安定した識別子。同名で離れた駅が無ければ駅名そのもの
@@ -102,7 +103,7 @@ function buildGroup(
     choice: {
       id,
       name: main.name,
-      nameEn: nodes.find((n) => n.nameEn)?.nameEn ?? null,
+      nameEn: STATION_NAME_EN_OVERRIDES[main.name] ?? nodes.find((n) => n.nameEn)?.nameEn ?? null,
       operators: summarizeOperators(nodes, lineById),
       lat: main.lonLat[1],
       lon: main.lonLat[0],

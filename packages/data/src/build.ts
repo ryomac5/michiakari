@@ -18,6 +18,7 @@ import {
   SECTION_ENTRY,
   STATION_ENTRY,
 } from "../config/sources.ts";
+import { buildBusStops } from "./bus-build.ts";
 import { downloadArchive } from "./download.ts";
 import { createValueTable, openDuckDB, querySqlFile, runSqlFile } from "./duckdb.ts";
 import { buildNetwork, type SectionRow, type StationRow } from "./network.ts";
@@ -165,6 +166,15 @@ async function main() {
   console.log(
     `路線 ${lines.length}、駅 ${nodes.length}、隣接辺 ${edges.length}、乗換辺 ${transfers.length} を ${OUT_DIR} に書き出しました`,
   );
+
+  // バス停は書き出した駅の周りだけを収める
+  const busStops = await buildBusStops({
+    cacheDir: CACHE_DIR,
+    sqlDir: SQL_DIR,
+    outDir: OUT_DIR,
+    stations: nodes.map((n) => n.lonLat),
+  });
+  console.log(`バス停 ${busStops.count} を ${OUT_DIR} に書き出しました`);
   for (const issue of issues) {
     console.log(`[並びの注意] ${issue.lineId}: ${issue.messages.join(" / ")}`);
   }

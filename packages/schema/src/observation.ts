@@ -5,6 +5,7 @@ import {
   IsoDateTimeSchema,
   LocalizedTextSchema,
   ObservableKindSchema,
+  TrainTypeSchema,
 } from "./common.ts";
 
 // 利用者が持ち込む未解釈の入力
@@ -18,6 +19,7 @@ export const PhotoInputSchema = z.object({
   type: z.literal("photo"),
   imageBase64: z.string().min(1),
   mediaType: ImageMediaTypeSchema,
+  fileName: z.string().max(255).optional(),
 });
 
 export const TextInputSchema = z.object({
@@ -89,5 +91,7 @@ export const ObservationSchema = z.object({
   statedResumeTime: IsoDateTimeSchema.nullable(),
   transferServiceActive: z.boolean().nullable(),
   detectedSignals: z.array(DetectedSignalSchema),
+  // 走行位置画像から読んだ、前の列車の種別（近い順）
+  trainsAhead: z.array(TrainTypeSchema).optional(),
 });
 export type Observation = z.infer<typeof ObservationSchema>;

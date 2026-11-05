@@ -19,7 +19,7 @@ import {
   waitForJudged,
 } from "../support/replay.ts";
 
-// デモ動画の台本（docs/demo-script.md）の 0:25〜1:50 をリプレイで自動操作して録画する
+// デモ動画の台本の冒頭の導入からリプレイまでを自動操作して録画する
 //   0:25〜0:45 最初の掲示 → 推論の過程が順に現れる → 結論と分岐点
 //   0:45〜1:30 発表が更新されるたびに、いまここ・分岐点・地図が変わる。結論が変わるたびに止めて見せる
 //   1:30〜1:50 最後に結論が変わった時点の地図: 止まっている区間、徒歩の到達範囲、推奨経路と代替経路
@@ -28,6 +28,7 @@ import {
 // 主役は RECORD_SCENARIO、対比は RECORD_CONTRAST で指定する
 // 無ければ、主役は期待値に「切り替える」を含む最初のシナリオ、対比は期待値がすべて「待つ」の最初のシナリオ
 
+const introHoldMs = 25_000;
 const playbackSpeed = Number(process.env.RECORD_SPEED ?? 2);
 
 function findScenario(scenarios: Scenario[], id: string): Scenario {
@@ -89,8 +90,8 @@ async function showSheet(page: Page, snap: SheetSnap, holdMs: number): Promise<v
 }
 
 // 一覧からシナリオを選び、再生の前の画面で止める
-// 一覧の背景の地図と札を描き終えたら知らせる。最初の呼び出しでは、動画をそこから切り出す
-async function pickScenario(page: Page, scenario: Scenario, onDrawn?: () => void): Promise<void> {
+// 一覧の背景の地図と札が描き終わるまで待つ
+async function pickScenario(page: Page, scenario: Scenario): Promise<void> {
   await page.goto("/replay");
   await expect(page.getByTestId(testIds.replay.scenario(scenario.id))).toBeVisible({
     timeout: 60_000,
@@ -104,7 +105,6 @@ async function pickScenario(page: Page, scenario: Scenario, onDrawn?: () => void
     timeout: 60_000,
   });
   await waitForFiniteAnimations(page);
-  onDrawn?.();
   await page.waitForTimeout(1500);
   await page.getByTestId(testIds.replay.scenario(scenario.id)).click();
   await expect(page.getByTestId(testIds.replay.screen)).toHaveAttribute("data-state", "idle");
@@ -165,7 +165,17 @@ test("デモ: リプレイで判断と地図が変わる様子を録画する", 
   const contrast = selectContrastScenario(scenarios, scenario);
 
   await hideHandleFocusRing(page);
-  await pickScenario(page, scenario, () => markFirstScreen(marks));
+  await page.goto("/");
+  await page.getByTestId(testIds.start.positionStation).click();
+  await expect(page.getByTestId(testIds.start.intro)).toBeVisible();
+  await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
+    timeout: 60_000,
+  });
+  await expect(page.getByTestId(testIds.start.originSearch)).toBeInViewport({ ratio: 1 });
+  await waitForFiniteAnimations(page);
+  markFirstScreen(marks);
+  await page.waitForTimeout(introHoldMs);
+  await pickScenario(page, scenario);
   await showFirstJudgment(page, scenario);
 
   // 速度を上げて再生し、結論が変わるたびに一時停止して、結論とシートの上部を見せる

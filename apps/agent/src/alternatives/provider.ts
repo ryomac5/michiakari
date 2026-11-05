@@ -1,5 +1,5 @@
 import type { LonLat } from "@repo/core";
-import type { DurationDist, Lang, Place, RouteOption, Section } from "@repo/schema";
+import type { BusCheck, DurationDist, Lang, Place, RouteOption, Section } from "@repo/schema";
 
 // 代替手段の算出の差し替え口。WS1 の路線ネットワークが来たらこの型で実装を入れ替える
 
@@ -62,4 +62,6 @@ export interface AlternativesProvider {
   listLines(): readonly LineInfo[];
   // 来た側の駅と次の駅から、その先の駅と駅間の走行時間を並べる。路線上で結べなければ null
   listStationsAhead(query: StationsAheadQuery): StationsAhead | null;
+  // 出発地から歩いて確かめに行けるバス停。判断の確定後に付け、判断の材料には渡さない
+  listBusChecks(place: Place): BusCheck[];
 }

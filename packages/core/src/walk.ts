@@ -38,3 +38,11 @@ export function computeWalkMinutesFromMeters(meters: number): number {
   }
   return Math.ceil(meters / WALK_SPEED_M_PER_MIN);
 }
+
+// 徒歩の分の上限で届く直線距離（m）。estimateWalkMinutes の逆で、迂回のぶんを差し引く
+export function computeWalkReachMeters(maxMinutes: number): number {
+  if (!Number.isFinite(maxMinutes) || maxMinutes < 0) {
+    throw new RangeError(`分は 0 以上の有限値: ${maxMinutes}`);
+  }
+  return (maxMinutes * WALK_SPEED_M_PER_MIN) / WALK_DETOUR_FACTOR;
+}

@@ -22,6 +22,99 @@ export type DirectionLabelConfig = {
 };
 
 export const directionLabels: DirectionLabelConfig[] = [
+  { lineId: "kintetsu.京都線", terminal: "京都", landmarks: [{ station: "京都" }] },
+  {
+    lineId: "kintetsu.京都線",
+    terminal: "大和西大寺",
+    landmarks: [{ station: "大和西大寺" }, { station: "橿原神宮前" }],
+    throughLineId: "kintetsu.橿原線",
+  },
+  {
+    lineId: "keihan.京阪本線",
+    terminal: "淀屋橋",
+    landmarks: [{ station: "枚方市" }, { station: "淀屋橋" }],
+  },
+  {
+    lineId: "keihan.京阪本線",
+    terminal: "三条",
+    landmarks: [{ station: "三条" }, { station: "出町柳" }],
+    throughLineId: "keihan.鴨東線",
+  },
+  {
+    lineId: "kyoto-subway.烏丸線",
+    terminal: "国際会館",
+    landmarks: [{ station: "四条" }, { station: "国際会館" }],
+  },
+  {
+    lineId: "kyoto-subway.烏丸線",
+    terminal: "竹田",
+    landmarks: [{ station: "京都" }, { station: "竹田" }],
+  },
+  {
+    lineId: "kyoto-subway.東西線",
+    terminal: "六地蔵",
+    landmarks: [{ station: "山科" }, { station: "六地蔵" }],
+  },
+  {
+    lineId: "kyoto-subway.東西線",
+    terminal: "太秦天神川",
+    landmarks: [{ station: "二条" }, { station: "太秦天神川" }],
+  },
+  {
+    lineId: "hanshin.本線",
+    terminal: "大阪梅田",
+    landmarks: [{ station: "尼崎" }, { station: "大阪梅田" }],
+  },
+  {
+    lineId: "hanshin.本線",
+    terminal: "元町",
+    landmarks: [{ station: "元町" }, { station: "高速神戸" }],
+    throughLineId: "hanshin.神戸高速線",
+  },
+  { lineId: "hankyu.神戸高速線", terminal: "神戸三宮", landmarks: [{ station: "神戸三宮" }] },
+  {
+    lineId: "hankyu.神戸高速線",
+    terminal: "新開地",
+    landmarks: [{ station: "高速神戸" }, { station: "新開地" }],
+  },
+  { lineId: "hanshin.神戸高速線", terminal: "元町", landmarks: [{ station: "元町" }] },
+  {
+    lineId: "hanshin.神戸高速線",
+    terminal: "西代",
+    landmarks: [{ station: "新開地" }, { station: "西代" }],
+  },
+  {
+    lineId: "kobe-subway.山手線",
+    terminal: "新神戸",
+    landmarks: [{ station: "新神戸" }, { station: "谷上" }],
+    throughLineId: "kobe-subway.北神線",
+  },
+  {
+    lineId: "kobe-subway.山手線",
+    terminal: "新長田",
+    landmarks: [{ station: "新長田" }, { station: "名谷" }],
+    throughLineId: "kobe-subway.西神線",
+  },
+  {
+    lineId: "kobe-subway.海岸線",
+    terminal: "新長田",
+    landmarks: [{ station: "ハーバーランド" }, { station: "新長田" }],
+  },
+  {
+    lineId: "kobe-subway.海岸線",
+    terminal: "三宮・花時計前",
+    landmarks: [{ station: "三宮・花時計前" }],
+  },
+  {
+    lineId: "kobe-new-transit.ポートアイランド線",
+    terminal: "神戸空港",
+    landmarks: [{ station: "市民広場" }, { station: "神戸空港" }],
+  },
+  {
+    lineId: "kobe-new-transit.ポートアイランド線",
+    terminal: "三宮",
+    landmarks: [{ station: "三宮" }],
+  },
   {
     lineId: "osaka-metro.御堂筋線",
     terminal: "江坂",

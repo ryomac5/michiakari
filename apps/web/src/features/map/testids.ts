@@ -16,4 +16,9 @@ export const mapTestIds = {
   // 駅間の車内の人に出す、次に降りる駅の印
   alight: "judgment-map-alight",
   blockedTag: "judgment-map-blocked-tag",
+  // 一覧で選んだ経路を描いているときの「表示中」の札
+  selectedRoute: "judgment-map-selected-route",
+  // 札が地図に収まらないときに、札を移す上端の一覧と、その駅の行
+  labelList: "judgment-map-label-list",
+  labelListRow: (key: string) => `judgment-map-label-list-row-${key}`,
 } as const;

@@ -167,12 +167,17 @@ function buildFirstJudgment(request: JudgeRequest, now: Date): Judgment {
   const clock = formatClockTime(breakEvenTime.toISOString(), request.language);
   return {
     action: "wait",
-    headline: en ? "You can wait about 14 more minutes" : "あと14分は待てます",
+    headline: en
+      ? `Wait until ${clock}. If still stopped, take the Hankyu Kobe Line.`
+      : `${clock}まで待つ。動かなければ阪急神戸線へ`,
+    reason: en
+      ? "Restart is expected before the cutoff. On-site checks are under way."
+      : "再開は境目より前の見込みです。現場の確認が続いています。",
     breakEven: {
       time: formatIsoWithOffset(breakEvenTime),
       explanation: en
-        ? `If service has not resumed by ${clock}, the Hankyu transfer gets you there sooner.`
-        : `${clock}までに再開しなければ、阪急神戸線の振替のほうが早く着きます`,
+        ? `If service resumes by ${clock}, waiting gets you there sooner.`
+        : `${clock}までに再開すれば待つほうが早く着きます`,
     },
     estimate: {
       eventType,
@@ -218,7 +223,12 @@ function buildFollowUpJudgment(request: JudgeRequest, now: Date): Judgment {
   const clock = formatClockTime(breakEvenTime.toISOString(), request.language);
   return {
     action: "switch",
-    headline: en ? "Switch to the Hankyu transfer now" : "いま阪急神戸線の振替に切り替えてください",
+    headline: en
+      ? "Walk to Osaka-umeda for the Hankyu Kobe Line."
+      : "大阪梅田まで歩いて阪急神戸線へ",
+    reason: en
+      ? "Even a restart now is slower than the Hankyu Kobe Line. The cutoff has passed."
+      : "いま動いても阪急神戸線が早く着きます。境目を過ぎています。",
     breakEven: {
       time: formatIsoWithOffset(breakEvenTime),
       explanation: en

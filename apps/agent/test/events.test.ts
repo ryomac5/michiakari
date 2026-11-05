@@ -52,6 +52,28 @@ describe("判断イベントの列", () => {
     });
   }
 
+  it("決定論モードでは、バス停の確認候補を判断の後に付け、見出し・理由・推奨には入れない", async () => {
+    let seen = 0;
+    for (const scenario of scenarios) {
+      const steps = await replayScenario(createTestApp(deps), scenario);
+      for (const { entry, events } of steps) {
+        const computed = events.find((e) => e.type === "alternatives_computed");
+        expect(computed && "busChecks" in computed, entry.id).toBe(false);
+        const ready = events.find((e) => e.type === "judgment_ready");
+        if (ready?.type !== "judgment_ready") continue;
+        const { judgment } = ready;
+        for (const check of judgment.busChecks ?? []) {
+          seen += 1;
+          expect(judgment.headline, entry.id).not.toContain(check.stopName);
+          expect(judgment.reason ?? "", entry.id).not.toContain(check.stopName);
+          expect(judgment.recommendedOptionId, entry.id).not.toBe(check.id);
+          expect(judgment.options.some((o) => o.id === check.id)).toBe(false);
+        }
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+
   it("決定論モードでも各段階の開始を利用者の言語で流す", async () => {
     const scenario = scenarios[0];
     const entry = scenario?.timeline[0];

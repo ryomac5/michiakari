@@ -3,6 +3,7 @@ import { WALK_DETOUR_FACTOR, WALK_SPEED_M_PER_MIN } from "../params/walk.ts";
 import {
   computeHaversineMeters,
   computeWalkMinutesFromMeters,
+  computeWalkReachMeters,
   estimateWalkMinutes,
   type LonLat,
 } from "../src/walk.ts";
@@ -63,5 +64,26 @@ describe("estimateWalkMinutes", () => {
 
   it("ごく近い地点は 1 分", () => {
     expect(estimateWalkMinutes(origin, [135.5, 34.7001])).toBe(1);
+  });
+});
+
+describe("computeWalkReachMeters", () => {
+  it("上限の分で歩ける道のりを迂回係数で割る", () => {
+    expect(computeWalkReachMeters(10)).toBeCloseTo(
+      (10 * WALK_SPEED_M_PER_MIN) / WALK_DETOUR_FACTOR,
+    );
+  });
+
+  it("届く距離の点は上限の分に収まる", () => {
+    const meters = computeWalkReachMeters(10);
+    const from: LonLat = [135.5, 34.7];
+    // 緯度 1 度はおよそ 111km。少し内側の点で確かめる
+    const to: LonLat = [135.5, 34.7 + (meters * 0.99) / 111_195];
+    expect(estimateWalkMinutes(from, to)).toBeLessThanOrEqual(10);
+  });
+
+  it("負または有限でない分は例外", () => {
+    expect(() => computeWalkReachMeters(-1)).toThrow(RangeError);
+    expect(() => computeWalkReachMeters(Number.NaN)).toThrow(RangeError);
   });
 });

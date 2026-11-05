@@ -77,6 +77,8 @@ export type MapSceneInput = {
   destination: Place;
   options: RouteOption[];
   recommendedOptionId: string | null;
+  // 一覧で選んだ選択肢。あればこの経路を描き、推奨はそのまま保つ
+  selectedOptionId?: string | null;
   blockedSection: Section | null;
   // 止まっている路線の名前。分からなければ選択肢の「待つ」経路から推し量る
   blockedLine?: string | null;
@@ -698,12 +700,13 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
     ? listReachableStations(geo.nodes, widestReach, blockedLineIds)
     : [];
 
-  const recommended = input.options.find((o) => o.id === input.recommendedOptionId);
-  const routeLegs = recommended ? resolveRouteLegs(geo, recommended) : [];
+  const routeOptionId = input.selectedOptionId ?? input.recommendedOptionId;
+  const routeOption = input.options.find((o) => o.id === routeOptionId);
+  const routeLegs = routeOption ? resolveRouteLegs(geo, routeOption) : [];
   const blockedCoordinates = blockedPath?.coordinates ?? [];
   // 代替経路は乗車区間だけ。止まっている区間と並走するものは推奨経路と重なってうるさいので出さない
   const alternativeLegs = input.options
-    .filter((o) => o.id !== input.recommendedOptionId)
+    .filter((o) => o.id !== routeOptionId)
     .flatMap((o) =>
       resolveRouteLegs(geo, o)
         .filter((leg) => leg.mode === "ride" && !isParallelTo(leg.coordinates, blockedCoordinates))

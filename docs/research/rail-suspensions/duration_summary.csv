@@ -1,0 +1,14 @@
+cause_category,count,median_minutes,p80_minutes,minimum_minutes,maximum_minutes
+person_accident,17,100.0,123.2,25,147
+other,9,75.0,148.8,23,225
+natural_wind,6,52.5,245.0,10,330
+signal_failure,5,190.0,258.20000000000005,135,531
+vehicle_failure,5,85.0,92.8,71,96
+natural_other,4,142.5,240.00000000000009,20,375
+natural_rain,4,71.0,105.20000000000002,34,140
+natural_lightning,2,48.5,55.400000000000006,37,60
+power_failure,2,492.5,503.0,475,510
+crossing_accident,1,614.0,614.0,614,614
+derailment,1,1575.0,1575.0,1575,1575
+natural_snow,1,85.0,85.0,85,85
+onboard_fire,1,28.0,28.0,28,28

@@ -1,11 +1,11 @@
 "use client";
 
-import type { MouseEvent, ReactNode } from "react";
+import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { testIds } from "@/features/judgment/testids";
 import { cn } from "@/lib/utils";
 import type { LabelSide } from "./areas";
 
-// 入口の地図の印。押せる範囲は丸を中心にした 44px の四角で、名前の札はその外側に出す
+// 入口の地図の印。押せる範囲は丸を中心にした 48px の四角で、名前の札はその外側に出す
 
 const labelSideClass: Record<LabelSide, string> = {
   right: "left-[calc(50%+14px)] top-1/2 -translate-y-1/2",
@@ -21,9 +21,16 @@ function stop(handler: () => void) {
   };
 }
 
+// 札を辺の方向へずらす量（px）。上下に置くなら横へ、左右に置くなら縦へずらす
+function buildSlideStyle(side: LabelSide, slide: number): CSSProperties | undefined {
+  if (slide === 0) return undefined;
+  return side === "top" || side === "bottom" ? { marginLeft: slide } : { marginTop: slide };
+}
+
 function MarkerButton({
   label,
   side,
+  slide = 0,
   onClick,
   testId,
   dim = false,
@@ -33,6 +40,7 @@ function MarkerButton({
 }: {
   label: string;
   side: LabelSide;
+  slide?: number;
   onClick: () => void;
   testId: string;
   dim?: boolean;
@@ -48,7 +56,7 @@ function MarkerButton({
       aria-pressed={pressed}
       onClick={stop(onClick)}
       className={cn(
-        "group relative flex size-11 animate-fade-in items-center justify-center rounded-full transition-opacity duration-200",
+        "group pointer-events-auto relative flex size-12 animate-fade-in items-center justify-center rounded-full transition-opacity duration-200",
         dim && "opacity-45 hover:opacity-100",
       )}
     >
@@ -59,6 +67,7 @@ function MarkerButton({
           "absolute flex items-center gap-1.5 whitespace-nowrap rounded-full bg-surface text-foreground shadow-[0_2px_10px_rgb(0_0_0/0.16)] ring-1 ring-[var(--glass-border)] transition-transform duration-150 group-hover:scale-[1.04] group-active:scale-95",
           labelSideClass[side],
         )}
+        style={buildSlideStyle(side, slide)}
       >
         {children}
       </span>
@@ -71,17 +80,20 @@ export function HubMarker({
   areaId,
   label,
   side,
+  slide,
   onSelect,
 }: {
   areaId: string;
   label: string;
   side: LabelSide;
+  slide: number;
   onSelect: () => void;
 }) {
   return (
     <MarkerButton
       label={label}
       side={side}
+      slide={slide}
       onClick={onSelect}
       testId={testIds.start.hub(areaId)}
       dot={
@@ -110,11 +122,37 @@ function LineSwatches({ colors }: { colors: string[] }) {
   );
 }
 
-// エリアの段の駅。選んだ駅は判断の画面の現在地と同じ青い丸にする
+// 小さな文字の札に添える路線色の点。近くの似た名前の駅を色で見分ける
+function LineDots({ colors }: { colors: string[] }) {
+  return (
+    <span className="flex gap-0.5">
+      {colors.slice(0, 4).map((color, i) => (
+        <span
+          // biome-ignore lint/suspicious/noArrayIndexKey: 同じ色の路線が並ぶことがあり、位置で見分ける
+          key={i}
+          className="size-[5px] rounded-full"
+          style={{ backgroundColor: color }}
+        />
+      ))}
+    </span>
+  );
+}
+
+const smallSideClass: Record<LabelSide, string> = {
+  right: "left-[calc(50%+9px)] top-1/2 -translate-y-1/2",
+  left: "right-[calc(50%+9px)] top-1/2 -translate-y-1/2",
+  top: "bottom-[calc(50%+9px)] left-1/2 -translate-x-1/2",
+  bottom: "top-[calc(50%+9px)] left-1/2 -translate-x-1/2",
+};
+
+// 地図の駅。乗降客数の多い駅は大きめの丸と札、少ない駅は小さな丸と小さな文字にする
+// 名前が重なる駅は印だけを出し、押せば選べる。選んだ駅は判断の画面の現在地と同じ青い丸にする
 export function PlaceMarker({
   placeKey,
   label,
-  side,
+  layout,
+  major,
+  hitRadius,
   colors,
   selected,
   dim,
@@ -123,44 +161,85 @@ export function PlaceMarker({
 }: {
   placeKey: string;
   label: string;
-  side: LabelSide;
+  layout: { side: LabelSide; size: "large" | "small"; slide: number; tappable: boolean } | null;
+  major: boolean;
+  // 押せる丸の半径（px）。隣の駅の印に届かない大きさ
+  hitRadius: number;
   colors: string[];
   selected: boolean;
   dim: boolean;
   hereLabel: string;
   onSelect: () => void;
 }) {
+  const dot = selected ? (
+    <span className="relative size-5">
+      <span aria-hidden className="absolute -inset-3 animate-here-pulse rounded-full bg-focus/30" />
+      <span className="absolute inset-0 rounded-full border-[3px] border-white bg-focus shadow-[0_1px_6px_rgb(0_0_0/0.35)]" />
+    </span>
+  ) : (
+    <span
+      className={cn(
+        "rounded-full bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.25)] transition-transform duration-150 group-hover:scale-110 group-active:scale-90",
+        major ? "size-[15px] border-[3.5px]" : "size-[11px] border-[2.5px]",
+      )}
+      style={{ borderColor: colors[0] ?? "currentColor" }}
+    />
+  );
   return (
-    <MarkerButton
-      label={label}
-      side={side}
-      onClick={onSelect}
-      testId={testIds.start.place(placeKey)}
-      dim={dim}
-      pressed={selected}
-      dot={
-        selected ? (
-          <span className="relative size-5">
-            <span
-              aria-hidden
-              className="absolute -inset-3 animate-here-pulse rounded-full bg-focus/30"
-            />
-            <span className="absolute inset-0 rounded-full border-[3px] border-white bg-focus shadow-[0_1px_6px_rgb(0_0_0/0.35)]" />
-          </span>
-        ) : (
-          <span
-            className="size-[15px] rounded-full border-[3.5px] bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.25)] transition-transform duration-150 group-hover:scale-110 group-active:scale-90"
-            style={{ borderColor: colors[0] ?? "currentColor" }}
-          />
-        )
-      }
+    <button
+      type="button"
+      data-testid={testIds.start.place(placeKey)}
+      data-label={layout?.size ?? "none"}
+      aria-label={label}
+      aria-pressed={selected}
+      onClick={stop(onSelect)}
+      className={cn(
+        "group pointer-events-none relative flex animate-fade-in items-center justify-center rounded-full transition-opacity duration-200",
+        major || selected ? "size-12" : "size-11",
+        dim && "opacity-45 hover:opacity-100",
+      )}
     >
-      <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] leading-none font-semibold">
-        {selected && <span className="text-focus">{hereLabel}</span>}
-        {label}
-        <LineSwatches colors={colors} />
-      </span>
-    </MarkerButton>
+      {/* 押せるのはこの丸と、押せる札だけ。ボタンの四角は隣の駅の印に掛かるので押せなくする */}
+      <span
+        aria-hidden
+        data-hit-area
+        className="pointer-events-auto absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{ width: hitRadius * 2, height: hitRadius * 2 }}
+      />
+      {dot}
+      {layout?.size === "large" && (
+        <span
+          aria-hidden
+          data-station-label
+          className={cn(
+            layout.tappable ? "pointer-events-auto" : "pointer-events-none",
+            "absolute flex items-center gap-1.5 whitespace-nowrap rounded-full bg-surface px-2.5 py-1.5 text-[13px] leading-none font-semibold text-foreground shadow-[0_2px_10px_rgb(0_0_0/0.16)] ring-1 ring-[var(--glass-border)] transition-transform duration-150 group-hover:scale-[1.04] group-active:scale-95",
+            labelSideClass[layout.side],
+          )}
+          style={buildSlideStyle(layout.side, layout.slide)}
+        >
+          {selected && <span className="text-focus">{hereLabel}</span>}
+          {label}
+          <LineSwatches colors={colors} />
+        </span>
+      )}
+      {layout?.size === "small" && (
+        <span
+          aria-hidden
+          data-station-label
+          className={cn(
+            layout.tappable ? "pointer-events-auto" : "pointer-events-none",
+            "absolute flex h-[18px] items-center gap-1 whitespace-nowrap rounded-[5px] bg-surface/90 px-1 text-[11px] leading-none font-semibold text-foreground shadow-[0_1px_3px_rgb(0_0_0/0.12)]",
+            smallSideClass[layout.side],
+          )}
+          style={buildSlideStyle(layout.side, layout.slide)}
+        >
+          {selected && <span className="text-focus">{hereLabel}</span>}
+          {label}
+          <LineDots colors={colors} />
+        </span>
+      )}
+    </button>
   );
 }
 
