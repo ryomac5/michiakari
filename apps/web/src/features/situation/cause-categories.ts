@@ -3,7 +3,7 @@ import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 // 入口で聞く原因の大分類と、判断で使う知見の事象の対応。対応はこの 1 か所にまとめる
 // 大分類は docs/research/rail-suspensions/taxonomy.json の 8 大分類にそろえる
 // 事象は taxonomy.json の existing_model_id を手がかりにする
-// 大分類の中で種類によって事象が違うときは知見なしとする。人・旅客対応だけは種類を 1 問聞いて絞る
+// 大分類の中で種類によって事象が違うときは知見なしとする。人・旅客対応と気象・自然だけは種類を 1 問聞いて絞る
 
 export const causeCategoryIds = [
   "passenger",
@@ -17,7 +17,16 @@ export const causeCategoryIds = [
 ] as const;
 export type CauseCategoryId = (typeof causeCategoryIds)[number];
 
-export const causeKindIds = ["person", "inCar", "other"] as const;
+export const causeKindIds = [
+  "person",
+  "inCar",
+  "rain",
+  "wind",
+  "snow",
+  "lightning",
+  "earthquake",
+  "other",
+] as const;
 export type CauseKindId = (typeof causeKindIds)[number];
 
 type CauseKind = { id: CauseKindId; eventType: string | null };
@@ -40,8 +49,19 @@ const causeCategories: Record<CauseCategoryId, CauseCategory> = {
   power: { id: "power", eventType: null },
   obstruction: { id: "obstruction", eventType: null },
   infrastructure: { id: "infrastructure", eventType: null },
-  // 大雨だけが知見を持ち、強風や地震などは持たない。種類で事象が違うので知見なしとする
-  weather: { id: "weather", eventType: null },
+  // 大雨だけが知見を持ち、強風や地震などは持たない
+  weather: {
+    id: "weather",
+    eventType: null,
+    kinds: [
+      { id: "rain", eventType: "heavy_rain" },
+      { id: "wind", eventType: null },
+      { id: "snow", eventType: null },
+      { id: "lightning", eventType: null },
+      { id: "earthquake", eventType: null },
+      { id: "other", eventType: null },
+    ],
+  },
   major_accident: { id: "major_accident", eventType: null },
 };
 

@@ -34,9 +34,22 @@ async function openCauseStage(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
 }
 
+function expectStage(page: Page, stage: string) {
+  return expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", stage);
+}
+
+async function expectDepth(page: Page, depth: number) {
+  await expect.poll(() => page.evaluate(() => window.history.state?.entryDepth)).toBe(depth);
+}
+
 // 大分類を選び、いま止まった・見込みは言っていないで判断を始める。agent に送った要求を返す
-async function judgeWithCategory(page: Page, category: string): Promise<Request> {
+// 種類を聞く大分類では、続けて種類を選ぶ
+async function judgeWithCategory(page: Page, category: string, kind?: string): Promise<Request> {
   await page.getByTestId(testIds.start.cause(category)).click();
+  if (kind) {
+    await expectStage(page, "causeKind");
+    await page.getByTestId(testIds.start.causeKind(kind)).click();
+  }
   await page.getByTestId(testIds.start.elapsed("now")).click();
   const request = page.waitForRequest(
     (r) => r.method() === "POST" && new URL(r.url()).pathname === "/judge",
@@ -93,4 +106,45 @@ test("知見の無い電力の大分類を選ぶと、分からないと同じ�
   await expect(premise).toContainText("境目の時刻を動く目安");
   await expect(premise).not.toContainText("原因は未確認");
   await expect(page.getByTestId(testIds.judgment.nextCheck)).toContainText("原因");
+});
+
+test("雨・風・雪・地震から雨を選ぶと、大雨の事象で判断し、戻るで種類の問いへ 1 段ずつ引く", async ({
+  page,
+}) => {
+  await openCauseStage(page);
+  await page.getByTestId(testIds.start.cause("weather")).click();
+  await expectStage(page, "causeKind");
+  await expectDepth(page, 5);
+  const kinds = page.locator("[data-testid^='start-cause-kind-']");
+  await expect(kinds).toHaveCount(6);
+  await expect(page.getByTestId(testIds.start.causeKind("rain"))).toHaveText("雨");
+  await expect(page.getByTestId(testIds.start.causeKind("snow"))).toHaveText("雪・凍結");
+  await page.getByTestId(testIds.start.back).click();
+  await expectStage(page, "cause");
+
+  const request = await judgeWithCategory(page, "weather", "rain");
+  expect((await request).postDataJSON().newInput).toEqual({
+    type: "selection",
+    eventType: "heavy_rain",
+    signalIds: [],
+  });
+  await expect(page.getByTestId(testIds.judgment.disclaimer)).toBeVisible();
+  await openSheet(page, "full");
+  await expect(page.getByTestId(testIds.judgment.premise)).toContainText(
+    "原因は放送で聞いた雨・風・雪・地震と仮定する",
+  );
+
+  await page.goBack();
+  await expectStage(page, "resume");
+  await expectDepth(page, 7);
+  await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText("雨");
+  await page.goBack();
+  await expectStage(page, "elapsed");
+  await expectDepth(page, 6);
+  await page.goBack();
+  await expectStage(page, "causeKind");
+  await expectDepth(page, 5);
+  await page.goBack();
+  await expectStage(page, "cause");
+  await expectDepth(page, 4);
 });

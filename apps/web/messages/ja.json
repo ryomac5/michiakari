@@ -624,6 +624,11 @@
     "causeKinds": {
       "person": "人身事故",
       "inCar": "車内の急病人・非常ボタン",
+      "rain": "雨",
+      "wind": "風",
+      "snow": "雪・凍結",
+      "lightning": "雷",
+      "earthquake": "地震",
       "other": "その他・分からない"
     },
     "elapsedQuestion": "止まってからの時間を選ぶ",

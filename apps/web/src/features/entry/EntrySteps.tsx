@@ -2,12 +2,14 @@
 
 import type { RawInput } from "@repo/schema";
 import {
+  Activity,
   ArrowUp,
   BellRing,
   Camera,
   ChevronRight,
   ClipboardPaste,
   Clock,
+  CloudLightning,
   CloudRain,
   Construction,
   Flame,
@@ -19,10 +21,12 @@ import {
   Pencil,
   PlugZap,
   Siren,
+  Snowflake,
   Timer,
   TrafficCone,
   TreePine,
   Users,
+  Wind,
   Wrench,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -626,6 +630,11 @@ const causeIcons: Record<CauseCategoryId, LucideIcon> = {
 const causeKindIcons: Record<CauseKindId, LucideIcon> = {
   person: Siren,
   inCar: BellRing,
+  rain: CloudRain,
+  wind: Wind,
+  snow: Snowflake,
+  lightning: CloudLightning,
+  earthquake: Activity,
   other: HelpCircle,
 };
 
@@ -732,6 +741,7 @@ export function CauseKindStep({
   onSelect: (kind: CauseKindId) => void;
 }) {
   const t = useTranslations("entry");
+  const kinds = listCauseKinds(category);
   return (
     <>
       <SheetTitle
@@ -739,7 +749,7 @@ export function CauseKindStep({
         title={t("causeKindQuestion")}
       />
       <div className="grid grid-cols-2 gap-2">
-        {listCauseKinds(category).map((kind) => {
+        {kinds.map((kind) => {
           const Icon = causeKindIcons[kind];
           return (
             <AnswerCard
@@ -748,7 +758,7 @@ export function CauseKindStep({
               icon={<Icon className="size-5" strokeWidth={1.75} />}
               label={t(`causeKinds.${kind}`)}
               tone={kind === "other" ? "dashed" : "soft"}
-              span={kind === "other"}
+              span={kind === "other" && kinds.length % 2 === 1}
               onClick={() => onSelect(kind)}
             />
           );

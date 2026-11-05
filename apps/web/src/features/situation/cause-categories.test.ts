@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import {
   type CauseCategoryId,
+  type CauseKindId,
   causeCategoryIds,
   listCauseKinds,
   needsCauseKind,
@@ -20,7 +21,7 @@ const devCatalog: KnowledgeCatalog = readdirSync(devKnowledgeDir)
 
 const taxonomy = JSON.parse(
   readFileSync(join(root, "docs/research/rail-suspensions/taxonomy.json"), "utf8"),
-) as { groups: { id: string }[] };
+) as { groups: { id: string }[]; types: { group_id: string }[] };
 
 describe("causeCategoryIds", () => {
   it("調査の分類の 8 大分類と同じ id を持つ", () => {
@@ -38,13 +39,12 @@ describe("resolveCauseEventType", () => {
     ]);
   });
 
-  const expected: Record<Exclude<CauseCategoryId, "passenger">, string | null> = {
+  const expected: Record<Exclude<CauseCategoryId, "passenger" | "weather">, string | null> = {
     vehicle: "vehicle_failure",
     signaling: null,
     power: null,
     obstruction: null,
     infrastructure: null,
-    weather: null,
     major_accident: null,
   };
   for (const [category, eventType] of Object.entries(expected)) {
@@ -58,12 +58,26 @@ describe("resolveCauseEventType", () => {
   it("人・旅客対応は種類を聞き、人との接触と車内の対応で事象が分かれる", () => {
     expect(needsCauseKind("passenger")).toBe(true);
     expect(listCauseKinds("passenger")).toEqual(["person", "inCar", "other"]);
-    const resolve = (kind: "person" | "inCar" | "other" | null) =>
+    const resolve = (kind: CauseKindId | null) =>
       resolveCauseEventType({ category: "passenger", kind }, devCatalog);
     expect(resolve("person")).toBe("person_accident");
     expect(resolve("inCar")).toBe("in_car_response");
     expect(resolve("other")).toBeNull();
     expect(resolve(null)).toBeNull();
+  });
+
+  it("気象・自然は種類を聞き、雨だけが大雨の事象に対応する", () => {
+    expect(needsCauseKind("weather")).toBe(true);
+    const kinds = listCauseKinds("weather");
+    expect(kinds).toEqual(["rain", "wind", "snow", "lightning", "earthquake", "other"]);
+    // その他を除く種類は、調査の分類の気象・自然の種類と同じ数にする
+    expect(kinds.length - 1).toBe(taxonomy.types.filter((t) => t.group_id === "weather").length);
+    const resolve = (kind: CauseKindId) =>
+      resolveCauseEventType({ category: "weather", kind }, devCatalog);
+    expect(resolve("rain")).toBe("heavy_rain");
+    for (const kind of ["wind", "snow", "lightning", "earthquake", "other"] as const) {
+      expect(resolve(kind)).toBeNull();
+    }
   });
 
   it("分からないと、知見に無い事象は知見なしになる", () => {

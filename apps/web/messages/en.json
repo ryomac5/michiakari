@@ -624,6 +624,11 @@
     "causeKinds": {
       "person": "Person hit by a train",
       "inCar": "Illness / emergency button on board",
+      "rain": "Rain",
+      "wind": "Wind",
+      "snow": "Snow or ice",
+      "lightning": "Lightning",
+      "earthquake": "Earthquake",
       "other": "Other / not sure"
     },
     "elapsedQuestion": "Pick how long you have been stopped",
