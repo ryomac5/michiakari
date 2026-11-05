@@ -120,8 +120,9 @@ for (const viewport of [
       await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
         timeout: 30_000,
       });
+      await page.getByTestId(testIds.start.positionStation).click();
       const labels = page.locator(
-        '[data-testid^="start-hub-"] > span[aria-hidden], [data-testid^="start-place-"] > span[aria-hidden], [data-testid^="start-hub-edge-"]',
+        '[data-testid^="start-hub-"] > span[aria-hidden], [data-testid^="start-place-"] > span[aria-hidden], [data-testid^="start-map-stop-"] > span[aria-hidden], [data-testid^="start-hub-edge-"]',
       );
       await waitForFiniteAnimations(page);
       await expectLabelsApart(labels);
@@ -130,7 +131,10 @@ for (const viewport of [
       await waitForFiniteAnimations(page);
       await expectLabelsApart(labels);
       await page.getByTestId(testIds.start.place("osaka")).click();
-      await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "station");
+      await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute(
+        "data-stage",
+        "destination",
+      );
       await waitForFiniteAnimations(page);
       await expectLabelsApart(labels);
     });

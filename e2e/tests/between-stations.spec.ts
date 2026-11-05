@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
+import { chooseTrainDirection } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -12,8 +13,6 @@ import { expect, test } from "../support/test.ts";
 // 追加の問いは出さず、次の駅・種別・前の列車を既定値で置いて判断を出す。前提は判断の画面のチップで直せる
 // 結論は次の駅に着いてからの行動で書き、「あと N 分」で始めない。決定論モードの agent とダミーの内容で確かめる
 
-const kobeLine = "大阪|jr-west.東海道線|JR神戸線";
-const toKobe = `${kobeLine}>jr-west.東海道線.神戸`;
 const screenshotRoot = fileURLToPath(new URL("../screenshots/between-stations/", import.meta.url));
 
 test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -120,20 +119,16 @@ async function reachPositionStep(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
   });
-  await page.getByTestId(testIds.start.originSearch).fill("大阪");
-  await page.getByTestId(testIds.start.originOption("大阪")).click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "station");
-  await page.getByTestId(testIds.start.line(kobeLine)).click();
-  await page.getByTestId(testIds.start.direction(toKobe)).click();
-  await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
-  await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+  await chooseTrainDirection(page, "JR神戸線", "神戸");
   await expect(page.getByTestId(testIds.start.positionBetween)).toBeVisible();
 }
 
 // 駅と駅の間を選び、人身事故・10 分くらい・見込みは言っていないで判断を始める
 async function startBetweenStations(page: Page): Promise<void> {
   await page.getByTestId(testIds.start.positionBetween).click();
-  // 次の駅・種別・前の列車は問わず、そのまま様子の段に進む
+  await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
+  await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+  // 駅間の後に行き先を答え、様子へ進む
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("塚本");
   await page.getByTestId(testIds.start.cause("person")).click();

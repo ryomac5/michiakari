@@ -166,6 +166,7 @@ test("デモ: リプレイで判断と地図が変わる様子を録画する", 
 
   await hideHandleFocusRing(page);
   await page.goto("/");
+  await page.getByTestId(testIds.start.positionStation).click();
   await expect(page.getByTestId(testIds.start.intro)).toBeVisible();
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 60_000,

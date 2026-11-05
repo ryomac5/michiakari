@@ -104,7 +104,7 @@ export function LineTag({ line, suspended }: { line: OriginLine; suspended?: str
   );
 }
 
-// 進み具合の印。路線から様子までの 5 つの点で、いまの段を横長の点にする
+// 進み具合の印。現在地・行き先・電車・様子の4つを示す
 export function EntryProgress({ index }: { index: number }) {
   const t = useTranslations("entry");
   const step = progressSteps[index];
@@ -357,8 +357,8 @@ export function DestinationStep({
   onFreeText,
 }: {
   originName: string;
-  line: OriginLine;
-  direction: EntryDirection;
+  line: OriginLine | null;
+  direction: EntryDirection | null;
   candidates: DirectionStop[];
   onSelect: (station: StationChoice) => void;
   onUndecided: () => void;
@@ -373,13 +373,17 @@ export function DestinationStep({
         eyebrow={
           <Eyebrow>
             <HereName name={originName} />
-            <LineTag line={line} />
+            {line && <LineTag line={line} />}
           </Eyebrow>
         }
         title={t("destinationQuestion")}
-        hint={t("destinationHint", { direction: pickLocalized(direction.label, locale) })}
+        hint={
+          direction
+            ? t("destinationHint", { direction: pickLocalized(direction.label, locale) })
+            : t("destinationStationHint")
+        }
       />
-      <div className="flex flex-wrap gap-2">
+      <div className="flex max-h-48 flex-wrap gap-2 overflow-y-auto">
         {candidates.map((stop) => (
           <StopChip
             key={stop.choice.id}
@@ -388,24 +392,26 @@ export function DestinationStep({
             onClick={() => onSelect(stop.choice)}
           />
         ))}
-        <button
-          type="button"
-          data-testid={testIds.start.destinationUndecided}
-          onClick={onUndecided}
-          aria-label={`${t("destinationUndecided")}・${nameDirection(direction)}`}
-          className={cn(
-            chipBase,
-            "border-[1.5px] border-dashed border-foreground/25 hover:bg-foreground/[0.05]",
-          )}
-        >
-          <HelpCircle className="size-4 text-muted" strokeWidth={2} aria-hidden />
-          <span className="flex flex-col">
-            {t("destinationUndecided")}
-            <span className="text-[11px] font-medium text-muted">
-              {t("destinationUndecidedNote")}
+        {direction && (
+          <button
+            type="button"
+            data-testid={testIds.start.destinationUndecided}
+            onClick={onUndecided}
+            aria-label={`${t("destinationUndecided")}・${direction ? nameDirection(direction) : ""}`}
+            className={cn(
+              chipBase,
+              "border-[1.5px] border-dashed border-foreground/25 hover:bg-foreground/[0.05]",
+            )}
+          >
+            <HelpCircle className="size-4 text-muted" strokeWidth={2} aria-hidden />
+            <span className="flex flex-col">
+              {t("destinationUndecided")}
+              <span className="text-[11px] font-medium text-muted">
+                {t("destinationUndecidedNote")}
+              </span>
             </span>
-          </span>
-        </button>
+          </button>
+        )}
       </div>
       <StationSearch
         hideLabel

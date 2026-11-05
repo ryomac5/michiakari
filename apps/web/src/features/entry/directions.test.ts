@@ -6,6 +6,7 @@ import {
   listDirectionCandidates,
   listEntryDirections,
   listNearbyStops,
+  listTrainPositionStops,
   pickSpreadStops,
 } from "./directions";
 import { createEntryData, type EntryLine, findStationChoice, listGroupLines } from "./entry-places";
@@ -140,4 +141,40 @@ describe("京都と神戸の路線", () => {
       expect(direction.label.en).not.toMatch(/[一-龯]/);
     }
   });
+});
+
+describe("listTrainPositionStops", () => {
+  it("基準の駅の手前も含めて進行方向に並べ、選んだ駅間から方面を引き直せる", () => {
+    const line = findLine("大阪", "JR神戸線");
+    const direction = listEntryDirections(data, line).find((d) => d.label.ja.includes("三ノ宮"));
+    if (!direction) throw new Error("方面がありません");
+    const names = listTrainPositionStops(data, line, direction).map((s) => s.choice.name);
+    const osaka = names.indexOf("大阪");
+    expect(names.slice(osaka - 1, osaka + 3)).toEqual(["新大阪", "大阪", "塚本", "尼崎"]);
+    const changed = listEntryDirections(data, { ...line, stationName: "塚本" }).find(
+      (d) => d.stops[0]?.choice.name === "尼崎",
+    );
+    expect(changed?.stops[0]?.choice.name).toBe("尼崎");
+  });
+  it("方面の呼び名に含めた直通先を駅間の候補には入れない", () => {
+    const line = findLine("心斎橋", "地下鉄御堂筋線");
+    const direction = listEntryDirections(data, line)[0];
+    if (!direction) throw new Error("方面がありません");
+    const names = listTrainPositionStops(data, line, direction).map((s) => s.choice.name);
+    expect(names).toContain("江坂");
+    expect(names).not.toContain("千里中央");
+  });
+});
+
+it("駅にいる人の行き先候補は両方面から出し、地図にも選べる主な駅を残す", () => {
+  const group = data.catalog.groupById.get("心斎橋");
+  if (!group) throw new Error("駅がありません");
+  const candidates = listGroupLines(data, group)
+    .flatMap((line) => listEntryDirections(data, line))
+    .flatMap((direction) => listDirectionCandidates(direction))
+    .filter((stop, i, stops) => stops.findIndex((s) => s.choice.id === stop.choice.id) === i);
+  expect(candidates.map((s) => s.choice.name)).toEqual(expect.arrayContaining(["梅田", "難波"]));
+  expect(
+    pickSpreadStops(candidates, [group.choice.lon, group.choice.lat]).map((s) => s.choice.name),
+  ).toContain("梅田");
 });

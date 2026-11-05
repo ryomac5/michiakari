@@ -12,7 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { CauseAnswer, EntryMethod } from "@/features/entry/flow";
+import type { CauseAnswer, EntryMethod, EntryState } from "@/features/entry/flow";
 import { type KnowledgeCatalog, mergeCatalogs } from "@/features/knowledge/catalog";
 import type { ElapsedOption } from "@/features/situation/plain-questions";
 import { applyTrainMovement } from "@/features/situation/train-movement";
@@ -82,6 +82,7 @@ export type OriginLine = {
 };
 
 export type TripContext = {
+  entryState?: EntryState;
   directionKey: string;
   // 「新大阪・千里中央」
   directionLabel: { ja: string; en: string };

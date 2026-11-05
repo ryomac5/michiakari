@@ -212,3 +212,25 @@ export function listNearbyStops(
   const ahead = chosen.stops[0];
   return [behind, here, ahead].flatMap((s) => (s ? [s] : []));
 }
+
+// 車内の位置は、選んだ路線内の駅を進行方向に並べて選ぶ。方面名の直通先は含めない。
+export function listTrainPositionStops(
+  data: EntryData,
+  line: DirectionLine,
+  chosen: EntryDirection,
+): DirectionStop[] {
+  const directions = listEntryDirections(data, line);
+  const names = new Set(data.index.listStationsOnLine(line.lineId).map((s) => s.name));
+  const here = listNearbyStops(data, line, directions, chosen).find(
+    (s) => s.choice.name === line.stationName,
+  );
+  const stops = [
+    ...[...(directions.find((d) => d.key !== chosen.key)?.stops ?? [])].reverse(),
+    ...(here ? [here] : []),
+    ...chosen.stops,
+  ];
+  return stops.filter(
+    (stop, i) =>
+      names.has(stop.choice.name) && stops.findIndex((s) => s.choice.id === stop.choice.id) === i,
+  );
+}
