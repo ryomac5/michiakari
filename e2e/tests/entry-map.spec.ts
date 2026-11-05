@@ -145,7 +145,7 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   await page.getByTestId(testIds.start.nearStop("本町")).click();
   await expectStage(page, "cause");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("本町");
-  await expect(page.getByTestId(testIds.start.trip)).toContainText("方面の主な駅で考えます");
+  await expect(page.getByTestId(testIds.start.trip)).toContainText("方面の主な駅を行き先にする");
 
   // どの問いにも分からないがあり、押せばそのまま次へ進む
   await page.getByTestId(testIds.start.cause("unknown")).click();
@@ -196,10 +196,14 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   expect(await nextCheck.locator("li").count()).toBeLessThanOrEqual(3);
   const premise = page.getByTestId(testIds.judgment.premise);
   await expect(premise).toContainText("方面の主な駅");
-  await expect(premise).toContainText("電車の中なので、本町駅にいるとして考えています");
-  await expect(premise).toContainText("止まった時刻は、いまとして数えています");
+  await expect(premise).toContainText("車内の位置は本町駅と仮定する");
+  await expect(premise).toContainText("止まった時刻はいまと仮定する");
   await expect(premise).toContainText("分岐点を動く目安");
-  for (const part of [premise, nextCheck, page.getByTestId(testIds.judgment.conclusionReason)]) {
+  for (const part of [
+    premise,
+    nextCheck,
+    page.getByTestId(testIds.judgment.conclusionReasonDetail),
+  ]) {
     await expect(part).not.toContainText(nonDecisive);
   }
 

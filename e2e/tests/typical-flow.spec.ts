@@ -10,7 +10,7 @@ import { expect, test } from "../support/test.ts";
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(120_000);
 
-const reassuring = "慌てず、このまま待ちましょう";
+const reassuring = "このまま待つ";
 const nonDecisive =
   /まだ判断できません|判断できません|分かりません|わかりません|情報が足りません|材料が不足|見込みが立ちません/;
 
@@ -134,7 +134,7 @@ test("入口で「非常ボタン・急病」を選ぶと、待つの判断と�
   await openSheet(page, "full");
   // 短く終わる事象なので、次に確かめることは再開見込みではなく発車の放送にする
   const nextCheck = page.getByTestId(testIds.judgment.nextCheck);
-  await expect(nextCheck).toContainText("まもなく発車します");
+  await expect(nextCheck).toContainText("まもなく発車");
   await expect(nextCheck).not.toContainText("再開見込み");
   await page.getByTestId(testIds.judgment.evidenceToggle).click();
   await expect(page.getByTestId(testIds.judgment.phaseTimeline)).toHaveCount(0);

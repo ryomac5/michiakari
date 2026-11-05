@@ -17,8 +17,8 @@ export function formatClock(iso: string, language: Lang): string {
 
 export function buildDisclaimer(language: Lang): string {
   return language === "ja"
-    ? "この判断は公開情報と過去の傾向にもとづく推定です。駅や鉄道会社の公式発表を優先してください。"
-    : "This judgment is an estimate based on public information and past patterns. Always prioritize official announcements from the station or railway operator.";
+    ? "公開情報と過去の傾向にもとづく推定です。駅や鉄道会社の公式発表を優先する。"
+    : "This is an estimate from public information and past patterns. Follow official station or railway announcements first.";
 }
 
 // 英語の経路ラベル（文頭用の「Via ◯◯」など）を、文の途中で主語になる名詞句にする
@@ -86,13 +86,13 @@ export function buildDeadlinePassedSentence(
 ): string {
   const route = formatLabelInSentence(label, language);
   return language === "ja"
-    ? `${formatClock(time, language)}を過ぎた今は${formatClock(deadline, language)}の期限に向け${formatClock(arrival, language)}着の${route}に切り替えてください。`
+    ? `${formatClock(time, language)}を過ぎた今は${formatClock(deadline, language)}の期限に向け${formatClock(arrival, language)}着の${route}に切り替える。`
     : `After ${formatClock(time, language)}, switch to ${route} arriving at ${formatClock(arrival, language)} to meet your ${formatClock(deadline, language)} deadline.`;
 }
 
 export function buildNoAlternativeSentence(language: Lang): string {
   return language === "ja"
-    ? "待つ場合と到着時刻を比べられる代わりの経路がないためいまは運転再開を待ってください。"
+    ? "待つ場合と到着時刻を比べられる代わりの経路がないためいまはこのまま運転再開を待つ。"
     : "Wait for service to resume because no alternative arrival is available for comparison.";
 }
 
@@ -154,8 +154,8 @@ export function buildChanceSentence(chance: ChanceTextInput, language: Lang): st
     if (chance.deadlineResumeTime) {
       const time = formatClock(chance.deadlineResumeTime, language);
       return ja
-        ? `待って期限に間に合うために必要な${time}までの再開の見込みは${c}です。`
-        : `The chance of resuming by ${time} to meet your deadline by waiting is ${c}.`;
+        ? `期限に間に合う再開の境目は${time}です。その時刻までの再開見込みは${c}です。`
+        : `Restart by ${time} to meet your deadline by waiting. The chance is ${c}.`;
     }
     return ja
       ? `待って期限に間に合う見込みは${c}です。`
@@ -166,12 +166,10 @@ export function buildChanceSentence(chance: ChanceTextInput, language: Lang): st
     const clock = formatClock(chance.keyTick.time, language);
     if (chance.laterOutlook) {
       return ja
-        ? `遅めの見込みでは分岐点より後の${clock}までに再開する確率が${c}に達する推定です。`
-        : `In the later outlook, the chance of resuming reaches ${c} by ${clock}, after the break-even time.`;
+        ? `遅めの見込みでは分岐点より後の${clock}までの再開確率は${c}です。`
+        : `Later outlook: ${c} chance of restart by ${clock}. This is after the decision point.`;
     }
-    return ja
-      ? `${clock}には${c}の見込みで動いています。`
-      : `By ${clock}, the chance that trains are moving is ${c}.`;
+    return ja ? `${clock}までに再開する見込みは${c}です。` : `Chance of restart by ${clock}: ${c}.`;
   }
   return null;
 }
@@ -242,7 +240,7 @@ function buildTrainQueueHeadline(
   if (action === "wait") {
     return pickFitting(
       ja
-        ? [`${st}に着いても、そのまま乗っていてください`, `${st}でも降りずに、そのまま乗車`]
+        ? [`${st}に着いてもそのまま乗る`, `${st}でも降りずに乗る`]
         : [`Stay on the train when you reach ${st}.`, `Stay on past ${st}.`],
       max,
     );
@@ -252,9 +250,9 @@ function buildTrainQueueHeadline(
     return pickFitting(
       ja
         ? [
-            `${st}に着いたら降りて、${line}に乗り換えてください`,
-            `${st}で降りて、${line}へ`,
-            `${st}で降りて乗り換えてください`,
+            `${st}に着いたら降りて${line}に乗り換える`,
+            `${st}で降りて${line}へ向かう`,
+            `${st}で降りて乗り換える`,
           ]
         : [
             `When you reach ${st}, get off and change to the ${line}.`,
@@ -266,7 +264,7 @@ function buildTrainQueueHeadline(
   }
   return pickFitting(
     ja
-      ? [`${st}に着いたら降りて、${target}に切り替えてください`, `${st}で降りて${target}へ`]
+      ? [`${st}に着いたら降りて${target}に切り替える`, `${st}で降りて${target}へ`]
       : [`When you reach ${st}, get off and switch to ${target}.`, `Get off at ${st} and switch.`],
     max,
   );
@@ -284,48 +282,48 @@ function buildTrainQueueNote(queue: TrainQueueText, language: Lang): string | nu
   if (delay?.kind === "ahead_cannot_stop") {
     const type = formatTrainType(delay.trainType, language);
     return ja
-      ? `前の${type}は${delay.station}に止まれないため、${delay.station}の手前で動けず、${st}に着くのは再開のあと、${time}ごろの見込みです。`
-      : `The ${type} ahead cannot stop at ${delay.station} and is held short of it, so you should reach ${st} after service resumes, around ${time}.`;
+      ? `${st}には再開後の${time}ごろに着く見込みです。前の${type}は${delay.station}に止まれず手前で止まっています。`
+      : `Expect to reach ${st} around ${time} after service resumes. The ${type} ahead cannot stop at ${delay.station} and is held short of it.`;
   }
   if (delay?.kind === "platform_occupied") {
     const type = formatTrainType(delay.occupiedBy, language);
     return ja
-      ? `${delay.station}のホームに前の${type}が止まっているため、${st}に着くのは再開のあと、${time}ごろの見込みです。`
-      : `A ${type} ahead is standing at the ${delay.station} platform, so you should reach ${st} after service resumes, around ${time}.`;
+      ? `${st}には再開後の${time}ごろに着く見込みです。${delay.station}のホームに前の${type}が止まっています。`
+      : `Expect to reach ${st} around ${time} after service resumes. A ${type} ahead occupies the platform at ${delay.station}.`;
   }
   if (delay?.kind === "own_cannot_stop") {
     return ja
-      ? `${own}は${delay.station}に止まれないので、降りられるのは${st}で、${time}ごろの見込みです。`
-      : `A ${own} cannot stop at ${delay.station}, so your first stop is ${st}, around ${time}.`;
+      ? `降りられる${st}には${time}ごろに着く見込みです。${own}は${delay.station}に止まれません。`
+      : `Expect your first stop at ${st} around ${time}. Your ${own} cannot stop at ${delay.station}.`;
   }
   const n = queue.trainsAheadCount;
   if (queue.spacedByHeadway) {
     return ja
       ? queue.beforeResume
-        ? `前の列車との間隔はふだんどおりとみて、${st}に着くのは${time}ごろの見込みです。`
-        : `前の列車との間隔はふだんどおりとみて、${st}に着くのは再開のあと、${time}ごろの見込みです。`
+        ? `${st}には${time}ごろに着く見込みです。前の列車との間隔はふだんどおりと仮定しています。`
+        : `${st}には再開後の${time}ごろに着く見込みです。前の列車との間隔はふだんどおりと仮定しています。`
       : queue.beforeResume
-        ? `Assuming the usual spacing to the trains ahead, you should reach ${st} around ${time}.`
-        : `Assuming the usual spacing to the trains ahead, you should reach ${st} after service resumes, around ${time}.`;
+        ? `Expect to reach ${st} around ${time}. This assumes usual spacing to trains ahead.`
+        : `Expect to reach ${st} around ${time} after service resumes. This assumes usual spacing to trains ahead.`;
   }
   if (queue.beforeResume) {
     if (n === 0) {
       return ja
-        ? `前に列車はいないので、${st}に着くのは${time}ごろの見込みです。`
-        : `With no trains ahead, you should reach ${st} around ${time}.`;
+        ? `${st}には${time}ごろに着く見込みです。前に列車はいません。`
+        : `Expect to reach ${st} around ${time}. There are no trains ahead.`;
     }
     return ja
-      ? `前の列車が順に進めば、${st}に着くのは${time}ごろの見込みです。`
-      : `Once the trains ahead move up, you should reach ${st} around ${time}.`;
+      ? `前の列車が順に進めば${st}には${time}ごろに着く見込みです。`
+      : `Expect to reach ${st} around ${time} if trains ahead move up.`;
   }
   if (n === 0) {
     return ja
-      ? `${st}に着くのは再開のあと、${time}ごろの見込みです。`
-      : `You should reach ${st} after service resumes, around ${time}.`;
+      ? `${st}には再開後の${time}ごろに着く見込みです。`
+      : `Expect to reach ${st} around ${time} after service resumes.`;
   }
   return ja
-    ? `前に${n}本つまっているので、${st}に着くのは${time}ごろの見込みです。`
-    : `With ${n} trains ahead, you should reach ${st} around ${time}.`;
+    ? `${st}には${time}ごろに着く見込みです。前に${n}本つまっています。`
+    : `Expect to reach ${st} around ${time}. There are ${n} trains ahead.`;
 }
 
 function buildShortTrainQueueNote(queue: TrainQueueText, language: Lang): string | null {
@@ -364,31 +362,31 @@ function buildDeadlineBasisReason(input: DecisionTextInput): string | null {
   switch (input.reason) {
     case "unknown_event":
       return ja
-        ? `${be}を過ぎると、待っては期限の${limit}に間に合いません。放送で原因が分かれば、もっと確かに言えます。`
-        : `After ${be}, waiting will miss your ${limit} deadline. Hearing the cause will sharpen this.`;
+        ? `${be}を過ぎると待っては期限の${limit}に間に合いません。`
+        : `After ${be}, waiting misses your ${limit} deadline.`;
     case "low_confidence":
       if (!p50 || !p80) {
         return ja
-          ? `見込みの幅が大きく、${be}を過ぎると待っては期限の${limit}に間に合いません。`
+          ? `${be}を過ぎると待っては期限の${limit}に間に合いません。再開見込みには幅があります。`
           : `The outlook is still wide. After ${be}, waiting will miss your ${limit} deadline.`;
       }
       return ja
-        ? `再開見込みは${p50}〜${p80}頃と幅があり、${be}を過ぎると待っては期限の${limit}に間に合いません。`
+        ? `${be}を過ぎると待っては期限の${limit}に間に合いません。再開見込みは${p50}〜${p80}頃です。`
         : `Resumption is expected between ${p50} and ${p80}. After ${be}, waiting will miss your ${limit} deadline.`;
     case "break_even_passed":
       return ja
-        ? `分岐点の${be}を過ぎ、いま再開しても待っては期限の${limit}に間に合わないためです。`
-        : `The break-even time of ${be} has passed, so waiting would miss your ${limit} deadline even if service resumes now.`;
+        ? `分岐点${be}を過ぎています。いま再開しても期限の${limit}に間に合いません。`
+        : `Even if service resumes now, waiting misses your ${limit} deadline. The ${be} decision point has passed.`;
     case "stated_resume_after_break_even":
       if (!p50) return null;
       return ja
-        ? `発表の再開見込み${p50}が分岐点${be}より遅く、見込みどおりでも待っては期限の${limit}に間に合わないためです。`
-        : `The announced restart of ${p50} is after the break-even time of ${be}, so waiting misses your ${limit} deadline even if it holds.`;
+        ? `発表の再開見込み${p50}は分岐点${be}より後です。見込みどおりでも期限の${limit}に間に合いません。`
+        : `Announced restart ${p50} is after the ${be} decision point. Waiting misses your ${limit} deadline even if it holds.`;
     case "stated_resume_before_break_even":
       if (!p50 || (input.marginP50Minutes ?? 0) < 0) return null;
       return ja
-        ? `発表の再開見込み${p50}が分岐点${be}より早く、見込みどおりなら待って期限の${limit}に間に合います。`
-        : `The announced restart of ${p50} is before the break-even time of ${be}, so waiting makes your ${limit} deadline if it holds.`;
+        ? `発表の再開見込み${p50}は分岐点${be}より前です。見込みどおりなら期限の${limit}に間に合います。`
+        : `Announced restart ${p50} is before the ${be} decision point. Wait to meet your ${limit} deadline if it holds.`;
     default:
       return null;
   }
@@ -410,50 +408,50 @@ function buildDecisionReason(input: DecisionTextInput): string {
     case "unknown_event":
       if (!be) {
         return ja
-          ? "いまは運転再開を待つのが確実です。放送で原因が分かれば、もっと確かに言えます。"
-          : "Waiting for service to resume is the surest move now. Hearing the cause will sharpen this.";
+          ? "待つ場合と比べられる代わりの経路がないため運転再開を待ちます。"
+          : "Wait for service to resume because there is no alternative route to compare.";
       }
       return ja
-        ? `${be}を過ぎると${target}のほうが早く着きます。放送で原因が分かれば、もっと確かに言えます。`
-        : `After ${be}, ${target} gets you there sooner. Hearing the cause will sharpen this.`;
+        ? `${be}を過ぎると${target}のほうが早く着きます。`
+        : `After ${be}, ${target} gets you there sooner.`;
     case "no_alternative":
       return buildNoAlternativeSentence(input.language);
     case "break_even_passed":
       if (!be) {
         return ja
-          ? `分岐点を過ぎ、いま再開しても${target}のほうが早く着くためです。`
-          : `The break-even time has passed, so ${target} is faster even if service resumes now.`;
+          ? `分岐点を過ぎています。いま再開しても${target}のほうが早く着きます。`
+          : `The decision point has passed. Take ${target} to arrive sooner even if service resumes now.`;
       }
       return ja
-        ? `分岐点の${be}を過ぎ、いま再開しても${target}のほうが早く着くためです。`
-        : `The break-even time of ${be} has passed, so ${target} is faster even if service resumes now.`;
+        ? `分岐点${be}を過ぎています。いま再開しても${target}のほうが早く着きます。`
+        : `The ${be} decision point has passed. Take ${target} to arrive sooner even if service resumes now.`;
     case "rain_continuing":
       return ja
-        ? "雨が続き、代わりの路線も止まるおそれがあります。"
-        : "Rain continues, and alternative routes may stop too.";
+        ? "雨で代わりの路線も止まるおそれがあります。"
+        : "Alternative routes may stop in this rain.";
     case "low_confidence":
       if (!be) {
         return ja
-          ? "いまは待つのが確実です。再開見込みの放送が出れば、もっと確かに言えます。"
-          : "Waiting is the surest move now. A restart time in an announcement will sharpen this.";
+          ? "待つ場合と比べられる代わりの経路がないため運転再開を待ちます。"
+          : "Wait for service to resume because there is no alternative route to compare.";
       }
       if (!p50 || !p80) {
         return ja
-          ? `見込みの幅が大きく、${be}を過ぎると${target}のほうが早く着きます。`
+          ? `${be}を過ぎると${target}のほうが早く着きます。再開見込みには幅があります。`
           : `The outlook is still wide. After ${be}, ${target} gets you there sooner.`;
       }
       return ja
-        ? `再開見込みは${p50}〜${p80}頃と幅があり、${be}を過ぎると${target}のほうが早く着きます。`
+        ? `${be}を過ぎると${target}のほうが早く着きます。再開見込みは${p50}〜${p80}頃です。`
         : `Resumption is expected between ${p50} and ${p80}. After ${be}, ${target} gets you there sooner.`;
     case "estimate_extended":
       if (!p80 || !be) {
         return ja
-          ? "再開見込みが延長され、さらに延びるおそれがあるためです。"
+          ? "再開見込みは延長後もさらに延びるおそれがあります。"
           : "The resumption estimate was extended and may slip further.";
       }
       return ja
-        ? `見込みが延長され、遅めの再開見込み${p80}頃が分岐点${be}より遅いためです。`
-        : `The estimate was extended, and the later outlook of ${p80} is past the break-even time of ${be}.`;
+        ? `延長後の遅めの再開見込み${p80}頃は分岐点${be}より後です。`
+        : `The extended outlook of ${p80} is past the decision point of ${be}.`;
     case "resume_after_break_even":
       if (!p50 || !be) {
         return ja
@@ -461,28 +459,28 @@ function buildDecisionReason(input: DecisionTextInput): string {
           : "Resumption is expected after the break-even time.";
       }
       return ja
-        ? `再開見込み${p50}頃が、分岐点${be}より遅いためです。`
-        : `Resumption is expected around ${p50}, later than the break-even time of ${be}.`;
+        ? `再開見込み${p50}頃は分岐点${be}より後です。`
+        : `Expected restart ${p50} is after the decision point of ${be}.`;
     case "resume_mostly_after_break_even": {
       const minutes = input.breakEvenMinutesFromNow;
       if (!p50 || !p80 || !be || minutes === null) {
         return ja
-          ? "分岐点が迫り、再開見込みの大半がそれより後のためです。"
-          : "The break-even time is close, and most of the resumption outlook falls after it.";
+          ? "再開見込みの大半は目前の分岐点より後です。"
+          : "Most of the restart outlook is after the approaching decision point.";
       }
       return ja
-        ? `分岐点${be}まであと${minutes}分で、再開見込み${p50}〜${p80}頃の大半がそれより後のためです。`
-        : `Only ${minutes} min remain until the break-even time of ${be}, and most of the ${p50}–${p80} outlook falls after it.`;
+        ? `再開見込み${p50}〜${p80}頃の大半は分岐点${be}より後です。分岐点まであと${minutes}分です。`
+        : `Most of the ${p50}–${p80} outlook falls after the ${be} decision point. Only ${minutes} min remain.`;
     }
     case "deadline_risk":
       if (!deadline) {
         return ja
-          ? `待つと期限に間に合わず、${target}なら間に合うためです。`
-          : `Waiting would miss your deadline, while ${target} would make it.`;
+          ? `待つと期限に間に合いません。${target}なら間に合います。`
+          : `Waiting misses your deadline. Take ${target} to make it.`;
       }
       return ja
-        ? `待つと期限の${deadline}に間に合わず、${target}なら間に合うためです。`
-        : `Waiting would miss your ${deadline} deadline, while ${target} would make it.`;
+        ? `待つと期限の${deadline}に間に合いません。${target}なら間に合います。`
+        : `Waiting misses your ${deadline} deadline. Take ${target} to make it.`;
     case "resume_before_break_even":
       if (!p50 || !be || input.marginP50Minutes === null) {
         return ja
@@ -492,36 +490,36 @@ function buildDecisionReason(input: DecisionTextInput): string {
       // 分岐点をわずかに過ぎる見込みでも、乗り換えの手間を考えて待つ場合がある
       if (input.marginP50Minutes < 0) {
         return ja
-          ? `再開見込み${p50}頃と分岐点${be}の差が小さく、乗り換えるほどの差がないためです。`
-          : `Resumption around ${p50} is close to the break-even time of ${be}, too close to justify switching.`;
+          ? `再開見込み${p50}頃と分岐点${be}の差はわずかです。乗り換えるほどの差はありません。`
+          : `Expected restart ${p50} is close to the ${be} decision point. Stay to avoid an unnecessary change.`;
       }
       return ja
-        ? `再開見込み${p50}頃が、分岐点${be}より早いためです。`
-        : `Resumption is expected around ${p50}, earlier than the break-even time of ${be}.`;
+        ? `再開見込み${p50}頃は分岐点${be}より前です。`
+        : `Expected restart ${p50} is before the decision point of ${be}.`;
     // 発表の時刻をもとにした推定であることが分かるよう、発表の見込みと「見込みどおりなら」を書く
     case "stated_resume_after_break_even":
       if (!p50 || !be) {
         return ja
-          ? `発表の再開見込みが分岐点より遅く、見込みどおりでも${target}のほうが早く着くためです。`
-          : `The announced restart is after the break-even time, so ${target} gets you there sooner even if it holds.`;
+          ? `発表の再開見込みは分岐点より後です。見込みどおりでも${target}のほうが早く着きます。`
+          : `The announced restart is after the decision point. Take ${target} to arrive sooner even if it holds.`;
       }
       return ja
-        ? `発表の再開見込み${p50}が分岐点${be}より遅く、見込みどおりでも${target}のほうが早く着くためです。`
-        : `The announced restart of ${p50} is after the break-even time of ${be}, so ${target} gets you there sooner even if it holds.`;
+        ? `発表の再開見込み${p50}は分岐点${be}より後です。見込みどおりでも${target}のほうが早く着きます。`
+        : `Announced restart ${p50} is after the ${be} decision point. Take ${target} to arrive sooner even if it holds.`;
     case "stated_resume_before_break_even":
       if (!p50 || !be || input.marginP50Minutes === null) {
         return ja
-          ? "発表の再開見込みどおりなら、待つほうが早く着く見込みです。"
+          ? "発表の再開見込みどおりなら待つほうが早く着きます。"
           : "If the announced restart holds, waiting gets you there sooner.";
       }
       if (input.marginP50Minutes < 0) {
         return ja
-          ? `発表の再開見込み${p50}と分岐点${be}の差が小さく、乗り換えるほどの差がないためです。`
-          : `The announced restart of ${p50} is close to the break-even time of ${be}, too close to justify switching.`;
+          ? `発表の再開見込み${p50}と分岐点${be}の差はわずかです。乗り換えるほどの差はありません。`
+          : `Announced restart ${p50} is close to the ${be} decision point. Stay to avoid an unnecessary change.`;
       }
       return ja
-        ? `発表の再開見込み${p50}が分岐点${be}より早く、見込みどおりなら待つほうが早く着きます。`
-        : `The announced restart of ${p50} is before the break-even time of ${be}, so waiting gets you there sooner if it holds.`;
+        ? `発表の再開見込み${p50}は分岐点${be}より前です。見込みどおりなら待つほうが早く着きます。`
+        : `Announced restart ${p50} is before the ${be} decision point. Wait to arrive sooner if it holds.`;
   }
 }
 
@@ -540,21 +538,21 @@ const SWITCH_REASONS: ReadonlySet<DecisionReason> = new Set([
 function buildDecisionHeadline(input: DecisionTextInput): string {
   const ja = input.language === "ja";
   const target = nameSwitchTarget(input.bestOption, input.language);
-  const switchHeadline = ja ? `いま${target}に切り替えてください` : `Switch to ${target} now.`;
+  const switchHeadline = ja ? `いま${target}に切り替える` : `Switch to ${target} now.`;
   // 短く終わり見込みの立てやすい事象では、待つ見出しを安心させる言い方にする
   const waitHeadline =
     input.flow?.outlook === "short"
       ? ja
-        ? "慌てず、このまま待ちましょう"
-        : "No need to rush. Stay and wait."
+        ? "このまま待つ"
+        : "Stay and wait."
       : ja
-        ? "運転再開を待ってください"
+        ? "運転再開を待つ"
         : "Wait for service to resume.";
   const be = input.breakEvenTime ? formatClock(input.breakEvenTime, input.language) : null;
   const holdHeadline = be
     ? ja
-      ? `${be}まで待って、だめなら切り替え`
-      : `Wait until ${be}, then switch if still stopped.`
+      ? `${be}までに動かなければ切り替える`
+      : `Wait until ${be}. Switch if still stopped.`
     : waitHeadline;
   // 駅間の車内では、時刻まで待つ・あと何分の形は実行できない。次の駅に着いてからの行動にする
   if (input.trainQueue) {
@@ -568,7 +566,7 @@ function buildDecisionHeadline(input: DecisionTextInput): string {
     case "no_alternative":
       return waitHeadline;
     case "rain_continuing":
-      return ja ? "雨が弱まるまで待ちましょう" : "Wait until the rain eases.";
+      return ja ? "雨が弱まるまで待つ" : "Wait until the rain eases.";
     case "break_even_passed":
     case "estimate_extended":
     case "resume_after_break_even":
@@ -581,7 +579,7 @@ function buildDecisionHeadline(input: DecisionTextInput): string {
       const minutes = input.breakEvenMinutesFromNow;
       if (input.flow?.outlook === "short") return waitHeadline;
       if (minutes === null || minutes <= 0) return waitHeadline;
-      return ja ? `あと${minutes}分は待てます` : `You can wait ${minutes} more minutes.`;
+      return ja ? `あと${minutes}分は待つ` : `Wait up to ${minutes} more minutes.`;
     }
   }
 }

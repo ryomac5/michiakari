@@ -249,9 +249,9 @@ describe("発表の再開見込みで比べたときの文言", () => {
       reason: "stated_resume_before_break_even",
       marginP50Minutes: 21,
     });
-    expect(text.headline).toBe("あと36分は待てます");
+    expect(text.headline).toBe("あと36分は待つ");
     expect(text.reason).toBe(
-      "発表の再開見込み22時20分が分岐点22時41分より早く、見込みどおりなら待つほうが早く着きます。",
+      "発表の再開見込み22時20分は分岐点22時41分より前です。見込みどおりなら待つほうが早く着きます。",
     );
     expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });
@@ -264,9 +264,9 @@ describe("発表の再開見込みで比べたときの文言", () => {
       resumeP80: "2026-11-05T23:00:00+09:00",
       marginP50Minutes: -9,
     });
-    expect(text.headline).toBe("いま別の路線に切り替えてください");
+    expect(text.headline).toBe("いま別の路線に切り替える");
     expect(text.reason).toBe(
-      "発表の再開見込み22時50分が分岐点22時41分より遅く、見込みどおりでも別の路線のほうが早く着くためです。",
+      "発表の再開見込み22時50分は分岐点22時41分より後です。見込みどおりでも別の路線のほうが早く着きます。",
     );
     expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });
@@ -284,7 +284,7 @@ describe("発表の再開見込みで比べたときの文言", () => {
       },
     });
     expect(text.reason).toBe(
-      "発表の再開見込み22時50分が分岐点22時41分より遅く、見込みどおりでも別の路線のほうが早く着くためです。分岐点の22時41分までに再開する見込みは2割です。",
+      "発表の再開見込み22時50分は分岐点22時41分より後です。見込みどおりでも別の路線のほうが早く着きます。分岐点の22時41分までに再開する見込みは2割です。",
     );
     expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });
@@ -303,7 +303,7 @@ describe("大半が後のときの文言", () => {
       deadline: null,
       bestOption: { kind: "transfer", label: "Osaka Metro 四つ橋線", isTransferService: false },
     });
-    expect(text.headline).toBe("いま別の路線に切り替えてください");
+    expect(text.headline).toBe("いま別の路線に切り替える");
     expect(text.reason).toContain("あと4分");
     expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });
@@ -448,11 +448,9 @@ describe("結論の根拠と確率の比較時点", () => {
     const chance = buildChanceText(input.breakEven, outcome.reason);
     if (!chance) throw new Error("比較時点の確率がありません");
     const sentence = buildChanceSentence(chance, "ja");
-    expect(sentence).toBe(
-      "遅めの見込みでは分岐点より後の23時00分までに再開する確率が9割に達する推定です。",
-    );
+    expect(sentence).toBe("遅めの見込みでは分岐点より後の23時00分までの再開確率は9割です。");
     expect(buildChanceSentence(chance, "en")).toBe(
-      "In the later outlook, the chance of resuming reaches 90% by 23:00, after the break-even time.",
+      "Later outlook: 90% chance of restart by 23:00. This is after the decision point.",
     );
     expect(chance.waitFaster).toBeNull();
     expect(sentence).not.toContain("待ったほうが早く着く見込み");
@@ -495,10 +493,10 @@ describe("結論の根拠と確率の比較時点", () => {
     expect(chance.waitFaster).toBeNull();
     expect(chance.waitOnTime).toBeNull();
     expect(buildChanceSentence(chance, "ja")).toBe(
-      "遅めの見込みでは分岐点より後の22時50分までに再開する確率が6割に達する推定です。",
+      "遅めの見込みでは分岐点より後の22時50分までの再開確率は6割です。",
     );
     expect(buildChanceSentence(chance, "en")).toBe(
-      "In the later outlook, the chance of resuming reaches 60% by 22:50, after the break-even time.",
+      "Later outlook: 60% chance of restart by 22:50. This is after the decision point.",
     );
   });
 });

@@ -53,7 +53,7 @@ describe("原因が分からず、発表の再開見込みがある判断", () =
     expect(judgment.breakEven).not.toBeNull();
     expect(Date.parse(judgment.breakEven?.time ?? "")).toBeGreaterThan(Date.parse(stated));
     expect(judgment.action).toBe("wait");
-    expect(judgment.headline).toMatch(/^あと\d+分は待てます$/);
+    expect(judgment.headline).toMatch(/^あと\d+分は待つ$/);
     expect(judgment.reason).toContain("発表の再開見込み22時10分");
     expect(judgment.reason).toContain("見込みどおりなら");
   });
@@ -64,7 +64,7 @@ describe("原因が分からず、発表の再開見込みがある判断", () =
     expect(judgment.estimate.eventType).toBeNull();
     expect(Date.parse(judgment.breakEven?.time ?? "")).toBeLessThan(Date.parse(stated));
     expect(judgment.action).toBe("switch");
-    expect(judgment.headline).toMatch(/に切り替えてください$/);
+    expect(judgment.headline).toMatch(/に切り替える$/);
     expect(judgment.reason).toContain("発表の再開見込み23時30分");
     expect(judgment.reason).toContain("見込みどおりでも");
   });
@@ -75,6 +75,6 @@ describe("原因が分からず、発表の再開見込みがある判断", () =
     expect(judgment.estimate.remaining).toBeNull();
     expect(judgment.estimate.confidence).toBe("low");
     expect(judgment.action).toBe("hold");
-    expect(judgment.headline).toMatch(/まで待って、だめなら切り替え$/);
+    expect(judgment.headline).toMatch(/までに動かなければ切り替える$/);
   });
 });

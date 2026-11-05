@@ -3,7 +3,7 @@
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import ja from "../../apps/web/messages/ja.json" with { type: "json" };
-import { testIds } from "../../apps/web/src/lib/testids.ts";
+import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import type { Expectation, Scenario } from "../../packages/schema/src/scenario.ts";
 import {
   loadReplayScenarios,
@@ -177,8 +177,13 @@ for (const scenario of scenarios) {
         previousChance = currentChance;
         // どの段でも、結論と理由は行動の言葉で言い切る
         await expect(page.getByTestId(testIds.judgment.conclusion)).not.toContainText(nonDecisive);
-        const reason = page.getByTestId(testIds.judgment.conclusionReason);
-        if ((await reason.count()) > 0) await expect(reason).not.toContainText(nonDecisive);
+        for (const id of [
+          testIds.judgment.conclusionReason,
+          testIds.judgment.conclusionReasonDetail,
+        ]) {
+          const reason = page.getByTestId(id);
+          if ((await reason.count()) > 0) await expect(reason).not.toContainText(nonDecisive);
+        }
         const breakEvenFrame = page.locator(`[data-observation-id="${entry.id}"]`, {
           has: page.getByTestId(testIds.judgment.breakEven),
         });
