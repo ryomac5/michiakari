@@ -1,0 +1,70 @@
+﻿id,date,operator,line,location,primary_type,secondary_types,variant,region,dataset,source_urls
+EIZ-2024-0618-animal-rescue,2024-06-18,叡山電鉄,鞍馬線,貴船口〜鞍馬,animal_collision,vehicle_failure,contact_with_vehicle_damage,kansai,classification_only,https://eizandensha.co.jp/data/wp-content/uploads/sites/12/2025/09/anzen2025.pdf
+EIZ-2024-0724-lightning,2024-07-24,叡山電鉄,叡山本線,宝ケ池〜八瀬比叡山口,lightning,signal_failure,lightning_with_signal_repair,kansai,duration_case,https://eizandensha.co.jp/data/wp-content/uploads/sites/12/2025/09/anzen2025.pdf
+EIZ-2024-0724-rain,2024-07-24,叡山電鉄,鞍馬線,市原〜鞍馬,heavy_rain,"",rain_easing_without_reported_damage,kansai,duration_case,https://eizandensha.co.jp/data/wp-content/uploads/sites/12/2025/09/anzen2025.pdf
+EIZ-2024-0824-rain,2024-08-24,叡山電鉄,鞍馬線,二軒茶屋〜鞍馬,heavy_rain,"",expanding_suspension_then_rain_easing,kansai,duration_case,https://eizandensha.co.jp/data/wp-content/uploads/sites/12/2025/09/anzen2025.pdf
+EIZ-2024-0902-track-circuit,2024-09-02,叡山電鉄,鞍馬線,二軒茶屋〜市原,signal_failure,"",equipment_repair_overnight,kansai,classification_only,https://eizandensha.co.jp/data/wp-content/uploads/sites/12/2025/09/anzen2025.pdf
+EIZ-2025-0201-crossing-obstruction,2025-02-01,叡山電鉄,鞍馬線,宝ケ池2号踏切,crossing_obstruction,"",road_vehicle_removal_without_train_collision,kansai,classification_only,https://eizandensha.co.jp/data/wp-content/uploads/sites/12/2025/09/anzen2025.pdf
+EIZ-2025-0208-snow-point,2025-02-08,叡山電鉄,鞍馬線,出町柳〜鞍馬（二軒茶屋駅の設備）,snow_ice,point_failure,snow_ice_point_obstruction,kansai,duration_case,https://eizandensha.co.jp/data/wp-content/uploads/sites/12/2025/09/anzen2025.pdf
+HJ-2025-0801-rail,2025-08-01,北条鉄道,北条鉄道線,粟生〜網引,heat_rail_deformation,"",suspected_heat_deformation,kansai,duration_case,https://www.kobe-np.co.jp/news/backnumber2/202508/0019302978.shtml
+HK-2025-0620-person,2025-06-20,阪急電鉄,京都線・千里線,南茨木駅,person_collision,"",collision_at_station,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1498509
+HK-2026-0902-person,2026-09-02,阪急電鉄,京都線,西山天王山駅付近,person_collision,"",collision_at_station,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1783191
+HK-2026-0909-other,2026-09-09,阪急電鉄,阪急神戸線,王子公園〜春日野道,foreign_object,"",sheet_on_overhead_line,kansai,duration_case,https://www.kobe-np.co.jp/news/society/202609/0020799969.shtml
+HK-2026-1030-person,2026-10-30,阪急電鉄,神戸線,西宮北口〜武庫之荘,person_collision,"",collision_between_stations,kansai,duration_case,https://www.ktv.jp/news/articles/?id=30662 | https://news.yahoo.co.jp/articles/c5d1261d3d4b294d61d12bd4d4b9661ae10ab062 | https://news.yahoo.co.jp/articles/512bcbf4699f986fbabc44d699d4714899448142
+HS-2024-0320-wind,2024-03-20,阪神電気鉄道,阪神本線,尼崎〜甲子園,strong_wind,"",details_not_separated,kansai,duration_case,https://www.kobe-np.co.jp/news/society/202403/0017451322.shtml
+HS-2024-1209-vehicle,2024-12-09,阪神電気鉄道,神戸高速線,西代〜新開地,vehicle_failure,"",details_not_separated,kansai,duration_case,https://www.kobe-np.co.jp/news/backnumber2/202412/0018430574.shtml
+JRW-2024-0207-kobe-vehicle,2024-02-07,JR西日本,JR神戸線,垂水〜舞子。下り列車線,vehicle_smoke,"",smoke_then_train_withdrawal,kansai,duration_case,https://www.westjr.co.jp/press/article/items/240209_00_press_jrkobesen_2.pdf
+JRW-2024-0320-wind,2024-03-20,JR西日本,JR神戸線,尼崎〜芦屋,strong_wind,"",details_not_separated,kansai,duration_case,https://www.kobe-np.co.jp/news/society/202403/0017451322.shtml
+JRW-2024-0429-signal,2024-04-29,JR西日本,和歌山線,五条〜橋本,signal_failure,"",details_not_separated,kansai,duration_case,https://www.nara-np.co.jp/news/20240430213255.html
+JRW-2024-0611-kyoto-vehicle,2024-06-11,JR西日本,JR京都線ほか,茨木〜千里丘。特急の車両挙動監視装置が作動,vehicle_failure,"",safety_device_alarm,kansai,duration_case,https://www.westjr.co.jp/press/article/items/240614_00_06110612yusosyogai.pdf
+JRW-2024-0612-mukomachi-signal,2024-06-12,JR西日本,JR京都線ほか,向日町駅構内,signal_failure,"",signal_not_restored_after_power_recovery,kansai,duration_case,https://www.westjr.co.jp/press/article/items/240614_00_06110612yusosyogai.pdf
+JRW-2024-0619-person,2024-06-19,JR西日本,JR神戸線,姫路〜米原,person_collision,"",collision_at_station,kansai,duration_case,https://www.kobe-np.co.jp/news/backnumber2/202406/0017791061.shtml
+JRW-2024-1009-kansai-track,2024-10-09,JR西日本,関西空港線,日根野〜関西空港（確認箇所はりんくうタウン〜関西空港）,track_smoke_check,"",reported_smoke_not_confirmed_as_fire,kansai,duration_case,https://www.westjr.co.jp/press/article/items/241030_00_press_trouble_kansaikukosen.pdf
+JRW-2024-1013-hanwa-signal,2024-10-13,JR西日本,阪和線,和泉府中〜熊取（故障箇所は東貝塚駅）,point_failure,signal_failure,point_component_detachment,kansai,duration_case,https://www.westjr.co.jp/press/article/items/250225_00_press_trouble_hanwasen_1.pdf
+JRW-2024-1204-bridge,2024-12-04,JR西日本,関西本線（大和路線）,木津〜平城山,bridge_impact,"",impact_mark_safety_check,kansai,duration_case,https://www.nara-np.co.jp/news/20241204134134.html
+JRW-2025-0129-person,2025-01-29,JR西日本,JR神戸線,西明石駅構内,person_collision,"",collision_at_station,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1414397
+JRW-2025-0209-signal,2025-02-09,JR西日本,JR京都線・神戸線,尼崎駅の信号トラブル。京都〜西明石,signal_failure,"",details_not_separated,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1420218
+JRW-2025-0323-person,2025-03-23,JR西日本,JR京都線,茨木〜千里丘。丑寅第一踏切,person_collision,"",collision_at_crossing,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1445315
+JRW-2025-0331-person,2025-03-31,JR西日本,琵琶湖線,安土駅,person_collision,"",collision_at_station,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1450502
+JRW-2025-0402-person,2025-04-02,JR西日本,琵琶湖線,安土駅,person_collision,"",collision_at_station,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1451773
+JRW-2025-0409-person,2025-04-09,JR西日本,JR京都線・JR神戸線,岸辺駅,person_collision,"",collision_at_station,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1456587
+JRW-2025-0412-suspicious-object,2025-04-12,JR西日本,JR京都線ほか,京都駅,suspicious_object,"",station_security_check,kansai,classification_only,https://www.kyoto-np.com/cn/video/jHf_QeVZVo0
+JRW-2025-0609-deer,2025-06-09,JR西日本,関西線（大和路線）・奈良線,奈良〜平城山,animal_collision,"",contact_damage_not_recorded,kansai,duration_case,https://www.nara-np.co.jp/news/20250609222917.html
+JRW-2025-0708-rain,2025-07-08,JR西日本,JR宝塚線,宝塚〜篠山口,heavy_rain,"",details_not_separated,kansai,duration_case,https://www.kobe-np.co.jp/news/society/202507/0019201954.shtml
+JRW-2025-0723-person,2025-07-23,JR西日本,琵琶湖線,栗東駅,person_collision,"",collision_at_station,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1527455
+JRW-2025-0821-person,2025-08-21,JR西日本,JR京都線,西大路〜桂川の踏切,person_collision,"",collision_at_crossing,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1546416
+JRW-2025-0925-nara-signal,2025-09-25,JR西日本,奈良線,城陽〜木津（故障箇所は長池〜山城青谷）,signal_failure,"",details_not_separated,kansai,duration_case,https://www.westjr.co.jp/press/article/items/260116_00_press_narasen_shingo.pdf
+JRW-2026-0111-wind,2026-01-11,JR西日本,湖西線,近江今津〜近江塩津,strong_wind,"",details_not_separated,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1634054
+JRW-2026-0325-quake,2026-03-25,JR西日本,JR神戸線,記事に区間の記載なし,earthquake,"",post_earthquake_safety_check,kansai,duration_case,https://www.kobe-np.co.jp/news/society/202603/0020165508.shtml
+JRW-2026-0404-tree,2026-04-04,JR西日本,湖西線,近江今津〜近江塩津,vegetation_obstruction,"",fallen_tree_on_route,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1689691
+JRW-2026-0407-wind,2026-04-07,JR西日本,湖西線,和邇〜近江今津。京都〜近江今津の新快速は運休,strong_wind,"",details_not_separated,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1691462
+JRW-2026-0421-wind,2026-04-21,JR西日本,湖西線,和邇〜近江今津、のち山科〜近江塩津,strong_wind,"",details_not_separated,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1699713
+JRW-2026-0425-tozai-track,2026-04-25,JR西日本,JR東西線,尼崎〜加島。下神崎川橋梁付近,track_structure_damage,"",bridge_member_detachment,kansai,duration_case,https://www.westjr.co.jp/press/article/2026/10/05/items/261005_00_press_tozailine_senro.pdf
+JRW-2026-0508-wind,2026-05-08,JR西日本,湖西線,和邇〜近江今津,strong_wind,"",details_not_separated,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1710446
+JRW-2026-0909-tree,2026-09-09,JR西日本,JR加古川線,西脇市〜谷川,vegetation_obstruction,"",train_contact_with_fallen_tree,kansai,duration_case,https://www.kobe-np.co.jp/news/society/202609/0020799969.shtml
+JRW-2026-0921-tree,2026-09-21,JR西日本,山陰線,胡麻〜綾部,vegetation_obstruction,"",fallen_tree_on_route,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1794722
+JRW-2026-1021-person,2026-10-21,JR西日本,JR京都線,山崎〜島本の堂の後踏切,person_collision,"",collision_at_crossing,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1812090
+KH-2025-0827-rain,2025-08-27,京阪電気鉄道,石山坂本線,石山寺〜坂本比叡山口,heavy_rain,"",details_not_separated,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1550018
+KH-2026-1013-person,2026-10-13,京阪電気鉄道,京阪本線・中之島線,牧野〜樟葉,person_collision,"",collision_between_stations,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1806952
+KH-2026-1030-lightning,2026-10-30,京阪電気鉄道,京阪本線・中之島線,寝屋川市〜枚方市,lightning,"",details_not_separated,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1817969 | https://www.hira2.jp/topic/rakurai-20261030.html
+KT-2024-0811-vehicle,2024-08-11,近畿日本鉄道,京都線,近鉄宮津〜高の原,vehicle_failure,"",details_not_separated,kansai,duration_case,https://www.nara-np.co.jp/news/20240812212158.html
+KT-2024-0820-bamboo,2024-08-20,近畿日本鉄道,大阪線,大阪上本町〜五位堂,foreign_object,"",bamboo_removal,kansai,duration_case,https://www.nara-np.co.jp/news/20240820104438.html | https://www.nara-np.co.jp/news/20240820120136.html
+KT-2025-0209-person,2025-02-09,近畿日本鉄道,京都線,向島〜小倉の踏切,person_collision,"",collision_at_crossing,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1420352
+KT-2025-0612-person,2025-06-12,近畿日本鉄道,京都線,向島駅構内,person_collision,"",collision_at_station,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1493596
+KT-2026-0629-derail,2026-06-29,近畿日本鉄道,京都線,京都駅構内。出発直後の分岐器付近,derailment,"",details_not_separated,kansai,duration_case,https://kumanichi.com/articles/2008366 | https://www.nikkei.com/article/DGXZQOUF301WF0Q6A630C2000000/
+KT-2026-1024-person,2026-10-24,近畿日本鉄道,京都線,山田川駅構内,person_collision,"",collision_at_station,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1814240
+KT-2026-1101-person,2026-11-01,近畿日本鉄道,京都線,寺田〜富野荘,person_collision,"",collision_between_stations,kansai,duration_case,https://www.kyoto-np.co.jp/articles/-/1818915
+NK-2024-0206-crossing,2024-02-06,南海電気鉄道,高野線,西天下茶屋1号踏切,crossing_collision,"",details_not_separated,kansai,duration_case,https://www.nankai.co.jp/lib/company/news/pdf/240206.pdf
+OM-2024-0118-yotsubashi-fitting,2024-01-18,Osaka Metro,四つ橋線,花園町〜岸里。隧道内の天井,building_falling_object,"",tunnel_fitting_fall,kansai,duration_case,https://subway.osakametro.co.jp/news/news_release/20240118_yotsubashi_setsubitenken_owabi.php
+OM-2025-0813-chuo-power,2025-08-13,Osaka Metro,中央線,コスモスクエア〜大阪港。上り線のサードレール,power_outage,"",investigation_and_partial_resumption,kansai,duration_case,https://subway.osakametro.co.jp/news/news_release/20250814_r4unkou_release.php | https://subway.osakametro.co.jp/news/news_release/20250908_0813r4_unkoutrouble.php | https://subway.osakametro.co.jp/news/news/other/20250813_r4_owabi.php | https://www.bousai.go.jp/jishin/syuto/saigai_kitaku/pdf/dai1kai/shiryo4.pdf
+OM-2026-0419-battery,2026-04-19,Osaka Metro,御堂筋線,大国町駅付近。上り線,onboard_fire,"",details_not_separated,kansai,duration_case,https://subway.osakametro.co.jp/news/news_release/20260419_r1daikokucho.php
+OM-2026-0725-sakaisuji-concrete,2026-07-25,Osaka Metro,堺筋線,恵美須町駅のホーム,building_falling_object,"",station_concrete_fall,kansai,duration_case,https://subway.osakametro.co.jp/news/news_release/20260726_ebisuchou.php
+OMO-2025-1003-saito-vehicle,2025-10-03,大阪モノレール,彩都線,阪大病院前〜彩都西。彩都西駅付近,vehicle_failure,"",details_not_separated,kansai,duration_case,https://www.osaka-monorail.co.jp/info/detail/748
+SK-2025-0717-tree,2025-07-17,神戸電鉄,粟生線,志染〜粟生,power_outage,vegetation_obstruction,tree_contact_with_power_line,kansai,duration_case,https://www.kobe-np.co.jp/news/society/202507/0019239235.shtml
+TAMA-2024-0516-passenger-mixed,2024-05-16,多摩都市モノレール,多摩都市モノレール線,甲州街道駅ほか,medical_response,passenger_conflict,multiple_passenger_events,outside_kansai,classification_only,https://www.tama-monorail.co.jp/safety_report_2025.pdf
+TAMA-2024-0720-rain-equipment,2024-07-20,多摩都市モノレール,多摩都市モノレール線,高幡不動駅ほか,heavy_rain,signal_failure,rain_with_equipment_damage,outside_kansai,classification_only,https://www.tama-monorail.co.jp/safety_report_2025.pdf
+TAMA-2024-0721-lightning-structure,2024-07-21,多摩都市モノレール,多摩都市モノレール線,高幡不動〜万願寺,lightning,track_structure_damage,lightning_with_structure_repair,outside_kansai,classification_only,https://www.tama-monorail.co.jp/safety_report_2025.pdf
+TAMA-2024-0919-point,2024-09-19,多摩都市モノレール,多摩都市モノレール線,高松駅,point_failure,"",point_equipment_repair,outside_kansai,classification_only,https://www.tama-monorail.co.jp/safety_report_2025.pdf
+TAMA-2024-1130-medical,2024-11-30,多摩都市モノレール,多摩都市モノレール線,高幡不動駅,medical_response,"",ambulance_handover,outside_kansai,classification_only,https://www.tama-monorail.co.jp/safety_report_2025.pdf
+TAMA-2025-0304-snow-slow,2025-03-04,多摩都市モノレール,多摩都市モノレール線,沿線,snow_ice,"",slow_running_without_confirmed_suspension,outside_kansai,classification_only,https://www.tama-monorail.co.jp/safety_report_2025.pdf
+TAMA-2025-0518-intrusion,2025-05-18,多摩都市モノレール,多摩都市モノレール線,立飛駅,track_intrusion,"",intrusion_without_reported_collision,outside_kansai,classification_only,https://www.tama-monorail.co.jp/20250519_pressrelease.pdf
