@@ -15,6 +15,12 @@
 
 ## 記録
 
+### 2026-11-05 / T8 / e2e の最初の判断待ちを安定化
+- 切り分け（静的調査、実測未確認）: openReplay は遷移と idle を待ち、streamJudgment は agent の /judge を直接呼ぶため、ページコンパイルは主に判断前。agent は決定論モードで、workers 未指定・fullyParallel によるブラウザーと判断処理の資源競合を主因候補とした。warm-web は録画専用で、通常 e2e は / のみ起動確認していた。
+- 対応: workers を 2 に制限し、起動確認を /replay にして初回コンパイルを先行。web・agent とも既存サーバー再利用を禁止し、指定ポートが使用中なら失敗させる。waitForJudged の 30 秒は維持した。
+- 確認結果: pnpm typecheck・pnpm lint・pnpm guard が成功。サーバーを起動しない設定検証で 3108/8808 と 3109/8809 の起動ポート・接続先・CORS の一致と再利用禁止を確認した。
+- 残課題: 指定の CI=true pnpm install --frozen-lockfile --prefer-offline は ENOTFOUND が続き中断（exit 130）。CI=true pnpm install --frozen-lockfile --offline --store-dir /private/tmp/t4-pnpm-store は成功。指定 e2e と別ポートでの同時実行は、ポートを開けない制約に従い未実行で、スケジューラで検証する。
+
 ### 2026-11-05 / T4 / 戻る履歴の再レビュー対応
 - やったこと: 入口復元時の履歴の積み直しを抑止し、flow.test.ts と back-navigation.spec.ts で端末・ヘッダーの戻るを固定済み。今回は実装を変えず、分かれていた T4 記録を統合した。
 - 確認結果: typecheck・lint・Web単体290件・test -s・guard が成功。指定 install は ENOTFOUND、既存ストアでのオフライン導入は成功。実装と E2E はスケジューラの受け入れ検証を通過済みとの報告を受けた。
