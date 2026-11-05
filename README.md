@@ -1,8 +1,8 @@
-# マツカエル
+# みちあかり
 
 待つか、乗り換えるか。
 
-> MatsuKaeru helps rail passengers in Kansai decide whether to wait or switch routes during service disruptions.
+> Michiakari helps rail passengers in Kansai decide whether to wait or switch routes during service disruptions.
 > It turns announcements into an estimated phase, a time to resumption, a break-even time, and a concrete action.
 > The judgment draws on a former train dispatcher's knowledge, and every number is computed by code, not by Claude.
 
@@ -30,7 +30,7 @@ Built with Claude: Japan 2026 ハッカソンの提出作品です。
 
 指令の内部では、事象の性質と経過から復旧の見込みを立てています。
 その判断材料が利用者に届いていません。
-マツカエルはこの情報の差を埋めます。
+みちあかりはこの情報の差を埋めます。
 
 アプリが返すものは次の 3 つです。
 
@@ -238,7 +238,7 @@ ALLOW_PROTECTED_EDIT=1 pnpm scenario:new <scenario_id> --event <event_id>
 
 ## 推定の扱いと運行情報
 
-マツカエルの出力はすべて推定です。
+みちあかりの出力はすべて推定です。
 判断結果には、推定である旨の注意書きが必ず付きます。
 画面では結論の近くに、公式発表を優先するよう常に表示します。
 
