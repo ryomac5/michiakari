@@ -7,6 +7,7 @@ import {
   ObservableKindSchema,
   type Observation,
   type RawInput,
+  TrainTypeSchema,
 } from "@repo/schema";
 import { z } from "zod";
 import { claudeSettings, models } from "../config.ts";
@@ -18,6 +19,7 @@ import { resolveClockNearTime } from "./parse-text.ts";
 
 export const InterpretationSchema = z.object({
   kind: ObservableKindSchema.nullable(),
+  trainsAhead: z.array(TrainTypeSchema).optional(),
   rawText: z.string(),
   eventTypeCandidates: z.array(z.object({ eventType: z.string(), confidence: ConfidenceSchema })),
   operator: z.string().nullable(),
@@ -84,6 +86,9 @@ export function convertInterpretation(
     observedAt: ctx.observedAt,
     source: input.type,
     ...(kind ? { kind } : {}),
+    ...(kind === "train_movement" && interpretation.trainsAhead !== undefined
+      ? { trainsAhead: interpretation.trainsAhead }
+      : {}),
     // 原文の上限を超えた読み取りは切り詰める
     rawText: interpretation.rawText.slice(0, MAX_INPUT_TEXT_LENGTH),
     eventTypeCandidates: interpretation.eventTypeCandidates.filter((c) =>

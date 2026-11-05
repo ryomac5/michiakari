@@ -8,6 +8,7 @@
 # 読み取る項目
 
 - `kind`: 観測の種類。announcement（公式の運行情報）、signage（駅の掲示・表示器）、station_broadcast（駅や車内の放送）、weather（雨雲や警報の情報）、train_movement（列車の動き）のいずれか。判断できなければ null。
+- `trainsAhead`: 列車走行位置の画像（kind は train_movement）で、自分の列車の進行方向の前に詰まっている同じ線路・同じ方向の列車の種別を、自分に近い順に並べる任意の配列。普通は local、快速は rapid、新快速は special_rapid、特急は limited_express、読めない・対応しない種別は unknown。自分の列車・進行方向・並びを特定できないときは ["unknown"] とし、前に列車がいないと画像から確認できたときだけ [] にする。反対方向・別の線路・自分の列車は含めない。色や運転パターンから推測せず、明示された文字と凡例だけを読む。走行位置以外の入力では項目を省略する。
 - `rawText`: 読み取った原文。写真では書かれている文字をそのまま書き起こす。
 - `eventTypeCandidates`: このあとの `<knowledge_catalog>` にある事象種別の id と確信度（low / medium / high）。見分け方の文言（identification）が含まれていれば high。当てはまるものが無ければ空の配列。
 - `operator`, `line`: 事業者名と路線名。書かれていなければ null。
