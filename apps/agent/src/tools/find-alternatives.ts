@@ -69,6 +69,10 @@ export async function runFindAlternatives(
     // 乗ったまま待つ側にも、前の列車が先に発車するぶんの遅れを足す
     extraWaitMinutesAfterResume: estimate.trainQueue?.departureDelayMinutes ?? 0,
     remaining: estimate.estimate.remaining,
+    // 駅間の車内なら、待つ側の到着から初列車待ちを除く
+    ...(estimate.trainQueue && estimate.firstTrainWait
+      ? { firstTrainWaitMinutes: estimate.firstTrainWait.p50 }
+      : {}),
     transferServiceActive: findLatest(ctx.observations, (o) => o.transferServiceActive),
     language: ctx.request.language,
   });

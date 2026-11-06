@@ -354,10 +354,14 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
           lineId: waitLineId,
           now: query.now,
           // 駅間の車内なら、降りる駅に着く見込みを起点にそろえる。代わりの手段と同じ起点で比べるため
+          // 車内の人はすでに乗っているので、初列車待ちを除いた再開の見込みを使う。列車の位置の推定と同じ扱い
           arrivalTime: query.departureTime
             ? computeInCarWaitArrival({
                 now: query.now,
-                remainingMinutes: query.remaining?.p50 ?? 0,
+                remainingMinutes: Math.max(
+                  0,
+                  (query.remaining?.p50 ?? 0) - (query.firstTrainWaitMinutes ?? 0),
+                ),
                 extraWaitMinutes: extraWait,
                 alightArrival: query.departureTime,
                 routeMinutes: waitRoute.minutes,

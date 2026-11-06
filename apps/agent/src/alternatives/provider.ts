@@ -19,6 +19,8 @@ export type AlternativesQuery = {
   extraWaitMinutesAfterResume?: number;
   // 再開して乗れるまでの残り時間。待つ選択肢に使う。不明なら null
   remaining: DurationDist | null;
+  // 残り時間のうち、駅で最初の列車を待つ分。駅間の車内の人はすでに乗っているので、待つ側の到着から除く
+  firstTrainWaitMinutes?: number;
   transferServiceActive: boolean | null;
   language: Lang;
 };

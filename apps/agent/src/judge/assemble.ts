@@ -388,14 +388,18 @@ export function validateJudgment(input: JudgmentCheckInput): {
     }
   }
   const inCarLines = input.inCarAlternativeLines ?? null;
-  // 利用者に見せる生成文。根拠の説明のうち、サーバーが作った説明をそのまま写したものは発表の引用を含むので除く
-  const serverDescriptions = new Set(input.evidenceRefs.map((r) => r.description));
+  // 利用者に見せる生成文。根拠の説明のうち、同じ種類と ID の根拠でサーバーが作った説明を一字一句写したものは
+  // 発表の引用を含むので除く。別の根拠の ID に引用を付けたものは除かない
+  const copiesServerDescription = (e: Evidence) =>
+    input.evidenceRefs.some(
+      (r) => r.kind === e.kind && r.id === e.id && r.description === e.description,
+    );
   const shownTexts: [string, string][] = [
     ["headline", j.headline],
     ["reason", j.reason ?? ""],
     ["breakEven.explanation", j.breakEven?.explanation ?? ""],
     ...j.evidence.flatMap((e, i): [string, string][] =>
-      serverDescriptions.has(e.description) ? [] : [[`evidence[${i}].description`, e.description]],
+      copiesServerDescription(e) ? [] : [[`evidence[${i}].description`, e.description]],
     ),
   ];
   if (inCarLines !== null) {
