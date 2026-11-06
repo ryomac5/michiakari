@@ -11,6 +11,7 @@ import {
 } from "@repo/geo";
 import type { Place, RouteLeg, RouteOption, Section } from "@repo/schema";
 import type { ReachArea } from "./reach";
+import { sliceTrackBetween, type TrackParts } from "./track-shape";
 
 // 地図に重ねる GeoJSON を判断の状態から組み立てる。表示用の純関数だけを置く
 
@@ -45,8 +46,12 @@ export type KeyStationRole = PlaceRole | "transfer" | "blocked-end";
 export type MapScene = {
   origin: Position | null;
   destination: Position | null;
+  // 止まっている路線。発表の区間が無いときも、利用者のいる路線を薄く示し、代わりの手段の駅から外すのに使う
   blockedLineIds: string[];
+  // 止まっている区間。発表で区間が分かったときだけ、線路の形に沿って描く
   blocked: FeatureCollection<LineStringGeometry, { label: string }>;
+  // 区間を描けず、発表で確かめるよう添えるとき true。その列車だけが止まる事象では false
+  sectionUnconfirmed: boolean;
   // 止まった列車が走っていた線路の路線と道筋。その列車だけが止まるときも、現在地の印を置くのに使う
   trackLineIds: string[];
   trackPath: Position[] | null;
@@ -87,7 +92,7 @@ export type MapSceneInput = {
   blockedLine?: string | null;
   // 現在地の駅の到達範囲（Valhalla）。10 分と 20 分がそろわなければ円で概算する
   reachAreas?: readonly ReachArea[];
-  // 入口で選んだ路線と方面。観測に区間が無いとき、出発の駅から方面の先までを止まっている区間にする
+  // 入口で選んだ路線と方面。発表に区間が無いとき、利用者のいる路線として薄く示す。区間としては描かない
   // 運行の状態は利用者の申告だけから出す
   blockedDirection?: BlockedDirection | null;
   // その列車だけが止まる事象。区間の運転見合わせではないので、止まった区間の線と札を描かない
@@ -111,6 +116,8 @@ export type MapGeo = {
   graph: NetworkGraph;
   nodes: readonly StationNode[];
   lineColors: ReadonlyMap<string, string>;
+  // 路線ごとの線路の形。地図で路線を描く形と同じもの。無ければ駅の並びで代える
+  trackShapes?: ReadonlyMap<string, TrackParts>;
 };
 
 const toPosition = (p: LonLat): Position => [p[0], p[1]];
@@ -263,7 +270,44 @@ function buildCoordinates(geo: MapGeo, stationIds: readonly string[]): Position[
 
 type ResolvedSection = { lineId: string; coordinates: Position[] };
 
-// 止まっている区間を、路線の駅の並びに沿った折れ線にする
+// 2 駅の間を、地図で路線を描く線路の形から切り出す。形が無いか切り出せなければ、駅の並びの折れ線で代える
+function buildTrackCoordinates(
+  geo: MapGeo,
+  lineId: string,
+  from: StationNode,
+  to: StationNode,
+  stationIds: readonly string[] | null,
+): Position[] {
+  const parts = geo.trackShapes?.get(lineId);
+  const sliced = parts
+    ? sliceTrackBetween(parts, toPosition(from.lonLat), toPosition(to.lonLat))
+    : null;
+  if (sliced && sliced.length >= 2) return sliced;
+  return stationIds
+    ? buildCoordinates(geo, stationIds)
+    : buildPathCoordinates(geo, lineId, from, to);
+}
+
+// 駅の並びを順に通る線を、隣り合う駅ごとに線路の形から切り出してつなぐ。駅間の現在地を線路の上に置くのに使う
+function buildTrackThroughStations(
+  geo: MapGeo,
+  lineId: string,
+  stationIds: readonly string[],
+): Position[] {
+  const nodes = stationIds.flatMap((id) => {
+    const node = geo.index.getStation(id);
+    return node ? [node] : [];
+  });
+  return nodes.flatMap((node, i) => {
+    const next = nodes[i + 1];
+    if (!next) return [toPosition(node.lonLat)];
+    const piece = buildTrackCoordinates(geo, lineId, node, next, [node.stationId, next.stationId]);
+    // 次の区間の始まりと重ならないよう、終わりの点は除く
+    return piece.slice(0, -1);
+  });
+}
+
+// 止まっている区間を、線路の形に沿った線にする
 export function buildBlockedSectionPath(
   geo: MapGeo,
   section: Section,
@@ -275,7 +319,12 @@ export function buildBlockedSectionPath(
     const to = resolveStationByName(geo.index, section.toStation, [line.lineId]);
     if (from?.lineId !== line.lineId || to?.lineId !== line.lineId) continue;
     const ids = findStationPathOnLine(geo.graph, line.lineId, from.stationId, to.stationId);
-    if (ids !== null) return { lineId: line.lineId, coordinates: buildCoordinates(geo, ids) };
+    if (ids !== null) {
+      return {
+        lineId: line.lineId,
+        coordinates: buildTrackCoordinates(geo, line.lineId, from, to, ids),
+      };
+    }
   }
 
   // 路線名で引けなければ、2 駅を直接結ぶ路線のうち最短のものを使う
@@ -286,11 +335,12 @@ export function buildBlockedSectionPath(
   if (!between) return null;
   return {
     lineId: between.line.lineId,
-    coordinates: buildPathCoordinates(geo, between.line.lineId, between.from, between.to),
+    coordinates: buildTrackCoordinates(geo, between.line.lineId, between.from, between.to, null),
   };
 }
 
-// 入口で選んだ方面の区間。来た側の隣の駅から、行き先（方面の先にあれば）か方面の終わりの駅まで
+// 入口で選んだ方面の道筋。来た側の隣の駅から、行き先（方面の先にあれば）か方面の終わりの駅まで
+// 止まっている区間の根拠ではないので描かない。路線を薄く示すことと、駅間の現在地を置くことにだけ使う
 export function buildDirectionBlockedPath(
   geo: MapGeo,
   origin: Place,
@@ -318,7 +368,11 @@ export function buildDirectionBlockedPath(
     (link) => link.kind === "ride" && link.lineId === direction.lineId && link.to !== forward[1],
   )?.to;
   const stationIds = behind ? [behind, ...forward] : forward;
-  return { lineId: direction.lineId, coordinates: buildCoordinates(geo, stationIds), stationIds };
+  return {
+    lineId: direction.lineId,
+    coordinates: buildTrackThroughStations(geo, direction.lineId, stationIds),
+    stationIds,
+  };
 }
 
 type ResolvedLeg = {
@@ -684,6 +738,25 @@ export function buildKeyStations(
   );
 }
 
+// 止まっている区間の札。「見合わせ 大阪〜京都」の形にする。英語は駅の英語名が無ければ駅名を出さない
+function buildBlockedLabel(
+  geo: MapGeo,
+  section: Section,
+  lineId: string,
+  labels: MapSceneLabels,
+): string {
+  if (labels.english !== true) {
+    return `${labels.blocked} ${section.fromStation}〜${section.toStation}`;
+  }
+  const names = [section.fromStation, section.toStation].map((name) => {
+    const node = resolveStationByName(geo.index, name, [lineId]);
+    return node ? pickNodeName(geo.nodes, node, true) : "";
+  });
+  return names.every((name) => name !== "")
+    ? `${labels.blocked} ${names[0]}–${names[1]}`
+    : labels.blocked;
+}
+
 export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapSceneLabels): MapScene {
   const origin = resolvePlacePosition(geo.index, input.origin);
   const destination = resolvePlacePosition(geo.index, input.destination);
@@ -696,12 +769,16 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
       ? buildDirectionBlockedPath(geo, input.origin, input.destination, input.blockedDirection)
       : null;
   const trackPath = sectionPath ?? directionPath;
-  // その列車だけが止まるときは、区間を止まっているものとして描かない
-  const blockedPath = input.trainOnly ? null : trackPath;
-  const blockedLineIds = blockedPath ? [blockedPath.lineId] : [];
-  const blockedLabel = input.blockedSection
-    ? `${labels.blocked} ${input.blockedSection.fromStation}–${input.blockedSection.toStation}`
-    : labels.blocked;
+  // 止まっている区間として描くのは、発表で区間が分かったときだけ。その列車だけが止まるときは描かない
+  const blockedPath = input.trainOnly ? null : sectionPath;
+  // 発表に区間が無くても、利用者のいる路線は止まっている路線として薄く示し、代わりの手段の駅から外す
+  const stoppedLinePath = input.trainOnly ? null : trackPath;
+  const blockedLineIds = stoppedLinePath ? [stoppedLinePath.lineId] : [];
+  const english = labels.english === true;
+  const blockedLabel =
+    blockedPath && input.blockedSection
+      ? buildBlockedLabel(geo, input.blockedSection, blockedPath.lineId, labels)
+      : labels.blocked;
 
   const reach = origin && !input.hideReach ? buildReachFeatures(origin, input.reachAreas) : null;
   const widestReach = reach?.features[0]?.geometry;
@@ -722,7 +799,6 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
         .map((leg) => ({ optionId: o.id, leg })),
     );
 
-  const english = labels.english === true;
   const route = buildRouteFeatures(
     routeLegs,
     (line) => (english ? translateLineName(geo.index, line) : line),
@@ -745,15 +821,10 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
   const blockedEnds = blockedPath
     ? [blockedPath.coordinates[0], blockedPath.coordinates.at(-1)]
     : [];
-  const directionEnds = directionPath
-    ? [directionPath.stationIds[0], directionPath.stationIds.at(-1)].map(
-        (id) => (id ? geo.index.getStation(id)?.name : undefined) ?? "",
-      )
-    : [];
   const blockedEndNames =
-    input.blockedSection && !input.trainOnly
+    blockedPath && input.blockedSection
       ? [input.blockedSection.fromStation, input.blockedSection.toStation]
-      : directionEnds;
+      : [];
   const keyStations = buildKeyStations([
     {
       position: origin,
@@ -809,6 +880,7 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
     blocked: buildFeatureCollection(
       blockedPath ? [buildLineFeature(blockedPath.coordinates, { label: blockedLabel })] : [],
     ),
+    sectionUnconfirmed: !input.trainOnly && blockedPath === null,
     reach: buildFeatureCollection(reach?.features ?? []),
     reachSource: reach?.source ?? null,
     reachableStations: buildFeatureCollection(

@@ -215,9 +215,12 @@ for (const theme of ["light", "dark"] as const) {
 
       // 利用者は大阪と塚本の間にいる。上部の帯と現在地の札は駅の間にいることを出し、塚本は降りる駅として目立たせる
       await expect(page.getByTestId(testIds.judgment.tripSummary)).toContainText("大阪〜塚本");
-      // 人身事故は区間を止めるので、見合わせの札と止まった区間の線を出す
+      // 人身事故は区間を止めるので、上部の札は見合わせにする
+      // 発表に区間が無いので、駅の間の位置から区間を作って描かず、区間は発表で確かめると添える
       await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("見合わせ");
-      await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "true");
+      await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "false");
+      await expect(page.getByTestId(mapTestIds.blockedTag)).toHaveCount(0);
+      await expect(page.getByTestId(mapTestIds.sectionNote)).toContainText("区間は発表で確かめる");
       await expect(page.getByTestId(mapTestIds.here)).toContainText("大阪〜塚本の間");
       await expect(page.getByTestId(mapTestIds.alight)).toContainText("塚本");
       // 「いま」の札と「降りる駅」の札は、互いにも、駅の印にも、「全体を見る」のボタンにも重ならない
@@ -267,6 +270,7 @@ test("福島〜大阪の車内で急病人により止まり、行き先が大�
   await expect(status).toHaveAttribute("data-scope", "train");
   await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "false");
   await expect(page.getByTestId(mapTestIds.blockedTag)).toHaveCount(0);
+  await expect(page.getByTestId(mapTestIds.sectionNote)).toHaveCount(0);
   await expect(page.getByTestId(mapTestIds.here)).toContainText("福島〜大阪の間");
   await expect(page.getByTestId(testIds.judgment.screen)).not.toContainText("見合わせ");
   // シートを閉じた操作の枠を外してから撮る

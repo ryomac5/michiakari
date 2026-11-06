@@ -96,7 +96,7 @@ export function JudgmentScreen() {
   const blockedLine = known.findLast((o) => o.line !== null)?.line ?? null;
   const lineLabel = useLineLabel(blockedLine);
 
-  // 入口で選んだ路線と方面。区間の観測が無いあいだ、地図はこの方面を止まっている区間として描く
+  // 入口で選んだ路線と方面。発表に区間が無いあいだ、地図は利用者のいる路線として薄く示す
   const blockedDirection = useMemo(
     () => selectBlockedDirection(originLine, tripContext),
     [originLine, tripContext],
@@ -191,6 +191,10 @@ export function JudgmentScreen() {
         trainPosition={trainPosition}
         trainOnly={stopScope === "train"}
         insets={chrome.insets}
+        onAddAnnouncement={() => {
+          chrome.setSnap("full");
+          setFocusAddInfo(true);
+        }}
         onReachSourceChange={setReachSource}
         onGuideChange={setGuide}
         onSelectOption={focusOption}

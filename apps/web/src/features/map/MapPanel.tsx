@@ -78,17 +78,21 @@ export type MapPanelProps = {
   recommendedOptionId: string | null;
   // 選択肢の一覧で押した選択肢。地図はこの経路と乗る駅を描く。省略時は推奨
   selectedOptionId?: string | null;
-  // 止まっている区間。観測から分かったもの
+  // 止まっている区間。発表の観測から分かったものだけを渡す
   blockedSection: Section | null;
   // 止まっている路線の名前（観測の line）。無ければ「待つ」経路の路線から推し量る
   blockedLine?: string | null;
-  // 入口で選んだ路線と方面。観測に区間が無いとき、その方面を止まっている区間として描く
+  // 入口で選んだ路線と方面。発表に区間が無いとき、利用者のいる路線として薄く示す。区間としては描かない
   blockedDirection?: BlockedDirection | null;
   // 車内の位置。駅と駅の間なら、現在地の印を駅間の線路の上に置き、次の駅を降りる駅として目立たせる
   trainPosition?: TrainPosition | null;
   // その列車だけが止まる事象。止まった区間の線と「運転見合わせ」の札を描かない
   trainOnly?: boolean;
   insets: MapInsets;
+  // 発表に区間が無いとき「区間は発表で確かめる」を出すか。リプレイの再生前は出さない
+  showSectionNote?: boolean;
+  // 発表を貼る欄へ移る。渡したときだけ、区間の札の下に案内の文を出す
+  onAddAnnouncement?: () => void;
   onReachSourceChange?: (source: ReachSource | null) => void;
   // 現在地のまわりの案内。シートの選択肢の行に同じ印を添えるのに使う
   onGuideChange?: (guide: StationGuide | null) => void;
@@ -128,6 +132,8 @@ const labelSlides = [
 const viewToggleBox = { right: 12, bottom: 40, w: 140, h: 44, margin: 6 } as const;
 // 「表示中」の札の高さと上下の余白。駅の吹き出しで選んだ経路を示せないときだけ地図の上端に出す
 const selectedRouteTagSpace = 44;
+// 「区間は発表で確かめる」の札の高さと上下の余白。案内の文があれば 1 行ぶん足す
+const sectionNoteSpace = { plain: 44, withAction: 64 } as const;
 
 // 「全体を見る」のボタンが動き終えたあとの矩形。地図の左上が原点
 // 下の余白が変わるとボタンは 200ms かけて動く。動いている途中の矩形は測らず、余白から求める
@@ -803,8 +809,14 @@ export function MapPanel(props: MapPanelProps) {
       ? (guide?.stations.find((s) => s.recommended)?.key ?? null)
       : null;
   const floatingTag = chosenOption !== undefined && shownStationKey === null;
+  // 発表に区間が無いときは区間を描かず、発表で確かめるよう地図の上端に添える
+  const sectionNote = (props.showSectionNote ?? true) && scene?.sectionUnconfirmed === true;
+  const { onAddAnnouncement } = props;
+  const sectionNoteHeight = sectionNote
+    ? sectionNoteSpace[onAddAnnouncement ? "withAction" : "plain"]
+    : 0;
   const { right, bottom, left } = props.insets;
-  const top = props.insets.top + (floatingTag ? selectedRouteTagSpace : 0);
+  const top = props.insets.top + (floatingTag ? selectedRouteTagSpace : 0) + sectionNoteHeight;
   const [measuredSizes, setMeasuredSizes] = useState<Record<string, BoxSize>>({});
   // 「全体を見る」のボタン。止まっている路線の札と到達範囲の札は、このボタンを避けて置く
   const viewToggleRef = useRef<HTMLButtonElement>(null);
@@ -1002,6 +1014,7 @@ export function MapPanel(props: MapPanelProps) {
 
   // 止まっている路線の札。現在地のまわりでは現在地の近くの線上、全体では区間の中ほど
   const blockedPath = scene?.blocked.features[0]?.geometry.coordinates ?? null;
+  const blockedLabel = scene?.blocked.features[0]?.properties.label ?? "";
   const [blockedTagPosition, setBlockedTagPosition] = useState<Position | null>(null);
   useEffect(() => {
     if (!map || !blockedPath || blockedPath.length < 2) {
@@ -1236,6 +1249,8 @@ export function MapPanel(props: MapPanelProps) {
       data-selected-option={focusOptionId ?? ""}
       data-route-tone={tone}
       data-blocked={scene ? scene.blocked.features.length > 0 : false}
+      data-section-note={sectionNote}
+      data-blocked-points={blockedPath?.length ?? 0}
       data-reach-source={scene?.reachSource ?? ""}
       aria-label={t("title")}
       className="fixed inset-0 z-0 bg-background"
@@ -1257,7 +1272,9 @@ export function MapPanel(props: MapPanelProps) {
       )}
 
       {[...hosts.entries()].map(([key, element]) => {
-        if (key === "blocked") return createPortal(<BlockedTag />, element, key);
+        if (key === "blocked") {
+          return createPortal(<BlockedTag label={blockedLabel} />, element, key);
+        }
         if (key === "here" && guide) {
           return createPortal(
             <HereMarker
@@ -1321,6 +1338,29 @@ export function MapPanel(props: MapPanelProps) {
           </span>
           <span className="truncate">{chosenOption.label}</span>
         </p>
+      )}
+      {sectionNote && (
+        <div
+          data-testid={mapTestIds.sectionNote}
+          className="glass absolute z-10 flex flex-col items-start gap-0.5 rounded-xl px-3 py-1.5 text-[13px] text-foreground"
+          style={{
+            top: props.insets.top + 8 + (floatingTag ? selectedRouteTagSpace : 0),
+            left: left + 12,
+            maxWidth: `calc(100% - ${left + right + 24}px)`,
+          }}
+        >
+          <p className="font-semibold">{t("sectionUnconfirmed")}</p>
+          {onAddAnnouncement && (
+            <button
+              type="button"
+              data-testid={mapTestIds.sectionNoteAction}
+              onClick={onAddAnnouncement}
+              className="text-left text-[12px] text-focus underline underline-offset-2"
+            >
+              {t("sectionAddAnnouncement")}
+            </button>
+          )}
+        </div>
       )}
       {view === "focus" && guide && dockedRows && (
         <div

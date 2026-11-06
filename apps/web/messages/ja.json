@@ -467,6 +467,8 @@
     "viewFocus": "現在地のまわり",
     "changeAt": "{station}で",
     "transferShort": "振替",
+    "sectionUnconfirmed": "区間は発表で確かめる",
+    "sectionAddAnnouncement": "発表に区間があれば、貼ると地図に描きます。",
     "between": "{from}〜{to}の間",
     "alight": "降りる駅",
     "walkShort": "徒歩{minutes}分"

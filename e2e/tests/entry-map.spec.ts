@@ -139,17 +139,18 @@ test("全部「分からない」で進めても判断が出て、前提と次�
     "境目の時刻までに動けば待つほうが早く着きます",
   );
 
-  // 地図は止まっている御堂筋線と、乗り換えられる駅を語る
+  // 地図は乗り換えられる駅を語る。発表に区間が無いので、御堂筋線の区間は描かず、発表で確かめると添える
   const map = page.getByTestId(testIds.judgment.map);
   await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   await expect(map).toHaveAttribute("data-view", "focus");
   await expect(map).toHaveAttribute("data-focus-area", /^auto:/);
-  await expect(map).toHaveAttribute("data-blocked", "true");
+  await expect(map).toHaveAttribute("data-blocked", "false");
   const bubbles = page.locator(`[data-testid^="judgment-map-station-"]`);
   await expect.poll(() => bubbles.count()).toBeGreaterThanOrEqual(1);
   expect(await bubbles.count()).toBeLessThanOrEqual(4);
   await expect(bubbles.first()).toBeVisible();
-  await expect(page.getByTestId(mapTestIds.blockedTag)).toBeVisible();
+  await expect(page.getByTestId(mapTestIds.blockedTag)).toHaveCount(0);
+  await expect(page.getByTestId(mapTestIds.sectionNote)).toContainText("区間は発表で確かめる");
   await expect(page.getByTestId(mapTestIds.here)).toContainText("本町");
   await expect(page.getByTestId(testIds.judgment.disclaimer)).toBeVisible();
   await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("御堂筋線");

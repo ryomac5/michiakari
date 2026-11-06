@@ -42,16 +42,20 @@ test("車内の急病人・非常ボタンでは、上部の札を停車中に�
   await expect(status).toHaveText("大阪〜天満で停車中");
   await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "false");
   await expect(page.getByTestId(mapTestIds.blockedTag)).toHaveCount(0);
+  await expect(page.getByTestId(mapTestIds.sectionNote)).toHaveCount(0);
   // 判断の文にも地図の札にも、見合わせは出ない
   await expect(page.getByTestId(testIds.judgment.screen)).not.toContainText("見合わせ");
 });
 
-test("人身事故では、上部の札と地図に運転見合わせを出す", async ({ page }) => {
+test("人身事故では、上部の札に運転見合わせを出し、発表に区間が無ければ区間は発表で確かめると添える", async ({
+  page,
+}) => {
   await startOnLoopLine(page, "person");
   const status = page.getByTestId(testIds.judgment.statusChip);
   await expect(status).toHaveAttribute("data-scope", "section");
   await expect(status).toContainText("見合わせ");
-  await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "true");
+  await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "false");
+  await expect(page.getByTestId(mapTestIds.sectionNote)).toContainText("区間は発表で確かめる");
 });
 
 test("駅で待つ人には、車内の急病人・非常ボタンを後続の遅れとして伝え、見合わせと言わない", async ({

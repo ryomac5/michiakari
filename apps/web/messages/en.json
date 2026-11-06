@@ -467,6 +467,8 @@
     "viewFocus": "Around you",
     "changeAt": "change at {station}",
     "transferShort": "Transfer",
+    "sectionUnconfirmed": "Check the section in the announcement",
+    "sectionAddAnnouncement": "Paste an announcement with the section to draw it.",
     "between": "between {from} and {to}",
     "alight": "Get off at",
     "walkShort": "{minutes} min walk"

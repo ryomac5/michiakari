@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import {
   computeDistanceMeters,
   createGeoIndex,
@@ -10,7 +12,7 @@ import type { RouteOption } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { buildPersonAccidentEvents } from "@/features/judgment/fixtures/person-accident";
 import { buildTestRequest } from "@/features/judgment/test-helpers";
-import { createMapGeo } from "./geo-data";
+import { createMapGeo, type LinesGeoJson } from "./geo-data";
 import { findReachAreas, type ReachArea } from "./reach";
 import {
   buildBlockedSectionPath,
@@ -34,7 +36,22 @@ import {
 } from "./scene";
 
 const geo = createMapGeo(network as unknown as NetworkData);
-const labels = { origin: "現在地", destination: "行き先", blocked: "運転見合わせ" };
+// 地図で路線を描く線路の形も読んだ網。止まっている区間はこの形から切り出す
+const lines = JSON.parse(
+  readFileSync(createRequire(import.meta.url).resolve("@repo/geo/data/lines.geojson"), "utf8"),
+) as LinesGeoJson;
+const trackGeo = createMapGeo(network as unknown as NetworkData, lines);
+const labels = { origin: "現在地", destination: "行き先", blocked: "見合わせ" };
+
+// 線路の形の頂点の集合。切り出した線の途中の点が、すべて線路の頂点かを確かめるのに使う
+function listTrackVertexKeys(lineId: string): Set<string> {
+  const feature = lines.features.find((f) => f.properties.lineId === lineId);
+  const parts =
+    feature?.geometry.type === "LineString"
+      ? [feature.geometry.coordinates]
+      : (feature?.geometry.coordinates ?? []);
+  return new Set(parts.flat().map((p) => `${p[0]},${p[1]}`));
+}
 
 // 環状線と枝分かれを含む小さな架空の路線網
 const toyNetwork: NetworkData = {
@@ -183,6 +200,26 @@ describe("buildBlockedSectionPath", () => {
     const path = buildBlockedSectionPath(geo, { fromStation: "大阪", toStation: "三ノ宮" }, []);
     expect(path?.lineId).toMatch(/^jr-west\./);
     expect(path?.coordinates.length ?? 0).toBeGreaterThan(2);
+  });
+
+  it("線路の形があれば、駅を結ぶ直線ではなく線路の頂点を通る線にする", () => {
+    const path = buildBlockedSectionPath(trackGeo, { fromStation: "大阪", toStation: "三ノ宮" }, [
+      "JR神戸線",
+    ]);
+    const byStations = buildBlockedSectionPath(geo, { fromStation: "大阪", toStation: "三ノ宮" }, [
+      "JR神戸線",
+    ]);
+    expect(path?.lineId).toBe("jr-west.東海道線");
+    const coords = path?.coordinates ?? [];
+    // 線路の形は駅の並びより細かい
+    expect(coords.length).toBeGreaterThan(byStations?.coordinates.length ?? 0);
+    const vertices = listTrackVertexKeys("jr-west.東海道線");
+    for (const p of coords.slice(1, -1)) expect(vertices.has(`${p[0]},${p[1]}`)).toBe(true);
+    // 両端は駅の近くの線路の上
+    const osaka = geo.index.getStation("jr-west.東海道線.大阪")?.lonLat as Position;
+    const sannomiya = geo.index.getStation("jr-west.東海道線.三ノ宮")?.lonLat as Position;
+    expect(computeDistanceMeters(coords[0] as Position, osaka)).toBeLessThan(300);
+    expect(computeDistanceMeters(coords.at(-1) as Position, sannomiya)).toBeLessThan(300);
   });
 
   it("駅が引けなければ null", () => {
@@ -469,7 +506,8 @@ describe("buildMapScene", () => {
   it("止まっている区間・到達範囲・推奨経路・振替対象・地名をまとめて作る", () => {
     const scene = buildMapScene(geo, input, labels);
     expect(scene.blockedLineIds).toEqual(["jr-west.東海道線"]);
-    expect(scene.blocked.features[0]?.properties.label).toBe("運転見合わせ 大阪–三ノ宮");
+    expect(scene.blocked.features[0]?.properties.label).toBe("見合わせ 大阪〜三ノ宮");
+    expect(scene.sectionUnconfirmed).toBe(false);
     expect(scene.reach.features.map((f) => f.properties.minutes)).toEqual([20, 10]);
     expect(scene.reachSource).toBe("circle");
     expect(scene.route.features.map((f) => f.properties.mode)).toEqual(["walk", "ride", "walk"]);
@@ -535,6 +573,66 @@ describe("buildMapScene", () => {
     expect(scene.route.features).toEqual([]);
     expect(scene.blocked.features).toEqual([]);
     expect(scene.blockedLineIds).toEqual([]);
+    expect(scene.sectionUnconfirmed).toBe(true);
+  });
+
+  it("発表の区間があれば、線路の形に沿った線と「見合わせ 大阪〜三ノ宮」の札を描く", () => {
+    const scene = buildMapScene(trackGeo, input, labels);
+    const feature = scene.blocked.features[0];
+    expect(feature?.properties.label).toBe("見合わせ 大阪〜三ノ宮");
+    const vertices = listTrackVertexKeys("jr-west.東海道線");
+    const coords = feature?.geometry.coordinates ?? [];
+    expect(coords.length).toBeGreaterThan(20);
+    for (const p of coords.slice(1, -1)) expect(vertices.has(`${p[0]},${p[1]}`)).toBe(true);
+    expect(scene.sectionUnconfirmed).toBe(false);
+    expect(scene.keyStations.features.filter((f) => f.properties.role === "blocked-end")).toEqual(
+      [],
+    );
+  });
+
+  it("発表に区間が無ければ、入口の方面から区間を作らず、路線だけを止まっている路線として残す", () => {
+    const tokaido = "jr-west.東海道線";
+    const scene = buildMapScene(
+      trackGeo,
+      {
+        ...input,
+        blockedSection: null,
+        blockedDirection: { lineId: tokaido, terminalId: `${tokaido}.神戸` },
+      },
+      labels,
+    );
+    expect(scene.blocked.features).toEqual([]);
+    expect(scene.sectionUnconfirmed).toBe(true);
+    // 路線は薄く示し、代わりの手段の駅からは外す
+    expect(scene.blockedLineIds).toEqual([tokaido]);
+    expect(
+      scene.reachableStations.features.some((f) =>
+        f.properties.stationId.startsWith(`${tokaido}.`),
+      ),
+    ).toBe(false);
+    // 区間の端の駅名も出さない
+    expect(scene.keyStations.features.some((f) => f.properties.role === "blocked-end")).toBe(false);
+    // 駅間の現在地を置く道筋は残し、線路の形に沿わせる。駅の並びの折れ線より点が多い
+    expect(scene.trackLineIds).toEqual([tokaido]);
+    const byStations = buildMapScene(
+      geo,
+      {
+        ...input,
+        blockedSection: null,
+        blockedDirection: { lineId: tokaido, terminalId: `${tokaido}.神戸` },
+      },
+      labels,
+    );
+    expect(scene.trackPath?.length ?? 0).toBeGreaterThan(byStations.trackPath?.length ?? 0);
+  });
+
+  it("英語の札は駅の英語名で「Suspended Osaka–Sannomiya」にする", () => {
+    const scene = buildMapScene(trackGeo, input, {
+      ...labels,
+      blocked: "Suspended",
+      english: true,
+    });
+    expect(scene.blocked.features[0]?.properties.label).toBe("Suspended Osaka–Sannomiya");
   });
 
   it("モックの判断（駅 ID なし）でも、駅名から経路・区間・振替対象が地図に出る", () => {
@@ -566,6 +664,8 @@ describe("buildMapScene", () => {
     const train = buildMapScene(geo, { ...input, trainOnly: true }, labels);
     expect(train.blocked.features).toEqual([]);
     expect(train.blockedLineIds).toEqual([]);
+    // 区間を止める事象ではないので、発表で区間を確かめる案内も出さない
+    expect(train.sectionUnconfirmed).toBe(false);
     expect(train.keyStations.features.some((f) => f.properties.role === "blocked-end")).toBe(false);
     // 駅間の現在地を線路の上に置くための道筋は、区間を止める事象と同じ
     expect(train.trackLineIds).toEqual(section.blockedLineIds);

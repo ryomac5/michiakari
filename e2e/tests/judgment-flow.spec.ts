@@ -109,7 +109,10 @@ test("駅を選び、貼り付けで状況を入れると、推論過程が順�
   const map = page.getByTestId(testIds.judgment.map);
   await expect(map).toBeVisible();
   await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+  // モックの発表には区間があるので、線路の形に沿って区間を描き、区間を確かめる案内は出さない
   await expect(map).toHaveAttribute("data-blocked", "true");
+  expect(Number(await map.getAttribute("data-blocked-points"))).toBeGreaterThan(20);
+  await expect(page.getByTestId(mapTestIds.sectionNote)).toHaveCount(0);
   // 大阪には Valhalla の到達範囲があるので、円ではなく多角形で描く
   await expect(map).toHaveAttribute("data-reach-source", "valhalla");
   await expect(map).toHaveAttribute("data-recommended-option", "wait_resume");
