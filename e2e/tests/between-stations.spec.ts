@@ -5,11 +5,11 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { chooseTrainDirection } from "../support/entry.ts";
+import { chooseBetweenStations, searchStationPair } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
-// 入口で「電車の中・駅と駅の間」を選んだ人の判断
+// 入口で「駅と駅の間で止まっている」を選んだ人の判断
 // 追加の問いは出さず、次の駅・種別・前の列車を既定値で置いて判断を出す。前提は判断の画面のチップで直せる
 // 車内からは降りられない。結論は車内で待つだけにし、選択肢の一覧・乗り換え候補の駅・バス停を出さない
 // 着いた後のほうが早い手段があるときだけ、着いた後の次の一手を 1 行で添える。決定論モードの agent とダミーの内容で確かめる
@@ -114,14 +114,17 @@ async function listMapLabelOverlaps(page: Page): Promise<string[]> {
   return found;
 }
 
-// 大阪から JR 神戸線で三ノ宮へ向かう途中、塚本の手前で止まった想定。いまどこの段まで進める
+// 大阪から JR 神戸線で三ノ宮へ向かう途中、塚本の手前で止まった想定。駅の間を確かめる問いまで進める
 async function reachPositionStep(page: Page): Promise<void> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
   });
-  await chooseTrainDirection(page, "JR神戸線", "神戸");
-  await expect(page.getByTestId(testIds.start.positionBetween)).toBeVisible();
+  await page.getByTestId(testIds.start.positionTrain).click();
+  await searchStationPair(page, "大阪", "塚本");
+  await expect(page.getByTestId(testIds.start.gpsQuestion)).toHaveText(
+    "JR神戸線の大阪〜塚本の間ですか",
+  );
 }
 
 // 駅と駅の間を選び、人身事故・10 分くらい・見込みは言っていないで判断を始める。行き先は既定で三ノ宮
@@ -129,11 +132,15 @@ async function startBetweenStations(
   page: Page,
   destination: { search: string; name: string } = { search: "さんのみや", name: "三ノ宮" },
 ): Promise<void> {
-  await page.getByTestId(testIds.start.positionBetween).click();
+  await page.getByTestId(testIds.start.gpsConfirm).click();
   await page.getByTestId(testIds.start.destinationSearch).fill(destination.search);
   await page.getByTestId(testIds.start.destinationOption(destination.name)).click();
-  // 駅間の後に行き先を答え、様子へ進む
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
+  // 駅間の後に行き先を答え、様子へ進む。行き先が JR神戸線の先に無ければ、神戸方面を答える
+  const screen = page.getByTestId(testIds.start.screen);
+  await expect(screen).toHaveAttribute("data-stage", /^(cause|direction)$/);
+  if ((await screen.getAttribute("data-stage")) === "direction")
+    await page.locator("[data-testid^='start-direction-'][data-testid$='.神戸']").click();
+  await expect(screen).toHaveAttribute("data-stage", "cause");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("塚本");
   await page.getByTestId(testIds.start.cause("person")).click();
   await page.getByTestId(testIds.start.elapsed("m10")).click();
@@ -270,9 +277,7 @@ test("福島〜大阪の車内で急病人により止まり、行き先が大�
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
   });
-  await chooseTrainDirection(page, "JR環状線", "寺田町");
-  await page.getByTestId(testIds.start.trainSegment).selectOption({ label: "福島 → 大阪" });
-  await page.getByTestId(testIds.start.positionBetween).click();
+  await chooseBetweenStations(page, "JR環状線", "福島", "大阪");
   await page.getByTestId(testIds.start.destinationSearch).fill("大阪");
   await page.getByTestId(testIds.start.destinationOption("大阪")).click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");

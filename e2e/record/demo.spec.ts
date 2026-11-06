@@ -1,11 +1,12 @@
 /// <reference lib="dom" />
 // page 内で動かす関数（evaluate）のために DOM の型を読む
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import type { Scenario } from "../../packages/schema/src/scenario.ts";
 import { webUrl } from "../servers.ts";
 import { findDemoScene, sceneMarkName, scenesEndMark } from "../support/demo-scenes.ts";
-import { chooseTrainDirection } from "../support/entry.ts";
+import { chooseBetweenStations } from "../support/entry.ts";
+import { findCanvasPointNear, panTo } from "../support/map-view.ts";
 import {
   createRecordingMarks,
   markFirstScreen,
@@ -35,7 +36,8 @@ const playbackSpeed = Number(process.env.RECORD_SPEED ?? 8);
 // 場面 8 と 9 は台本の秒数に収めるため、推論の過程を間を空けずに出す速度で流す。5 以上で間が空かない
 const fastSpeed = 8;
 // 駅と駅の間の丸を押す前に寄せる倍率。引いた地図では丸が駅の印に重なり、押すと駅を選んでしまう
-const segmentZoom = 12;
+// 描いた環状線の上で、大阪と天満の間にあり、ほかの路線の線から約220m 離れた点。lines.geojson から求めた
+const betweenOsakaTemma: [number, number] = [135.508338, 34.706538];
 // JR神戸線の塚本と尼崎の中間。現在地から読み取ると、その駅の間を候補に出す
 const betweenTsukamotoAmagasaki = { latitude: 34.72229, longitude: 135.450335, accuracy: 20 };
 const loopLine = "大阪|jr-west.大阪環状線|JR環状線";
@@ -193,37 +195,25 @@ async function showEntryChoices(page: Page): Promise<void> {
   await page.waitForTimeout(600);
   await backToPosition(page);
 
-  // 電車の中で路線と方面を答え、地図の駅と駅の間の線を押す
-  await chooseTrainDirection(page, "JR環状線", "寺田町");
+  // 駅と駅の間で止まっていると答え、地図の大阪と天満の間の環状線を押して確かめる
+  await page.getByTestId(testIds.start.positionTrain).click();
+  await expectStage(page, "between");
   await waitForEntryMapStill(page);
-  const selected = page.locator("[data-testid^='start-map-segment-'][data-selected='true']");
-  await expect(selected).toHaveCount(1);
   await page.waitForTimeout(500);
-  await zoomOnSegment(page, selected);
-  await page.waitForTimeout(500);
-  const dot = await selected.locator("[data-segment-dot]").boundingBox();
-  if (!dot) throw new Error("駅の間の印がありません");
-  await page.mouse.click(dot.x + dot.width / 2, dot.y + dot.height / 2);
+  await page.locator(".maplibregl-canvas").focus();
+  const viewport = page.viewportSize() ?? { width: 390, height: 844 };
+  const point = await panTo(page, betweenOsakaTemma, {
+    x: viewport.width / 2,
+    y: viewport.height * 0.25,
+  });
+  const open = await findCanvasPointNear(page, point);
+  await page.mouse.click(open.x, open.y);
+  await expect(page.getByTestId(testIds.start.gpsQuestion)).toHaveText(
+    "JR環状線の大阪〜天満の間ですか",
+  );
+  await page.waitForTimeout(1000);
+  await tapCenter(page, testIds.start.gpsConfirm);
   await expectStage(page, "destination");
-}
-
-// 駅と駅の間の丸のところで指で寄せる操作をし、丸が駅の印から離れて押せる大きさになるまで寄る
-async function zoomOnSegment(page: Page, segment: Locator): Promise<void> {
-  const map = page.getByTestId(testIds.start.map);
-  const hitArea = segment.locator("[data-hit-area]");
-  const readZoom = async () => Number(await map.getAttribute("data-zoom"));
-  for (
-    let i = 0;
-    i < 12 && ((await readZoom()) < segmentZoom || (await hitArea.count()) === 0);
-    i++
-  ) {
-    const dot = await segment.locator("[data-segment-dot]").boundingBox();
-    if (!dot) throw new Error("駅の間の印がありません");
-    await page.mouse.move(dot.x + dot.width / 2, dot.y + dot.height / 2);
-    await page.mouse.wheel(0, -600);
-    await waitForEntryMapStill(page);
-  }
-  await expect(hitArea).toHaveCount(1);
 }
 
 // 場面 3: 行き先を決め、起きていることの 10 の選択肢を見せて 1 つを選ぶ
@@ -354,8 +344,7 @@ async function showBusChecks(page: Page): Promise<void> {
 // 場面 7: 環状線の大阪と天満の間で、車内の急病人で止まった人の判断。車内で待つと停車中を見せる
 async function showInCarJudgment(page: Page): Promise<void> {
   await openEntry(page);
-  await chooseTrainDirection(page, "JR環状線", "寺田町");
-  await page.getByTestId(testIds.start.positionBetween).click();
+  await chooseBetweenStations(page, "JR環状線", "大阪", "天満");
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
   await expectStage(page, "cause");

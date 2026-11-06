@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { chooseTrainDirection } from "../support/entry.ts";
+import { chooseBetweenStations } from "../support/entry.ts";
 import { expect, test } from "../support/test.ts";
 
 // 止まり方の区別。車内の急病人や非常ボタンはその列車だけが止まり、人身事故は区間を止める
@@ -15,9 +15,7 @@ async function startOnLoopLine(page: Page, kind: "inCar" | "person"): Promise<vo
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
   });
-  await chooseTrainDirection(page, "JR環状線", "寺田町");
-  await expect(page.getByTestId(testIds.start.trainSegment)).toContainText("大阪 → 天満");
-  await page.getByTestId(testIds.start.positionBetween).click();
+  await chooseBetweenStations(page, "JR環状線", "大阪", "天満");
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
