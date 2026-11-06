@@ -270,25 +270,22 @@ function buildCoordinates(geo: MapGeo, stationIds: readonly string[]): Position[
 
 type ResolvedSection = { lineId: string; coordinates: Position[] };
 
-// 2 駅の間を、地図で路線を描く線路の形から切り出す。形が無いか切り出せなければ、駅の並びの折れ線で代える
-function buildTrackCoordinates(
+// 隣り合う 2 駅の間を、地図で路線を描く線路の形から切り出す。形が無いか切り出せなければ 2 駅を結ぶ
+function buildAdjacentTrack(
   geo: MapGeo,
   lineId: string,
   from: StationNode,
   to: StationNode,
-  stationIds: readonly string[] | null,
 ): Position[] {
   const parts = geo.trackShapes?.get(lineId);
   const sliced = parts
     ? sliceTrackBetween(parts, toPosition(from.lonLat), toPosition(to.lonLat))
     : null;
-  if (sliced && sliced.length >= 2) return sliced;
-  return stationIds
-    ? buildCoordinates(geo, stationIds)
-    : buildPathCoordinates(geo, lineId, from, to);
+  return sliced && sliced.length >= 2 ? sliced : [toPosition(from.lonLat), toPosition(to.lonLat)];
 }
 
-// 駅の並びを順に通る線を、隣り合う駅ごとに線路の形から切り出してつなぐ。駅間の現在地を線路の上に置くのに使う
+// 駅の並びを順に通る線を、隣り合う駅ごとに線路の形から切り出してつなぐ
+// 両端だけで切り出すと、環状線や分岐で駅の並びと違う側を通り得るため
 function buildTrackThroughStations(
   geo: MapGeo,
   lineId: string,
@@ -298,12 +295,11 @@ function buildTrackThroughStations(
     const node = geo.index.getStation(id);
     return node ? [node] : [];
   });
-  return nodes.flatMap((node, i) => {
-    const next = nodes[i + 1];
-    if (!next) return [toPosition(node.lonLat)];
-    const piece = buildTrackCoordinates(geo, lineId, node, next, [node.stationId, next.stationId]);
-    // 次の区間の始まりと重ならないよう、終わりの点は除く
-    return piece.slice(0, -1);
+  if (nodes.length === 1) return [toPosition((nodes[0] as StationNode).lonLat)];
+  return nodes.slice(1).flatMap((next, i) => {
+    const piece = buildAdjacentTrack(geo, lineId, nodes[i] as StationNode, next);
+    // 次の区間の始まりと重ならないよう、最後の区間のほかは終わりの点を除く
+    return i === nodes.length - 2 ? piece : piece.slice(0, -1);
   });
 }
 
@@ -320,10 +316,7 @@ export function buildBlockedSectionPath(
     if (from?.lineId !== line.lineId || to?.lineId !== line.lineId) continue;
     const ids = findStationPathOnLine(geo.graph, line.lineId, from.stationId, to.stationId);
     if (ids !== null) {
-      return {
-        lineId: line.lineId,
-        coordinates: buildTrackCoordinates(geo, line.lineId, from, to, ids),
-      };
+      return { lineId: line.lineId, coordinates: buildTrackThroughStations(geo, line.lineId, ids) };
     }
   }
 
@@ -333,9 +326,18 @@ export function buildBlockedSectionPath(
   if (!from || !to) return null;
   const between = geo.index.listLinesBetween(from.stationId, to.stationId)[0];
   if (!between) return null;
+  const lineId = between.line.lineId;
+  const ids = findStationPathOnLine(
+    geo.graph,
+    lineId,
+    between.from.stationId,
+    between.to.stationId,
+  );
   return {
-    lineId: between.line.lineId,
-    coordinates: buildTrackCoordinates(geo, between.line.lineId, between.from, between.to, null),
+    lineId,
+    coordinates: ids
+      ? buildTrackThroughStations(geo, lineId, ids)
+      : [toPosition(between.from.lonLat), toPosition(between.to.lonLat)],
   };
 }
 
@@ -755,6 +757,26 @@ function buildBlockedLabel(
   return names.every((name) => name !== "")
     ? `${labels.blocked} ${names[0]}–${names[1]}`
     : labels.blocked;
+}
+
+// 画面の上で名前どうしがこの距離（px）より近いときは、先に挙げた方だけを出す
+export const KEY_LABEL_MIN_PX = 44;
+
+// 名前を出す駅を、いまの拡大率の画面で間引く。buildKeyStations と同じく先に挙げた役割を優先する
+// 出発と行き先は地図の上の印でも示すので、その近くの名前も印と重ならないよう外す
+export function thinKeyStationsOnScreen(
+  keyStations: MapScene["keyStations"],
+  project: (position: Position) => { x: number; y: number },
+  minPx = KEY_LABEL_MIN_PX,
+): MapScene["keyStations"] {
+  const kept: { x: number; y: number }[] = [];
+  const features = keyStations.features.filter((f) => {
+    const point = project(f.geometry.coordinates);
+    if (kept.some((k) => Math.hypot(k.x - point.x, k.y - point.y) < minPx)) return false;
+    kept.push(point);
+    return true;
+  });
+  return buildFeatureCollection(features);
 }
 
 export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapSceneLabels): MapScene {

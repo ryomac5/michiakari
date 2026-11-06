@@ -55,6 +55,7 @@ import {
   type ReachSource,
   resolvePlacePosition,
   resolveStationByName,
+  thinKeyStationsOnScreen,
 } from "./scene";
 import {
   buildStationGuide,
@@ -227,7 +228,7 @@ function applyMapScene(map: MapLibreMap, scene: MapScene): void {
   setSourceData(map, sourceIds.route, scene.route);
   setSourceData(map, sourceIds.routeLabel, scene.routeLabel);
   setSourceData(map, sourceIds.alternatives, scene.alternatives);
-  setSourceData(map, sourceIds.keyStations, scene.keyStations);
+  // 名前を出す駅は、画面の上で間引いてから別に渡す
 }
 
 // 狭い画面では道が短く札が重なるので、徒歩の札は出さない。分数は吹き出しと札が示す
@@ -899,6 +900,24 @@ export function MapPanel(props: MapPanelProps) {
       stopWaiting();
     };
   }, [map, scene, guide, reachLabels, view, fitView, top, right, bottom, left, narrow]);
+
+  // 名前を出す駅を、地図が止まるたびにいまの拡大率で間引く。引いた地図で駅名どうしや印と重ねないため
+  useEffect(() => {
+    if (!map || !scene) return;
+    let last = "";
+    const place = () => {
+      const thinned = thinKeyStationsOnScreen(scene.keyStations, (p) => map.project(p));
+      const signature = JSON.stringify(thinned.features.map((f) => f.properties.name));
+      if (signature === last) return;
+      last = signature;
+      setSourceData(map, sourceIds.keyStations, thinned);
+    };
+    place();
+    map.on("moveend", place);
+    return () => {
+      map.off("moveend", place);
+    };
+  }, [map, scene]);
 
   // 到達範囲の札を、寄せたあとの画面で吹き出しや線と重ならない向きに置き直す。地図が止まるたびに選び直す
   useEffect(() => {

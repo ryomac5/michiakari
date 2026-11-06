@@ -32,6 +32,7 @@ import {
   resolvePlacePosition,
   resolveRouteLegs,
   resolveStationByName,
+  thinKeyStationsOnScreen,
   translateLineName,
 } from "./scene";
 
@@ -42,6 +43,31 @@ const lines = JSON.parse(
 ) as LinesGeoJson;
 const trackGeo = createMapGeo(network as unknown as NetworkData, lines);
 const labels = { origin: "現在地", destination: "行き先", blocked: "見合わせ" };
+
+// 点から線路の形までの距離。切り出した線が線路の上にあるかを確かめるのに使う
+function measureTrackMeters(p: Position, lineId: string): number {
+  const feature = lines.features.find((f) => f.properties.lineId === lineId);
+  const parts =
+    feature?.geometry.type === "LineString"
+      ? [feature.geometry.coordinates]
+      : (feature?.geometry.coordinates ?? []);
+  let best = Number.POSITIVE_INFINITY;
+  for (const part of parts) {
+    for (let i = 1; i < part.length; i++) {
+      const a = part[i - 1] as Position;
+      const b = part[i] as Position;
+      const dx = b[0] - a[0];
+      const dy = b[1] - a[1];
+      const length = dx * dx + dy * dy;
+      const t =
+        length === 0
+          ? 0
+          : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / length));
+      best = Math.min(best, computeDistanceMeters(p, [a[0] + dx * t, a[1] + dy * t]));
+    }
+  }
+  return best;
+}
 
 // 線路の形の頂点の集合。切り出した線の途中の点が、すべて線路の頂点かを確かめるのに使う
 function listTrackVertexKeys(lineId: string): Set<string> {
@@ -214,7 +240,8 @@ describe("buildBlockedSectionPath", () => {
     // 線路の形は駅の並びより細かい
     expect(coords.length).toBeGreaterThan(byStations?.coordinates.length ?? 0);
     const vertices = listTrackVertexKeys("jr-west.東海道線");
-    for (const p of coords.slice(1, -1)) expect(vertices.has(`${p[0]},${p[1]}`)).toBe(true);
+    for (const p of coords) expect(measureTrackMeters(p, "jr-west.東海道線")).toBeLessThan(1);
+    expect(coords.filter((p) => vertices.has(`${p[0]},${p[1]}`)).length).toBeGreaterThan(20);
     // 両端は駅の近くの線路の上
     const osaka = geo.index.getStation("jr-west.東海道線.大阪")?.lonLat as Position;
     const sannomiya = geo.index.getStation("jr-west.東海道線.三ノ宮")?.lonLat as Position;
@@ -226,6 +253,59 @@ describe("buildBlockedSectionPath", () => {
     expect(
       buildBlockedSectionPath(geo, { fromStation: "架空駅", toStation: "三ノ宮" }, ["JR神戸線"]),
     ).toBeNull();
+  });
+});
+
+describe("buildBlockedSectionPath の環状線", () => {
+  // 輪の上の 5 駅。駅のつながりでは A→B→C が短いが、線路の形では A→E→D→C の側が短い
+  const positions: Record<string, Position> = {
+    a: [135.0, 34.7],
+    b: [135.01, 34.71],
+    c: [135.02, 34.7],
+    d: [135.015, 34.695],
+    e: [135.005, 34.695],
+  };
+  const ring: NetworkData = {
+    ...toyNetwork,
+    nodes: toyNetwork.nodes.map((n) => ({
+      ...n,
+      lonLat: positions[n.stationId.slice("loop.".length)] as [number, number],
+    })),
+    edges: toyNetwork.edges.map((e) => ({
+      ...e,
+      // B を通る側を、駅のつながりでは短くする
+      distanceKm: e.from === "loop.a" || e.from === "loop.b" ? 1 : 5,
+    })),
+  };
+  // A から B は北へ回る線路。ほかは駅を直に結ぶ
+  const north: Position[] = [positions.a as Position, [135.0, 34.72], positions.b as Position];
+  const rest: Position[] = [
+    positions.b as Position,
+    positions.c as Position,
+    positions.d as Position,
+    positions.e as Position,
+    positions.a as Position,
+  ];
+  const ringGeo = {
+    ...createMapGeo(ring),
+    trackShapes: new Map([["loop", [north, rest]]]),
+  };
+
+  it("駅の並びが通る側の線路を、駅の間ごとに切り出してつなぐ", () => {
+    expect(findStationPathOnLine(ringGeo.graph, "loop", "loop.a", "loop.c")).toEqual([
+      "loop.a",
+      "loop.b",
+      "loop.c",
+    ]);
+    const path = buildBlockedSectionPath(ringGeo, { fromStation: "A", toStation: "C" }, ["環状線"]);
+    const coords = path?.coordinates ?? [];
+    // 北へ回る線路を通り、反対側の D と E は通らない
+    expect(coords).toContainEqual([135.0, 34.72]);
+    expect(coords).toContainEqual(positions.b);
+    expect(coords).not.toContainEqual(positions.d);
+    expect(coords).not.toContainEqual(positions.e);
+    expect(coords[0]).toEqual(positions.a);
+    expect(coords.at(-1)).toEqual(positions.c);
   });
 });
 
@@ -494,6 +574,30 @@ describe("computeFitBounds", () => {
   });
 });
 
+describe("thinKeyStationsOnScreen", () => {
+  const keyStations = buildKeyStations([
+    { position: [135.0, 34.7], name: "塚本", role: "origin" },
+    { position: [135.2, 34.7], name: "三ノ宮", role: "destination" },
+    { position: [135.03, 34.7], name: "大阪", role: "blocked-end" },
+  ]);
+  // 経度 0.01 度を 10px とみなす画面
+  const project = ([lon, lat]: Position) => ({ x: (lon - 135) * 1000, y: (34.7 - lat) * 1000 });
+
+  it("画面で近い名前は、先に挙げた出発の名前だけを残す", () => {
+    const thinned = thinKeyStationsOnScreen(keyStations, project);
+    expect(thinned.features.map((f) => f.properties.name)).toEqual(["塚本", "三ノ宮"]);
+  });
+
+  it("寄せて画面で離れれば、区間の端の名前も出す", () => {
+    const zoomed = ([lon, lat]: Position) => ({
+      x: (lon - 135) * 10_000,
+      y: (34.7 - lat) * 10_000,
+    });
+    const thinned = thinKeyStationsOnScreen(keyStations, zoomed);
+    expect(thinned.features.map((f) => f.properties.name)).toEqual(["塚本", "三ノ宮", "大阪"]);
+  });
+});
+
 describe("buildMapScene", () => {
   const input = {
     origin: { kind: "station" as const, name: "大阪" },
@@ -583,7 +687,8 @@ describe("buildMapScene", () => {
     const vertices = listTrackVertexKeys("jr-west.東海道線");
     const coords = feature?.geometry.coordinates ?? [];
     expect(coords.length).toBeGreaterThan(20);
-    for (const p of coords.slice(1, -1)) expect(vertices.has(`${p[0]},${p[1]}`)).toBe(true);
+    for (const p of coords) expect(measureTrackMeters(p, "jr-west.東海道線")).toBeLessThan(1);
+    expect(coords.filter((p) => vertices.has(`${p[0]},${p[1]}`)).length).toBeGreaterThan(20);
     expect(scene.sectionUnconfirmed).toBe(false);
     expect(scene.keyStations.features.filter((f) => f.properties.role === "blocked-end")).toEqual(
       [],
