@@ -1,8 +1,9 @@
-import { addMinutesToIso, diffMinutes } from "@repo/core";
+import { addMinutesToIso, decideAfterAlightStep, diffMinutes } from "@repo/core";
 import type { JudgeRequest, Judgment, JudgmentEvent } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { createGeoProvider } from "../src/alternatives/geo-provider.ts";
 import type { AlternativesQuery } from "../src/alternatives/provider.ts";
+import { type AllowedNumbers, validateJudgment } from "../src/judge/assemble.ts";
 import { createTestApp, postJudge } from "./helpers.ts";
 
 // 駅間の車内の判断のレビューで見つかった食い違いを固定する
@@ -38,6 +39,108 @@ describe("駅間の車内の待つ側の到着", () => {
     expect(route).toBeGreaterThan(0);
     // 再開の見込みより降りる駅に着くほうが遅いので、着く時刻から乗り続ける
     expect(diffMinutes(departureTime, wait?.arrivalTime ?? now)).toBe(route);
+  });
+});
+
+describe("車内で待つ側の到着と初列車待ち", () => {
+  const inCar: AlternativesQuery = {
+    origin: { kind: "station", name: "塚本" },
+    destination: { kind: "station", name: "西宮北口" },
+    blockedLine: "JR神戸線",
+    blockedSection: { fromStation: "大阪", toStation: "西宮北口" },
+    blockedSectionFromTrain: true,
+    now,
+    // 乗れるまでの残り 40 分のうち、10 分は駅で最初の列車を待つ分
+    remaining: { p50: 40, p80: 60 },
+    firstTrainWaitMinutes: 10,
+    departureTime: addMinutesToIso(now, 5),
+    transferServiceActive: null,
+    language: "ja",
+  };
+
+  it("車内の人はすでに乗っているので、初列車待ちを除いた再開の見込みから乗り続ける", async () => {
+    const result = await provider.findAlternatives(inCar);
+    const wait = result.options.find((o) => o.kind === "wait");
+    const route = result.waitRouteMinutesAfterResume ?? 0;
+    expect(route).toBeGreaterThan(0);
+    expect(diffMinutes(now, wait?.arrivalTime ?? now)).toBe(30 + route);
+  });
+
+  it("初列車待ちを重ねると、待つより遅い手段を着いた後の一手に勧めてしまう", async () => {
+    const result = await provider.findAlternatives(inCar);
+    const wait = result.options.find((o) => o.kind === "wait");
+    if (!wait) throw new Error("待つ選択肢がありません");
+    const route = result.waitRouteMinutesAfterResume ?? 0;
+    // 初列車待ちを除いた待つ到着の 5 分後に着く手段。初列車待ちを重ねた待つ到着よりは早い
+    const later = {
+      id: "transfer_late",
+      kind: "transfer" as const,
+      label: "遅い手段",
+      legs: [{ mode: "walk" as const, from: "塚本", to: "西宮北口", minutes: 60 }],
+      arrivalTime: addMinutesToIso(now, 30 + route + 5),
+      fareYen: null,
+      walkMinutes: 60,
+      isTransferService: false,
+    };
+    const decided = decideAfterAlightStep({
+      alightStation: "塚本",
+      departureStation: "塚本",
+      destinationStation: "西宮北口",
+      waitOption: wait,
+      options: [wait, later],
+    });
+    expect(decided).toEqual({ step: null, reason: "wait_faster" });
+  });
+});
+
+describe("根拠の説明の検査を除く条件", () => {
+  const allowed: AllowedNumbers = {
+    clockMinutes: new Set(),
+    hours: new Set(),
+    minutes: new Set(),
+    yen: new Set(),
+    shares: new Set(),
+  };
+  const quote = "発表の「運転を見合わせています。振替輸送を行っています」";
+  const evidenceRefs = [
+    { kind: "signal" as const, id: "sig_quote", description: quote },
+    { kind: "knowledge" as const, id: "in_car_response", description: "車内対応のよくある流れ" },
+  ];
+  const judgmentWith = (evidence: { kind: string; id: string; description: string }[]) => ({
+    action: "wait",
+    headline: "車内で待つ",
+    reason: "車内では列車が動くのを待ちます。",
+    breakEven: null,
+    estimate: {
+      eventType: "in_car_response",
+      phaseId: null,
+      elapsedMinutes: null,
+      remaining: null,
+      confidence: "low",
+    },
+    options: [],
+    recommendedOptionId: null,
+    evidence,
+    disclaimer: "推定です。公式発表を優先する。",
+  });
+  const check = (evidence: { kind: string; id: string; description: string }[]) =>
+    validateJudgment({
+      judgment: judgmentWith(evidence),
+      language: "ja",
+      evidenceRefs,
+      allowedNumbers: allowed,
+      inCarAlternativeLines: [],
+      stopScope: "train",
+    }).errors;
+
+  it("その ID の根拠の説明と一字一句同じ文だけを検査から除く", () => {
+    expect(check([{ kind: "signal", id: "sig_quote", description: quote }])).toEqual([]);
+  });
+
+  it("別の根拠の ID に引用の文を付けても、検査から除かない", () => {
+    const errors = check([{ kind: "knowledge", id: "in_car_response", description: quote }]);
+    expect(errors.some((e) => e.includes("evidence[0].description の「見合わせ」"))).toBe(true);
+    expect(errors.some((e) => e.includes("evidence[0].description の「振替」"))).toBe(true);
   });
 });
 
