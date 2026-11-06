@@ -3,6 +3,7 @@
 import { computeDistanceMeters } from "@repo/geo";
 import type { IncidentCause, RawInput } from "@repo/schema";
 import { ChevronLeft } from "lucide-react";
+import type { PrefetchKind } from "next/dist/client/components/router-reducer/router-reducer-types";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
@@ -222,6 +223,12 @@ export function StartScreen() {
   const mapStations = useMemo(() => (data ? listMapStations(data) : []), [data]);
   const hubs = useMemo(() => (data ? listEntryHubs(data) : []), [data]);
   const [entry, dispatch] = useReducer(reduceEntry, initialEntryState);
+  // 様子を聞く段に入ったら判断の画面を JS まで先に読み、答えた後の切り替えを待たせない
+  // PrefetchKind は公開されていないので、Link の prefetch={true} と同じ "full" を型だけ借りて渡す
+  const askingSituation = situationStages.has(entry.stage);
+  useEffect(() => {
+    if (askingSituation) router.prefetch("/judgment", { kind: "full" as PrefetchKind });
+  }, [askingSituation, router]);
   const [note, setNote] = useState<string | null>(null);
   const [handingOff, setHandingOff] = useState(false);
   const mapApi = useRef<EntryMapApi | null>(null);
