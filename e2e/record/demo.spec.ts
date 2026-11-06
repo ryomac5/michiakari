@@ -220,6 +220,12 @@ async function showEntryChoices(page: Page): Promise<void> {
 async function showCauseChoices(page: Page): Promise<void> {
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
+  // 天王寺は環状線のどちら回りでも行けるので、天満へ向かう回り方を答える
+  await expectStage(page, "direction");
+  await page
+    .locator("[data-testid^='start-direction-']")
+    .filter({ hasText: "京橋・鶴橋方面" })
+    .click();
   await expectStage(page, "cause");
   const cards = page.locator(
     "[data-testid^='start-cause-']:not([data-testid^='start-cause-kind-'])",
@@ -347,6 +353,12 @@ async function showInCarJudgment(page: Page): Promise<void> {
   await chooseBetweenStations(page, "JR環状線", "大阪", "天満");
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
+  // 天王寺は環状線のどちら回りでも行けるので、天満へ向かう回り方を答える
+  await expectStage(page, "direction");
+  await page
+    .locator("[data-testid^='start-direction-']")
+    .filter({ hasText: "京橋・鶴橋方面" })
+    .click();
   await expectStage(page, "cause");
   await page.getByTestId(testIds.start.cause("inCar")).click();
   await page.getByTestId(testIds.start.elapsed("now")).click();

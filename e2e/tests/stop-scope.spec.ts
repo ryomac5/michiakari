@@ -18,6 +18,12 @@ async function startOnLoopLine(page: Page, kind: "inCar" | "person"): Promise<vo
   await chooseBetweenStations(page, "JR環状線", "大阪", "天満");
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
+  // 天王寺は環状線のどちら回りでも行けるので、進む向きを聞く。天満へ向かう回り方を答える
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "direction");
+  await page
+    .locator("[data-testid^='start-direction-']")
+    .filter({ hasText: "京橋・鶴橋方面" })
+    .click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
   await page.getByTestId(testIds.start.cause(kind)).click();
   await page.getByTestId(testIds.start.elapsed("now")).click();
