@@ -23,6 +23,7 @@ import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
+import { selectFallbackOptionId } from "@/features/judgment/fallback-option";
 import { buildJudgmentChange, selectChangeEvidence } from "@/features/judgment/judgment-change";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { selectSwitchStep } from "@/features/judgment/switch-step";
@@ -136,6 +137,8 @@ export function ReplayPlayer({
   // 一覧で押した選択肢を地図に描く。判断が変わって選択肢が消えたら推奨に戻す
   const chosenOptionId = options.some((o) => o.id === selectedOptionId) ? selectedOptionId : null;
   const mapOptionId = chosenOptionId ?? display.recommendedOptionId;
+  // 待つ判断で動かなかったときに乗る選択肢。判断画面と同じく、シナリオの期限を含めて選ぶ
+  const fallbackOptionId = selectFallbackOptionId(display.judgment ?? null, deadline);
   // 凡例も地図と同じ選択中の選択肢の色にする
   const tone = selectRouteTone(options, mapOptionId);
 
@@ -251,6 +254,7 @@ export function ReplayPlayer({
         options={options}
         recommendedOptionId={display.recommendedOptionId}
         selectedOptionId={chosenOptionId}
+        fallbackOptionId={fallbackOptionId}
         blockedSection={started ? (lastWithSection?.section ?? null) : null}
         blockedLine={blockedLine}
         trainOnly={stopScope === "train"}

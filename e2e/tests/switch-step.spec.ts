@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import en from "../../apps/web/messages/en.json" with { type: "json" };
 import ja from "../../apps/web/messages/ja.json" with { type: "json" };
-import { testIds } from "../../apps/web/src/lib/testids.ts";
+import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import {
   loadReplayScenarios,
   openReplay,
@@ -102,6 +103,49 @@ test.describe("通常画面の判断の変化", () => {
     for (const locator of [conclusion, change, page.getByTestId(testIds.judgment.disclaimer)]) {
       await expect(locator).toBeInViewport({ ratio: 1 });
     }
+  });
+});
+
+// リプレイでも判断画面と同じく、待つ判断では地図に「動かなければ」の吹き出しを出し、
+// 切り替えの判断では見込みの図に期限の印と期限の文を出さない
+test.describe("リプレイの地図と見込みの図", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("切り替えでは期限の印を出さず、待つでは動かなかったときに乗る駅に吹き出しを出す", async ({
+    page,
+  }) => {
+    if (!scenario || !switchAfter || !waitAfter) {
+      throw new Error("切り替えで始まり、待つに変わるシナリオがありません");
+    }
+    expect(scenario.user.constraints.deadline, "期限のあるシナリオ").toBeTruthy();
+    await openReplay(page, scenario.id);
+    const map = page.getByTestId(testIds.judgment.map);
+    const fallback = page.locator("[data-testid^='judgment-map-station-'][data-fallback='true']");
+    const chart = page.getByTestId(testIds.judgment.resumeChance);
+
+    await stepUntil(page, switchAfter);
+    await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
+      "data-action",
+      "switch",
+    );
+    await openSheet(page, "half");
+    await expect(chart).toBeVisible();
+    await expect(page.getByTestId(testIds.judgment.resumeChanceDeadline)).toHaveCount(0);
+    await expect(page.getByTestId(testIds.judgment.resumeChanceResumeBy)).toHaveCount(0);
+    await expect(fallback).toHaveCount(0);
+    await capture(page, variants[0] as Variant, `replay-${scenario.id}-${switchAfter}-chart`);
+
+    await openSheet(page, "collapsed");
+    await stepUntil(page, waitAfter);
+    await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
+      "data-action",
+      "wait",
+    );
+    await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+    await expect(fallback).toHaveCount(1);
+    await expect(fallback).toBeVisible();
+    await expect(fallback.getByTestId(mapTestIds.fallbackTag)).toHaveText(ja.map.fallback);
+    await capture(page, variants[0] as Variant, `replay-${scenario.id}-${waitAfter}-fallback`);
   });
 });
 
