@@ -1,11 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  DURATION_PERIODS,
   INCIDENT_GROUP_DURATIONS,
   INCIDENT_GROUP_IDS,
   INCIDENT_TYPE_DURATIONS,
   INCIDENT_TYPE_IDS,
   MIN_GROUP_COUNT,
+  MIN_PERIOD_COUNT,
   MIN_TYPE_COUNT,
 } from "../params/incident-durations.ts";
 
@@ -78,5 +80,50 @@ describe("incident-durations", () => {
       const total = Object.values(stats.stopScopeCounts).reduce((a, b) => a + b, 0);
       expect(total).toBe(stats.count);
     }
+  });
+
+  it("時間帯の区分は p50 が p80 以下で、区分の件数の合計が止まった時刻のある事例数以内", () => {
+    for (const stats of [
+      ...Object.values(INCIDENT_GROUP_DURATIONS),
+      ...Object.values(INCIDENT_TYPE_DURATIONS),
+    ]) {
+      let total = 0;
+      for (const period of DURATION_PERIODS) {
+        const { count, p50, p80, ownP50, ownP80 } = stats.byPeriod[period];
+        total += count;
+        if (count === 0) {
+          expect(ownP50).toBeNull();
+          expect(ownP80).toBeNull();
+        } else {
+          expect(ownP50 as number).toBeLessThanOrEqual(ownP80 as number);
+        }
+        if (p50 !== null) expect(p50).toBeLessThanOrEqual(p80 as number);
+      }
+      expect(total).toBeLessThanOrEqual(stats.count);
+    }
+  });
+
+  it("件数が足りない区分は印が付き、まぜた値を使う", () => {
+    let marked = 0;
+    for (const stats of [
+      ...Object.values(INCIDENT_GROUP_DURATIONS),
+      ...Object.values(INCIDENT_TYPE_DURATIONS),
+    ]) {
+      for (const period of DURATION_PERIODS) {
+        const entry = stats.byPeriod[period];
+        expect(entry.reliability).toBe(
+          entry.count >= MIN_PERIOD_COUNT ? "sufficient" : "use_mixed",
+        );
+        if (entry.reliability === "use_mixed") {
+          marked += 1;
+          expect(entry.p50).toBe(stats.p50);
+          expect(entry.p80).toBe(stats.p80);
+        } else {
+          expect(entry.p50).toBe(entry.ownP50);
+          expect(entry.p80).toBe(entry.ownP80);
+        }
+      }
+    }
+    expect(marked).toBeGreaterThan(0);
   });
 });

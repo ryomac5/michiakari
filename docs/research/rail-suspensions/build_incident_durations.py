@@ -6,6 +6,7 @@
 import json
 import math
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -21,6 +22,10 @@ CLASSIFICATIONS = "case_classifications.jsonl"
 MIN_TYPE_COUNT = 5
 MIN_GROUP_COUNT = 3
 UNKNOWN_SCOPE = "unknown"
+MIN_PERIOD_COUNT = 5
+# 通勤時間帯は仮の値。平日の 7〜9 時台と 17〜19 時台。開発者に確かめる
+COMMUTE_HOURS = (range(7, 10), range(17, 20))
+PERIODS = ("commute", "other")
 
 
 def read_jsonl(name: str) -> list[dict]:
@@ -48,8 +53,19 @@ def load_cases(taxonomy: dict) -> tuple[list[dict], int]:
                 "group_id": group_id,
                 "type_id": type_id,
                 "stop_scope": row.get("stop_scope") or UNKNOWN_SCOPE,
+                "period": classify_period(row.get("suspended_at")),
             })
     return cases, removed
+
+
+def classify_period(suspended_at: dict | None) -> str | None:
+    """止まった時刻の記録が無い事例は None とし、時間帯の集計に含めない"""
+    if not suspended_at:
+        return None
+    stopped = datetime.fromisoformat(suspended_at["time"])
+    is_weekday = stopped.weekday() < 5
+    in_commute = any(stopped.hour in hours for hours in COMMUTE_HOURS)
+    return "commute" if is_weekday and in_commute else "other"
 
 
 def compute_quantile(sorted_values: list[int], q: float) -> float:
@@ -82,8 +98,39 @@ def summarize(cases: list[dict], min_count: int) -> dict:
     }
 
 
+def summarize_periods(cases: list[dict], whole: dict) -> dict:
+    """区分の件数が足りなければ、まぜた値（全体の値）を p50 と p80 に入れる"""
+    result = {}
+    for period in PERIODS:
+        own = summarize([c for c in cases if c["period"] == period], MIN_PERIOD_COUNT)
+        use_mixed = own["reliability"] is None
+        result[period] = {
+            "count": own["count"],
+            "own_p50": own["p50"],
+            "own_p80": own["p80"],
+            "p50": whole["p50"] if use_mixed else own["p50"],
+            "p80": whole["p80"] if use_mixed else own["p80"],
+            "reliability": "use_mixed" if use_mixed else "sufficient",
+        }
+    return result
+
+
 def ts_number(value: int | None) -> str:
     return "null" if value is None else str(value)
+
+
+def format_period(key: str, period: dict, indent: str) -> list[str]:
+    inner = indent + "  "
+    return [
+        f"{indent}{key}: {{",
+        f"{inner}count: {period['count']},",
+        f"{inner}p50: {ts_number(period['p50'])},",
+        f"{inner}p80: {ts_number(period['p80'])},",
+        f"{inner}ownP50: {ts_number(period['own_p50'])},",
+        f"{inner}ownP80: {ts_number(period['own_p80'])},",
+        f'{inner}reliability: "{period["reliability"]}",',
+        f"{indent}}},",
+    ]
 
 
 def format_entry(key: str, entry: dict, extra: list[str], indent: str) -> list[str]:
@@ -100,6 +147,9 @@ def format_entry(key: str, entry: dict, extra: list[str], indent: str) -> list[s
         *[f"{inner}{k}: {ts_number(entry[k])}," for k in ("min", "p50", "p80", "max")],
         *scope_block,
         f'{inner}reliability: "{entry["reliability"]}",',
+        f"{inner}byPeriod: {{",
+        *[line for p in PERIODS for line in format_period(p, entry["periods"][p], inner + "  ")],
+        f"{inner}}},",
         f"{indent}}},",
     ]
     return lines
@@ -111,10 +161,12 @@ def render(taxonomy: dict, cases: list[dict], removed: int) -> str:
     for g in groups:
         s = summarize([c for c in cases if c["group_id"] == g["id"]], MIN_GROUP_COUNT)
         s["reliability"] = s["reliability"] or "insufficient"
+        s["periods"] = summarize_periods([c for c in cases if c["group_id"] == g["id"]], s)
         group_stats[g["id"]] = s
     for t in types:
         s = summarize([c for c in cases if c["type_id"] == t["id"]], MIN_TYPE_COUNT)
         s["reliability"] = s["reliability"] or "use_group"
+        s["periods"] = summarize_periods([c for c in cases if c["type_id"] == t["id"]], s)
         type_stats[t["id"]] = s
 
     out = [
@@ -129,6 +181,13 @@ def render(taxonomy: dict, cases: list[dict], removed: int) -> str:
         f"export const MIN_TYPE_COUNT = {MIN_TYPE_COUNT};",
         f"export const MIN_GROUP_COUNT = {MIN_GROUP_COUNT};",
         "",
+        "// 時間帯は止まった時刻で分ける。commute は平日の 7〜9 時台と 17〜19 時台で仮の値、other はそれ以外。祝日は区別しない",
+        "// 区分の件数が足りなければ use_mixed とし、p50 と p80 にまぜた値を入れる。区分だけの値は ownP50 と ownP80",
+        f"export const MIN_PERIOD_COUNT = {MIN_PERIOD_COUNT};",
+        'export const DURATION_PERIODS = ["commute", "other"] as const;',
+        "export type DurationPeriod = (typeof DURATION_PERIODS)[number];",
+        'export type PeriodReliability = "sufficient" | "use_mixed";',
+        "",
         "export const INCIDENT_GROUP_IDS = [",
         *[f'  "{g["id"]}",' for g in groups],
         "] as const;",
@@ -141,6 +200,16 @@ def render(taxonomy: dict, cases: list[dict], removed: int) -> str:
         "",
         "export type DurationReliability = \"sufficient\" | \"use_group\" | \"insufficient\";",
         "",
+        "// 時間帯の区分ごとの値。止まった時刻の記録が無い事例は、どちらの区分にも数えない",
+        "export type PeriodDurationStats = {",
+        "  count: number;",
+        "  p50: number | null;",
+        "  p80: number | null;",
+        "  ownP50: number | null;",
+        "  ownP80: number | null;",
+        "  reliability: PeriodReliability;",
+        "};",
+        "",
         "// 所要時間（分）。stopScopeCounts は見合わせの範囲ごとの件数。範囲の記録が無い事例は unknown",
         "export type IncidentDurationStats = {",
         "  count: number;",
@@ -150,6 +219,7 @@ def render(taxonomy: dict, cases: list[dict], removed: int) -> str:
         "  max: number | null;",
         "  stopScopeCounts: Readonly<Record<string, number>>;",
         "  reliability: DurationReliability;",
+        "  byPeriod: Readonly<Record<DurationPeriod, PeriodDurationStats>>;",
         "};",
         "",
         "export type IncidentTypeDurationStats = IncidentDurationStats & {",
