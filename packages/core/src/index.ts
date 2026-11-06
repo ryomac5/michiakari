@@ -40,8 +40,12 @@ export {
 } from "../params/transit.ts";
 export { WALK_PARAMS_SOURCE } from "../params/walk.ts";
 export {
+  type AfterAlightDecision,
   type AfterAlightInput,
-  checkStaysOnToDestination,
+  type AfterAlightReason,
+  classifyStayOn,
+  decideAfterAlightStep,
+  type StayOn,
   selectAfterAlightStep,
 } from "./after-alight.ts";
 export { computeArrival, type LegMinutes, sumLegMinutes } from "./arrival.ts";
@@ -54,6 +58,7 @@ export {
   checkDeadline,
   chooseBestAlternative,
   computeBreakEven,
+  computeInCarWaitArrival,
   computeLateShare,
   computeWaitArrival,
   convertToBreakEven,

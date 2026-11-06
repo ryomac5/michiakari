@@ -199,7 +199,7 @@ test("駅と駅の間にいる人には、境目と確率の帯を出さず、�
   await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveCount(0);
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText("車内で待つ");
   await expect(page.getByTestId(testIds.judgment.conclusionNext)).toHaveText(
-    /^(動くのは\d+時\d+分ごろの見込み|塚本に着くのは\d+時\d+分ごろ)$/,
+    /^動くのは\d+時\d+分ごろの見込み$/,
   );
   await expect(page.getByTestId(testIds.judgment.inCarStaffNote)).toBeVisible();
   // 前提のチップと車内の案内が増えても、閉じたシートに注意書きまで収まる

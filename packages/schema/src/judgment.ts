@@ -134,8 +134,8 @@ export const AfterAlightStepSchema = z.object({
 export type AfterAlightStep = z.infer<typeof AfterAlightStepSchema>;
 
 export const InCarGuideSchema = z.object({
-  // ホームに着けて降りられる駅
-  alightStation: z.string().min(1),
+  // ホームに着けて降りられる駅。次の駅が分からなければ null
+  alightStation: z.string().min(1).nullable(),
   // その駅に着く見込み。見込みが無ければ null
   alightArrival: IsoDateTimeSchema.nullable(),
   // 自分の列車が動き出す見込み。見込みが無ければ null

@@ -178,17 +178,21 @@ for (const theme of ["light", "dark"] as const) {
       ]);
     });
 
-    test("駅と駅の間を選ぶと、追加の問いなしで車内で待つ判断が出て、次の駅に着く時刻を添える", async ({
+    test("駅と駅の間を選ぶと、追加の問いなしで車内で待つ判断が出て、動く時刻と次の駅に着く時刻を添える", async ({
       page,
     }) => {
       await reachPositionStep(page);
       await capture(page, theme, "01-entry-position");
       await startBetweenStations(page);
 
-      // 見出しは車内で待つだけで、2 文目に次の駅に着く時刻を出す。乗り換えやタクシーは勧めない
+      // 見出しは車内で待つだけで、2 文目に列車が動き出す時刻を出す。乗り換えやタクシーは勧めない
+      // 再開の前に塚本まで進める既定値でも、動く時刻を出し、塚本に着く時刻は理由に書く
       await expectInCarWait(page);
       await expect(page.getByTestId(testIds.judgment.conclusionNext)).toHaveText(
-        /^塚本に着くのは\d+時\d+分ごろ$/,
+        /^動くのは\d+時\d+分ごろの見込み$/,
+      );
+      await expect(page.getByTestId(testIds.judgment.conclusionReason)).toHaveText(
+        /^塚本には\d+時\d+分ごろに着く見込みです。$/,
       );
 
       // 前提のチップは既定値の見た目で、前の列車はふだんの運転から推し量った並びになる

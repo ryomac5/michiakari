@@ -2,6 +2,7 @@ import {
   addMinutesToIso,
   BUS_CHECK_MAX_WALK_MINUTES,
   BUS_STOP_SAME_NAME_METERS,
+  computeInCarWaitArrival,
   computeWaitArrival,
   estimateWalkMinutes,
   type LonLat,
@@ -177,9 +178,12 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
       const to = resolveStation(section.toStation, query.blockedLine);
       const found = from && to ? findBlockedSection(from, to, query.blockedLine) : null;
       if (found) return found;
-      // 区間の終わりが別の路線の駅なら、区間の始まりから出発地を通って、その向きの終わりまでを止まっている区間にする
-      // 駅間の車内で行き先が別の路線にあるとき、止まっている路線に乗る経路を代替手段に数えない
-      const toOrigin = from ? findBlockedSection(from, origin.station, query.blockedLine) : null;
+      // 駅間の車内のために作った区間で、終わりが別の路線の駅なら、区間の始まりから出発地を通って、その向きの終わりまでを止まっている区間にする
+      // 行き先が別の路線にあるとき、止まっている路線に乗る経路を代替手段に数えない。駅にいる人の区間は延ばさない
+      const toOrigin =
+        from && query.blockedSectionFromTrain
+          ? findBlockedSection(from, origin.station, query.blockedLine)
+          : null;
       if (toOrigin) return extendToDirectionEnd(toOrigin);
     }
     // 区間が分からなければ、出発地と目的地を結ぶ路線が止まっているとみなす
@@ -349,11 +353,20 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
           destinationStationId: destination.station.stationId,
           lineId: waitLineId,
           now: query.now,
-          arrivalTime: computeWaitArrival(
-            query.now,
-            query.remaining?.p50 ?? 0,
-            waitRoute.minutes + extraWait,
-          ),
+          // 駅間の車内なら、降りる駅に着く見込みを起点にそろえる。代わりの手段と同じ起点で比べるため
+          arrivalTime: query.departureTime
+            ? computeInCarWaitArrival({
+                now: query.now,
+                remainingMinutes: query.remaining?.p50 ?? 0,
+                extraWaitMinutes: extraWait,
+                alightArrival: query.departureTime,
+                routeMinutes: waitRoute.minutes,
+              })
+            : computeWaitArrival(
+                query.now,
+                query.remaining?.p50 ?? 0,
+                waitRoute.minutes + extraWait,
+              ),
         })
       : null;
     const alternatives = router.findAlternativeRoutes({

@@ -149,6 +149,16 @@ describe("駅間の車内の 3 つの場面", () => {
 });
 
 describe("駅間の車内にいる利用者の理由", () => {
+  it("再開の前に次の駅まで進めるときも、見出しは列車が動く時刻を示す", async () => {
+    const judgment = findJudgment(
+      await postJudge(app, buildRequest({ trainPosition: observed([]) })),
+    );
+    const inCar = expectInCarWait(judgment);
+    expect(judgment.reason).not.toContain("再開後");
+    expect(inCar.departure).not.toBeNull();
+    expect(judgment.headline).toMatch(/^車内で待つ。動くのは\d+時\d+分ごろの見込み$/);
+  });
+
   it("既定値では、理由の頭にふだんの間隔とみた見込みを置く", async () => {
     const judgment = findJudgment(await postJudge(app, buildRequest({ trainPosition: defaults })));
     expect(judgment.reason).toContain("前の列車との間隔はふだんどおりと仮定");

@@ -511,6 +511,52 @@ describe("claude モードの車内と止まり方", () => {
     expect(judgment?.inCar?.staffNote).toBe("長く止まったときは係員の案内に従う。");
   });
 
+  it("根拠の説明も検査する。駅間の切り替えの言い方と、その列車だけの停車での見合わせを弾く", async () => {
+    const base = {
+      action: "wait",
+      headline: "車内で待つ",
+      reason: "車内では列車が動くのを待ちます。",
+      breakEvenExplanation: "説明",
+      recommendedOptionId: null,
+    };
+    const inCar = createScriptedLlm({
+      judgment: [
+        ...buildSequence("person_accident"),
+        replyWithTool("emit_judgment", {
+          ...base,
+          evidence: [
+            { kind: "knowledge", id: "person_accident", description: "塚本で降りて乗り換える" },
+          ],
+        }),
+        replyWithTool("emit_judgment", { ...base, evidence: evidence("person_accident") }),
+      ],
+    });
+    await runRequest(inCar, buildSelectionRequest("person_accident", true));
+    const inCarFeedback = JSON.stringify(inCar.calls.at(-1)?.messages.at(-1)?.content);
+    expect(inCarFeedback).toContain("evidence[0].description の「降りて」");
+
+    const train = createScriptedLlm({
+      judgment: [
+        ...buildSequence("in_car_response"),
+        replyWithTool("emit_judgment", {
+          ...base,
+          headline: "運転再開を待つ",
+          evidence: [
+            { kind: "knowledge", id: "in_car_response", description: "運転見合わせの流れ" },
+          ],
+        }),
+        replyWithTool("emit_judgment", {
+          ...base,
+          headline: "運転再開を待つ",
+          evidence: evidence("in_car_response"),
+        }),
+      ],
+    });
+    await runRequest(train, buildSelectionRequest("in_car_response", false));
+    const trainFeedback = JSON.stringify(train.calls.at(-1)?.messages.at(-1)?.content);
+    expect(trainFeedback).toContain("evidence[0].description の「見合わせ」");
+  });
+
   it("駅間の車内の人の理由に代わりの路線を書いたら検証で弾く", async () => {
     const base = {
       action: "wait",

@@ -561,7 +561,7 @@ export function MapPanel(props: MapPanelProps) {
     trainOnly = false,
   } = props;
   // 駅間の車内の人は降りられないので、乗り換え候補の駅と徒歩の範囲を出さない
-  const inCar = trainPosition?.kind === "between_stations" && trainPosition.nextStation !== null;
+  const inCar = trainPosition?.kind === "between_stations";
   // 地図に描く選択肢。一覧で押したものがあればそれ、無ければ推奨
   const focusOptionId = props.selectedOptionId ?? recommendedOptionId;
   const tone = selectRouteTone(options, focusOptionId);

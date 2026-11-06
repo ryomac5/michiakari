@@ -31,6 +31,6 @@ export type Decision = z.infer<typeof DecisionSchema>;
 
 export const emitJudgmentDefinition = {
   name: "emit_judgment",
-  description: `判断を確定する。最後に一度だけ呼ぶ。駅間の車内の利用者には action を wait、recommendedOptionId を null にし、切り替えを勧めると検証エラーになる。止まり方が train の事象では「見合わせ」と書くと検証エラーになる。数値（残り時間・分岐点の時刻・到着時刻・運賃）はサーバーがツールの結果から組み立てるので入れない。時刻を文に書くときはツールの結果の表示をそのまま使う。headline が上限（日本語 ${ja.max} 字、英語 ${en.max} 文字）を、reason が上限（日本語 ${reasonLimits.ja.max} 字、英語 ${reasonLimits.en.max} 文字）を超えると検証エラーになる。検証に失敗したらエラーが返るので、直して呼び直す。`,
+  description: `判断を確定する。最後に一度だけ呼ぶ。駅間の車内の利用者には action を wait、recommendedOptionId を null にし、切り替えを勧めると検証エラーになる。止まり方が train の事象では「見合わせ」と書くと検証エラーになる。どちらも見出し・理由・境目の説明・根拠の説明のすべてを検査する。数値（残り時間・分岐点の時刻・到着時刻・運賃）はサーバーがツールの結果から組み立てるので入れない。時刻を文に書くときはツールの結果の表示をそのまま使う。headline が上限（日本語 ${ja.max} 字、英語 ${en.max} 文字）を、reason が上限（日本語 ${reasonLimits.ja.max} 字、英語 ${reasonLimits.en.max} 文字）を超えると検証エラーになる。検証に失敗したらエラーが返るので、直して呼び直す。`,
   inputSchema: DecisionSchema,
 } as const;

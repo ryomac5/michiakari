@@ -54,18 +54,18 @@ export async function runFindAlternatives(
   input: z.infer<typeof FindAlternativesInputSchema>,
 ): Promise<AlternativesToolResult> {
   const blockedLine = input.blockedLine ?? findLatest(ctx.observations, (o) => o.line);
-  const blockedSection: Section | null =
-    input.blockedSection ??
-    findLatest(ctx.observations, (o) => o.section) ??
-    buildBetweenStationsSection(ctx);
+  const observedSection = input.blockedSection ?? findLatest(ctx.observations, (o) => o.section);
+  const trainSection = observedSection ? null : buildBetweenStationsSection(ctx);
+  const blockedSection: Section | null = observedSection ?? trainSection;
   const result = await ctx.provider.findAlternatives({
     origin: ctx.request.origin,
     destination: ctx.request.destination,
     blockedLine,
     blockedSection,
+    blockedSectionFromTrain: trainSection !== null,
     now: ctx.request.now,
-    // 駅間の車内なら、次の駅に着く見込みの時刻から代替手段に乗り出す
-    departureTime: estimate.trainQueue?.arrival?.p50 ?? ctx.request.now,
+    // 駅間の車内なら、次の駅に着く見込みの時刻から代替手段に乗り出す。待つ側もこの時刻を起点にする
+    ...(estimate.trainQueue?.arrival ? { departureTime: estimate.trainQueue.arrival.p50 } : {}),
     // 乗ったまま待つ側にも、前の列車が先に発車するぶんの遅れを足す
     extraWaitMinutesAfterResume: estimate.trainQueue?.departureDelayMinutes ?? 0,
     remaining: estimate.estimate.remaining,

@@ -1,7 +1,8 @@
 import type { RouteLeg, RouteOption } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import {
-  checkStaysOnToDestination,
+  classifyStayOn,
+  decideAfterAlightStep,
   resolveStopScope,
   selectAfterAlightStep,
 } from "../src/index.ts";
@@ -65,10 +66,40 @@ const base = {
   destinationStation: "西宮北口",
 };
 
-describe("checkStaysOnToDestination", () => {
-  it("止まっている路線だけに乗る待つ経路なら、乗ったままで着ける", () => {
-    expect(checkStaysOnToDestination(waitStaysOn)).toBe(true);
-    expect(checkStaysOnToDestination(waitWithTransfer)).toBe(false);
+// 経路を引けず、待つ区間だけになった待つ選択肢
+const waitUnrouted = buildOption("wait", "wait", "2026-11-05T23:30:00+09:00", [
+  { mode: "wait", from: "塚本", to: "塚本", minutes: 60 },
+]);
+
+describe("classifyStayOn", () => {
+  it("乗ったまま着ける、乗り換えが要る、経路が分からない、を分ける", () => {
+    expect(classifyStayOn(waitStaysOn)).toBe("stays_on");
+    expect(classifyStayOn(waitWithTransfer)).toBe("needs_transfer");
+    expect(classifyStayOn(waitUnrouted)).toBe("route_unknown");
+  });
+});
+
+describe("decideAfterAlightStep", () => {
+  it("待つ経路が分からなければ、次の一手を出さず、理由を経路が分からないとする", () => {
+    const decided = decideAfterAlightStep({
+      ...base,
+      waitOption: waitUnrouted,
+      options: [waitUnrouted, hankyu],
+    });
+    expect(decided).toEqual({ step: null, reason: "route_unknown" });
+  });
+
+  it("乗ったまま着けるときと、選んだときの理由を分ける", () => {
+    expect(
+      decideAfterAlightStep({ ...base, waitOption: waitStaysOn, options: [hankyu] }).reason,
+    ).toBe("stays_on");
+    const found = decideAfterAlightStep({
+      ...base,
+      waitOption: waitWithTransfer,
+      options: [hankyu],
+    });
+    expect(found.reason).toBe("found");
+    expect(found.step?.id).toBe("transfer_1");
   });
 });
 

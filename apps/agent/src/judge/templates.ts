@@ -234,26 +234,17 @@ function pickFitting(candidates: readonly string[], max: number): string {
   return candidates.find((c) => [...c].length <= max) ?? candidates.at(-1) ?? "";
 }
 
-// 駅間の車内の見出し。結論は車内で待つだけにし、2 文目で動く時刻か次の駅に着く時刻を伝える
-// 詰める動きで再開の前に次の駅に着けるなら着く時刻、そうでなければ動き出す時刻を使う
-function buildInCarHeadline(queue: TrainQueueText, language: Lang): string {
+// 駅間の車内の見出し。結論は車内で待つだけにし、2 文目で列車が動き出す時刻を伝える
+// 詰める動きで再開の前に次の駅へ進めるときも、動き出す時刻を使う。着く時刻は理由に書く
+function buildInCarHeadline(queue: TrainQueueText | null, language: Lang): string {
   const ja = language === "ja";
   const lead = ja ? "車内で待つ" : "Stay on board.";
-  const max = headlineLimits[language].max;
-  const st = queue.alightStation;
-  const candidates: string[] = [];
-  if (queue.beforeResume && queue.arrivalP50) {
-    const time = formatClock(queue.arrivalP50, language);
-    candidates.push(
-      ja ? `${lead}。${st}に着くのは${time}ごろ` : `${lead} Reach ${st} around ${time}.`,
-    );
-  } else if (queue.departureP50) {
-    const time = formatClock(queue.departureP50, language);
-    candidates.push(
-      ja ? `${lead}。動くのは${time}ごろの見込み` : `${lead} Expected to move around ${time}.`,
-    );
-  }
-  return pickFitting([...candidates, lead], max);
+  if (!queue?.departureP50) return lead;
+  const time = formatClock(queue.departureP50, language);
+  const full = ja
+    ? `${lead}。動くのは${time}ごろの見込み`
+    : `${lead} Expected to move around ${time}.`;
+  return pickFitting([full, lead], headlineLimits[language].max);
 }
 
 // 次の駅に着く見込みの一文。種別の事情があればそれを先に言う
@@ -675,7 +666,8 @@ function buildInCarFallbackReason(language: Lang): string {
 
 export type InCarTextInput = {
   language: Lang;
-  queue: TrainQueueText;
+  // 次の駅が分からなければ null。見出しは「車内で待つ」だけにする
+  queue: TrainQueueText | null;
   // 理由に置く流れの一文。知見から見積もっているときだけ
   flowSentence: string | null;
 };
@@ -685,8 +677,8 @@ export type InCarTextInput = {
 export function buildInCarDecisionText(input: InCarTextInput): DecisionText {
   const { language, queue, flowSentence } = input;
   const glue = language === "ja" ? "" : " ";
-  const note = buildTrainQueueNote(queue, language);
-  const short = buildShortTrainQueueNote(queue, language);
+  const note = queue ? buildTrainQueueNote(queue, language) : null;
+  const short = queue ? buildShortTrainQueueNote(queue, language) : null;
   const join = (a: string | null, b: string | null) => (a && b ? `${a}${glue}${b}` : null);
   const candidates = [
     join(note, flowSentence),

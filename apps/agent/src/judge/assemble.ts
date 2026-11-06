@@ -388,20 +388,28 @@ export function validateJudgment(input: JudgmentCheckInput): {
     }
   }
   const inCarLines = input.inCarAlternativeLines ?? null;
+  // 利用者に見せる生成文。根拠の説明のうち、サーバーが作った説明をそのまま写したものは発表の引用を含むので除く
+  const serverDescriptions = new Set(input.evidenceRefs.map((r) => r.description));
+  const shownTexts: [string, string][] = [
+    ["headline", j.headline],
+    ["reason", j.reason ?? ""],
+    ["breakEven.explanation", j.breakEven?.explanation ?? ""],
+    ...j.evidence.flatMap((e, i): [string, string][] =>
+      serverDescriptions.has(e.description) ? [] : [[`evidence[${i}].description`, e.description]],
+    ),
+  ];
   if (inCarLines !== null) {
     if (j.recommendedOptionId !== null) {
       errors.push("駅間の車内の人には recommendedOptionId を null にしてください");
     }
-    errors.push(
-      ...checkInCarWording("headline", j.headline, input.language, inCarLines),
-      ...checkInCarWording("reason", j.reason ?? "", input.language, inCarLines),
-    );
+    for (const [field, text] of shownTexts) {
+      errors.push(...checkInCarWording(field, text, input.language, inCarLines));
+    }
   }
   if (input.stopScope === "train") {
-    errors.push(
-      ...checkStopScopeWording("headline", j.headline, input.language),
-      ...checkStopScopeWording("reason", j.reason ?? "", input.language),
-    );
+    for (const [field, text] of shownTexts) {
+      errors.push(...checkStopScopeWording(field, text, input.language));
+    }
   }
   const recommended = j.options.find((o) => o.id === j.recommendedOptionId);
   if (j.action === "switch" && recommended?.kind === "wait") {

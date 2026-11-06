@@ -113,7 +113,7 @@ export function JudgmentScreen() {
   const display = selectJudgmentDisplay(state);
   const streaming = state.status === "streaming";
   // 駅間の車内の人は降りられない。選択肢の一覧・バス停・乗り換え候補の駅を出さず、車内の案内だけを出す
-  const inCar = trainPosition?.kind === "between_stations" && trainPosition.nextStation !== null;
+  const inCar = trainPosition?.kind === "between_stations";
   const inCarGuide = display.judgment?.inCar ?? null;
   // 止まり方。その列車だけが止まる事象では、見合わせの札と止まった区間の線を出さない
   const stopScope = selectStopScope(display.estimate?.eventType, known);

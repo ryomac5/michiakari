@@ -16,6 +16,22 @@ export type AfterAlightInput = {
   options: readonly RouteOption[];
 };
 
+// 乗ったまま待つ経路の見立て
+// stays_on: 乗ったままで行き先に着ける。needs_transfer: 乗り換えか徒歩が要る。route_unknown: 経路を引けていない
+export type StayOn = "stays_on" | "needs_transfer" | "route_unknown";
+
+// 次の一手を出さなかった理由と、出したとき
+export type AfterAlightReason =
+  | "destination_is_alight"
+  | "different_departure"
+  | "route_unknown"
+  | "stays_on"
+  | "no_candidate"
+  | "wait_faster"
+  | "found";
+
+export type AfterAlightDecision = { step: RouteOption | null; reason: AfterAlightReason };
+
 const normalizeName = (name: string) => name.trim().replace(/駅$/, "");
 
 // 止まっている路線。待つ選択肢の待つ区間の路線、無ければ最初の乗車の路線
@@ -24,14 +40,16 @@ function findStoppedLineId(waitOption: Pick<RouteOption, "legs">): string | unde
   return legs.find((l) => l.mode === "wait")?.lineId ?? legs.find((l) => l.mode === "ride")?.lineId;
 }
 
-// 乗ったままで行き先に着けるか。待つ経路の乗車がすべて止まっている路線で、乗り換えも徒歩も無い
-export function checkStaysOnToDestination(waitOption: Pick<RouteOption, "legs">): boolean {
+// 待つ経路を見立てる。乗車が無ければ経路を引けていないので、乗ったまま着けるとはみなさない
+export function classifyStayOn(waitOption: Pick<RouteOption, "legs">): StayOn {
   const legs: readonly RouteLeg[] = waitOption.legs;
-  if (legs.some((l) => l.mode === "walk" || l.mode === "taxi")) return false;
+  if (legs.some((l) => l.mode === "walk" || l.mode === "taxi")) return "needs_transfer";
   const rides = legs.filter((l) => l.mode === "ride");
-  if (rides.length === 0) return true;
+  if (rides.length === 0) return "route_unknown";
   const lineId = findStoppedLineId(waitOption);
-  return lineId !== undefined && rides.every((l) => l.lineId === lineId);
+  return lineId !== undefined && rides.every((l) => l.lineId === lineId)
+    ? "stays_on"
+    : "needs_transfer";
 }
 
 // 着いた後に乗れる手段。止まっている路線に乗る経路は、降りた後も同じ列車を待つことになるので外す
@@ -51,15 +69,27 @@ function pickAfterAlightCandidate(
   return ground[0] ?? usable.filter((o) => o.kind === "taxi").sort(byArrival)[0] ?? null;
 }
 
-// 着いた後の次の一手。行き先が降りる駅のとき、乗ったままで着けるとき、乗ったままのほうが早いときは null
-export function selectAfterAlightStep(input: AfterAlightInput): RouteOption | null {
+// 着いた後の次の一手と、その理由。行き先が降りる駅のとき、乗ったままで着けるとき、
+// 待つ経路が分からないとき、乗ったままのほうが早いときは出さない
+export function decideAfterAlightStep(input: AfterAlightInput): AfterAlightDecision {
   const { waitOption } = input;
   const alight = normalizeName(input.alightStation);
-  if (input.destinationStation && normalizeName(input.destinationStation) === alight) return null;
-  if (!input.departureStation || normalizeName(input.departureStation) !== alight) return null;
-  if (!waitOption || checkStaysOnToDestination(waitOption)) return null;
+  if (input.destinationStation && normalizeName(input.destinationStation) === alight) {
+    return { step: null, reason: "destination_is_alight" };
+  }
+  if (!input.departureStation || normalizeName(input.departureStation) !== alight) {
+    return { step: null, reason: "different_departure" };
+  }
+  if (!waitOption) return { step: null, reason: "route_unknown" };
+  const stayOn = classifyStayOn(waitOption);
+  if (stayOn !== "needs_transfer") return { step: null, reason: stayOn };
   const candidate = pickAfterAlightCandidate(input.options, findStoppedLineId(waitOption));
-  if (!candidate) return null;
+  if (!candidate) return { step: null, reason: "no_candidate" };
   const faster = parseIsoToMs(candidate.arrivalTime) < parseIsoToMs(waitOption.arrivalTime);
-  return faster ? candidate : null;
+  return faster ? { step: candidate, reason: "found" } : { step: null, reason: "wait_faster" };
+}
+
+// 着いた後の次の一手。出さないときは null
+export function selectAfterAlightStep(input: AfterAlightInput): RouteOption | null {
+  return decideAfterAlightStep(input).step;
 }

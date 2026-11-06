@@ -4,7 +4,7 @@ import { decisionParams } from "../config.ts";
 import type { Decision } from "../tools/emit-judgment.ts";
 import type { BreakEvenToolResult, EstimateToolResult, WeatherToolResult } from "../tools/types.ts";
 import type { JudgmentToolResults } from "./assemble.ts";
-import { buildTrainQueueText } from "./in-car.ts";
+import { buildTrainQueueText, checkInCarBetweenStations } from "./in-car.ts";
 import { buildComputedBreakEven, type JudgeSession } from "./session.ts";
 import {
   buildDecisionText,
@@ -192,13 +192,12 @@ export function decideDeterministically(
   results: JudgmentToolResults,
 ): Decision {
   const language = session.ctx.request.language;
-  // 駅間の車内では、結論は車内で待つだけにする。境目の比較で切り替えを勧めない
-  const queue = buildTrainQueueText(results.estimate);
-  if (queue) {
+  // 駅間の車内では、結論は車内で待つだけにする。境目の比較で切り替えを勧めない。次の駅が分からなくても同じ
+  if (checkInCarBetweenStations(session.ctx.request)) {
     const flow = buildFlowText(results.estimate);
     const text = buildInCarDecisionText({
       language,
-      queue,
+      queue: buildTrainQueueText(results.estimate),
       flowSentence: flow?.inReason ? flow.sentence : null,
     });
     return {
