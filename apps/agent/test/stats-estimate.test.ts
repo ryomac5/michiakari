@@ -14,6 +14,8 @@ import { describe, expect, it } from "vitest";
 import { models } from "../src/config.ts";
 import { findFlowWording } from "../src/domain/flow-wording.ts";
 import type { LlmClient } from "../src/llm-client.ts";
+import { runEstimatePhase } from "../src/tools/estimate-phase.ts";
+import type { ToolContext } from "../src/tools/types.ts";
 import { createTestApp, createTestDeps, postJudge } from "./helpers.ts";
 
 // 入口で答えた原因の統計値から、知見の無い原因の再開の見込みを出す
@@ -128,7 +130,8 @@ describe("見込みの出どころ", () => {
     const judgment = findJudgment(
       await postJudge(app, buildRequest({ cause: signaling, statedResumeTime: stated })),
     );
-    expect(judgment.estimate.source).toBe("none");
+    // 出どころは原因の見込みの元を指す。知見の原因で発表の時刻を使うときと同じく、統計値のまま
+    expect(judgment.estimate.source).toBe("statistics");
     expect(judgment.estimate.remaining?.p50).toBe(20);
   });
 
@@ -151,6 +154,78 @@ describe("見込みの出どころ", () => {
       estimateStatsRemaining(signaling, addMinutesToIso(daytime, -elapsed), daytime)?.remaining,
     );
     expect(atCommute.estimate.remaining).not.toEqual(atDaytime.estimate.remaining);
+  });
+});
+
+describe("放送の再開時刻の前後", () => {
+  const deps = createTestDeps();
+  const stated = "2026-11-06T12:30:00+09:00";
+
+  // 止まって 20 分後に放送の時刻を聞いた観測を置き、now の時点で見込みを出す
+  function estimateAt(now: string, input: { cause?: IncidentCause; eventType?: string }) {
+    const request = buildRequest({ now, cause: input.cause, statedResumeTime: stated });
+    const entry = { ...buildEntryObservation(daytime, 0), statedResumeTime: stated };
+    const observations: Observation[] = [
+      input.eventType
+        ? {
+            ...entry,
+            eventTypeCandidates: [{ eventType: input.eventType, confidence: "high" as const }],
+          }
+        : entry,
+    ];
+    const ctx: ToolContext = {
+      request: { ...request, observations },
+      observations,
+      content: deps.content,
+      provider: deps.provider,
+      scenario: null,
+      fetchRain: deps.fetchRain,
+    };
+    return runEstimatePhase(ctx, { eventType: input.eventType ?? null });
+  }
+
+  const before = addMinutesToIso(stated, -1);
+  const after = addMinutesToIso(stated, 1);
+
+  it("知見のある原因は、放送の時刻の前は放送、ちょうどと後は知見で見積もり、放送の時刻を残す", () => {
+    const input = { eventType: "person_accident" };
+    expect(estimateAt(before, input).remainingBasis).toBe("stated");
+    for (const now of [stated, after]) {
+      const result = estimateAt(now, input);
+      expect(result.remainingBasis).toBe("knowledge");
+      expect(result.statedResumeTime).toBe(stated);
+      expect(result.estimate.source).toBe("knowledge");
+    }
+  });
+
+  it("統計値の原因も知見と同じ時点で切り替え、放送の時刻と出どころを保つ", () => {
+    const input = { cause: signaling };
+    const early = estimateAt(before, input);
+    expect(early.remainingBasis).toBe("stated");
+    expect(early.estimate.remaining?.p50).toBe(1);
+    expect(early.statedResumeTime).toBe(stated);
+    expect(early.estimate.source).toBe("statistics");
+    for (const now of [stated, after]) {
+      const result = estimateAt(now, input);
+      expect(result.remainingBasis).toBe("statistics");
+      expect(result.statedResumeTime).toBe(stated);
+      expect(result.estimate.source).toBe("statistics");
+      expect(result.estimate.remaining).toEqual(
+        estimateStatsRemaining(signaling, daytime, now)?.remaining,
+      );
+      expect(result.remainingSamples?.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("原因が分からなければ、放送の時刻が過ぎると見込みを持たないが、放送の時刻は残す", () => {
+    expect(estimateAt(before, {}).remainingBasis).toBe("stated");
+    for (const now of [stated, after]) {
+      const result = estimateAt(now, {});
+      expect(result.remainingBasis).toBeNull();
+      expect(result.estimate.remaining).toBeNull();
+      expect(result.statedResumeTime).toBe(stated);
+      expect(result.estimate.source).toBe("none");
+    }
   });
 });
 

@@ -110,7 +110,8 @@ export const estimatePhaseDefinition = {
 } as const;
 
 // 知見が無いときの残り時間と標本。発表の再開見込みが先にあれば、その時刻だけを根拠にする
-// 発表が無ければ、入口で答えた原因の統計値から見積もる。どちらも無ければ見込みを持たない
+// 発表の時刻ちょうどとその後は、知見の原因と同じく原因の見込みに戻す。発表の時刻は結果に残す
+// 原因の見込みは入口で答えた原因の統計値で、出どころは発表の時刻を使うあいだも statistics にする
 function estimateWithoutKnowledge(
   ctx: ToolContext,
   stated: StatedResume | null,
@@ -123,21 +124,17 @@ function estimateWithoutKnowledge(
   source: EstimateSource;
 } {
   const now = ctx.request.now;
-  if (stated && statedIsFuture) {
-    const remaining = estimateStatedRemainingWithoutKnowledge(stated.time, now);
-    return { remaining, samples: sampleDurationDist(remaining), basis: "stated", source: "none" };
-  }
   const cause = ctx.request.cause;
   const stats = cause ? estimateStatsRemaining(cause, onsetTime, now) : null;
-  if (stats) {
-    return {
-      remaining: stats.remaining,
-      samples: stats.samples,
-      basis: "statistics",
-      source: "statistics",
-    };
+  const source: EstimateSource = stats ? "statistics" : "none";
+  if (stated && statedIsFuture) {
+    const remaining = estimateStatedRemainingWithoutKnowledge(stated.time, now);
+    return { remaining, samples: sampleDurationDist(remaining), basis: "stated", source };
   }
-  return { remaining: null, samples: null, basis: null, source: "none" };
+  if (stats) {
+    return { remaining: stats.remaining, samples: stats.samples, basis: "statistics", source };
+  }
+  return { remaining: null, samples: null, basis: null, source };
 }
 
 // 知見が無いときの結果。確率の標本は、残り時間と同じ根拠から作る
