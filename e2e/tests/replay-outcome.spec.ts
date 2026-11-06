@@ -227,6 +227,26 @@ for (const scenario of scenarios) {
         "data-counterpart-switched-at",
         expected.counterpart.switchedAt ?? "",
       );
+      // 判断に従った人は、再開より前に最初に切り替えを勧めた時点で移り、後の待つの判断では戻らない
+      const resumedMs = Date.parse(expected.resumedAt);
+      const firstSwitch = recorded.find(
+        (r) =>
+          r.judgment.action === "switch" &&
+          Date.parse(r.now) < resumedMs &&
+          r.judgment.recommendedOptionId !== null,
+      );
+      expect(expected.followed.switchedAt ? Date.parse(expected.followed.switchedAt) : null).toBe(
+        firstSwitch ? Date.parse(firstSwitch.now) : null,
+      );
+      await expect(card).toHaveAttribute(
+        "data-followed-switched-at",
+        expected.followed.switchedAt ?? "",
+      );
+      if (expected.followed.switchedAt) {
+        await expect(page.getByTestId(testIds.replay.outcomeFollowed)).toContainText(
+          formatJstClock(expected.followed.switchedAt),
+        );
+      }
       await expect(card).toHaveAttribute("data-diff-minutes", String(expected.diffMinutes));
       await expect(card).toHaveAttribute("data-verdict", expected.verdict);
       await expect(page.getByTestId(testIds.replay.outcomeFollowed)).toHaveAttribute(

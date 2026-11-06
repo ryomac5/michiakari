@@ -49,7 +49,7 @@ describe("compareReplayOutcome", () => {
     });
   });
 
-  it("切り替え、待つ、切り替えと変わったら、最後に切り替えへ変わった時点で移る", () => {
+  it("切り替え、待つ、切り替えと変わっても、最初に切り替えを勧めた時点で移り、待つの判断では戻らない", () => {
     const outcome = compareReplayOutcome({
       decisions: [
         decide("2026-11-05T22:10:00+09:00", "switch", "2026-11-05T23:25:00+09:00"),
@@ -64,13 +64,64 @@ describe("compareReplayOutcome", () => {
       firstTrainWaitMinutes: 10,
       deadline: "2026-11-06T00:25:00+09:00",
     });
+    // 22:10 の判断のおすすめの経路で 23:25 に着く。待ち続けた人は 23:40 + 10 + 40 = 00:30
     expect(outcome?.followed).toEqual({
-      switchedAt: "2026-11-05T22:45:00+09:00",
-      arrival: "2026-11-05T23:58:00+09:00",
-      deadline: { onTime: true, marginMinutes: 27 },
+      switchedAt: "2026-11-05T22:10:00+09:00",
+      arrival: "2026-11-05T23:25:00+09:00",
+      deadline: { onTime: true, marginMinutes: 60 },
     });
     expect(outcome?.counterpart.switchedAt).toBeNull();
+    expect(outcome?.counterpart.arrival).toBe("2026-11-06T00:30:00+09:00");
+    expect(outcome?.diffMinutes).toBe(65);
     expect(outcome?.verdict).toBe("followed_earlier");
+  });
+
+  it("切り替えるだけが続けば、最初の切り替えの判断のおすすめの経路で着く", () => {
+    const outcome = compareReplayOutcome({
+      decisions: [
+        decide("2026-11-05T22:10:00+09:00", "switch", "2026-11-05T23:20:00+09:00"),
+        decide("2026-11-05T22:25:00+09:00", "switch", "2026-11-05T23:35:00+09:00"),
+        decide("2026-11-05T22:40:00+09:00", "switch", "2026-11-05T23:50:00+09:00"),
+      ],
+      resumeOffsetMinutes: 90,
+      startTime: START,
+      firstTrainWaitMinutes: 10,
+      deadline: null,
+    });
+    expect(outcome?.followed).toEqual({
+      switchedAt: "2026-11-05T22:10:00+09:00",
+      arrival: "2026-11-05T23:20:00+09:00",
+      deadline: null,
+    });
+    expect(outcome?.counterpart.switchedAt).toBeNull();
+    expect(outcome?.diffMinutes).toBe(70);
+  });
+
+  it("待つだけが続けば、従った人は再開を待って乗り、最初の観測で切り替えた人と比べる", () => {
+    const outcome = compareReplayOutcome({
+      decisions: [
+        decide("2026-11-05T22:10:00+09:00", "wait", null, 40, "2026-11-05T23:10:00+09:00"),
+        decide("2026-11-05T22:25:00+09:00", "wait", null, 40, "2026-11-05T23:20:00+09:00"),
+        decide("2026-11-05T22:40:00+09:00", "wait", null, 40, "2026-11-05T23:30:00+09:00"),
+      ],
+      resumeOffsetMinutes: 50,
+      startTime: START,
+      firstTrainWaitMinutes: 10,
+      deadline: null,
+    });
+    // 再開 23:00 + 初列車待ち 10 + 乗車 40 = 23:50
+    expect(outcome?.followed).toEqual({
+      switchedAt: null,
+      arrival: "2026-11-05T23:50:00+09:00",
+      deadline: null,
+    });
+    expect(outcome?.counterpart).toEqual({
+      switchedAt: "2026-11-05T22:10:00+09:00",
+      arrival: "2026-11-05T23:10:00+09:00",
+      deadline: null,
+    });
+    expect(outcome?.diffMinutes).toBe(-40);
+    expect(outcome?.verdict).toBe("counterpart_earlier");
   });
 
   it("switch が一度も出なければ、待ち続けた従った人を、最初の観測で切り替えた人と比べる", () => {

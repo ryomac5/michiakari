@@ -44,7 +44,7 @@ export type ReplayOutcomeVerdict = "followed_earlier" | "counterpart_earlier" | 
 
 export type ReplayOutcome = {
   resumedAt: string;
-  // 判断に従った人。切り替えの判断があれば、判断が最後に切り替えへ変わった時点で移った人
+  // 判断に従った人。切り替えの判断があれば、最初に切り替えを勧めた時点で移った人
   followed: OutcomeTraveler;
   // 比べる相手。切り替えた判断なら待ち続けた人、最後まで待つ判断なら最初の観測で切り替えた人
   // 待つ判断で代替手段が無ければ待ち続けた人とし、従った人と同じ時刻に着く
@@ -70,23 +70,19 @@ function pickWaitRideMinutes(
   return (beforeResume.at(-1) ?? known[0])?.waitRideMinutesAfterResume ?? null;
 }
 
-// 判断が最後に切り替えへ変わった時点。切り替えが続くあいだは、最初に変わった時点を使う
-// 従った人は、その時点で推奨した経路に移る。再開した後の判断は、すでに乗れているので数えない
-function findLastSwitchTurn(
+// 最初に切り替えを勧めた時点。従った人は、その判断のおすすめの経路に乗る
+// 後で待つの判断が出ても、すでに移った人は戻らない。再開した後の判断は、すでに乗れているので数えない
+function findFirstSwitch(
   decisions: readonly ReplayDecision[],
   resumedMs: number,
 ): SwitchPoint | null {
-  let turn: SwitchPoint | null = null;
-  let previousAction: Action | null = null;
   for (const d of decisions) {
     if (parseIsoToMs(d.observedAt) >= resumedMs) break;
-    const turned = d.action === "switch" && previousAction !== "switch";
-    if (turned && d.recommendedArrival !== null) {
-      turn = { observedAt: d.observedAt, arrival: d.recommendedArrival };
+    if (d.action === "switch" && d.recommendedArrival !== null) {
+      return { observedAt: d.observedAt, arrival: d.recommendedArrival };
     }
-    previousAction = d.action;
   }
-  return turn;
+  return null;
 }
 
 // 最初の観測で、最も早い代替手段へ切り替えた場合。代替手段が無ければ null
@@ -134,7 +130,7 @@ export function compareReplayOutcome(input: ReplayOutcomeInput): ReplayOutcome |
     input.deadline,
   );
   // 切り替えた判断なら待ち続けた人と比べ、最後まで待つ判断なら最初に切り替えた人と比べる
-  const switchTurn = findLastSwitchTurn(decisions, resumedMs);
+  const switchTurn = findFirstSwitch(decisions, resumedMs);
   const switchAtStart = switchTurn ? null : findSwitchAtStart(decisions);
   const followed = switchTurn
     ? buildTraveler(switchTurn.observedAt, switchTurn.arrival, input.deadline)

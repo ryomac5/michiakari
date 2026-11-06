@@ -44,6 +44,7 @@ export function ReplayOutcomeCard({
       data-testid={testIds.replay.outcome}
       data-verdict={outcome.verdict}
       data-followed-arrival={followed.arrival}
+      data-followed-switched-at={followed.switchedAt ?? ""}
       data-counterpart-arrival={counterpart.arrival}
       data-counterpart-switched-at={counterpart.switchedAt ?? ""}
       data-diff-minutes={outcome.diffMinutes}
