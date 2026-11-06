@@ -1,11 +1,13 @@
 "use client";
 
-import { Play } from "lucide-react";
+import { Play, X } from "lucide-react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { testIds } from "@/features/judgment/testids";
+import type { StationChoice } from "@/features/stations/catalog";
+import { StationSearch } from "@/features/stations/components/StationSearch";
 import { pickStationName } from "@/features/stations/describe";
 import { cn } from "@/lib/utils";
 import type { DirectionStop } from "./directions";
@@ -51,10 +53,68 @@ const gpsFailureKeys = {
   unsupported: "gpsUnsupported",
 } as const;
 
-// 現在地から読み取る。候補が 1 つなら はい で確定し、複数なら近い順に並べて選ばせる
-function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps) {
+// 位置の候補の確かめ。候補が 1 つなら はい で確定し、複数なら並べて選ばせる
+function PlaceConfirm({
+  choices,
+  pickTitle,
+  onConfirm,
+  onDismiss,
+}: {
+  choices: GpsChoice[];
+  pickTitle: string;
+  onConfirm: (choice: GpsChoice) => void;
+  onDismiss: () => void;
+}) {
   const t = useTranslations("entry");
   const label = useGpsLabel();
+  const [only] = choices;
+  if (only && choices.length === 1)
+    return (
+      <div className="flex flex-col gap-2 rounded-2xl bg-foreground/[0.05] p-3">
+        <p className="font-semibold" data-testid={testIds.start.gpsQuestion}>
+          {label(only, "question")}
+        </p>
+        {/* はいは主のボタン、違うは控えめなボタンにし、押せることがひと目で分かるようにする */}
+        <div className="flex gap-2">
+          <Button
+            className="flex-1"
+            data-testid={testIds.start.gpsConfirm}
+            onClick={() => onConfirm(only)}
+          >
+            {t("gpsYes")}
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1"
+            data-testid={testIds.start.gpsDismiss}
+            onClick={onDismiss}
+          >
+            {t("gpsNo")}
+          </Button>
+        </div>
+      </div>
+    );
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm font-semibold">{pickTitle}</p>
+      {choices.map((choice) => (
+        <button
+          type="button"
+          key={choice.key}
+          className={buttonClass}
+          data-testid={testIds.start.gpsChoice(choice.key)}
+          onClick={() => onConfirm(choice)}
+        >
+          {label(choice, "choice")}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// 現在地から読み取る。読み取れたら候補を確かめる
+function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps) {
+  const t = useTranslations("entry");
   const located = status.kind === "located";
   const failure =
     status.kind === "failed"
@@ -62,7 +122,6 @@ function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps
       : located && choices.length === 0
         ? t("gpsNone")
         : null;
-  const [only] = choices;
   // 読み取る前は 1 つの札だけなので、ほかの選び方と同じ並びに入れる
   const idle = !(located && choices.length > 0) && !failure;
   return (
@@ -71,45 +130,13 @@ function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps
       data-testid={testIds.start.gps}
       data-status={status.kind}
     >
-      {located && only && choices.length === 1 ? (
-        <div className="flex flex-col gap-2 rounded-2xl bg-foreground/[0.05] p-3">
-          <p className="font-semibold" data-testid={testIds.start.gpsQuestion}>
-            {label(only, "question")}
-          </p>
-          {/* はいは主のボタン、違うは控えめなボタンにし、押せることがひと目で分かるようにする */}
-          <div className="flex gap-2">
-            <Button
-              className="flex-1"
-              data-testid={testIds.start.gpsConfirm}
-              onClick={() => onConfirm(only)}
-            >
-              {t("gpsYes")}
-            </Button>
-            <Button
-              variant="outline"
-              className="flex-1"
-              data-testid={testIds.start.gpsDismiss}
-              onClick={onDismiss}
-            >
-              {t("gpsNo")}
-            </Button>
-          </div>
-        </div>
-      ) : located && choices.length > 1 ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-semibold">{t("gpsPickQuestion")}</p>
-          {choices.map((choice) => (
-            <button
-              type="button"
-              key={choice.key}
-              className={buttonClass}
-              data-testid={testIds.start.gpsChoice(choice.key)}
-              onClick={() => onConfirm(choice)}
-            >
-              {label(choice, "choice")}
-            </button>
-          ))}
-        </div>
+      {located && choices.length > 0 ? (
+        <PlaceConfirm
+          choices={choices}
+          pickTitle={t("gpsPickQuestion")}
+          onConfirm={onConfirm}
+          onDismiss={onDismiss}
+        />
       ) : (
         <button
           type="button"
@@ -130,7 +157,7 @@ function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps
   );
 }
 
-// 最初の段。現在地の読み取り、駅名の検索、地図、車内の順に並べる
+// 最初の段。駅名の検索、現在地の読み取り、駅にいる、駅と駅の間の順に並べる
 export function LocationStep({
   onSelect,
   gps,
@@ -154,7 +181,7 @@ export function LocationStep({
           data-testid={testIds.start.positionStation}
           onClick={() => onSelect("station")}
         >
-          {t("locationMap")}
+          {t("locationStation")}
         </button>
         <button
           type="button"
@@ -162,7 +189,7 @@ export function LocationStep({
           data-testid={testIds.start.positionTrain}
           onClick={() => onSelect("train")}
         >
-          {t("locationTrain")}
+          {t("locationBetween")}
         </button>
         <Link
           href="/replay"
@@ -172,6 +199,127 @@ export function LocationStep({
           <Play className="size-3.5 fill-current" aria-hidden />
           {tStart("replayLink")}
         </Link>
+      </div>
+    </>
+  );
+}
+
+// 選んだ駅の札。押すとその駅を選び直す
+function PickedStation({
+  station,
+  testId,
+  onClear,
+}: {
+  station: StationChoice;
+  testId: string;
+  onClear: () => void;
+}) {
+  const t = useTranslations("entry");
+  const name = pickStationName(station, useLocale());
+  return (
+    <button
+      type="button"
+      className={cn(chipClass, "shrink-0 gap-1 bg-foreground/[0.08]")}
+      data-testid={testId}
+      aria-label={t("betweenChangeStation", { station: name })}
+      onClick={onClear}
+    >
+      {name}
+      <X className="size-4 text-muted" aria-hidden />
+    </button>
+  );
+}
+
+// 駅と駅の間を選ぶ段。地図の線を押すか、両側の 2 つの駅名で選び、確かめて確定する
+// mapChoices は地図の線を押して出した候補。駅名で出した候補より先に確かめる
+export function BetweenStep({
+  mapChoices,
+  onDismissMap,
+  listPairChoices,
+  onSearch,
+  onConfirm,
+}: {
+  mapChoices: GpsChoice[] | null;
+  onDismissMap: () => void;
+  listPairChoices: (first: StationChoice, second: StationChoice) => GpsChoice[];
+  onSearch: () => void;
+  onConfirm: (choice: GpsChoice) => void;
+}) {
+  const t = useTranslations("entry");
+  const [first, setFirst] = useState<StationChoice | null>(null);
+  const [second, setSecond] = useState<StationChoice | null>(null);
+  const pairChoices = first && second ? listPairChoices(first, second) : null;
+  const choices = mapChoices ?? pairChoices;
+  const searchProps = (label: string) => ({
+    hideLabel: true,
+    label,
+    placeholder: label,
+  });
+  return (
+    <>
+      <SheetTitle title={t("betweenQuestion")} />
+      {choices && choices.length > 0 ? (
+        <PlaceConfirm
+          choices={choices}
+          pickTitle={mapChoices ? t("gpsPickQuestion") : t("betweenPickQuestion")}
+          onConfirm={onConfirm}
+          onDismiss={mapChoices ? onDismissMap : () => setSecond(null)}
+        />
+      ) : null}
+      {!mapChoices && pairChoices?.length === 0 ? (
+        <p className="text-sm text-muted" data-testid={testIds.start.betweenPairNone} role="status">
+          {t("betweenPairNone")}
+        </p>
+      ) : null}
+      <div className="flex flex-col gap-1.5">
+        <p className="text-[12px] font-medium text-muted">{t("betweenPairLabel")}</p>
+        <div className="flex items-start gap-2">
+          {first ? (
+            <PickedStation
+              station={first}
+              testId={testIds.start.betweenFirst}
+              onClear={() => {
+                setFirst(null);
+                setSecond(null);
+              }}
+            />
+          ) : (
+            <div className="min-w-0 flex-1">
+              <StationSearch
+                {...searchProps(t("betweenFirstStation"))}
+                onSelect={(station) => {
+                  onSearch();
+                  setFirst(station);
+                }}
+                testIds={{
+                  search: testIds.start.betweenFirstSearch,
+                  option: testIds.start.betweenFirstOption,
+                }}
+              />
+            </div>
+          )}
+          {first && second ? (
+            <PickedStation
+              station={second}
+              testId={testIds.start.betweenSecond}
+              onClear={() => setSecond(null)}
+            />
+          ) : first ? (
+            <div className="min-w-0 flex-1">
+              <StationSearch
+                {...searchProps(t("betweenSecondStation"))}
+                onSelect={(station) => {
+                  onSearch();
+                  setSecond(station);
+                }}
+                testIds={{
+                  search: testIds.start.betweenSecondSearch,
+                  option: testIds.start.betweenSecondOption,
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
     </>
   );

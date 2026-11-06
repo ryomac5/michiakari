@@ -1,6 +1,12 @@
 import { fileURLToPath } from "node:url";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
+import {
+  loadReplayScenarios,
+  openReplay,
+  openSheet,
+  waitForFiniteAnimations,
+  waitForJudged,
+} from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
 // 判断画面の開いて読む段に、近くのバス停を確かめる欄が出る
@@ -63,4 +69,30 @@ test("大阪で止まったとき、判断画面にバスも確かめる欄が�
 
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}bus-checks-390x844.png` });
+});
+
+test("リプレイの判断画面にも、判断の画面と同じバスも確かめる欄が出る", async ({ page }) => {
+  // 大阪で止まった架空のシナリオ。最初の発表の判断にバス停の確認候補が載る
+  const scenario = loadReplayScenarios().find((s) => s.user.current_station === "大阪");
+  if (!scenario) throw new Error("大阪で止まるシナリオがありません");
+  const [first] = scenario.timeline;
+  if (!first) throw new Error("timeline が空です");
+  await openReplay(page, scenario.id);
+  await page.getByTestId(testIds.replay.nextButton).click();
+  await waitForJudged(page, first.id);
+
+  await openSheet(page, "full");
+  const section = page.getByTestId(testIds.judgment.busChecks);
+  await section.scrollIntoViewIfNeeded();
+  await expect(section).toBeVisible();
+  await expect(section).toContainText("バスも確かめる");
+  await expect(section).toContainText("2022年の情報");
+  const items = section.locator("[data-testid^='judgment-bus-check-']");
+  expect(await items.count()).toBeGreaterThan(0);
+  // 時刻は出さない
+  await expect(section).not.toContainText(/\d{1,2}:\d{2}|\d{1,2}時\d{2}分/);
+  await expect(page.getByTestId(testIds.judgment.disclaimer)).toHaveCount(1);
+
+  await waitForFiniteAnimations(page);
+  await page.screenshot({ path: `${screenshotDir}replay-bus-checks-390x844.png` });
 });

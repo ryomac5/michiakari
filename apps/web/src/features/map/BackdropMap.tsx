@@ -10,7 +10,7 @@ import { prefersReducedMotion, useDocumentTheme } from "@/lib/use-document-theme
 import { loadMapGeoData, type MapGeoData } from "./geo-data";
 import { selectMapLabels } from "./labels";
 import { buildBaseStyle, listPaintValues, mapPalettes, sourceIds } from "./layers";
-import { loadMapLibre } from "./MapPanel";
+import { loadMapLibre, preloadMapLibre } from "./MapPanel";
 import { waitForOwnLayersDrawn } from "./ready";
 import { computeFitBounds, type Position, resolvePlacePosition } from "./scene";
 
@@ -44,6 +44,7 @@ export function BackdropMap({
 
   useEffect(() => {
     let cancelled = false;
+    preloadMapLibre();
     loadMapGeoData()
       .then((data) => {
         if (!cancelled) setGeo(data);

@@ -676,13 +676,6 @@ export function buildInCarDecisionText(input: InCarTextInput): DecisionText {
   };
 }
 
-// 長く止まったときの一文。線路に降りて歩く案内が出ることもあるので、係員の案内に従うよう添える
-export function buildStaffNote(language: Lang): string {
-  return language === "ja"
-    ? "長く止まったときは、係員の案内に従ってください。"
-    : "If the stop runs long, follow the crew’s instructions.";
-}
-
 // 着いた後の次の一手の一文。「福島に着いたら阪神本線へ」。乗る駅が別なら「十三まで歩いて」を挟む
 export function buildAfterAlightText(
   alightStation: string,

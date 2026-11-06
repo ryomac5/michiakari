@@ -49,10 +49,19 @@ export const testIds = {
     destinationUndecided: "start-destination-undecided",
     // 方面の先の行き先の候補。data-operator に事業者名を出す
     destinationCandidate: (id: string) => `start-destination-candidate-${id}`,
+    // 最初の段の「駅にいる」。押すと駅を選ぶ地図へ進む
     positionStation: "start-position-station",
-    // 電車の中・駅に止まっている。押すと止まっている駅を聞く
+    // 最初の段の「駅と駅の間で止まっている」。押すと駅の間を選ぶ段へ進む
     positionTrain: "start-position-train",
-    // 電車の中・駅と駅の間。押すと既定値で先へ進む
+    // 駅の間を選ぶ段の、2 つの駅名の検索。1 つ目を選ぶと札になり、押すと選び直す
+    betweenFirstSearch: "start-between-first-search",
+    betweenFirstOption: (id: string) => `start-between-first-option-${id}`,
+    betweenFirst: "start-between-first",
+    betweenSecondSearch: "start-between-second-search",
+    betweenSecondOption: (id: string) => `start-between-second-option-${id}`,
+    betweenSecond: "start-between-second",
+    betweenPairNone: "start-between-pair-none",
+    // 乗る電車を選び直したときの駅間の段。選んだ駅と駅の間で既定値のまま先へ進む
     positionBetween: "start-position-between",
     nearStop: (id: string) => `start-near-stop-${id}`,
     // 様子の 3 つの問い。原因、止まってからの時間、再開の見込み
@@ -94,10 +103,9 @@ export const testIds = {
     tripSummary: "judgment-trip-summary",
     // 上部の帯の「JR京都線 見合わせ」
     statusChip: "judgment-status-chip",
-    // 駅間の車内の人への案内。着いた後の次の一手と、係員の案内に従う一文
+    // 駅間の車内の人への案内。着いた後の次の一手
     inCar: "judgment-in-car",
     inCarAfterAlight: "judgment-in-car-after-alight",
-    inCarStaffNote: "judgment-in-car-staff-note",
     // 地図の上のシート（PC 幅では右のパネル）。data-snap に collapsed / half / full を出す
     sheet: "judgment-sheet",
     sheetHandle: "judgment-sheet-handle",

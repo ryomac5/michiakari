@@ -205,7 +205,7 @@ describe("次の駅が分からない駅間の車内", () => {
     expect(judgment.headline).toBe("車内で待つ");
     expect(judgment.inCar?.alightStation).toBeNull();
     expect(judgment.inCar?.afterAlight).toBeNull();
-    expect(judgment.inCar?.staffNote).toBe("長く止まったときは、係員の案内に従ってください。");
+    expect(JSON.stringify(judgment.inCar)).not.toContain("係員");
   });
 });
 

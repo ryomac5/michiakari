@@ -8,6 +8,7 @@ import {
   estimateStatsRemaining,
   estimateTrainQueueArrival,
   FALLBACK_RIDE_MINUTES_TO_NEXT_STATION,
+  findLineOperatorKey,
   getFirstTrainWait,
   normalizeTrainType,
   parseIsoToMs,
@@ -21,6 +22,7 @@ import { z } from "zod";
 import { confidenceParams } from "../config.ts";
 import {
   checkEventIdentified,
+  checkTrackCleared,
   decideEstimateConfidence,
   detectPhase,
   findLatestStatedResume,
@@ -43,10 +45,12 @@ function findOperator(ctx: ToolContext): string | null {
 
 // 駅間の車内にいる利用者が、ホームに着ける駅に着く見込み。駅間でなければ null
 // 再開までの残りは、乗れるまでの残りから初列車待ちを引いた分とする。車内の人は列車を待たないため
+// closeUpCleared は線路の安全が確かめられた兆候があるか。無ければ詰める動きを使わない
 function estimateTrainQueue(
   ctx: ToolContext,
   remaining: DurationDist | null,
   firstTrainWait: DurationDist | null,
+  closeUpCleared: boolean,
 ): TrainQueueToolResult | null {
   const position = ctx.request.trainPosition;
   if (position?.kind !== "between_stations" || !position.nextStation) return null;
@@ -82,7 +86,9 @@ function estimateTrainQueue(
     trainsAheadCount: position.trainsAheadCount,
     trainsAheadHeadwayMinutes: position.trainsAheadHeadwayMinutes ?? null,
     stationsAhead,
-    params: resolveTrainQueueParams(findOperator(ctx)),
+    // 乗っている路線の事業者を先に使う。路線が引けなければ観測の事業者名を使う
+    params: resolveTrainQueueParams(findLineOperatorKey(lineId) ?? findOperator(ctx)),
+    closeUpCleared,
   });
   return {
     ...outcome,
@@ -105,7 +111,7 @@ export const EstimatePhaseInputSchema = z.object({
 export const estimatePhaseDefinition = {
   name: "estimate_phase_and_remaining",
   description:
-    "観測された兆候と知見の exit_signals から現在の段階と段階の経過時間を決め、再開して乗れるまでの残り時間（p50, p80 分）をコードで計算する。発表された再開見込み時刻があれば優先する。事象が null でも発表の時刻があれば、その時刻どおりを p50、延びる余地を p80 とした残り時間を返す（remainingBasis は stated）。事象が null で発表の時刻が無くても、入口で答えた原因の統計値があれば、そこから残り時間を返す（remainingBasis は statistics）。事象の段階と再開までの見込み（typicalFlow）と、見込みの立てやすさから見た短い・長いの区別（flowOutlook）も返す。止まり方（stopScope）は、その列車だけが止まる train か、区間を止める section。駅間の車内なら、降りられる駅に着く見込みと自分の列車が動き出す見込み（trainQueue）も返す。",
+    "観測された兆候と知見の exit_signals から現在の段階と段階の経過時間を決め、再開して乗れるまでの残り時間（p50, p80 分）をコードで計算する。発表された再開見込み時刻があれば優先する。事象が null でも発表の時刻があれば、その時刻どおりを p50、延びる余地を p80 とした残り時間を返す（remainingBasis は stated）。事象が null で発表の時刻が無くても、入口で答えた原因の統計値があれば、そこから残り時間を返す（remainingBasis は statistics）。事象の段階と再開までの見込み（typicalFlow）と、見込みの立てやすさから見た短い・長いの区別（flowOutlook）も返す。止まり方（stopScope）は、その列車から止まる train か、区間を止める section。駅間の車内なら、降りられる駅に着く見込みと自分の列車が動き出す見込み（trainQueue）も返す。",
   inputSchema: EstimatePhaseInputSchema,
 } as const;
 
@@ -162,7 +168,7 @@ function buildUnknownEstimate(
   };
   return {
     estimate,
-    trainQueue: estimateTrainQueue(ctx, remaining, null),
+    trainQueue: estimateTrainQueue(ctx, remaining, null, checkTrackCleared(ctx.observations)),
     phaseName: null,
     phaseGuidance: null,
     phaseStartedAt: null,
@@ -245,7 +251,12 @@ export function runEstimatePhase(
       }),
       source: "knowledge",
     },
-    trainQueue: estimateTrainQueue(ctx, remaining, firstTrainWait),
+    trainQueue: estimateTrainQueue(
+      ctx,
+      remaining,
+      firstTrainWait,
+      checkTrackCleared(ctx.observations),
+    ),
     phaseName: phase ? (phase.name[language] ?? phase.name.ja) : null,
     phaseGuidance: phase ? (phase.guidance[language] ?? phase.guidance.ja) : null,
     phaseStartedAt: detection.phaseStartedAt,

@@ -380,6 +380,7 @@ export function SegmentMarker({
   color,
   selected,
   hitRadius,
+  approachRadius = 0,
   onSelect,
 }: {
   segmentKey: string;
@@ -387,6 +388,8 @@ export function SegmentMarker({
   color: string;
   selected: boolean;
   hitRadius: number;
+  // 押せる丸が取れないとき、押して寄せる範囲の半径（px）
+  approachRadius?: number;
   onSelect: () => void;
 }) {
   return (
@@ -394,6 +397,7 @@ export function SegmentMarker({
       type="button"
       data-testid={testIds.start.mapSegment(segmentKey)}
       data-selected={selected}
+      data-mode={hitRadius > 0 ? "pick" : approachRadius > 0 ? "approach" : "none"}
       aria-label={label}
       aria-pressed={selected}
       onClick={stop(onSelect)}
@@ -405,6 +409,14 @@ export function SegmentMarker({
           data-hit-area
           className="pointer-events-auto absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
           style={{ width: hitRadius * 2, height: hitRadius * 2 }}
+        />
+      )}
+      {hitRadius <= 0 && approachRadius > 0 && (
+        <span
+          aria-hidden
+          data-approach-area
+          className="pointer-events-auto absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+          style={{ width: approachRadius * 2, height: approachRadius * 2 }}
         />
       )}
       <span

@@ -3,6 +3,7 @@ import {
   DEFAULT_STATION_PLATFORM,
   DEFAULT_TRAIN_QUEUE_PARAMS,
   OPERATION_PATTERNS,
+  OPERATOR_KEY_ALIASES,
   type OperationPattern,
   STATION_PLATFORMS_BY_LINE,
   type StationPlatform,
@@ -13,7 +14,8 @@ import {
 import { addMinutesToIso } from "./time.ts";
 
 // 駅間に止まった列車が、ホームに着ける駅に着く時刻の見込み
-// 詰める事業者では、止まっている間に前の列車から順に前の駅へ進める動きを追う
+// 詰める事業者では、線路の安全が確かめられた後に、前の列車から順に前の駅へ進める動きを追う
+// 駅の間では信号機と信号機の間に 1 本ずつ列車が詰まる。前の列車は 1 本ずつ信号の区間を空けて進む
 // 前の列車は順番を追い越せず、その種別が着けるホームのある駅にしか入れない
 // 前の列車は、利用者が押した並びなら目の前に詰まっているとみなし、
 // 運転パターンから推し量った並びなら、ふだんの間隔をあけて先を走っていたとみなす
@@ -42,6 +44,8 @@ export type TrainQueueInput = {
   trainsAheadHeadwayMinutes: number | null;
   stationsAhead: readonly StationAhead[];
   params: TrainQueueParams;
+  // 線路の安全が確かめられたか。再開に向けた放送か、再開の見込みの時刻が出たら true。false なら詰める動きを使わない
+  closeUpCleared: boolean;
 };
 
 // 遅れる理由
@@ -65,7 +69,7 @@ export type TrainQueueOutcome = {
   trainsAheadCount: number;
   // 自分の行く手にいて、先に発車するのを待つ前の列車の本数
   blockingCount: number;
-  // その本数ぶんの遅れ（分）。乗ったまま待つ場合の到着にも足す
+  // その本数ぶんの遅れ（分）の中央。乗ったまま待つ場合の到着にも足す
   departureDelayMinutes: number;
   // 前の列車をふだんの間隔で先を走っていたとみなしたか
   spacedByHeadway: boolean;
@@ -148,8 +152,34 @@ export function computeTrackHeadwayMinutes(
   return pattern.cycleMinutes / sequence.length;
 }
 
+function simplifyOperatorName(name: string): string {
+  return name
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\s\-_・]/g, "");
+}
+
+// 事業者名か事業者キーを、路線 ID の先頭と同じ事業者キーにそろえる。表に無ければ null
+export function normalizeOperatorKey(operator: string | null): string | null {
+  if (!operator) return null;
+  const simple = simplifyOperatorName(operator);
+  const found = Object.entries(OPERATOR_KEY_ALIASES).find(([, aliases]) =>
+    aliases.some((a) => simplifyOperatorName(a) === simple),
+  );
+  return found?.[0] ?? null;
+}
+
+// 路線 ID「jr-west.東海道線」から事業者キーを引く
+export function findLineOperatorKey(lineId: string | null): string | null {
+  if (!lineId) return null;
+  const key = lineId.slice(0, lineId.indexOf("."));
+  return key.length > 0 ? key : null;
+}
+
+// 事業者名か事業者キーから、詰める動きの値を引く
 export function resolveTrainQueueParams(operator: string | null): TrainQueueParams {
-  const override = operator ? TRAIN_QUEUE_PARAMS_BY_OPERATOR[operator] : undefined;
+  const key = normalizeOperatorKey(operator) ?? operator;
+  const override = key ? TRAIN_QUEUE_PARAMS_BY_OPERATOR[key] : undefined;
   return { ...DEFAULT_TRAIN_QUEUE_PARAMS, ...override };
 }
 
@@ -325,30 +355,36 @@ export function estimateTrainQueueArrival(input: TrainQueueInput): TrainQueueOut
   );
   // 自分の行く手にいて、先に発車するのを待つ列車。降りる駅かその手前にいる列車を数える
   const blockingCount = queue.filter((t) => t.minIndex <= alightIndex).length;
-  const departureDelayMinutes = blockingCount * params.minutesPerTrainAhead;
+  const perTrain = params.minutesPerTrainAhead;
+  const departureDelayMinutes = blockingCount * perTrain.p50;
 
   // 再開を待つ経路。行く手の列車が順に発車したあとに、降りられる駅まで走る
   const resumePath = input.untilResume
     ? {
-        p50: input.untilResume.p50 + departureDelayMinutes + sumRideMinutes(stations, alightIndex),
-        p80: input.untilResume.p80 + departureDelayMinutes + sumRideMinutes(stations, alightIndex),
+        p50:
+          input.untilResume.p50 +
+          blockingCount * perTrain.p50 +
+          sumRideMinutes(stations, alightIndex),
+        p80:
+          input.untilResume.p80 +
+          blockingCount * perTrain.p80 +
+          sumRideMinutes(stations, alightIndex),
       }
     : null;
 
-  // 詰める経路。目の前に詰まっていた列車が前の駅へ進んだあとに、自分も進む
-  const closeUp = params.closesUp ? simulateCloseUp(stations, queue, ownType, alightIndex) : null;
+  // 詰める経路。安全が確かめられたいまから、目の前に詰まっていた列車が前の駅へ進んだあとに、自分も進む
+  const closeUp =
+    params.closesUp && input.closeUpCleared
+      ? simulateCloseUp(stations, queue, ownType, alightIndex)
+      : null;
   const closeUpPath =
     closeUp && closeUp.ownIndex !== null
       ? {
           index: closeUp.ownIndex,
           p50:
-            params.closeUpLeadMinutes.p50 +
-            closeUp.movedBlockingCount * params.minutesPerTrainAhead +
-            sumRideMinutes(stations, closeUp.ownIndex),
+            closeUp.movedBlockingCount * perTrain.p50 + sumRideMinutes(stations, closeUp.ownIndex),
           p80:
-            params.closeUpLeadMinutes.p80 +
-            closeUp.movedBlockingCount * params.minutesPerTrainAhead +
-            sumRideMinutes(stations, closeUp.ownIndex),
+            closeUp.movedBlockingCount * perTrain.p80 + sumRideMinutes(stations, closeUp.ownIndex),
         }
       : null;
   if (closeUp) delays.push(...closeUp.delays);
