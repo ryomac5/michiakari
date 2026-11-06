@@ -147,32 +147,40 @@ export function listSegmentWindow(
   return picks;
 }
 
-// 押した点に一番近い駅の間を返す
+// 押した点に一番近い駅の間を返す。
+// maxMeters より遠ければ、押した線は候補の外とみなして決めない
 export function findNearestSegment(
   segments: readonly SegmentPick[],
   point: Position,
+  maxMeters = Number.POSITIVE_INFINITY,
 ): SegmentPick | null {
   let best: { segment: SegmentPick; meters: number } | null = null;
   for (const segment of segments) {
     const meters = measureSegmentDistance(point, segment.from.position, segment.to.position);
-    if (!best || meters < best.meters) best = { segment, meters };
+    if (meters <= maxMeters && (!best || meters < best.meters)) best = { segment, meters };
   }
   return best?.segment ?? null;
 }
 
-// 駅の間の押せる丸の半径（px）。ほかの印に届かない大きさにし、小さすぎれば出さない
-export function computeSegmentHitRadius(
-  point: ScreenPoint,
-  others: readonly { point: ScreenPoint; radius: number }[],
+// 駅の間の押せる丸の半径（px）。駅の印の押せる丸に届かず、ほかの駅の間の丸とは中点の内側に収める
+// 小さすぎれば null にし、印だけを出して線を押して選ぶ
+export function computeSegmentHitRadii(
+  points: readonly ScreenPoint[],
+  markers: readonly { point: ScreenPoint; radius: number }[],
   max = 22,
   min = 10,
-): number | null {
-  let radius = max;
-  for (const other of others) {
-    const gap = Math.hypot(point.x - other.point.x, point.y - other.point.y) - other.radius;
-    radius = Math.min(radius, gap);
-  }
-  return radius >= min ? Math.floor(radius) : null;
+): (number | null)[] {
+  return points.map((point, i) => {
+    let radius = max;
+    for (const marker of markers) {
+      const gap = Math.hypot(point.x - marker.point.x, point.y - marker.point.y) - marker.radius;
+      radius = Math.min(radius, gap);
+    }
+    points.forEach((other, j) => {
+      if (j !== i) radius = Math.min(radius, Math.hypot(point.x - other.x, point.y - other.y) / 2);
+    });
+    return radius >= min ? Math.floor(radius) : null;
+  });
 }
 
 // 駅の間の中ほどの点

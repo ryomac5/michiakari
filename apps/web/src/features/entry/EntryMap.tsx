@@ -26,7 +26,7 @@ import {
 import type { EntryArea, EntryHub, EntryPlace, Position } from "./entry-places";
 import { pickLocalized, pickPlaceName } from "./entry-places";
 import type { EntryStage } from "./flow";
-import { computeSegmentHitRadius, findNearestLineId } from "./map-pick";
+import { computeSegmentHitRadii, findNearestLineId } from "./map-pick";
 import {
   buildEdgeHubRect,
   type EdgeHub,
@@ -95,7 +95,8 @@ type EntryMapProps = {
   lineFocus: LineFocus | null;
   // 線を押して路線を選べるか。押せるのは強く描いた線か、all なら全部の線
   linePickable: boolean;
-  onSelectLine: (lineId: string, point: Position) => void;
+  // reachMeters は押せる範囲の幅を地図の距離にしたもの
+  onSelectLine: (lineId: string, point: Position, reachMeters: number) => void;
   segments: MapSegment[];
   onSelectSegment: (key: string) => void;
   // 選んだ駅の名前の札の向き。地図に出す札を避ける向きにする。null なら設定の向き
@@ -417,7 +418,12 @@ export function EntryMap(props: EntryMapProps) {
               ? findTappedLine(loaded, e.point.x, e.point.y, focusNow)
               : null;
           if (lineId) {
-            callbacksRef.current.onSelectLine(lineId, point);
+            const edge = loaded.unproject([e.point.x + linePickPx, e.point.y]);
+            callbacksRef.current.onSelectLine(
+              lineId,
+              point,
+              computeDistanceMeters(point, [edge.lng, edge.lat]),
+            );
             return;
           }
           const edge = loaded.unproject([e.point.x + tapReachPx, e.point.y]);
@@ -679,25 +685,29 @@ export function EntryMap(props: EntryMapProps) {
       );
       const nextRadii = Object.fromEntries(next.map((s, i) => [s.key, radii[i] ?? 24]));
       const [placePoint] = placePoints;
-      setPlaceHitRadius(
-        placePoint
-          ? (computeStopHitRadii(
-              [placePoint],
-              next.map((s) => map.project(s.position)),
-            )[0] ?? 24)
-          : 24,
-      );
+      const placeRadius = placePoint
+        ? (computeStopHitRadii(
+            [placePoint],
+            next.map((s) => map.project(s.position)),
+          )[0] ?? markerHitRadius)
+        : markerHitRadius;
+      setPlaceHitRadius(placeRadius);
       setStopRadii((prev) =>
         JSON.stringify(prev) === JSON.stringify(nextRadii) ? prev : nextRadii,
       );
-      // 駅の間の丸は、駅の印と札の丸に届かない大きさにする
-      const markers = [...(place ? [place.position] : []), ...next.map((s) => s.position)].map(
-        (p) => ({ point: map.project(p), radius: markerHitRadius }),
+      // 駅の間の丸は、駅の印と札の押せる丸に届かず、ほかの駅の間の丸とは中点の内側に収める
+      const markers = [
+        ...(place ? [{ point: map.project(place.position), radius: placeRadius }] : []),
+        ...next.map((s, i) => ({ point: map.project(s.position), radius: radii[i] ?? 0 })),
+      ];
+      const segmentRadiiNext = computeSegmentHitRadii(
+        segments.map((segment) => map.project(segment.position)),
+        markers,
       );
       // 押せる丸が取れない駅の間も印は出し、線を押して選べるようにする
-      const targets = segments.map((segment) => ({
+      const targets = segments.map((segment, i) => ({
         key: segment.key,
-        radius: computeSegmentHitRadius(map.project(segment.position), markers) ?? 0,
+        radius: segmentRadiiNext[i] ?? 0,
       }));
       setSegmentRadii((prev) =>
         prev.length === targets.length &&

@@ -11,7 +11,7 @@ import {
 } from "./entry-places";
 import { listTrainLines } from "./infer-route";
 import {
-  computeSegmentHitRadius,
+  computeSegmentHitRadii,
   findNearestLineId,
   findNearestSegment,
   isOnRoute,
@@ -148,15 +148,14 @@ describe("listSegmentWindow", () => {
   });
 });
 
-describe("computeSegmentHitRadius", () => {
+describe("computeSegmentHitRadii の駅の印", () => {
   it("ほかの印に届かない半径にし、小さすぎれば出さない", () => {
-    expect(computeSegmentHitRadius({ x: 0, y: 0 }, [])).toBe(22);
-    expect(computeSegmentHitRadius({ x: 0, y: 0 }, [{ point: { x: 40, y: 0 }, radius: 24 }])).toBe(
-      16,
-    );
-    expect(
-      computeSegmentHitRadius({ x: 0, y: 0 }, [{ point: { x: 30, y: 0 }, radius: 24 }]),
-    ).toBeNull();
+    const origin = [{ x: 0, y: 0 }];
+    expect(computeSegmentHitRadii(origin, [])).toEqual([22]);
+    expect(computeSegmentHitRadii(origin, [{ point: { x: 40, y: 0 }, radius: 24 }])).toEqual([16]);
+    expect(computeSegmentHitRadii(origin, [{ point: { x: 30, y: 0 }, radius: 24 }])).toEqual([
+      null,
+    ]);
   });
 });
 
@@ -172,5 +171,44 @@ describe("selectAwaySide", () => {
     expect(selectAwaySide(origin, [[135.001, 34.01]])).toBe("bottom");
     expect(selectAwaySide(origin, [[135, 33.99]])).toBe("top");
     expect(selectAwaySide(origin, [])).toBeNull();
+  });
+});
+
+describe("computeSegmentHitRadii", () => {
+  it("隣り合う駅の間の押せる丸を、互いの中点の内側に収める", () => {
+    const radii = computeSegmentHitRadii(
+      [
+        { x: 0, y: 0 },
+        { x: 30, y: 0 },
+        { x: 200, y: 0 },
+      ],
+      [],
+    );
+    expect((radii[0] ?? 0) + (radii[1] ?? 0)).toBeLessThanOrEqual(30);
+    expect(radii[2]).toBe(22);
+  });
+
+  it("駅の印の押せる丸にも届かない大きさにし、取れなければ null にする", () => {
+    const radii = computeSegmentHitRadii(
+      [
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+      ],
+      [
+        { point: { x: 40, y: 0 }, radius: 24 },
+        { point: { x: 115, y: 0 }, radius: 10 },
+      ],
+    );
+    expect(radii).toEqual([16, null]);
+  });
+});
+
+describe("findNearestSegment の距離の制限", () => {
+  it("押した点が候補の駅の間から押せる範囲の外なら決めない", () => {
+    const stops = Array.from({ length: 4 }, (_, i) => buildStop(`t${i}`, [135 + i * 0.01, 34]));
+    const segments = listSegmentWindow(stops, 1);
+    // 線から 50m ほどなら選び、2km ほど離れていれば選ばない
+    expect(findNearestSegment(segments, [135.015, 34.0005], 100)?.index).toBe(1);
+    expect(findNearestSegment(segments, [135.015, 34.02], 100)).toBeNull();
   });
 });

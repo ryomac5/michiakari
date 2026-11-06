@@ -78,6 +78,19 @@ describe("computeStopHitRadii", () => {
       { x: 200, y: 0 },
     ]);
     expect(radii).toEqual([15, 15, 24]);
-    expect(computeStopHitRadii([{ x: 0, y: 0 }], [{ x: 10, y: 0 }])).toEqual([8]);
+    expect(computeStopHitRadii([{ x: 0, y: 0 }], [{ x: 10, y: 0 }])).toEqual([5]);
+  });
+});
+
+describe("computeStopHitRadii の重なり", () => {
+  it("16px より近い印どうしでも、押せる丸を中点の内側に収める", () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+    ];
+    const [a = 0, b = 0] = computeStopHitRadii(points);
+    expect(a + b).toBeLessThanOrEqual(10);
+    const [c = 0] = computeStopHitRadii([{ x: 0, y: 0 }], [{ x: 6, y: 0 }]);
+    expect(c).toBeLessThanOrEqual(3);
   });
 });

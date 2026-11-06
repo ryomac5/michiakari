@@ -92,21 +92,18 @@ export function selectVisibleStops<T extends StopLabel>(input: {
   });
 }
 
-// 札の押せる丸の半径（px）。隣の印との中ほどまでにし、押せる範囲がぶつからないようにする
+// 札の押せる丸の半径（px）。隣の印との中点の内側に収め、押せる範囲がぶつからないようにする
+// 近すぎて丸が取れない札は、札の面か下の一覧から選ぶ
 export function computeStopHitRadii(
   points: readonly ScreenPoint[],
   others: readonly ScreenPoint[] = [],
   max = 24,
-  min = 8,
 ): number[] {
   return points.map((point, i) => {
     const near = [...points.filter((_, j) => j !== i), ...others].map((p) =>
       Math.hypot(p.x - point.x, p.y - point.y),
     );
-    return Math.max(
-      min,
-      Math.min(max, Math.floor(Math.min(Number.POSITIVE_INFINITY, ...near) / 2)),
-    );
+    return Math.max(0, Math.min(max, Math.floor(Math.min(Number.POSITIVE_INFINITY, ...near) / 2)));
   });
 }
 
