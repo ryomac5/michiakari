@@ -156,6 +156,9 @@ export const testIds = {
     map: "judgment-map",
     options: "judgment-options",
     option: (id: string) => `judgment-option-${id}`,
+    // 選択肢の行の、乗る路線の並びと、徒歩と運賃
+    optionLines: "judgment-option-lines",
+    optionFacts: "judgment-option-facts",
     evidence: "judgment-evidence",
     evidenceToggle: "judgment-evidence-toggle",
     // 根拠の項目。id は兆候か事象の id。data-phase-id と data-current を出す

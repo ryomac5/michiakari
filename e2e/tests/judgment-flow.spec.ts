@@ -119,7 +119,14 @@ test("駅を選び、貼り付けで状況を入れると、推論過程が順�
   await expect(page.getByTestId(mapTestIds.legend)).toBeVisible();
   await expect(page.getByTestId(mapTestIds.attribution)).toContainText("国土地理院");
   await expect(page.getByTestId(testIds.judgment.option("transfer_hankyu"))).toBeVisible();
-  await expect(page.getByTestId(testIds.judgment.option("transfer_hankyu"))).toContainText("—");
+  // 選択肢の行は、徒歩 0 分と分からない運賃を出さない。経路は乗る路線の名前だけを途中で切らずに並べる
+  const options = page.getByTestId(testIds.judgment.options);
+  await expect(options).not.toContainText("徒歩0分");
+  await expect(options).not.toContainText("—");
+  await expect(options).not.toContainText("…");
+  const hankyu = page.getByTestId(testIds.judgment.option("transfer_hankyu"));
+  await expect(hankyu.getByTestId(testIds.judgment.optionLines)).toContainText("阪急");
+  await expect(hankyu.getByTestId(testIds.judgment.optionLines)).not.toContainText(/\d+分/);
 
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}judgment-390x844.png` });
