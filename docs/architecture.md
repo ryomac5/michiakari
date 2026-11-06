@@ -62,6 +62,12 @@
   - このときの見込みは core の `estimateStatedRemainingWithoutKnowledge` で求める。p50 は発表の時刻どおり、p80 は `STATED_RESUME_SLACK_MINUTES` だけ後ろに置く
   - 確信度は `confidenceParams.whenStatedWithoutEvent` にする。結論の理由は、発表の時刻をもとにした推定だと分かる言い方にする
   - 発表の時刻が無いときの振る舞いは変えない。claude モードもプロンプトで同じ方針にする
+  - 知見の無い原因でも、要求の `cause` に入口で答えた原因があれば、core の `estimateStatsRemaining` で統計値から見込みを出す。`remainingBasis` は `statistics` にする
+  - 統計値の見込みは確信度を low のままにする。事象は決め打ちせず、原因が分からないときと同じ規則で保留か切り替えを選ぶ
+  - 統計値から見積もったことは文に書かない。再開までの時間も文で言い切らない。見込みは見込みの図の幅で示す
+  - 見込みの出どころは `estimate.source` に持つ。知見は `knowledge`、統計値は `statistics`、どちらも無ければ `none` にする
+  - 発表の時刻があれば、統計値より発表の時刻を使う。このとき出どころは `none` にする
+  - claude モードには `<request>` の `cause` で原因を渡す。数値はツールが返し、Claude には計算させない
   - 見込みが立てやすく、再開までの p80 が core の `SHORT_FLOW_MAX_MINUTES` 以内の事象は「短く終わる」とみなす。確信度が低くても保留せず、比較で決める
   - 見込みが立てやすい事象は、発生直後から言い切る。知見から見積もった再開の見込みが分岐点より後なら、時間の窓を待たずに切り替える
   - 発表された見込み時刻があるときは、発表の時刻で比べる。知見の下限は当てない
@@ -110,6 +116,15 @@
 - `estimateStatedRemainingWithoutKnowledge`: 事象が分からないときに、発表された見込み時刻だけから残り時間を返す
   - p50 は発表の時刻までの分とする。p80 はそれに `STATED_RESUME_SLACK_MINUTES` を足す
   - 余地の根拠は `packages/core/params/estimation.ts` のコメントに書く
+- `estimateStatsRemaining`: 知見の無い原因の見込みを、集めた事例の統計値から返す
+  - 統計値は `packages/core/params/incident-durations.ts` にある。生成元は `docs/research/rail-suspensions/build_incident_durations.py` である
+  - `resolveIncidentDuration` が使う値を決める。種類の値が `sufficient` なら種類、`use_group` か null なら大分類の値を使う
+  - 大分類が `insufficient` か統計値に無ければ null を返す。agent は知見なしの流れのままにする
+  - 止まった時刻が平日の通勤時間帯なら `byPeriod.commute`、そうでなければ `byPeriod.other` の値を使う
+  - `use_mixed` の区分は、p50 と p80 にまぜた値が入っているので、そのまま使う
+  - 時間帯の境は `packages/core/params/estimation.ts` の `COMMUTE_HOUR_RANGES` に置く。統計値のファイルは境を定数で持たない。生成元の `COMMUTE_HOURS` との一致を単体テストで確かめる
+  - 所要時間の p50 と p80 から対数正規分布を当て、発生からの経過を超えた条件付きの残りを標本にする。知見の段階の残りと同じ `sampleRemainingDuration` を使う
+  - 統計値は報道に残った事例なので長引いたものに偏る。初列車待ちは含めない
 - `describeTypicalFlow`: 知見から、よくある流れと見込みの立てやすさを返す。詳細は 4.1 に書く
 - `computeResumeChance`: 残り時間の推定と同じ標本から、時刻ごとの再開の見込みと、待ったほうが早く着く確率を 1 割単位で返す。詳細は 4.9 に書く
 - `sampleRemaining` と `sampleDurationDist`: 推定に使う標本を取り出す。推定の p50・p80 はこの標本の分位点である
@@ -305,6 +320,7 @@ Estimate の項目は次のとおり。
 | `elapsedMinutes` | 段階の経過分。null を許す |
 | `remaining` | 実際に乗れる列車が来るまでの残り時間 `{ p50, p80 }`。after_resume を含み、null を許す |
 | `confidence` | `low` / `medium` / `high` |
+| `source` | 見込みの出どころ。`knowledge` / `statistics` / `none`。以前の記録との互換のため省略できる。画面は前提の言い方を選ぶのに使い、出どころの説明は出さない |
 
 RouteOption の項目は次のとおり。
 
@@ -365,6 +381,7 @@ RouteLeg は `mode`、`from`、`to`、`minutes` を持ち、`line` は省略で�
 | `language` | `ja` / `en` |
 | `now` | 判断の基準時刻。リプレイではシナリオ時刻を入れる |
 | `trainPosition` | 車内の位置。任意で、無ければ駅にいるとみなす |
+| `cause` | 入口で答えた原因。統計値の大分類の `group` と種類の `type` を持ち、`type` は null を許す。任意で、分からないときとリプレイでは省く。知見の無い原因の見込みに使う |
 
 `trainPosition` の項目は次のとおり。駅間のときだけ、次の駅以降の項目に値を入れる。
 
