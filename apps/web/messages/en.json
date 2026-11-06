@@ -420,6 +420,7 @@
     "statusSuspended": "Suspended",
     "statusRunning": "Running",
     "recommended": "Suggested",
+    "fallback": "If still stopped",
     "walk": "{minutes} min walk",
     "minutesShort": "{minutes} min",
     "transferService": "Transfer service",

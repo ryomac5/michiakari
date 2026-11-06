@@ -27,6 +27,7 @@ import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/
 import { TrainPositionChips } from "@/features/judgment/components/TrainPositionChips";
 import { StatusChip, TripSummary } from "@/features/judgment/components/TripSummary";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
+import { selectFallbackOptionId } from "@/features/judgment/fallback-option";
 import { type OriginLine, type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { selectStoppedPlace, selectStopScope } from "@/features/judgment/stop-scope";
@@ -150,6 +151,8 @@ export function JudgmentScreen() {
   // 一覧で押した選択肢を地図に描く。判断が変わって選択肢が消えたら推奨に戻す
   const chosenOptionId = options.some((o) => o.id === selectedOptionId) ? selectedOptionId : null;
   const mapOptionId = chosenOptionId ?? display.recommendedOptionId;
+  // 待つ判断で動かなかったときに乗る選択肢。地図のその駅に「動かなければ」の吹き出しを出す
+  const fallbackOptionId = selectFallbackOptionId(display.judgment ?? null);
   // 凡例も地図と同じ選択中の選択肢の色にする
   const tone = selectRouteTone(options, mapOptionId);
 
@@ -193,6 +196,7 @@ export function JudgmentScreen() {
         options={options}
         recommendedOptionId={display.recommendedOptionId}
         selectedOptionId={chosenOptionId}
+        fallbackOptionId={fallbackOptionId}
         blockedSection={blockedSection}
         blockedLine={blockedLine}
         blockedDirection={blockedDirection}

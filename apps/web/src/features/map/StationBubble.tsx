@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, ArrowRightLeft, Footprints, Star } from "lucide-react";
+import { ArrowRight, ArrowRightLeft, CornerDownRight, Footprints, Star } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
@@ -9,7 +9,7 @@ import type { GuideLine, GuideStation, StationGuide } from "./station-guide";
 import { mapTestIds } from "./testids";
 
 // 地図の上の吹き出し。駅名、乗れる路線、運行の状態、徒歩の分数、振替の対象、おすすめの印
-// おすすめは full で詳しく出す。ほかは PC 幅では medium、スマートフォン幅では compact に縮める
+// おすすめと、待つ判断で動かなかったときに乗る駅は full で詳しく出す。ほかは PC 幅では medium、スマートフォン幅では compact に縮める
 // medium は駅名・事業者・分数と、路線色付きの路線名 1 行。compact は駅名・路線色・分数だけ
 export type BubbleVariant = "full" | "medium" | "compact";
 
@@ -75,12 +75,15 @@ export function LineChip({
   );
 }
 
-// 小さな札の 1 行。おすすめの星、路線色、短い駅名、徒歩の分数
+// 小さな札の 1 行。おすすめの星か動かなければの印、路線色、短い駅名、徒歩の分数
 function CompactRow({ station }: { station: GuideStation }) {
   const t = useTranslations("map");
   return (
     <span className="flex items-center gap-1.5">
       {station.starred && <Star className="size-3 shrink-0 fill-current text-switch" aria-hidden />}
+      {station.fallback && (
+        <CornerDownRight className="size-3 shrink-0 text-switch" strokeWidth={2.5} aria-hidden />
+      )}
       <span className="flex gap-0.5">
         {station.lines.slice(0, 3).map((line) => (
           <LineSwatch key={line.lineId} line={line} />
@@ -124,6 +127,7 @@ export function StationBubble({
   const label = [
     shownLabel,
     station.starred ? t("recommended") : null,
+    station.fallback ? t("fallback") : null,
     `${station.name} ${station.operator}`,
     station.lines.map((l) => l.name).join("、"),
     status,
@@ -178,13 +182,22 @@ export function StationBubble({
     </span>
   ) : (
     <span className="flex w-[172px] flex-col gap-1.5 text-left sm:w-[196px]">
-      {(station.starred || shown) && (
+      {(station.starred || station.fallback || shown) && (
         <span className="flex items-center gap-1.5">
           {shown}
           {station.starred && (
             <span className="flex items-center gap-1 text-[11px] font-bold text-switch">
               <Star className="size-3 fill-current" aria-hidden />
               {t("recommended")}
+            </span>
+          )}
+          {station.fallback && (
+            <span
+              data-testid={mapTestIds.fallbackTag}
+              className="flex items-center gap-1 text-[11px] font-bold text-switch"
+            >
+              <CornerDownRight className="size-3" strokeWidth={2.5} aria-hidden />
+              {t("fallback")}
             </span>
           )}
         </span>
@@ -238,7 +251,7 @@ export function StationBubble({
     "after:absolute after:border-[6px] after:content-['']",
     tailClass[placement],
     compact ? "bg-surface px-2 py-1.5" : "bg-surface px-3 py-2.5",
-    station.recommended && "ring-2 ring-switch-border",
+    (station.recommended || station.fallback) && "ring-2 ring-switch-border",
   );
   const style = { "--bubble-slide": `${slide}px` } as CSSProperties;
 
@@ -246,6 +259,7 @@ export function StationBubble({
     "data-testid": mapTestIds.station(station.key),
     "data-recommended": station.recommended,
     "data-starred": station.starred,
+    "data-fallback": station.fallback,
     "data-status": station.suspended ? "suspended" : "running",
     "data-walk-minutes": station.walkMinutes,
     "data-placement": placement,

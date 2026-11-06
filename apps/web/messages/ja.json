@@ -420,6 +420,7 @@
     "statusSuspended": "見合わせ中",
     "statusRunning": "運転中",
     "recommended": "おすすめ",
+    "fallback": "動かなければ",
     "walk": "徒歩{minutes}分",
     "minutesShort": "{minutes}分",
     "transferService": "振替輸送",
