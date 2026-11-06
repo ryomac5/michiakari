@@ -1,4 +1,4 @@
-import type { DurationDist, Judgment } from "@repo/schema";
+import type { Action, DurationDist, Judgment } from "@repo/schema";
 import { findCatalogEvent, type KnowledgeCatalog } from "@/features/knowledge/catalog";
 
 // 分岐点の時間軸の図に使う表示用の値。判断の数値は agent の値をそのまま使い、位置と区間だけを求める
@@ -29,7 +29,8 @@ export type BreakEvenTimelineInput = {
 };
 
 // 判断から図に使う値を選ぶ。現在だけは画面の時計から渡す
-export type TimelineBasis = Omit<BreakEvenTimelineInput, "now">;
+// action は結論の行動。切り替えでは見込みの図に期限の印を出さない
+export type TimelineBasis = Omit<BreakEvenTimelineInput, "now"> & { action: Action };
 
 export type TimelineTick = { ms: number; position: number };
 
@@ -113,6 +114,7 @@ export function selectTimelineBasis(
     firstTrainWaitMinutes:
       findCatalogEvent(catalog, estimate.eventType)?.firstTrainWaitMinutes ?? 0,
     deadline,
+    action: settled.judgment.action,
   };
 }
 
