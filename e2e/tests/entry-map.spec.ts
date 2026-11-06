@@ -134,10 +134,8 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   );
   await expect(page.getByTestId(testIds.judgment.conclusionNext)).toContainText("動かなければ");
   await expect(conclusion).not.toContainText(nonDecisive);
-  // 境目の意味を開いたシートで一文で添える
-  await expect(page.getByTestId(testIds.judgment.breakEvenMeaning)).toContainText(
-    "境目の時刻までに動けば待つほうが早く着きます",
-  );
+  // 境目の意味の説明は、条件の文と重なるので出さない
+  await expect(page.getByText("境目の時刻までに動けば待つほうが早く着きます")).toHaveCount(0);
 
   // 地図は乗り換えられる駅を語る。発表に区間が無いので、御堂筋線の区間は描かず、発表で確かめると添える
   const map = page.getByTestId(testIds.judgment.map);

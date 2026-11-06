@@ -131,6 +131,103 @@ for (const viewport of [
   });
 }
 
+// 印の丸の外で、印にも札にも掛からず、ほかの駅の印よりこの印に近い点を探す
+async function findOpenPointNear(page: Page, testId: string): Promise<{ x: number; y: number }> {
+  const open = await page.evaluate((testId) => {
+    const centerOf = (el: Element) => {
+      const rect = el.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    };
+    const target = document.querySelector(`[data-testid="${testId}"]`);
+    if (!target) return null;
+    const center = centerOf(target);
+    const others = [
+      ...document.querySelectorAll(
+        "[data-testid^='start-map-stop-pick-'], [data-testid^='start-place-']",
+      ),
+    ]
+      .filter((el) => el !== target)
+      .map(centerOf);
+    for (const distance of [14, 18, 22, 26, 30]) {
+      for (let step = 0; step < 24; step++) {
+        const angle = (step / 24) * Math.PI * 2;
+        const x = center.x + Math.cos(angle) * distance;
+        const y = center.y + Math.sin(angle) * distance;
+        const nearest = others.every((o) => Math.hypot(o.x - x, o.y - y) > distance + 4);
+        if (nearest && document.elementFromPoint(x, y)?.tagName === "CANVAS") return { x, y };
+      }
+    }
+    return null;
+  }, testId);
+  if (!open) throw new Error("印のまわりに空いた所がありません");
+  return open;
+}
+
+for (const viewport of [
+  { width: 375, height: 667 },
+  { width: 390, height: 844 },
+]) {
+  const size = `${viewport.width}x${viewport.height}`;
+  test.describe(`路線の駅を押して選ぶ ${size}`, () => {
+    test.use({ viewport });
+
+    test("大阪で環状線を選ぶと両方向の駅が出て、天満の印を押すと行き先が天満になる", async ({
+      page,
+    }) => {
+      await openOsaka(page);
+      await page.getByTestId(testIds.start.routeLine(loopLine)).click();
+      await expectStage(page, "direction");
+      // 両方向の駅に印が出る。名前が収まらない駅も印は残す
+      for (const name of ["天満", "桜ノ宮", "京橋", "福島", "野田", "西九条"]) {
+        await expect(page.getByTestId(testIds.start.mapStop(`pick-${name}`))).toBeAttached();
+        await expect(page.getByTestId(testIds.start.destinationCandidate(name))).toBeVisible();
+      }
+      // 方面の札も残す
+      await expect(page.locator("[data-testid^='start-map-stop-direction-']")).toHaveCount(2);
+      await capture(page, "loop-stops", size);
+      await expectLabelsApart(page.locator(labelSelector));
+
+      await waitForMapStill(page);
+      // 印の丸の中心を押す
+      const temma = await page.getByTestId(testIds.start.mapStop("pick-天満")).boundingBox();
+      if (!temma) throw new Error("天満の印がありません");
+      await page.mouse.click(temma.x + temma.width / 2, temma.y + temma.height / 2);
+      await expectStage(page, "cause");
+      await expect(page.getByTestId(testIds.start.trip)).toContainText("天満");
+      await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("JR環状線");
+      await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("鶴橋");
+      // 戻ると方面の段に戻る
+      await page.getByTestId(testIds.start.back).click();
+      await expectStage(page, "direction");
+    });
+
+    test("大阪で環状線を選び、地図で天満のあたりを押すと、行き先が天満になり判断まで進む", async ({
+      page,
+    }) => {
+      await openOsaka(page);
+      await page.getByTestId(testIds.start.routeLine(loopLine)).click();
+      await expectStage(page, "direction");
+      await waitForMapStill(page);
+      // 天満の印の丸の外で、何も無い所を押す
+      const point = await findOpenPointNear(page, testIds.start.mapStop("pick-天満"));
+      await page.mouse.click(point.x, point.y);
+      await expectStage(page, "cause");
+      await expect(page.getByTestId(testIds.start.trip)).toContainText("天満");
+      await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("JR環状線");
+      await capture(page, "temma-tap", size);
+
+      await page.getByTestId(testIds.start.cause("unknown")).click();
+      await page.getByTestId(testIds.start.elapsed("unknown")).click();
+      await page.getByTestId(testIds.start.resume("unknown")).click();
+      await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+      await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("環状線");
+    });
+  });
+}
+
 test.describe("地図と一覧の同期", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 

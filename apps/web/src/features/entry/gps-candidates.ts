@@ -1,4 +1,11 @@
-import { findPositionCandidates, type LonLat, type StationNode } from "@repo/geo";
+import {
+  type BetweenPositionCandidate,
+  findPositionCandidates,
+  type LonLat,
+  POSITION_THRESHOLDS,
+  type PositionCandidate,
+  type StationNode,
+} from "@repo/geo";
 import type { OriginLine } from "@/features/judgment/session";
 import type { StationChoice, StationGroup } from "@/features/stations/catalog";
 import {
@@ -9,7 +16,7 @@ import {
 } from "./directions";
 import { type EntryData, type EntryLine, listGroupLines } from "./entry-places";
 
-// 現在地から読み取った候補を、入口で 1 回押せば確定できる形にする。位置は端末の外へ送らない
+// 現在地から読み取った候補を、入口で 1 回押せば確定できる形にする。位置は端末の外へ出さない
 
 // 画面に並べる候補の上限
 export const GPS_CHOICE_LIMIT = 3;
@@ -62,11 +69,52 @@ export function listGpsChoices(
   point: GpsPoint,
   limit = GPS_CHOICE_LIMIT,
 ): GpsChoice[] {
+  return convertCandidates(data, findCandidates(data, nodes, point)).slice(0, limit);
+}
+
+// 描いた線は駅を結ぶ直線から離れて曲がる。塚本〜尼崎で約650m 離れるので、押した線の駅の間はこの幅で探す
+const TRACK_GAP_METERS = 800;
+
+// 最初の地図で線を押したときの候補。駅は印が受け持つので、押した線の駅の間だけを近い順に返す
+// lineIds は指の下に描かれていた路線。reachMeters は押せる大きさ 44px を地図の距離に直した値
+// 路線ごとに一番近い駅の間を 1 つ出す
+export function listLineTapChoices(
+  data: EntryData,
+  nodes: readonly StationNode[],
+  point: { lat: number; lon: number },
+  reachMeters: number,
+  lineIds: readonly string[],
+  limit = GPS_CHOICE_LIMIT,
+): GpsChoice[] {
+  const lines = data.index.listLines().filter((l) => lineIds.includes(l.lineId));
+  const accuracy = Math.min(
+    Math.max(reachMeters, TRACK_GAP_METERS),
+    POSITION_THRESHOLDS.maxAccuracyMeters,
+  );
+  const between = findPositionCandidates(
+    { nodes, lines },
+    { lonLat: [point.lon, point.lat], accuracyMeters: accuracy },
+  ).filter((c): c is BetweenPositionCandidate => c.kind === "between");
+  const nearestPerLine = between.filter(
+    (c, i) => between.findIndex((o) => o.line.lineId === c.line.lineId) === i,
+  );
+  return convertCandidates(data, nearestPerLine).slice(0, limit);
+}
+
+function findCandidates(
+  data: EntryData,
+  nodes: readonly StationNode[],
+  point: GpsPoint,
+): PositionCandidate[] {
   const lonLat: LonLat = [point.lon, point.lat];
-  const candidates = findPositionCandidates(
+  return findPositionCandidates(
     { nodes, lines: data.index.listLines() },
     { lonLat, accuracyMeters: point.accuracy },
   );
+}
+
+// 位置の候補を、1 回押せば確定できる形にする。同じ候補は 1 つにまとめる
+function convertCandidates(data: EntryData, candidates: PositionCandidate[]): GpsChoice[] {
   const choices: GpsChoice[] = [];
   for (const c of candidates) {
     if (c.kind === "station") {
@@ -93,9 +141,7 @@ export function listGpsChoices(
         distanceMeters: c.distanceMeters,
       });
   }
-  return choices
-    .filter((c, i) => choices.findIndex((other) => other.key === c.key) === i)
-    .slice(0, limit);
+  return choices.filter((c, i) => choices.findIndex((other) => other.key === c.key) === i);
 }
 
 // 駅の名前の位置に置いた路線

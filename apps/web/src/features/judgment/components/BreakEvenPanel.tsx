@@ -199,9 +199,6 @@ export function BreakEvenDetail(props: BreakEvenProps) {
       <h2 className="text-[13px] font-medium text-muted">{t("detailTitle")}</h2>
       {timeline && now && <BreakEvenTimeline basis={timeline} now={now} />}
       <BreakEvenSentence breakEven={breakEven} />
-      <p data-testid={testIds.judgment.breakEvenMeaning} className="text-[13px] text-muted">
-        {t("meaning")}
-      </p>
     </div>
   );
 }

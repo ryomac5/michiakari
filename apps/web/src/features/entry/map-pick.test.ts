@@ -2,7 +2,12 @@ import type { NetworkData } from "@repo/geo";
 import networkJson from "@repo/geo/data/network.json";
 import { describe, expect, it } from "vitest";
 import { createMapGeo } from "@/features/map/geo-data";
-import { type DirectionStop, listEntryDirections } from "./directions";
+import {
+  type DirectionStop,
+  type EntryDirection,
+  isLoopAt,
+  listEntryDirections,
+} from "./directions";
 import {
   createEntryData,
   type EntryLine,
@@ -11,18 +16,24 @@ import {
 } from "./entry-places";
 import { listTrainLines } from "./infer-route";
 import {
+  BETWEEN_PICK_MIN_ZOOM,
   computeSegmentHitRadii,
   findNearestLineId,
   findNearestSegment,
   isOnRoute,
   listLinePicks,
+  listLineStops,
   listRouteStops,
   listSegmentWindow,
   measureSegmentDistance,
   mergeRouteCandidates,
   pickLineAt,
+  pickLineTap,
+  placeDirectionTag,
   selectAwaySide,
+  selectRailTapAction,
 } from "./map-pick";
+import { STATION_LABEL_MIN_ZOOM } from "./visible-stations";
 
 // 実データで、大阪駅から地図で路線・方面・行き先を選べるか確かめる
 const geo = createMapGeo(networkJson as unknown as NetworkData);
@@ -210,5 +221,171 @@ describe("findNearestSegment の距離の制限", () => {
     // 線から 50m ほどなら選び、2km ほど離れていれば選ばない
     expect(findNearestSegment(segments, [135.015, 34.0005], 100)?.index).toBe(1);
     expect(findNearestSegment(segments, [135.015, 34.02], 100)).toBeNull();
+  });
+});
+
+function buildDirection(key: string, stops: DirectionStop[]): EntryDirection {
+  const last = stops.at(-1) as DirectionStop;
+  return {
+    key,
+    label: { ja: key, en: key },
+    landmarks: [],
+    stops,
+    fallback: { stop: last, kind: "terminal" },
+  };
+}
+
+describe("pickLineTap", () => {
+  // 東西にまっすぐ延びる端のある路線。駅は約 900m おき
+  const origin: Position = [135, 34];
+  const east = buildDirection(
+    "east",
+    [1, 2, 3].map((i) => buildStop(`e${i}`, [135 + i * 0.01, 34])),
+  );
+  const west = buildDirection(
+    "west",
+    [1, 2, 3].map((i) => buildStop(`w${i}`, [135 - i * 0.01, 34])),
+  );
+  const straight = {
+    origin,
+    directions: [east, west],
+    stops: [...east.stops, ...west.stops],
+    loop: false,
+    reachMeters: 200,
+    onLine: true,
+  };
+
+  it("端のある路線では、押した点のある側の方面を選ぶ", () => {
+    expect(pickLineTap({ ...straight, point: [135.015, 34.0005] })).toMatchObject({
+      direction: { key: "east" },
+      stop: null,
+    });
+    expect(pickLineTap({ ...straight, point: [134.975, 33.9995] })).toMatchObject({
+      direction: { key: "west" },
+      stop: null,
+    });
+  });
+
+  it("駅の近くを押すと、その駅を行き先にし、その駅へ向かう方面を選ぶ", () => {
+    const tap = pickLineTap({ ...straight, point: [134.9801, 34.0008] });
+    expect(tap?.direction.key).toBe("west");
+    expect(tap?.stop?.choice.id).toBe("w2");
+  });
+
+  it("描いた線を押していなければ、駅を結ぶ直線の上でも決めない。出発の駅の近くも決めない", () => {
+    expect(pickLineTap({ ...straight, point: [135.015, 34], onLine: false })).toBeNull();
+    expect(pickLineTap({ ...straight, point: [135.0005, 34.0005] })).toBeNull();
+  });
+
+  it("描いた線が駅を結ぶ直線から 650m ほど離れていても、線を押せば方面を選ぶ", () => {
+    // 直線から北へ約 670m。塚本〜尼崎のように描いた線が曲がっている所
+    expect(pickLineTap({ ...straight, point: [135.015, 34.006] })).toMatchObject({
+      direction: { key: "east" },
+      stop: null,
+    });
+  });
+
+  it("近くの駅を行き先にするのは、地図に印を出している駅だけにする", () => {
+    // w3 は印を出していない。近くを押しても行き先にしない
+    const marked = { ...straight, stops: [...east.stops, ...west.stops.slice(0, 2)] };
+    const nearW3: Position = [134.9701, 34.0005];
+    expect(pickLineTap({ ...marked, point: nearW3, onLine: false })).toBeNull();
+    expect(pickLineTap({ ...marked, point: nearW3 })).toMatchObject({
+      direction: { key: "west" },
+      stop: null,
+    });
+  });
+
+  // 8 駅の環状線。出発の駅から左回りと右回りに 4 駅ずつで、反対側の駅は両方に入る
+  const ring = Array.from({ length: 8 }, (_, i): Position => {
+    const angle = (i / 8) * Math.PI * 2;
+    return [135 + Math.cos(angle) * 0.02, 34 + Math.sin(angle) * 0.02];
+  });
+  const ringStop = (i: number) => buildStop(`r${i}`, ring[i] as Position);
+  const left = buildDirection("left", [1, 2, 3, 4].map(ringStop));
+  const right = buildDirection("right", [7, 6, 5, 4].map(ringStop));
+  const loop = {
+    origin: ring[0] as Position,
+    directions: [left, right],
+    stops: listLineStops([left, right]),
+    loop: true,
+    reachMeters: 200,
+    onLine: true,
+  };
+  const between = (a: number, b: number, t = 0.5): Position => {
+    const p = ring[a] as Position;
+    const q = ring[b] as Position;
+    return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
+  };
+
+  it("環状線では、出発の駅から押した点まで駅の数の少ない回り方を選ぶ", () => {
+    expect(pickLineTap({ ...loop, point: between(1, 2) })?.direction.key).toBe("left");
+    expect(pickLineTap({ ...loop, point: between(6, 5) })?.direction.key).toBe("right");
+    // 反対側の駅の手前は、少ない側の回り方にする
+    expect(pickLineTap({ ...loop, point: between(4, 5, 0.3) })?.direction.key).toBe("right");
+    expect(pickLineTap({ ...loop, point: between(3, 4, 0.7) })?.direction.key).toBe("left");
+  });
+
+  it("環状線で同じ駅の数なら、先に並ぶ方面にする", () => {
+    const tap = pickLineTap({ ...loop, point: ring[4] as Position });
+    expect(tap).toMatchObject({ direction: { key: "left" }, stop: { choice: { id: "r4" } } });
+    const swapped = pickLineTap({ ...loop, directions: [right, left], point: ring[4] as Position });
+    expect(swapped?.direction.key).toBe("right");
+  });
+
+  it("大阪で環状線を選び、天満のあたりを押すと、行き先は天満で、天満を通る方面になる", () => {
+    if (!osaka) throw new Error("大阪がありません");
+    const line = findOsakaLine("JR環状線");
+    const directions = directionsOf(line);
+    const temma = directions.flatMap((d) => d.stops).find((s) => s.choice.name === "天満");
+    if (!temma) throw new Error("天満がありません");
+    expect(isLoopAt(data, line)).toBe(true);
+    const tap = pickLineTap({
+      origin: osaka.position,
+      directions,
+      stops: listLineStops(directions),
+      loop: true,
+      point: [temma.position[0] + 0.001, temma.position[1] + 0.0005],
+      reachMeters: 300,
+      onLine: false,
+    });
+    expect(tap?.stop?.choice.name).toBe("天満");
+    expect(tap?.direction.stops[0]?.choice.name).toBe("天満");
+  });
+});
+
+describe("listLineStops", () => {
+  it("大阪で環状線を選ぶと、両方向の駅を 6 駅ずつ出す", () => {
+    const directions = directionsOf(findOsakaLine("JR環状線"));
+    const names = listLineStops(directions).map((s) => s.choice.name);
+    expect(names).toHaveLength(12);
+    expect(names).toEqual(expect.arrayContaining(["天満", "京橋", "福島", "西九条"]));
+    expect(names).not.toContain("大阪");
+  });
+
+  it("両方向に同じ駅があれば 1 つにまとめる", () => {
+    const a = buildStop("a", [135.01, 34]);
+    const b = buildStop("b", [134.99, 34]);
+    const directions = [buildDirection("x", [a, b]), buildDirection("y", [b, a])];
+    expect(listLineStops(directions).map((s) => s.choice.id)).toEqual(["a", "b"]);
+  });
+
+  it("方面の札は、地図に出した駅の先に置き、駅の印と重ねない", () => {
+    const direction = buildDirection(
+      "east",
+      [1, 2, 3].map((i) => buildStop(`e${i}`, [135 + i * 0.01, 34])),
+    );
+    const tag = placeDirectionTag([135, 34], direction, 2);
+    expect(tag?.[0]).toBeCloseTo(135.025);
+    expect(tag?.[1]).toBeCloseTo(34);
+  });
+});
+
+describe("selectRailTapAction", () => {
+  it("引いた地図の線はまず寄せ、駅の印が出る倍率から駅の間を尋ねる", () => {
+    expect(BETWEEN_PICK_MIN_ZOOM).toBe(STATION_LABEL_MIN_ZOOM);
+    expect(selectRailTapAction(10.4, 2)).toBe("approach");
+    expect(selectRailTapAction(BETWEEN_PICK_MIN_ZOOM, 1)).toBe("pick");
+    expect(selectRailTapAction(15, 0)).toBe("none");
   });
 });

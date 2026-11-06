@@ -2,6 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { type ReactNode, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { testIds } from "@/features/judgment/testids";
 import { pickStationName } from "@/features/stations/describe";
 import type { DirectionStop } from "./directions";
@@ -61,23 +62,23 @@ function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps
           <p className="font-semibold" data-testid={testIds.start.gpsQuestion}>
             {label(only, "question")}
           </p>
+          {/* はいは主のボタン、違うは控えめなボタンにし、押せることがひと目で分かるようにする */}
           <div className="flex gap-2">
-            <button
-              type="button"
-              className={`${buttonClass} flex-1 bg-foreground text-background`}
+            <Button
+              className="flex-1"
               data-testid={testIds.start.gpsConfirm}
               onClick={() => onConfirm(only)}
             >
               {t("gpsYes")}
-            </button>
-            <button
-              type="button"
-              className={`${buttonClass} flex-1`}
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1"
               data-testid={testIds.start.gpsDismiss}
               onClick={onDismiss}
             >
               {t("gpsNo")}
-            </button>
+            </Button>
           </div>
         </div>
       ) : located && choices.length > 1 ? (
@@ -108,11 +109,9 @@ function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps
       )}
       {failure ? (
         <p className="text-sm text-muted" data-testid={testIds.start.gpsStatus} role="status">
-          {failure} {t("gpsUndergroundNote")}
+          {failure}
         </p>
-      ) : (
-        <p className="text-xs text-muted">{t("gpsNote")}</p>
-      )}
+      ) : null}
     </div>
   );
 }

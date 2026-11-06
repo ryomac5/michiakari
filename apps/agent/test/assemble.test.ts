@@ -160,8 +160,9 @@ describe("validateJudgment", () => {
       expect(joined).toContain(raw);
     }
     expect(joined).not.toContain(`${fare.toLocaleString("ja-JP")}円`);
-    expect(errors.filter((e) => e.startsWith("evidence[0].description"))).toHaveLength(1);
-    expect(errors.filter((e) => e.startsWith("reason"))).toHaveLength(1);
+    // 数値の指摘は 1 件ずつ。再開の時間を言い切る言い方の指摘は別に数える
+    expect(errors.filter((e) => e.startsWith("evidence[0].description の数値"))).toHaveLength(1);
+    expect(errors.filter((e) => e.startsWith("reason の数値"))).toHaveLength(1);
   });
 
   it("ツールの結果の残り時間・徒歩・運賃の数値なら通る", async () => {
@@ -179,7 +180,7 @@ describe("validateJudgment", () => {
         reason: `振替なら徒歩${option.walkMinutes}分で済むためです。`,
         breakEvenExplanation: `振替は徒歩${option.walkMinutes}分、タクシーは ¥${fare}`,
         recommendedOptionId: null,
-        evidence: [{ kind: "signal", id: signalId, description: `p50 ${remaining.p50} min` }],
+        evidence: [{ kind: "signal", id: signalId, description: `about ${remaining.p50} min` }],
       },
       "ja",
     );
@@ -364,6 +365,36 @@ describe("checkSectionWording", () => {
     expect(check("Service is suspended from Osaka to Kyoto.", none, "en")).toHaveLength(1);
     expect(check("Restart is likely 21:40–22:10.", none, "en")).toEqual([]);
     expect(check("Walk from Osaka to Osaka-umeda.", none, "en")).toEqual([]);
+  });
+});
+
+describe("利用者に見せる文の言い回しの検査", () => {
+  it("流れの言い方と発表に無い区間を、同じ文の集まりに順にかけ、同じ指摘は 1 度だけ返す", async () => {
+    const { session, results, signalId } = await prepareSession();
+    const evidence = { kind: "signal" as const, id: signalId, description: "大阪〜京都で見合わせ" };
+    const judgment = assembleJudgment(
+      results,
+      {
+        action: "hold",
+        headline: "待つ",
+        reason: "よくある流れです。大阪〜京都で見合わせています。",
+        breakEvenExplanation: "説明",
+        recommendedOptionId: null,
+        evidence: [evidence, evidence, { kind: "signal", id: "unknown_signal", description: "x" }],
+      },
+      "ja",
+    );
+    // 存在しない根拠を 2 度並べ、同じ指摘が重なる場面を作る
+    const doubled = {
+      ...judgment,
+      evidence: [...judgment.evidence, judgment.evidence.at(-1)],
+    };
+    const { judgment: valid, errors } = session.checkJudgment(doubled, results);
+    expect(valid).toBeNull();
+    expect(errors.some((e) => e.startsWith("reason の「よくある流れ」"))).toBe(true);
+    expect(errors.some((e) => e.includes("reason の「大阪〜京都」は止まっている区間"))).toBe(true);
+    expect(errors.some((e) => e.includes("evidence[0].description の「大阪〜京都」"))).toBe(true);
+    expect(new Set(errors).size).toBe(errors.length);
   });
 });
 

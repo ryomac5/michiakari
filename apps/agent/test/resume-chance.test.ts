@@ -8,6 +8,7 @@ import type {
   Scenario,
 } from "@repo/schema";
 import { describe, expect, it } from "vitest";
+import { findFlowWording } from "../src/domain/flow-wording.ts";
 import { assembleJudgment, extractTextNumbers } from "../src/judge/assemble.ts";
 import { createEventSink } from "../src/judge/event-sink.ts";
 import { createJudgeSession } from "../src/judge/session.ts";
@@ -176,7 +177,8 @@ describe("車内対応のリプレイの再開の見込み", () => {
     expect(tenMinutes?.tenths).toBeGreaterThanOrEqual(7);
     expect(chance.waitFaster).toBeGreaterThanOrEqual(9);
     expect(judgment.action).toBe("wait");
-    expect(judgment.reason).toMatch(/^車内対応はふつう5〜10分で終わります。/);
+    expect(judgment.reason).toMatch(/^再開は\d{1,2}時\d{2}分頃の見込みで境目より前です。/);
+    expect(findFlowWording(judgment.reason ?? "", "ja")).toBeNull();
     expect(judgment.reason).toMatch(/境目の\d{1,2}時\d{2}分までに動く見込みは(9割|9割以上)です。$/);
   });
 });
@@ -247,7 +249,7 @@ describe("formatChance と buildChanceSentence", () => {
     );
   });
 
-  it("理由の最後に確率の 1 文を添え、上限を超えるなら流れの一文を先に外す", () => {
+  it("理由の最後に確率の 1 文を添え、流れの区別があっても再開の時間を言い切る文は置かない", () => {
     const base = {
       language: "ja" as const,
       breakEvenMinutesFromNow: 3,
@@ -261,28 +263,19 @@ describe("formatChance と buildChanceSentence", () => {
     };
     const short = buildDecisionText({ ...base, reason: "resume_after_break_even" });
     expect(short.reason).toMatch(/待ったほうが早く着く見込みは2割です。$/);
-    const longFlow = {
-      outlook: "long" as const,
-      sentence: "人身事故はふつう1時間ほどで再開します。",
-      inReason: true,
-    };
     const withFlow = buildDecisionText({
       ...base,
       reason: "resume_after_break_even",
-      flow: longFlow,
+      flow: { outlook: "long" },
     });
-    expect(withFlow.reason).toMatch(/^人身事故はふつう1時間ほどで再開します。/);
-    expect(withFlow.reason).toMatch(/待ったほうが早く着く見込みは2割です。$/);
-    // 長い理由では、流れの一文を外して確率の一文を残す
+    expect(withFlow.reason).toBe(short.reason);
+    expect(findFlowWording(withFlow.reason, "ja")).toBeNull();
     const crowded = buildDecisionText({
       ...base,
       reason: "resume_mostly_after_break_even",
-      flow: {
-        ...longFlow,
-        sentence: "人身事故は関係機関の確認があるためふつう1時間ほどで再開します。",
-      },
+      flow: { outlook: "long" },
     });
-    expect(crowded.reason).not.toMatch(/^人身事故は/);
+    expect(findFlowWording(crowded.reason, "ja")).toBeNull();
     expect(crowded.reason).toMatch(/待ったほうが早く着く見込みは2割です。$/);
   });
 });

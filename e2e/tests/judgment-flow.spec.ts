@@ -145,15 +145,20 @@ test("情報を追加すると判断が更新され、根拠に段階と兆候�
     { timeout: 15_000 },
   );
 
-  // 根拠は既定で閉じていて、シートを開いてから根拠を開くと段階の「いまここ」と兆候が見える
-  await expect(page.getByTestId(testIds.judgment.phaseTimeline)).toBeHidden();
+  // 根拠は既定で閉じていて、シートを開いてから根拠を開くと、聞いた言葉といまの段階が見える
+  const siteCheck = page.getByTestId(testIds.judgment.evidenceItem("site_check_announced"));
+  await expect(siteCheck).toBeHidden();
   await openSheet(page, "full");
   await page.getByTestId(testIds.judgment.evidenceToggle).click();
-  await expect(page.getByTestId(testIds.judgment.phase("on_site"))).toHaveAttribute(
-    "data-position",
-    "current",
+  await expect(siteCheck).toBeVisible();
+  await expect(siteCheck).toHaveAttribute("data-phase-id", "on_site");
+  await expect(siteCheck).toHaveAttribute("data-current", "true");
+  await expect(siteCheck.getByTestId(testIds.judgment.evidenceHeard)).toHaveText(
+    "「現場の確認を行っています」",
   );
-  await expect(page.getByTestId(testIds.judgment.signal("site_check_announced"))).toBeVisible();
+  await expect(siteCheck.getByTestId(testIds.judgment.evidenceReading)).toHaveText(
+    "いまは現場対応の段階です。",
+  );
 
   const addInfo = page.getByTestId(testIds.judgment.addInfo);
   await addInfo.getByTestId(testIds.situation.tab("paste")).click();

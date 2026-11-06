@@ -268,17 +268,23 @@ export function DirectionStep({
   line,
   directions,
   angles,
+  stops = [],
   onSelect,
+  onSelectStop,
 }: {
   originName: string;
   line: OriginLine;
   directions: EntryDirection[];
   angles: Record<string, number>;
+  // 地図に出した路線の駅。押すと行き先になり、方面は自動で決まる
+  stops?: DirectionStop[];
   onSelect: (direction: EntryDirection) => void;
+  onSelectStop?: (stop: DirectionStop) => void;
 }) {
   const t = useTranslations("entry");
   const locale = useLocale();
   const nameDirection = useDirectionName();
+  const withStops = stops.length > 0 && onSelectStop !== undefined;
   return (
     <>
       <SheetTitle
@@ -288,9 +294,24 @@ export function DirectionStep({
             <LineTag line={line} />
           </Eyebrow>
         }
-        title={t("directionQuestion")}
-        hint={t("directionHint")}
+        title={withStops ? t("lineStopQuestion") : t("directionQuestion")}
+        hint={withStops ? t("lineStopHint") : t("directionHint")}
       />
+      {withStops && (
+        <section className="flex flex-col gap-2" aria-label={t("lineStopsLabel")}>
+          {/* 地図と同じ駅を 1 行に並べ、横に送って選ぶ。地図の見える範囲を残す */}
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [&>*]:shrink-0 [&>*]:whitespace-nowrap">
+            {stops.map((stop) => (
+              <StopChip
+                key={stop.choice.id}
+                stop={stop}
+                testId={testIds.start.destinationCandidate(stop.choice.id)}
+                onClick={() => onSelectStop?.(stop)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
       <div className="grid grid-cols-2 gap-2">
         {directions.map((direction) => {
           const next = direction.stops[0];

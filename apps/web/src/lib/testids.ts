@@ -132,7 +132,6 @@ export const testIds = {
     retryButton: "judgment-retry-button",
     breakEven: "judgment-break-even",
     breakEvenTime: "judgment-break-even-time",
-    breakEvenMeaning: "judgment-break-even-meaning",
     breakEvenCountdown: "judgment-break-even-countdown",
     // 切り替えの判断で、分岐点と残り時間の代わりに出す「阪急京都線 大阪梅田まで徒歩 9 分・00:14 着」
     switchStep: "judgment-switch-step",
@@ -159,13 +158,10 @@ export const testIds = {
     option: (id: string) => `judgment-option-${id}`,
     evidence: "judgment-evidence",
     evidenceToggle: "judgment-evidence-toggle",
-    // よくある流れ。data-event-type・data-phase-id・data-predictability・data-expanded を出す
-    flow: "judgment-flow",
-    flowPhase: (id: string) => `judgment-flow-phase-${id}`,
-    phaseTimeline: "judgment-phase-timeline",
-    phase: (id: string) => `judgment-phase-${id}`,
-    signal: (id: string) => `judgment-signal-${id}`,
+    // 根拠の項目。id は兆候か事象の id。data-phase-id と data-current を出す
     evidenceItem: (id: string) => `judgment-evidence-item-${id}`,
+    evidenceHeard: "judgment-evidence-heard",
+    evidenceReading: "judgment-evidence-reading",
     // 判断に使った雨量の推移。data-trend と data-reading-count（欠測を含む観測の数）を出す
     weather: "judgment-weather",
     weatherChart: "judgment-weather-chart",
@@ -197,8 +193,6 @@ export const testIds = {
     announcement: "replay-announcement",
     judgment: "replay-judgment",
     changeBadge: "replay-change-badge",
-    phaseStrip: "replay-phase-strip",
-    phase: (id: string) => `replay-phase-${id}`,
     history: "replay-history",
     historyItem: (observationId: string) => `replay-history-item-${observationId}`,
     // 結末の比較。data-followed-arrival / data-waited-arrival / data-diff-minutes に値を出す

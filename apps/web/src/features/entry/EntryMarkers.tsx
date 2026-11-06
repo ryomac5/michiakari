@@ -37,6 +37,7 @@ function MarkerButton({
   pressed,
   hitRadius,
   dot,
+  labelHidden = false,
   children,
 }: {
   label: string;
@@ -49,6 +50,8 @@ function MarkerButton({
   // 押せる丸の半径（px）。指定すると四角い入れ物は押せず、この丸と札だけが押せる
   hitRadius?: number;
   dot: ReactNode;
+  // 名前の札を出さず、印だけを残す
+  labelHidden?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -75,9 +78,11 @@ function MarkerButton({
       {dot}
       <span
         aria-hidden
+        data-label-hidden={labelHidden || undefined}
         className={cn(
           "pointer-events-auto absolute flex items-center gap-1.5 whitespace-nowrap rounded-full bg-surface text-foreground shadow-[0_2px_10px_rgb(0_0_0/0.16)] ring-1 ring-[var(--glass-border)] transition-transform duration-150 group-hover:scale-[1.04] group-active:scale-95",
           labelSideClass[side],
+          labelHidden && "hidden",
         )}
         style={buildSlideStyle(side, slide)}
       >
@@ -294,6 +299,7 @@ export function StopMarker({
   angle,
   line = false,
   hitRadius,
+  labelHidden = false,
   onSelect,
 }: {
   stopKey: string;
@@ -305,6 +311,7 @@ export function StopMarker({
   // 路線の札。丸を路線色で塗り、札に路線色の印を添える
   line?: boolean;
   hitRadius?: number;
+  labelHidden?: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -312,6 +319,7 @@ export function StopMarker({
       label={label}
       side={side}
       hitRadius={hitRadius}
+      labelHidden={labelHidden}
       onClick={onSelect}
       testId={testIds.start.mapStop(stopKey)}
       dot={
