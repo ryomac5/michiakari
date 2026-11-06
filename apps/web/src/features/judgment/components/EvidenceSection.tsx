@@ -54,6 +54,7 @@ export function EvidenceSection({
               key={line.id}
               data-testid={testIds.judgment.evidenceItem(line.id)}
               data-phase-id={line.phaseId ?? ""}
+              data-signal-ids={line.signalIds.join(" ")}
               data-current={line.current}
               className="rounded-xl bg-surface px-3 py-2.5"
             >

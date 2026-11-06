@@ -19,10 +19,13 @@ export type EvidenceEntry = {
   phaseName: string | null;
   // いまの段階を指すか
   current: boolean;
+  // この項目にまとめた兆候の id。同じ段階の言葉は 1 項目にまとめる。属性にだけ使う
+  signalIds?: string[];
 };
 
 export type EvidenceLine = {
   id: string;
+  signalIds: string[];
   phaseId: string | null;
   current: boolean;
   heard: string;
@@ -70,12 +73,16 @@ export function selectEvidenceEntries(context: {
     .reverse();
 
   const seenQuotes = new Set<string>();
-  const seenPhases = new Set<string | null>();
-  const unique = quoted.filter((s) => {
-    if (seenQuotes.has(s.heard) || seenPhases.has(s.phaseId)) return false;
+  const distinct = quoted.filter((s) => {
+    if (seenQuotes.has(s.heard)) return false;
     seenQuotes.add(s.heard);
-    seenPhases.add(s.phaseId);
     return true;
+  });
+  // 同じ段階は、最も新しい言葉 1 項目にまとめる。まとめた兆候の id は属性に残す
+  const unique = distinct.flatMap((s, index) => {
+    if (distinct.findIndex((t) => t.phaseId === s.phaseId) !== index) return [];
+    const signalIds = distinct.filter((t) => t.phaseId === s.phaseId).map((t) => t.id);
+    return [{ ...s, signalIds }];
   });
   const ordered = [
     ...unique.filter((s) => s.phaseId !== null && s.phaseId === currentPhaseId),
@@ -104,6 +111,7 @@ export function selectEvidenceEntries(context: {
   return [
     {
       id: event.id,
+      signalIds: [],
       heard: context.heardCause ?? pickLocalized(event.name, locale),
       phaseId: currentPhaseId,
       phaseName: nameOf(currentPhaseId),
@@ -134,6 +142,7 @@ export function buildEvidenceLines(
 ): EvidenceLine[] {
   return entries.map((entry) => ({
     id: entry.id,
+    signalIds: entry.signalIds ?? [],
     phaseId: entry.phaseId,
     current: entry.current,
     heard: t("heardQuote", { quote: entry.heard }),

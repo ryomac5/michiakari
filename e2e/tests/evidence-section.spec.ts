@@ -91,6 +91,28 @@ for (const locale of ["ja", "en"] as const) {
     );
     // 聞いたことは貼り付けた発表の言葉を引く
     await expect(evidence).toContainText("人身事故のため、運転を見合わせています。");
+    // 同じ段階の項目は 1 つにまとめ、同じ読めることの文を重ねない
+    const phases = await items.evaluateAll((els) =>
+      els.map((el) => el.getAttribute("data-phase-id")),
+    );
+    expect(new Set(phases).size).toBe(phases.length);
+    const readings = await evidence.getByTestId(testIds.judgment.evidenceReading).allTextContents();
+    expect(new Set(readings).size).toBe(readings.length);
+    // 先頭の項目に、次に聞こえたら再開が近づく放送の言い回しを 1 行添える。例は日本語だけなので英語では出さない
+    const next = evidence.getByTestId(testIds.judgment.evidenceNext);
+    if (locale === "ja") {
+      await expect(next).toHaveCount(1);
+      await expect(items.first().getByTestId(testIds.judgment.evidenceNext)).toHaveText(
+        /^「.+」と聞こえたら、再開が近づきます。$/,
+      );
+      // 同じ言い回しを次に確かめることの欄に重ねない
+      const phrase = /^「(.+)」と聞こえたら/.exec((await next.textContent()) ?? "")?.[1] ?? "";
+      expect(phrase.length).toBeGreaterThan(0);
+      const nextCheck = page.getByTestId(testIds.judgment.nextCheck);
+      if ((await nextCheck.count()) > 0) await expect(nextCheck).not.toContainText(phrase);
+    } else {
+      await expect(next).toHaveCount(0);
+    }
 
     // 発表の引用を除いた文に、id と英字の札が入らない。英語の画面にも id は入らない
     const shown = (await evidence.textContent()) ?? "";

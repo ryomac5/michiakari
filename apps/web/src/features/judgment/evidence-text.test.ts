@@ -129,7 +129,10 @@ describe("selectEvidenceEntries", () => {
       signals: signals.slice(0, 2),
       locale: "ja",
     });
+    // 引用は新しい言葉にし、まとめた兆候の id を残す
     expect(sameStage.map((e) => e.id)).toEqual(["pa_held"]);
+    expect(sameStage[0]?.heard).toBe("列車は駅で止まっています。");
+    expect(sameStage[0]?.signalIds).toEqual(["pa_held", "pa_occurred"]);
     expect(sameStage[0]?.phaseName).toBe("発生直後");
     expect(sameStage[0]?.current).toBe(true);
 
@@ -153,7 +156,7 @@ describe("selectEvidenceEntries", () => {
       ],
       locale: "ja",
     });
-    expect(unknown.map((e) => e.id)).toEqual(["other_b"]);
+    expect(unknown.map((e) => e.heard)).toEqual(["しばらくお待ちください。"]);
 
     const sameQuote = selectEvidenceEntries({
       catalog,
@@ -177,6 +180,7 @@ describe("selectEvidenceEntries", () => {
     expect(entries).toEqual([
       {
         id: "pa_occurred",
+        signalIds: ["pa_occurred"],
         heard: "人身事故のため、運転を見合わせています。",
         phaseId: "on_site",
         phaseName: "現場の確認",
@@ -196,6 +200,7 @@ describe("selectEvidenceEntries", () => {
     expect(entries).toEqual([
       {
         id: "person_accident",
+        signalIds: [],
         heard: "人身事故",
         phaseId: "initial",
         phaseName: "発生直後",
@@ -232,6 +237,7 @@ describe("buildEvidenceLines", () => {
     expect(renderLines("ja", entries)).toEqual([
       {
         id: "police_on_scene",
+        signalIds: ["police_on_scene"],
         phaseId: "on_site",
         current: true,
         heard: "「警察による現場の確認を行っています。」",
@@ -239,6 +245,7 @@ describe("buildEvidenceLines", () => {
       },
       {
         id: "pa_held",
+        signalIds: ["pa_held", "pa_occurred"],
         phaseId: "initial",
         current: false,
         heard: "「列車は駅で止まっています。」",
@@ -257,6 +264,7 @@ describe("buildEvidenceLines", () => {
     expect(renderLines("en", entries)).toEqual([
       {
         id: "police_on_scene",
+        signalIds: ["police_on_scene"],
         phaseId: "on_site",
         current: true,
         heard: "“警察による現場の確認を行っています。”",

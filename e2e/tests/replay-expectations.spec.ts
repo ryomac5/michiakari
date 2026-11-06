@@ -74,7 +74,12 @@ async function checkExpectation(page: Page, expectation: Expectation): Promise<v
       "data-evidence-ids",
       new RegExp(`(^| )${id}( |$)`),
     );
-    await expect(page.getByTestId(testIds.judgment.evidenceItem(id)).first(), label).toBeVisible();
+    // 同じ段階の言葉は 1 項目にまとまる。その兆候をまとめた項目が見えることを確かめる
+    const item = page
+      .getByTestId(testIds.judgment.evidence)
+      .locator(`li[data-signal-ids~="${id}"]`);
+    await expect(item, label).toHaveCount(1);
+    await expect(item, label).toBeVisible();
   }
   if (expectation.break_even_shown !== undefined) {
     const breakEven = page.getByTestId(testIds.judgment.breakEven);
