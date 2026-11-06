@@ -320,12 +320,12 @@ function estimateBubbleSize(
 ): { w: number; h: number } {
   if (checkFeaturedStation(station) && !compactRecommended)
     return { w: narrow ? 196 : 220, h: 150 };
-  if (!narrow) return { w: 200, h: 64 };
+  if (!narrow) return { w: 200, h: station.fallback ? 80 : 64 };
   // 路線色の印と分数のぶんを足す。おすすめの小さな札は、星の分だけ広い
   return {
     w: estimateTextWidth(station.shortName, 12) + 100 + (station.starred ? 16 : 0),
-    // 上下の配置では 44px のタップ領域を基準にアンカーが付く。
-    h: 44,
+    // 上下の配置では 44px のタップ領域を基準にアンカーが付く。「動かなければ」の札は 1 段ぶん高い
+    h: station.fallback ? 60 : 44,
   };
 }
 

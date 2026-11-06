@@ -90,9 +90,15 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
   const fallback = page.locator("[data-testid^='judgment-map-station-'][data-fallback='true']");
   await expect(fallback).toHaveCount(1);
   await expect(fallback).toBeVisible();
-  await expect(fallback).toHaveAttribute("data-variant", "full");
+  // 地図が狭く小さな札に縮めるときも、「動かなければ」の言葉は残す
+  await expect(fallback.getByTestId(mapTestIds.fallbackTag)).toBeVisible();
   await expect(fallback.getByTestId(mapTestIds.fallbackTag)).toHaveText("動かなければ");
-  await expect(fallback).toContainText(fallbackLine);
+  // 吹き出しの駅は、見出しの「動かなければ◯◯へ」の路線に乗る駅にする
+  expect(fallbackLine.length).toBeGreaterThan(0);
+  await expect(fallback).toHaveAttribute(
+    "aria-label",
+    new RegExp(`^動かなければ .*${fallbackLine}`),
+  );
   // 待つ判断では、おすすめの星は出さない
   await expect(
     page.locator("[data-testid^='judgment-map-station-'][data-starred='true']"),

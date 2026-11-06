@@ -75,15 +75,12 @@ export function LineChip({
   );
 }
 
-// 小さな札の 1 行。おすすめの星か動かなければの印、路線色、短い駅名、徒歩の分数
+// 小さな札の 1 行。おすすめの星、路線色、短い駅名、徒歩の分数
 function CompactRow({ station }: { station: GuideStation }) {
   const t = useTranslations("map");
   return (
     <span className="flex items-center gap-1.5">
       {station.starred && <Star className="size-3 shrink-0 fill-current text-switch" aria-hidden />}
-      {station.fallback && (
-        <CornerDownRight className="size-3 shrink-0 text-switch" strokeWidth={2.5} aria-hidden />
-      )}
       <span className="flex gap-0.5">
         {station.lines.slice(0, 3).map((line) => (
           <LineSwatch key={line.lineId} line={line} />
@@ -137,11 +134,27 @@ export function StationBubble({
     .filter(Boolean)
     .join(" ");
 
-  // 小さな札では「表示中」を 1 段目に置き、札の幅を広げない
+  // 「動かなければ」の札。大きな吹き出しと小さな札の両方で、同じ言葉を出す
+  const fallbackTag = station.fallback ? (
+    <span
+      data-testid={mapTestIds.fallbackTag}
+      className="flex items-center gap-1 text-[11px] leading-none font-bold whitespace-nowrap text-switch"
+    >
+      <CornerDownRight className="size-3" strokeWidth={2.5} aria-hidden />
+      {t("fallback")}
+    </span>
+  ) : null;
+
+  // 小さな札では「表示中」と「動かなければ」を 1 段目に置き、札の幅を広げない
   const body = compact ? (
-    shown ? (
+    shown || fallbackTag ? (
       <span className="flex flex-col items-start gap-1">
-        {shown}
+        {(shown || fallbackTag) && (
+          <span className="flex items-center gap-1.5">
+            {shown}
+            {fallbackTag}
+          </span>
+        )}
         <CompactRow station={station} />
       </span>
     ) : (
@@ -149,7 +162,12 @@ export function StationBubble({
     )
   ) : variant === "medium" ? (
     <span className="flex w-[176px] flex-col gap-1 text-left">
-      {shown && <span className="flex">{shown}</span>}
+      {(shown || fallbackTag) && (
+        <span className="flex items-center gap-1.5">
+          {shown}
+          {fallbackTag}
+        </span>
+      )}
       <span className="flex items-baseline justify-between gap-2">
         <span className="min-w-0 truncate text-[13px] font-bold">
           {station.name}
@@ -191,15 +209,7 @@ export function StationBubble({
               {t("recommended")}
             </span>
           )}
-          {station.fallback && (
-            <span
-              data-testid={mapTestIds.fallbackTag}
-              className="flex items-center gap-1 text-[11px] font-bold text-switch"
-            >
-              <CornerDownRight className="size-3" strokeWidth={2.5} aria-hidden />
-              {t("fallback")}
-            </span>
-          )}
+          {fallbackTag}
         </span>
       )}
       <span className="flex items-baseline justify-between gap-2">
