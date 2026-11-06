@@ -428,3 +428,99 @@ export function selectRailTapAction(zoom: number, railCount: number): "none" | "
   if (railCount === 0) return "none";
   return zoom >= BETWEEN_PICK_MIN_ZOOM ? "pick" : "approach";
 }
+
+// 地図を押した点の答え。駅の印か札なら駅、線の上なら駅の間、どちらでもなければ none
+// rail の lineIds は押した点の近くに描いた路線で、近い順に並べる
+export type MapTapTarget =
+  | { kind: "station"; key: string }
+  | { kind: "rail"; lineIds: string[] }
+  | { kind: "none" };
+
+// 画面に描いた路線の折れ線
+export type ScreenRail = { lineId: string; paths: readonly (readonly ScreenPoint[])[] };
+
+// 線を押したとみなす、押した点から描いた線までの距離（px）。押せる大きさ 44px の半分
+export const RAIL_TAP_PX = 22;
+// 札の上で、札の下の線を押したとみなす距離（px）。線の幅に指のずれを足した程度
+export const LABEL_RAIL_TAP_PX = 8;
+
+// 点から画面の折れ線までの距離（px）
+export function measureScreenPathDistance(
+  point: ScreenPoint,
+  path: readonly ScreenPoint[],
+): number {
+  let best = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < path.length; i++) {
+    const a = path[i] as ScreenPoint;
+    const b = path[i + 1] ?? a;
+    const abx = b.x - a.x;
+    const aby = b.y - a.y;
+    const length = abx * abx + aby * aby;
+    const t =
+      length === 0
+        ? 0
+        : Math.max(0, Math.min(1, ((point.x - a.x) * abx + (point.y - a.y) * aby) / length));
+    best = Math.min(best, Math.hypot(point.x - a.x - abx * t, point.y - a.y - aby * t));
+  }
+  return best;
+}
+
+// 押した点から maxPx の内に描いた路線を、近い順に返す
+export function listNearRailIds(
+  point: ScreenPoint,
+  rails: readonly ScreenRail[],
+  maxPx: number,
+): string[] {
+  const nearest = new Map<string, number>();
+  for (const rail of rails) {
+    for (const path of rail.paths) {
+      const distance = measureScreenPathDistance(point, path);
+      if (distance <= maxPx && distance < (nearest.get(rail.lineId) ?? Number.POSITIVE_INFINITY))
+        nearest.set(rail.lineId, distance);
+    }
+  }
+  return [...nearest.entries()].sort((a, b) => a[1] - b[1]).map(([lineId]) => lineId);
+}
+
+// 押した点が駅か駅の間かを決める
+// 印の中心の近く（markRadius の内）なら駅。次に描いた線の近くなら駅の間。札を押したなら、札の下の線の上だけを駅の間にする
+// 線から離れていれば、押せる丸（hitRadius）の内の一番近い駅にする。rails が空なら線は見ない
+// 駅を受け付けない段では駅を飛ばし、線の上でなければ none にして路線を選ぶ判定へ回す
+export function selectMapTapTarget(input: {
+  point: ScreenPoint;
+  stations: readonly { key: string; point: ScreenPoint; markRadius: number; hitRadius: number }[];
+  rails: readonly ScreenRail[];
+  // 押した札の駅。札でなければ null
+  labelKey: string | null;
+  // 駅を答えとして受け付ける段か。受け付けない段では、駅の印と札を見ずに線だけで決める
+  placePickable?: boolean;
+}): MapTapTarget {
+  const { point, rails } = input;
+  const pickable = input.placePickable ?? true;
+  const stations = pickable ? input.stations : [];
+  const labelKey = pickable ? input.labelKey : null;
+  const measured = stations
+    .map((s) => ({ ...s, distance: Math.hypot(point.x - s.point.x, point.y - s.point.y) }))
+    .sort((a, b) => a.distance - b.distance);
+  const core = measured.find((s) => s.distance <= s.markRadius);
+  if (core) return { kind: "station", key: core.key };
+  const lineIds = listNearRailIds(
+    point,
+    rails,
+    labelKey === null ? RAIL_TAP_PX : LABEL_RAIL_TAP_PX,
+  );
+  if (lineIds.length > 0) return { kind: "rail", lineIds };
+  if (labelKey !== null) return { kind: "station", key: labelKey };
+  const near = measured.find((s) => s.distance <= s.hitRadius);
+  return near ? { kind: "station", key: near.key } : { kind: "none" };
+}
+
+// 線を押して出した駅の間の候補の扱い。候補があれば尋ね、無ければ札を押したときはその駅を選ぶ
+// 札でもなければ、何も無い所を押したときと同じに扱う
+export function selectRailTapOutcome<T>(
+  choiceCount: number,
+  label: T | null,
+): { kind: "ask" } | { kind: "station"; place: T } | { kind: "tap" } {
+  if (choiceCount > 0) return { kind: "ask" };
+  return label ? { kind: "station", place: label } : { kind: "tap" };
+}

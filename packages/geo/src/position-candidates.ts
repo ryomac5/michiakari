@@ -76,6 +76,37 @@ function listAdjacentPairs(line: LineInfo): [string, string][] {
   });
 }
 
+// 2 駅だけの区間で、同じ名前の 2 駅を別の路線の 3 駅以上の区間が隣り合わせに結んでいるものを外す
+// 梅田の地下を通る線は、旅客の駅を持たないのに東海道線の大阪〜福島の区間として入っている。駅の間はもう一方の路線で答える
+export function removeDuplicatedStubs(
+  lines: readonly LineInfo[],
+  nodes: readonly StationNode[],
+): LineInfo[] {
+  const nameById = new Map(nodes.map((n) => [n.stationId, n.name]));
+  const keyOf = (a: string, b: string) =>
+    [nameById.get(a) ?? a, nameById.get(b) ?? b].sort().join("|");
+  const isStub = (segment: LineInfo["segments"][number]) =>
+    !segment.loop && segment.stationIds.length === 2;
+  // 3 駅以上の区間が結ぶ隣り合う駅の名前の組と、その路線
+  const ridden = new Map<string, Set<string>>();
+  for (const line of lines) {
+    const full = { ...line, segments: line.segments.filter((s) => !isStub(s)) };
+    for (const [a, b] of listAdjacentPairs(full)) {
+      const key = keyOf(a, b);
+      ridden.set(key, (ridden.get(key) ?? new Set()).add(line.lineId));
+    }
+  }
+  return lines.map((line) => ({
+    ...line,
+    segments: line.segments.filter((segment) => {
+      if (!isStub(segment)) return true;
+      const [a, b] = segment.stationIds as [string, string];
+      const others = [...(ridden.get(keyOf(a, b)) ?? [])].filter((id) => id !== line.lineId);
+      return others.length === 0;
+    }),
+  }));
+}
+
 // 駅の候補。同じ名前の駅は最も近い 1 つにまとめる
 function listStationCandidates(
   nodes: readonly StationNode[],
@@ -131,7 +162,7 @@ export function findPositionCandidates(
     POSITION_THRESHOLDS.stationMeters + accuracy,
   );
   const between = listBetweenCandidates(
-    network,
+    { nodes: network.nodes, lines: removeDuplicatedStubs(network.lines, network.nodes) },
     query.lonLat,
     POSITION_THRESHOLDS.lineMeters + accuracy,
   );

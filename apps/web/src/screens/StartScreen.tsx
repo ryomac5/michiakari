@@ -100,6 +100,7 @@ import {
   pickLineTap,
   placeDirectionTag,
   selectAwaySide,
+  selectRailTapOutcome,
   selectStopDirection,
 } from "@/features/entry/map-pick";
 import { buildLineObservation } from "@/features/entry/seed";
@@ -504,8 +505,25 @@ export function StartScreen() {
     }
   }
 
-  // 最初の段と駅の間の段で線を押したら、その駅の間の車内にいるか確かめる。駅の間が無ければ、そのあたりへ寄る
-  function handleRailTap(lineIds: string[], point: Position, reachMeters: number) {
+  // 地図の駅を押したとき。選んだ駅の丸を押しても、ここまでの答えは捨てない。電車の中なら近い駅の答えにする
+  function pickMapPlace(place: EntryPlace) {
+    if (place.key === entry.place?.key && entry.stage !== "area" && entry.stage !== "kansai") {
+      const here = nearby.find((s) => s.choice.id === entry.line?.stationName);
+      if (entry.stage === "trainPosition" && onTrain && here) chooseNearStop(here);
+      return;
+    }
+    const area = data ? findAreaAt(data, place.position) : null;
+    if (area) selectPlace(area, place);
+  }
+
+  // 最初の段と駅の間の段で線を押したら、その駅の間の車内にいるか確かめる
+  // 駅の間が無いとき、札を押していればその駅を選び、そうでなければ、そのあたりへ寄る
+  function handleRailTap(
+    lineIds: string[],
+    point: Position,
+    reachMeters: number,
+    label: EntryPlace | null,
+  ) {
     if (!data || !geo || (entry.stage !== "position" && entry.stage !== "between")) return;
     const choices = listLineTapChoices(
       data,
@@ -513,8 +531,14 @@ export function StartScreen() {
       { lon: point[0], lat: point[1] },
       reachMeters,
       lineIds,
+      geo.trackShapes,
     );
-    if (choices.length === 0) {
+    const outcome = selectRailTapOutcome(choices.length, label);
+    if (outcome.kind === "station") {
+      pickMapPlace(outcome.place);
+      return;
+    }
+    if (outcome.kind === "tap") {
       handleTap(point, reachMeters);
       return;
     }
@@ -1188,20 +1212,9 @@ export function StartScreen() {
           const area = data ? resolveConfiguredArea(data, areaId) : null;
           if (area) dispatch({ type: "openArea", area });
         }}
-        onSelectPlace={(place: EntryPlace) => {
-          // 選んだ駅の丸を押しても、ここまでの答えは捨てない。電車の中なら近い駅の答えにする
-          if (
-            place.key === entry.place?.key &&
-            entry.stage !== "area" &&
-            entry.stage !== "kansai"
-          ) {
-            const here = nearby.find((s) => s.choice.id === entry.line?.stationName);
-            if (entry.stage === "trainPosition" && onTrain && here) chooseNearStop(here);
-            return;
-          }
-          const area = data ? findAreaAt(data, place.position) : null;
-          if (area) selectPlace(area, place);
-        }}
+        onSelectPlace={pickMapPlace}
+        // 駅の段と駅の間の段は駅を答えにしないので、駅の印や札の上も線として押させる
+        placePickable={entry.stage !== "station" && entry.stage !== "between"}
         onTap={handleTap}
         onSelectRails={
           entry.stage === "position" || entry.stage === "between" ? handleRailTap : undefined

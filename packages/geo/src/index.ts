@@ -36,6 +36,7 @@ export {
   type PositionCandidate,
   type PositionNetwork,
   type PositionQuery,
+  removeDuplicatedStubs,
   type StationPositionCandidate,
 } from "./position-candidates.ts";
 export {
