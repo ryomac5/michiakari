@@ -576,7 +576,8 @@
     "tripTerminal": "方面の終点を行き先にする",
     "causeQuestion": "放送で聞いた原因を選ぶ",
     "causes": {
-      "passenger": "人身事故・お客様対応",
+      "person": "人身事故",
+      "inCar": "車内の急病人・非常ボタン",
       "vehicle": "車両の故障・点検",
       "signaling": "信号・ポイント",
       "power": "停電",
@@ -588,8 +589,6 @@
     },
     "causeKindQuestion": "近いものを選ぶ",
     "causeKinds": {
-      "person": "人身事故",
-      "inCar": "車内の急病人・非常ボタン",
       "rain": "雨",
       "wind": "風",
       "snow": "雪・凍結",

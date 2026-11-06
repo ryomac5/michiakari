@@ -122,14 +122,11 @@ test("入口で「車内の急病人・非常ボタン」を選ぶと、待つ�
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
 
   // 様子の段は方式を選ばせず、すぐに原因を聞く。原因、時間、再開見込みの順に答える
-  // 大分類の人身事故・お客様対応を選ぶと、続けて種類を 1 問だけ聞く
-  const passenger = page.getByTestId(testIds.start.cause("passenger"));
-  await expect(passenger).toHaveText("人身事故・お客様対応");
-  await passenger.click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "causeKind");
-  const inCar = page.getByTestId(testIds.start.causeKind("inCar"));
+  // 車内の急病人・非常ボタンは人身事故と別の選択肢で、続けての種類の問いなしに経過の問いへ進む
+  const inCar = page.getByTestId(testIds.start.cause("inCar"));
   await expect(inCar).toHaveText("車内の急病人・非常ボタン");
   await inCar.click();
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "elapsed");
   await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText(
     "車内の急病人・非常ボタン",
   );

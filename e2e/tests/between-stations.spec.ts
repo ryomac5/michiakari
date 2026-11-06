@@ -135,8 +135,7 @@ async function startBetweenStations(
   // 駅間の後に行き先を答え、様子へ進む
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("塚本");
-  await page.getByTestId(testIds.start.cause("passenger")).click();
-  await page.getByTestId(testIds.start.causeKind("person")).click();
+  await page.getByTestId(testIds.start.cause("person")).click();
   await page.getByTestId(testIds.start.elapsed("m10")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
@@ -249,8 +248,7 @@ test("福島〜大阪の車内で急病人により止まり、行き先が大�
   await page.getByTestId(testIds.start.destinationSearch).fill("大阪");
   await page.getByTestId(testIds.start.destinationOption("大阪")).click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
-  await page.getByTestId(testIds.start.cause("passenger")).click();
-  await page.getByTestId(testIds.start.causeKind("inCar")).click();
+  await page.getByTestId(testIds.start.cause("inCar")).click();
   await page.getByTestId(testIds.start.elapsed("now")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });

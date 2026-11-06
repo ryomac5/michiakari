@@ -5,11 +5,15 @@ import { describe, expect, it } from "vitest";
 import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import {
   type CauseCategoryId,
+  type CauseChoiceId,
   type CauseKindId,
   causeCategoryIds,
+  causeChoiceIds,
   listCauseKinds,
   needsCauseKind,
   resolveCauseEventType,
+  toCauseAnswer,
+  toCauseChoiceId,
 } from "./cause-categories";
 
 // 大分類と知見の事象の対応を、ダミー知見の 4 事象で確かめる（読むだけで変更しない）
@@ -55,15 +59,27 @@ describe("resolveCauseEventType", () => {
     });
   }
 
-  it("人・旅客対応は種類を聞き、人との接触と車内の対応で事象が分かれる", () => {
-    expect(needsCauseKind("passenger")).toBe(true);
-    expect(listCauseKinds("passenger")).toEqual(["person", "inCar", "other"]);
-    const resolve = (kind: CauseKindId | null) =>
-      resolveCauseEventType({ category: "passenger", kind }, devCatalog);
+  it("人身事故と車内の急病人は別の選択肢で、それぞれの知見に対応し、種類を続けて聞かない", () => {
+    expect(causeChoiceIds.slice(0, 2)).toEqual(["person", "inCar"]);
+    expect(needsCauseKind("passenger")).toBe(false);
+    const resolve = (choice: CauseChoiceId) =>
+      resolveCauseEventType(toCauseAnswer(choice), devCatalog);
     expect(resolve("person")).toBe("person_accident");
     expect(resolve("inCar")).toBe("in_car_response");
-    expect(resolve("other")).toBeNull();
-    expect(resolve(null)).toBeNull();
+    expect(toCauseAnswer("person")).toEqual({ category: "passenger", kind: "person" });
+    expect(toCauseAnswer("inCar")).toEqual({ category: "passenger", kind: "inCar" });
+    // 選択肢に無い人・旅客対応は、分からないと同じ知見なしになる
+    expect(resolveCauseEventType({ category: "passenger", kind: "other" }, devCatalog)).toBeNull();
+    expect(resolveCauseEventType({ category: "passenger", kind: null }, devCatalog)).toBeNull();
+  });
+
+  it("選択肢と答えは行き来でき、選択肢は人・旅客対応を除く大分類をすべて含む", () => {
+    for (const choice of causeChoiceIds) {
+      expect(toCauseChoiceId(toCauseAnswer(choice))).toBe(choice);
+    }
+    expect(toCauseChoiceId({ category: null, kind: null })).toBeNull();
+    const categories = causeChoiceIds.map((c) => toCauseAnswer(c).category);
+    expect(new Set(categories)).toEqual(new Set(causeCategoryIds));
   });
 
   it("気象・自然は種類を聞き、雨だけが大雨の事象に対応する", () => {

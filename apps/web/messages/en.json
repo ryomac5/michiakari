@@ -576,7 +576,8 @@
     "tripTerminal": "Using the end of the line",
     "causeQuestion": "Pick the cause you heard",
     "causes": {
-      "passenger": "Person or passenger",
+      "person": "Person hit by a train",
+      "inCar": "Illness / emergency button on board",
       "vehicle": "Train fault / inspection",
       "signaling": "Signals / points",
       "power": "Power outage",
@@ -588,8 +589,6 @@
     },
     "causeKindQuestion": "Pick the closest one",
     "causeKinds": {
-      "person": "Person hit by a train",
-      "inCar": "Illness / emergency button on board",
       "rain": "Rain",
       "wind": "Wind",
       "snow": "Snow or ice",

@@ -79,26 +79,37 @@ describe("reduceEntry", () => {
     );
     expect(reduceEntry(cause, { type: "chooseElapsed", elapsed: "now" })).toBe(cause);
   });
-  it("人・旅客対応を選んだときだけ種類を 1 問聞き、戻ると大分類の問いへ戻る", () => {
+  it("気象・自然を選んだときだけ種類を 1 問聞き、戻ると大分類の問いへ戻る", () => {
     const cause = run(toCause);
     const kind = reduceEntry(cause, {
       type: "chooseCause",
-      cause: { category: "passenger", kind: null },
+      cause: { category: "weather", kind: null },
     });
     expect(kind).toMatchObject({
       stage: "causeKind",
-      cause: { category: "passenger", kind: null },
+      cause: { category: "weather", kind: null },
     });
     expect(selectProgressIndex(kind.stage)).toBe(3);
     expect(reduceEntry(kind, { type: "chooseElapsed", elapsed: "now" })).toBe(kind);
-    const elapsed = reduceEntry(kind, { type: "chooseCauseKind", kind: "inCar" });
+    const elapsed = reduceEntry(kind, { type: "chooseCauseKind", kind: "rain" });
     expect(elapsed).toMatchObject({
       stage: "elapsed",
-      cause: { category: "passenger", kind: "inCar" },
+      cause: { category: "weather", kind: "rain" },
     });
     expect(reduceEntry(elapsed, { type: "back" }).stage).toBe("causeKind");
     expect(reduceEntry(kind, { type: "back" })).toEqual(cause);
-    expect(reduceEntry(cause, { type: "chooseCauseKind", kind: "person" })).toBe(cause);
+    expect(reduceEntry(cause, { type: "chooseCauseKind", kind: "wind" })).toBe(cause);
+  });
+  it("人身事故と車内の急病人は種類を聞かずに経過の問いへ進み、戻ると原因の問いへ戻る", () => {
+    const cause = run(toCause);
+    for (const kind of ["person", "inCar"] as const) {
+      const elapsed = reduceEntry(cause, {
+        type: "chooseCause",
+        cause: { category: "passenger", kind },
+      });
+      expect(elapsed).toMatchObject({ stage: "elapsed", cause: { category: "passenger", kind } });
+      expect(reduceEntry(elapsed, { type: "back" })).toEqual(cause);
+    }
   });
   it("駅にいる人は推定で省略した路線・方面には戻らない", () => {
     let state = run([
