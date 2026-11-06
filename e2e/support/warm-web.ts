@@ -17,7 +17,8 @@ const persistStableMs = 8000;
 const persistTimeoutMs = 2 * 60_000;
 const noGrowthMs = 30_000;
 const e2eDir = fileURLToPath(new URL("..", import.meta.url));
-const cacheDir = join(e2eDir, "../apps/web/.next/dev/cache");
+// 生成物の置き場所は next.config.ts と同じく NEXT_DIST_DIR に従う
+const cacheDir = join(e2eDir, "../apps/web", process.env.NEXT_DIST_DIR ?? ".next", "dev/cache");
 const probeUrl = `${webUrl}/replay`;
 
 function sleep(ms: number): Promise<void> {
