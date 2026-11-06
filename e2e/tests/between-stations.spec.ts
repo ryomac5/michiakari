@@ -151,7 +151,7 @@ async function expectInCarWait(page: Page): Promise<void> {
   const headline = page.getByTestId(testIds.judgment.conclusionHeadline);
   await expect(headline).toHaveText("車内で待つ");
   await expect(page.getByTestId(testIds.judgment.inCarStaffNote)).toHaveText(
-    "長く止まったときは係員の案内に従う。",
+    "長く止まったときは、係員の案内に従ってください。",
   );
   await expect(page.getByTestId(testIds.judgment.disclaimer)).toContainText(
     "推定であり、公式発表を優先してください",
@@ -202,16 +202,16 @@ for (const theme of ["light", "dark"] as const) {
       await expect(own).toContainText("普通に乗車");
       await expect(own).toHaveAttribute("data-source", "default");
       const ahead = page.getByTestId(testIds.judgment.trainPositionChip("ahead"));
-      await expect(ahead).toContainText("ふだんの間隔と推定");
+      await expect(ahead).toContainText("通常の間隔と推定");
       await expect(ahead).toContainText("推定");
       await expect(ahead).toHaveAttribute("data-source", "default");
       await expect(page.getByTestId(testIds.judgment.trainPositionHint)).toContainText(
         "前の列車の種類が分かると",
       );
-      // 既定値の理由は、ふだんの間隔とみた見込みを言い、「入れない」とは書かない
-      const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
-      await expect(reason).toContainText("ふだんどおり");
-      await expect(reason).not.toContainText("入れない");
+      // 既定値の理由は着く見込みだけを言う。間隔の仮定はチップが示すので、文で繰り返さない
+      const reason = page.getByTestId(testIds.judgment.conclusionReason);
+      await expect(reason).toHaveText(/^.+には\d{1,2}時\d{2}分ごろに着く見込みです。$/);
+      await expect(reason).not.toContainText(/仮定|ふだん|入れない/);
 
       // 利用者は大阪と塚本の間にいる。上部の帯と現在地の札は駅の間にいることを出し、塚本は降りる駅として目立たせる
       await expect(page.getByTestId(testIds.judgment.tripSummary)).toContainText("大阪〜塚本");
@@ -289,7 +289,7 @@ test("行き先が別の路線にあり、次の駅に着いた後のほうが�
   await expect(step).toBeVisible();
   await expect(step).toHaveAttribute("data-kind", "transfer");
   await expect(step).toContainText(/塚本に着いたら.+へ/);
-  await expect(step).toContainText(/\d{2}:\d{2} 着/);
+  await expect(step).toContainText(/\d{2}:\d{2}着/);
   // 見出しと理由には切り替えを書かない
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).not.toContainText("乗り換え");
   await expect(page.getByTestId(testIds.judgment.conclusionReason)).not.toContainText("乗り換え");
@@ -377,7 +377,7 @@ test("持ち込んだ走行位置画像の種別を判断入力に使う", async
   await expect(ahead).toHaveAttribute("data-source", "user");
   await openSheet(page, "full");
   await expect(page.getByTestId(testIds.judgment.premise)).toContainText(
-    "走行位置の画像から前の列車を 快速・普通 と読みました",
+    "走行位置の画像から、前の列車を快速・普通と読みました。",
   );
 
   // 次の入力でも、読み取った並びを保持して判断する
@@ -397,7 +397,7 @@ test("持ち込んだ走行位置画像の種別を判断入力に使う", async
   });
   await expect(ahead).toContainText("前に詰まっている列車 快速・普通");
   await expect(page.getByTestId(testIds.judgment.premise)).toContainText(
-    "走行位置の画像から前の列車を 快速・普通 と読みました",
+    "走行位置の画像から、前の列車を快速・普通と読みました。",
   );
 
   // 通信失敗後のリトライでも、画像の並びを判断入力に戻す

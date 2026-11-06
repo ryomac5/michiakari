@@ -96,7 +96,7 @@ test("人身事故を選ぶと、続けての問いなしに人身事故の事�
   });
   await openSheet(page, "full");
   await expect(page.getByTestId(testIds.judgment.premise)).toContainText(
-    "原因は放送で聞いた人身事故と仮定する",
+    "原因は放送で聞いた人身事故と仮定しています。",
   );
 });
 
@@ -110,7 +110,7 @@ test("車内の急病人を選ぶと、続けての問いなしに車内対応�
   });
   await openSheet(page, "full");
   await expect(page.getByTestId(testIds.judgment.premise)).toContainText(
-    "原因は放送で聞いた車内の急病人・非常ボタンと仮定する",
+    "原因は放送で聞いた車内の急病人・非常ボタンと仮定しています。",
   );
 });
 
@@ -128,7 +128,7 @@ test("知見のある車両の大分類を選ぶと、車両故障の事象で�
 
   await openSheet(page, "full");
   const premise = page.getByTestId(testIds.judgment.premise);
-  await expect(premise).toContainText("原因は放送で聞いた車両の故障・点検と仮定する");
+  await expect(premise).toContainText("原因は放送で聞いた車両の故障・点検と仮定しています。");
   await expect(premise).not.toContainText("境目の時刻を動く目安");
 });
 
@@ -175,7 +175,7 @@ test("雨・風・雪・地震から雨を選ぶと、大雨の事象で判断�
   await expect(page.getByTestId(testIds.judgment.disclaimer)).toBeVisible();
   await openSheet(page, "full");
   await expect(page.getByTestId(testIds.judgment.premise)).toContainText(
-    "原因は放送で聞いた雨・風・雪・地震と仮定する",
+    "原因は放送で聞いた雨・風・雪・地震と仮定しています。",
   );
 
   await page.goBack();

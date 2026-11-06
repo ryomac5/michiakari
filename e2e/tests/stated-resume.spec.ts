@@ -74,11 +74,11 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
   const headlineText = await page.getByTestId(testIds.judgment.conclusionHeadline).textContent();
   expect(toMinuteOfDay(headlineText ?? "")).toBe(toMinuteOfDay(breakEvenText ?? ""));
   // 右上の数字は境目までの残り時間 1 つだけ
-  await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(/^あと \d+ 分$/);
+  await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(/^あと\d+分$/);
 
   // 理由は、発表の時刻をもとにした推定だと分かる言い方にする
   const summary = page.getByTestId(testIds.judgment.conclusionReason);
-  await expect(summary).toContainText(`発表の再開が${toJapaneseClock(statedLabel)}なら`);
+  await expect(summary).toContainText(`発表どおり${toJapaneseClock(statedLabel)}に再開すれば`);
   await expect(summary).toContainText("待つほうが早く着きます");
   await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
     timeout: 30_000,
@@ -86,8 +86,9 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}stated-resume-wait-390x844.png` });
   await openSheet(page, "half");
+  // 理由の残りに、境目の時刻までに動く見込みを添える
   const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
-  await expect(reason).toContainText("境目の");
+  await expect(reason).toContainText(/\d{1,2}時\d{2}分までに動く見込みは/);
   await expect(reason).not.toContainText(nonDecisive);
 });
 
@@ -103,7 +104,7 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
   );
   await expect(conclusion).not.toContainText(nonDecisive);
   await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(
-    `発表の再開が${toJapaneseClock(statedLabel)}なら`,
+    `発表どおり${toJapaneseClock(statedLabel)}に再開しても`,
   );
   await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
     timeout: 30_000,
@@ -116,7 +117,7 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
   const sentence = await page.getByTestId(testIds.judgment.breakEvenSentence).textContent();
   expect(diffMinutes(statedLabel, sentence ?? "")).toBeGreaterThan(0);
   const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
-  await expect(reason).toContainText("境目の");
+  await expect(reason).toContainText(/\d{1,2}時\d{2}分までに動く見込みは/);
   await expect(reason).not.toContainText(nonDecisive);
 });
 
