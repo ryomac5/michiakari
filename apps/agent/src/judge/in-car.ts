@@ -2,7 +2,7 @@ import { selectAfterAlightStep } from "@repo/core";
 import type { AfterAlightStep, InCarGuide, JudgeRequest, Lang, RouteOption } from "@repo/schema";
 import type { EstimateToolResult } from "../tools/types.ts";
 import type { JudgmentToolResults } from "./assemble.ts";
-import { buildAfterAlightText, buildStaffNote, type TrainQueueText } from "./templates.ts";
+import { buildAfterAlightText, type TrainQueueText } from "./templates.ts";
 
 // 駅間の車内の人への案内。結論は車内で待つだけにし、切り替えはいまの選択肢として示さない
 // 決定論モードと claude モードが同じ案内を付ける
@@ -62,7 +62,6 @@ export function buildInCarGuide(
       alightArrival: null,
       departure: null,
       afterAlight: null,
-      staffNote: buildStaffNote(language),
     };
   }
   const options = results.alternatives.options;
@@ -78,6 +77,5 @@ export function buildInCarGuide(
     alightArrival: queue.arrival?.p50 ?? null,
     departure: queue.departure?.p50 ?? null,
     afterAlight: step ? buildAfterAlightStep(queue.alightStation, step, language) : null,
-    staffNote: buildStaffNote(language),
   };
 }

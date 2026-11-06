@@ -127,10 +127,12 @@ async function reachPositionStep(page: Page): Promise<void> {
   );
 }
 
-// 駅と駅の間を選び、人身事故・10 分くらい・見込みは言っていないで判断を始める。行き先は既定で三ノ宮
+// 駅と駅の間を選び、人身事故・10 分くらいで判断を始める。行き先は既定で三ノ宮
+// 再開の見込みは既定で、選べるうち最も遅い時刻を聞いたことにする。見込みの時刻が出ると、前の列車を詰める動きが始まる
 async function startBetweenStations(
   page: Page,
   destination: { search: string; name: string } = { search: "さんのみや", name: "三ノ宮" },
+  resume: "stated" | "unknown" = "stated",
 ): Promise<void> {
   await page.getByTestId(testIds.start.gpsConfirm).click();
   await page.getByTestId(testIds.start.destinationSearch).fill(destination.search);
@@ -144,12 +146,13 @@ async function startBetweenStations(
   await expect(page.getByTestId(testIds.start.trip)).toContainText("塚本");
   await page.getByTestId(testIds.start.cause("person")).click();
   await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
+  await page.getByTestId(testIds.start.resume(resume)).click();
+  if (resume === "stated") await page.locator("[data-testid^='start-resume-time-']").last().click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
 }
 
-// 車内で待つ結論の共通の形。選択肢の一覧・バス停・乗り換え候補の駅・確率の帯を出さず、係員の案内に従う一文を添える
+// 車内で待つ結論の共通の形。選択肢の一覧・バス停・乗り換え候補の駅・確率の帯を出さず、係員の案内の文も出さない
 async function expectInCarWait(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
     "data-action",
@@ -157,9 +160,7 @@ async function expectInCarWait(page: Page): Promise<void> {
   );
   const headline = page.getByTestId(testIds.judgment.conclusionHeadline);
   await expect(headline).toHaveText("車内で待つ");
-  await expect(page.getByTestId(testIds.judgment.inCarStaffNote)).toHaveText(
-    "長く止まったときは、係員の案内に従ってください。",
-  );
+  await expect(page.getByTestId(testIds.judgment.screen)).not.toContainText("係員の案内");
   await expect(page.getByTestId(testIds.judgment.disclaimer)).toContainText(
     "推定であり、公式発表を優先してください",
   );
@@ -323,6 +324,18 @@ test("行き先が別の路線にあり、次の駅に着いた後のほうが�
   // 見出しと理由には切り替えを書かない
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).not.toContainText("乗り換え");
   await expect(page.getByTestId(testIds.judgment.conclusionReason)).not.toContainText("乗り換え");
+});
+
+test("再開の見込みが出ていなければ、前の列車を詰める動きを使わず、塚本には再開後に着くと伝える", async ({
+  page,
+}) => {
+  await reachPositionStep(page);
+  await startBetweenStations(page, undefined, "unknown");
+
+  await expectInCarWait(page);
+  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toHaveText(
+    /^塚本には再開後の\d{1,2}時\d{2}分ごろに着く見込みです。$/,
+  );
 });
 
 test("人身事故で長く止まっても、乗ったままで三ノ宮に着けるなら、選択肢も着いた後の次の一手も出さない", async ({

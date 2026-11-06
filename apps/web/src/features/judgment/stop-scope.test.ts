@@ -4,7 +4,10 @@ import { selectStoppedPlace, selectStopScope } from "./stop-scope";
 
 // 止まり方の区別と、上部の帯に出す止まった場所
 
-function buildObservation(eventType: string | null): Observation {
+function buildObservation(
+  eventType: string | null,
+  section: Observation["section"] = null,
+): Observation {
   return {
     id: "obs",
     observedAt: "2026-11-05T22:00:00+09:00",
@@ -12,7 +15,7 @@ function buildObservation(eventType: string | null): Observation {
     eventTypeCandidates: eventType ? [{ eventType, confidence: "high" }] : [],
     operator: null,
     line: "JR神戸線",
-    section: null,
+    section,
     statedResumeTime: null,
     transferServiceActive: null,
     detectedSignals: [],
@@ -31,6 +34,23 @@ describe("selectStopScope", () => {
       selectStopScope(undefined, [buildObservation("in_car_response"), buildObservation(null)]),
     ).toBe("train");
     expect(selectStopScope(null, [buildObservation(null)])).toBe("section");
+  });
+
+  it("車両の故障はその列車から止まり、発表に区間が出るまでは区間の見合わせとしない", () => {
+    expect(selectStopScope("vehicle_failure", [])).toBe("train");
+    expect(
+      selectStopScope("vehicle_failure", [
+        buildObservation("vehicle_failure", { fromStation: "大阪", toStation: "尼崎" }),
+      ]),
+    ).toBe("section");
+  });
+
+  it("事象が無ければ入口の原因で決める", () => {
+    expect(selectStopScope(null, [], { group: "signaling", type: null })).toBe("train");
+    expect(selectStopScope(null, [], { group: "passenger", type: "person_collision" })).toBe(
+      "section",
+    );
+    expect(selectStopScope(null, [], null)).toBe("section");
   });
 });
 

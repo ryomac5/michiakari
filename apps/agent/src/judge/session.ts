@@ -89,13 +89,13 @@ function formatOptional(iso: string | null, language: Lang): string | null {
   return iso ? formatClock(iso, language) : null;
 }
 
-function presentEstimate(r: EstimateToolResult, language: Lang) {
+function presentEstimate(r: EstimateToolResult, language: Lang, stopScope: StopScope) {
   // 確率の標本は大きいので Claude には渡さない。確率は compute_break_even が表示にして返す
   const { remainingSamples: _samples, ...rest } = r;
   return {
     ...rest,
     // 止まり方。train ならその列車だけが止まっていて、区間の運転見合わせではない
-    stopScope: resolveStopScope(r.estimate.eventType),
+    stopScope,
     labels: {
       phaseStartedAt: formatOptional(r.phaseStartedAt, language),
       statedResumeTime: formatOptional(r.statedResumeTime, language),
@@ -279,14 +279,15 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
   });
 
   async function runEstimate(input: unknown): Promise<ToolOutcome> {
-    if (state.estimate) return cached(presentEstimate(state.estimate, language));
+    if (state.estimate)
+      return cached(presentEstimate(state.estimate, language, resolveSessionStopScope()));
     const parsed = parseInput(EstimatePhaseInputSchema, input);
     if (isOutcome(parsed)) return parsed;
     // 事象は観測と入口の原因からコードが決める。Claude の指定が違っても、両方のモードで同じ事象を使う
     const result = runEstimatePhase(ctx, { eventType: inferredEventType });
     state.estimate = result;
     await sink.emit({ type: "phase_estimated", estimate: result.estimate });
-    const content = presentEstimate(result, language);
+    const content = presentEstimate(result, language, resolveSessionStopScope());
     if (parsed.eventType === inferredEventType) return { isError: false, content };
     return {
       isError: false,
@@ -501,7 +502,11 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
   }
 
   function resolveSessionStopScope(): StopScope {
-    return resolveStopScope(state.estimate?.estimate.eventType ?? inferredEventType);
+    return resolveStopScope({
+      eventType: state.estimate?.estimate.eventType ?? inferredEventType,
+      cause: ctx.request.cause ?? null,
+      sectionAnnounced: findAnnouncedSection(ctx.observations) !== null,
+    });
   }
 
   return {

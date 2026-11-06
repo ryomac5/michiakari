@@ -202,7 +202,7 @@ test("駅と駅の間にいる人には、境目と確率の帯を出さず、�
   await expect(page.getByTestId(testIds.judgment.conclusionNext)).toHaveText(
     /^動くのは\d+時\d+分ごろの見込み$/,
   );
-  await expect(page.getByTestId(testIds.judgment.inCarStaffNote)).toBeVisible();
+  await expect(page.getByTestId(testIds.judgment.screen)).not.toContainText("係員の案内");
   // 前提のチップと車内の案内が増えても、閉じたシートに注意書きまで収まる
   await waitForFiniteAnimations(page);
   const box = await page.getByTestId(testIds.judgment.disclaimer).boundingBox();

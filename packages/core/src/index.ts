@@ -143,7 +143,13 @@ export {
   roundChanceTenths,
   selectKeyTick,
 } from "./resume-chance.ts";
-export { resolveStopScope, type StopScope } from "./stop-scope.ts";
+export {
+  resolveStopKind,
+  resolveStopScope,
+  type StopKind,
+  type StopScope,
+  type StopScopeInput,
+} from "./stop-scope.ts";
 export {
   checkNightSurcharge,
   computeTaxiFare,

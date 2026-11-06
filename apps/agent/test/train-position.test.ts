@@ -23,7 +23,11 @@ function findJudgment(events: JudgmentEvent[]): Judgment {
   return ready.judgment;
 }
 
-function buildEntryObservation(line = "JR神戸線"): Observation {
+// statedResumeTime は再開の見込みの時刻。出ていれば線路の安全が確かめられたとみなし、詰める動きを使う
+function buildEntryObservation(
+  line = "JR神戸線",
+  statedResumeTime: string | null = null,
+): Observation {
   return {
     id: "entry-line",
     observedAt: addMinutesToIso(now, -10),
@@ -32,7 +36,7 @@ function buildEntryObservation(line = "JR神戸線"): Observation {
     operator: "JR西日本",
     line,
     section: null,
-    statedResumeTime: null,
+    statedResumeTime,
     transferServiceActive: null,
     detectedSignals: [],
   };
@@ -44,12 +48,16 @@ type RequestInput = {
   destination?: string;
   eventType?: string;
   line?: string;
+  // 再開の見込みの時刻が出ているか。既定は出ている
+  cleared?: boolean;
 };
 
 function buildRequest(input: RequestInput): JudgeRequest {
   const { trainPosition } = input;
   return {
-    observations: [buildEntryObservation(input.line)],
+    observations: [
+      buildEntryObservation(input.line, input.cleared === false ? null : addMinutesToIso(now, 60)),
+    ],
     newInput: {
       type: "selection",
       eventType: input.eventType ?? "person_accident",
@@ -94,7 +102,9 @@ function expectInCarWait(judgment: Judgment): NonNullable<Judgment["inCar"]> {
   expect(judgment.disclaimer).toContain("公式発表");
   const inCar = judgment.inCar;
   if (!inCar) throw new Error("車内の案内がありません");
-  expect(inCar.staffNote).toBe("長く止まったときは、係員の案内に従ってください。");
+  // 降りられないあいだの過ごし方は伝えない
+  expect(inCar).not.toHaveProperty("staffNote");
+  expect(JSON.stringify(inCar)).not.toContain("係員");
   return inCar;
 }
 
@@ -161,6 +171,14 @@ describe("駅間の車内にいる利用者の理由", () => {
     expect(judgment.headline).toMatch(/^車内で待つ。動くのは\d+時\d+分ごろの見込み$/);
   });
 
+  it("再開に向けた放送も再開の見込みの時刻も無ければ、詰める動きを使わず、再開後に着く", async () => {
+    const judgment = findJudgment(
+      await postJudge(app, buildRequest({ trainPosition: observed([]), cleared: false })),
+    );
+    expectInCarWait(judgment);
+    expect(judgment.reason).toMatch(/^塚本には再開後の\d+時\d+分ごろに着く見込みです。/);
+  });
+
   it("既定値では、理由の頭に着く見込みを置き、間隔の仮定は前提のチップに任せる", async () => {
     const judgment = findJudgment(await postJudge(app, buildRequest({ trainPosition: defaults })));
     expect(judgment.reason).toMatch(/^塚本には\d+時\d+分ごろに着く見込みです。/);
@@ -208,8 +226,8 @@ describe("駅間の車内にいる利用者の理由", () => {
       await postJudge(app, buildRequest({ trainPosition: observed(["local", "local", "local"]) })),
     );
     const departure = (j: Judgment) => Date.parse(j.inCar?.departure ?? "");
-    // 2 本ぶん、1 本あたり 3 分の 6 分だけ遅くなる
-    expect(departure(three) - departure(one)).toBe(6 * 60_000);
+    // 2 本ぶん、1 本あたり中央 4 分の 8 分だけ遅くなる
+    expect(departure(three) - departure(one)).toBe(8 * 60_000);
   });
 
   it("選択肢の一覧と境目は、途中のイベントでも画面へ送らない", async () => {
