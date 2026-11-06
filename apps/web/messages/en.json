@@ -1,7 +1,7 @@
 {
   "app": {
     "title": "Michiakari",
-    "description": "Choose whether to wait or switch in Kansai. Use estimates from a former train dispatcher.",
+    "description": "Choose whether to wait or switch in Kansai.",
     "home": "Start from the map",
     "about": "About this app",
     "language": "Language",
@@ -22,9 +22,9 @@
     "short": "Estimate only. Follow official notices."
   },
   "start": {
-    "introAudience": "For anyone stranded by a train disruption in Kansai.",
-    "introProblem": "Service notices say what happened, not what to do.",
-    "introSolution": "Use a former dispatcher’s estimates to decide.",
+    "introAudience": "When your train stops and you are unsure whether to wait or switch.",
+    "introProblem": "Just pick where you are and what you heard.",
+    "introSolution": "We show whether to wait, or where to switch.",
     "introClose": "Close",
     "originLabel": "Where are you?",
     "locate": "Use my location",
@@ -440,17 +440,17 @@
     "title": "About Michiakari",
     "why": {
       "title": "Why we built this",
-      "p1": "When an incident happens, crews put safety and recovery first. Announcements tend to stop at what happened.",
-      "p2": "Experienced drivers and dispatchers can read how things will likely unfold. This app brings that reading to the people stuck on the platform right now."
+      "p1": "When an incident happens, crews put safety and recovery first. People waiting at the station get little sense of what comes next.",
+      "p2": "We estimate the outlook from signs in announcements and notices, and from past cases. We bring that outlook to the people stuck right now."
     },
     "purpose": {
       "title": "Purpose",
-      "p1": "Service updates tell you what happened. Michiakari goes one step further and suggests what to do.",
+      "p1": "Michiakari shows whether to wait or switch, and what to do next.",
       "p2": "When service is suspended, it shows an estimate and an action to help you decide whether to wait or switch."
     },
     "approach": {
       "title": "How we estimate",
-      "p1": "We use knowledge from a former train dispatcher, generalized into signs anyone can observe.",
+      "p1": "We estimate from signs in announcements and notices, and from past cases.",
       "p2": "We read signals from the notices you bring. We estimate the current phase and a range for the time until service restarts.",
       "p3": "Numbers such as arrival times and the cutoff time are computed by code. The AI interprets and explains them.",
       "p4": "When we are not confident, we focus on the cutoff time instead of a firm estimate."
