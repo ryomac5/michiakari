@@ -24,7 +24,7 @@
   "start": {
     "introAudience": "電車が止まって迷ったときに。",
     "introProblem": "いる場所と、聞いた放送を選ぶだけです。",
-    "introSolution": "待つか、どこへ乗り換えるかを示します。",
+    "introSolution": "いま取れる選択肢を、地図で示します。",
     "introClose": "閉じる",
     "originLabel": "いまいる駅",
     "locate": "現在地を使う",

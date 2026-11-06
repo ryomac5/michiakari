@@ -24,7 +24,7 @@
   "start": {
     "introAudience": "When your train stops and you are unsure whether to wait or switch.",
     "introProblem": "Just pick where you are and what you heard.",
-    "introSolution": "We show whether to wait, or where to switch.",
+    "introSolution": "See the options you have right now, on the map.",
     "introClose": "Close",
     "originLabel": "Where are you?",
     "locate": "Use my location",
