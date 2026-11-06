@@ -25,6 +25,7 @@
     "introAudience": "関西の運転見合わせで足が止まった人へ。",
     "introProblem": "運行情報は、何が起きたかまでしか伝えません。",
     "introSolution": "元指令員の知見から、次の一手を示します。",
+    "introClose": "閉じる",
     "originLabel": "いまいる駅",
     "locate": "現在地を使う",
     "locating": "現在地を取得しています",
@@ -116,7 +117,6 @@
       "remaining": "再開まで約{p50}〜{p80}分",
       "confidence": "見込みの確かさ {level}",
       "live": "結論: {action}。{headline}",
-      "arrival": "{time}着",
       "next": "次の手",
       "reasonTitle": "理由"
     },
@@ -146,7 +146,7 @@
       "condition": "<clock>{time}</clock>までに再開すれば待つほうが早く着きます。",
       "timeline": {
         "now": "いま",
-        "breakEven": "境目 {time}",
+        "breakEven": "境目",
         "deadline": "期限 {time}",
         "summary": {
           "before": "再開の見込みは{from}〜{to}です。境目の{breakEven}より前なので、待つほうが早く着く見込みです。",
@@ -255,7 +255,8 @@
         "current": "いまは{phase}の段階です。",
         "entered": "{phase}の段階に入ったと読めます。",
         "unknown": "段階はまだ絞れていません。"
-      }
+      },
+      "next": "「{phrase}」と聞こえたら、再開が近づきます。"
     },
     "addInfo": {
       "title": "情報を追加する",
@@ -330,7 +331,6 @@
       "after": "今の判断",
       "announcement": "きっかけ",
       "probability": "待つほうが早い見込み",
-      "notCalculated": "未算出",
       "noAnnouncement": "新しい発表はありません"
     }
   },
@@ -388,6 +388,8 @@
       "onTime": "間に合った",
       "late": "{minutes}分遅れ",
       "diff": "差 {minutes}分",
+      "showLastJudgment": "最後の判断を見る",
+      "hideLastJudgment": "最後の判断を閉じる",
       "summary": {
         "followedEarlierMadeIt": "判断に従うと、待ち続けた人より{minutes}分早く着きました。{deadline}の期限にも間に合いました。",
         "followedEarlier": "判断に従うと、待ち続けた人より{minutes}分早く着きました。",
@@ -420,6 +422,7 @@
     "statusSuspended": "見合わせ中",
     "statusRunning": "運転中",
     "recommended": "おすすめ",
+    "fallback": "動かなければ",
     "walk": "徒歩{minutes}分",
     "minutesShort": "{minutes}分",
     "transferService": "振替輸送",
@@ -429,7 +432,6 @@
     "changeAt": "{station}で",
     "transferShort": "振替",
     "sectionUnconfirmed": "区間は発表で確かめる",
-    "sectionAddAnnouncement": "区間のある発表を貼ると、地図に描きます。",
     "between": "{from}〜{to}の間",
     "alight": "降りる駅",
     "walkShort": "徒歩{minutes}分"
@@ -604,8 +606,6 @@
     "trainSegmentHint": "電車の進む向きに駅を並べています。地図の線を押しても選べます。",
     "trainSegmentConfirm": "この駅の間にいる",
     "trainStoppedHint": "駅に停車中なら、駅を選んでください。",
-    "destinationStationHint": "行き先の駅を選んでください。",
-    "routeInferred": "{line}・{direction} 変更する",
     "routeLinesLabel": "路線から選ぶ",
     "routeLinesHint": "地図の線や路線の札を押しても選べます。",
     "mapLineHint": "地図の線を押しても選べます。",

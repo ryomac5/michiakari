@@ -126,6 +126,8 @@ export const testIds = {
     changeBefore: "judgment-change-before",
     changeAfter: "judgment-change-after",
     changeAnnouncement: "judgment-change-announcement",
+    // 発表から読めるいまの段階。data-phase-id に段階を出す
+    changeReading: "judgment-change-reading",
     changeProbability: "judgment-change-probability",
     disclaimer: "judgment-disclaimer",
     error: "judgment-error",
@@ -156,12 +158,17 @@ export const testIds = {
     map: "judgment-map",
     options: "judgment-options",
     option: (id: string) => `judgment-option-${id}`,
+    // 選択肢の行の、乗る路線の並びと、徒歩と運賃
+    optionLines: "judgment-option-lines",
+    optionFacts: "judgment-option-facts",
     evidence: "judgment-evidence",
     evidenceToggle: "judgment-evidence-toggle",
     // 根拠の項目。id は兆候か事象の id。data-phase-id と data-current を出す
     evidenceItem: (id: string) => `judgment-evidence-item-${id}`,
     evidenceHeard: "judgment-evidence-heard",
     evidenceReading: "judgment-evidence-reading",
+    // 根拠の欄の、次に聞こえたら判断が変わる放送の言い回し
+    evidenceNext: "judgment-evidence-next",
     // 判断に使った雨量の推移。data-trend と data-reading-count（欠測を含む観測の数）を出す
     weather: "judgment-weather",
     weatherChart: "judgment-weather-chart",
@@ -187,7 +194,7 @@ export const testIds = {
     playButton: "replay-play-button",
     nextButton: "replay-next-button",
     restartButton: "replay-restart-button",
-    speed: (speed: number) => `replay-speed-${speed}`,
+    speedToggle: "replay-speed",
     clock: "replay-clock",
     progress: "replay-progress",
     announcement: "replay-announcement",
@@ -200,6 +207,8 @@ export const testIds = {
     outcomeSummary: "replay-outcome-summary",
     outcomeFollowed: "replay-outcome-followed",
     outcomeCounterpart: "replay-outcome-counterpart",
+    // 結末の下で最後の判断を開き直す。aria-expanded に開閉を出す
+    lastJudgmentToggle: "replay-last-judgment-toggle",
   },
   // 見つからない頁と、思わぬエラーの画面。data-kind に notFound / error を出す
   status: {

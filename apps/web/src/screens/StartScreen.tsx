@@ -31,7 +31,7 @@ import {
   type MapSegment,
   type MapStop,
 } from "@/features/entry/EntryMap";
-import { DemoDock, LocationSearch, PromptCard } from "@/features/entry/EntryOverlays";
+import { DemoDock, LocationSearch, PromptCard, StartIntro } from "@/features/entry/EntryOverlays";
 import { EntrySheet } from "@/features/entry/EntrySheet";
 import {
   type AnsweredItem,
@@ -66,6 +66,7 @@ import {
   resolveConfiguredArea,
 } from "@/features/entry/entry-places";
 import {
+  type EntryStage,
   initialEntryState,
   reduceEntry,
   selectProgressIndex,
@@ -126,6 +127,7 @@ import {
 import { describePlace, pickStationName } from "@/features/stations/describe";
 import { useCurrentLocation } from "@/features/stations/use-current-location";
 import { desktopMediaQuery, useMediaQuery } from "@/lib/use-media-query";
+import { computeHeaderShift, useSafeArea } from "@/lib/use-safe-area";
 
 // 判断の画面が最初に寄せる大阪駅のまわりの拡大率に近い値
 const handoffZoom = 15.8;
@@ -143,6 +145,8 @@ const lineGapMeters = 700;
 const lineStopMargin = { x: 72, y: 36 };
 
 // 高さを測って地図の余白に使う
+const introDismissedKey = "michiakari:intro-dismissed";
+
 function useElementHeight<T extends HTMLElement>() {
   const [height, setHeight] = useState(0);
   const observerRef = useRef<ResizeObserver | null>(null);
@@ -186,6 +190,9 @@ function useEntryData(): { geo: MapGeoData | null; data: EntryData | null } {
 }
 
 // 入口。大阪を中心にした地図で駅を選び、同じ地図の上のシートで状況まで入れて判断へ渡す
+// 様子を聞く段。地図で選ぶものが無いので、スマートフォンでは地図を出さない
+const situationStages = new Set<EntryStage>(["cause", "causeKind", "elapsed", "resume", "input"]);
+
 export function StartScreen() {
   const t = useTranslations();
   const locale = useLocale();
@@ -218,10 +225,20 @@ export function StartScreen() {
   const [handingOff, setHandingOff] = useState(false);
   const mapApi = useRef<EntryMapApi | null>(null);
   const desktop = useMediaQuery(desktopMediaQuery);
+  const headerShift = computeHeaderShift(useSafeArea());
   const narrow = useMediaQuery("(max-width: 639px)");
   const [promptRef, promptHeight] = useElementHeight<HTMLDivElement>();
   const [dockRef, dockHeight] = useElementHeight<HTMLDivElement>();
   const [sheetHeight, setSheetHeight] = useState(0);
+  // 価値の 3 行。閉じたらこの端末では次から出さない。読み込むまでは出さない
+  const [introOpen, setIntroOpen] = useState(false);
+  useEffect(() => {
+    setIntroOpen(window.localStorage.getItem(introDismissedKey) !== "1");
+  }, []);
+  const closeIntro = useCallback(() => {
+    window.localStorage.setItem(introDismissedKey, "1");
+    setIntroOpen(false);
+  }, []);
   const depth = stageDepth(entry);
   const getDepth = (stage: Parameters<typeof stageDepth>[1]) => stageDepth(entry, stage);
   const [restored, setRestored] = useState(false);
@@ -739,15 +756,18 @@ export function StartScreen() {
   }
 
   const showSheet = entry.stage !== "kansai";
+  const introShownOnSheet = entry.stage === "position" && introOpen;
+  // 端末の上の余白で帯が下がるぶん、地図の上の余白も広げる
+  const mapTop = sheetTopInset + headerShift;
   const insets: MapInsets = desktop
     ? {
-        top: sheetTopInset,
+        top: mapTop,
         right: showSheet ? panelInset : 0,
         bottom: 0,
         left: showSheet ? 0 : leftColumnInset,
       }
     : {
-        top: showSheet ? sheetTopInset : sheetTopInset + promptHeight + 8,
+        top: !showSheet || introShownOnSheet ? mapTop + promptHeight + 8 : mapTop,
         right: 0,
         bottom: showSheet ? sheetHeight : dockHeight,
         left: 0,
@@ -899,14 +919,13 @@ export function StartScreen() {
         onEditDestination={() => goToDepth(getDepth("destination"))}
       />
     ) : null;
+  // 方面は出発の行に出すので、行き先の行では繰り返さない
   const destinationNote =
     destinationBasis === "hub"
       ? t("entry.tripHub")
       : destinationBasis === "terminal"
         ? t("entry.tripTerminal")
-        : direction
-          ? nameDirection(direction)
-          : null;
+        : null;
 
   // ここまでに答えた原因と時間のチップ。押すとその問いまで引いて選び直す
   // 種類まで答えたらその種類、そうでなければ大分類の呼び名
@@ -1184,18 +1203,7 @@ export function StartScreen() {
           entry.stage === "kansai" ? (
             <>
               <div ref={promptRef} className="flex flex-col gap-2">
-                <div
-                  data-testid={testIds.start.intro}
-                  className="glass-strong rounded-[20px] px-4 py-3 text-[14px] leading-snug"
-                >
-                  <p data-testid={testIds.start.introAudience}>{t("start.introAudience")}</p>
-                  <p data-testid={testIds.start.introProblem} className="mt-1 text-muted">
-                    {t("start.introProblem")}
-                  </p>
-                  <p data-testid={testIds.start.introSolution} className="mt-1 font-semibold">
-                    {t("start.introSolution")}
-                  </p>
-                </div>
+                {introOpen && <StartIntro onClose={closeIntro} />}
                 <PromptCard
                   locateStatus={locateStatus}
                   message={locateMessage}
@@ -1211,6 +1219,10 @@ export function StartScreen() {
               </div>
               {desktop && <DemoDock inline />}
             </>
+          ) : entry.stage === "position" && introOpen ? (
+            <div ref={promptRef}>
+              <StartIntro onClose={closeIntro} />
+            </div>
           ) : undefined
         }
       />
@@ -1222,6 +1234,8 @@ export function StartScreen() {
             onBack={handleBack}
             onHeightChange={setSheetHeight}
             compact={linePickable || entry.stage === "direction" || routeStops.length > 0}
+            // 様子を聞く段は地図を使わないので、地図を覆って選択肢を詰めて並べる
+            fill={situationStages.has(entry.stage)}
             progress={progressIndex >= 0 ? <EntryProgress index={progressIndex} /> : null}
           >
             {entry.stage === "area" && entry.area && (
@@ -1278,19 +1292,6 @@ export function StartScreen() {
                 onNearStop={chooseNearStop}
               />
             )}
-            {entry.stage === "cause" && entry.line && direction && (
-              <button
-                type="button"
-                className="min-h-12 truncate text-left text-sm font-semibold"
-                data-testid={testIds.start.routeSummary}
-                onClick={() => dispatch({ type: "editRoute" })}
-              >
-                {t("entry.routeInferred", {
-                  line: locale === "en" ? entry.line.name.en : entry.line.name.ja,
-                  direction: nameDirection(direction),
-                })}
-              </button>
-            )}
             {entry.stage === "cause" && entry.line && (
               <TripCard
                 originName={lineOriginName}
@@ -1301,6 +1302,7 @@ export function StartScreen() {
                       ? t("entry.positionTrain")
                       : null
                 }
+                routeDirection={direction ? nameDirection(direction) : null}
                 destinationName={destinationLabel}
                 destinationNote={destinationNote}
                 line={entry.line}

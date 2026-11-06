@@ -57,6 +57,36 @@ describe("buildChanceChart", () => {
     expect(chart.marks[0]?.tenths).toBe(6);
   });
 
+  it("結論が切り替えなら期限の印を置かず、境目の印だけを残す", () => {
+    const switching = buildChanceChart({
+      chance,
+      breakEvenTime: at("22:46"),
+      nowMs: null,
+      switching: true,
+    });
+    expect(switching.marks.map((m) => m.kind)).toEqual(["breakEven"]);
+    expect(switching.marks[0]?.tenths).toBe(0);
+
+    // 期限が理由で境目と期限が同じ時刻でも、境目の印と期限の見込みは残す
+    const deadlineReason = buildChanceChart({
+      chance: { ...chance, waitFaster: null },
+      breakEvenTime: at("23:45"),
+      nowMs: null,
+      switching: true,
+    });
+    expect(deadlineReason.marks.map((m) => m.kind)).toEqual(["breakEven"]);
+    expect(deadlineReason.marks[0]?.tenths).toBe(6);
+
+    // 待つときは今のまま、期限の印を置く
+    const waiting = buildChanceChart({
+      chance,
+      breakEvenTime: at("22:46"),
+      nowMs: null,
+      switching: false,
+    });
+    expect(waiting.marks.map((m) => m.kind)).toEqual(["breakEven", "resumeBy"]);
+  });
+
   it("軸の外の時刻は端に寄せ、向きを残す。いまが軸の外なら印を置かない", () => {
     const passed = buildChanceChart({ chance, breakEvenTime: at("21:00"), nowMs: ms("22:10") });
     expect(passed.marks[0]).toMatchObject({ kind: "breakEven", x: 0, outside: "before" });

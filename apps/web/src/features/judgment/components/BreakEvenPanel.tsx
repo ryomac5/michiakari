@@ -170,6 +170,7 @@ export function ResumeOutlook(props: BreakEvenProps) {
           now={now}
           showOnset={showOnset}
           relation={relation}
+          switching={timeline?.action === "switch"}
         />
       ) : (
         <>

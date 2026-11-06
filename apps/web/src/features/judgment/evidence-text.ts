@@ -19,10 +19,13 @@ export type EvidenceEntry = {
   phaseName: string | null;
   // いまの段階を指すか
   current: boolean;
+  // この項目にまとめた兆候の id。同じ段階の言葉は 1 項目にまとめる。属性にだけ使う
+  signalIds?: string[];
 };
 
 export type EvidenceLine = {
   id: string;
+  signalIds: string[];
   phaseId: string | null;
   current: boolean;
   heard: string;
@@ -41,7 +44,7 @@ function shortenQuote(quote: string): string {
 }
 
 // 聞いた言葉から根拠の項目を選ぶ。いまの段階の言葉を先に、新しい言葉を先に並べる
-// 同じ引用は 1 つにまとめ、最大 3 つにする
+// 同じ引用と同じ段階は、新しい言葉 1 つにまとめ、最大 3 つにする
 export function selectEvidenceEntries(context: {
   catalog: KnowledgeCatalog;
   estimate: Estimate | null;
@@ -69,11 +72,17 @@ export function selectEvidenceEntries(context: {
     .filter((s) => s.heard.length > 0)
     .reverse();
 
-  const seenQuotes = new Set<string>();
-  const unique = quoted.filter((s) => {
-    if (seenQuotes.has(s.heard)) return false;
-    seenQuotes.add(s.heard);
-    return true;
+  // 同じ引用は 1 つにまとめる。その引用に入っていた兆候の id はすべて残す
+  const distinct = quoted.flatMap((s, index) => {
+    if (quoted.findIndex((t) => t.heard === s.heard) !== index) return [];
+    const signalIds = quoted.filter((t) => t.heard === s.heard).map((t) => t.id);
+    return [{ ...s, signalIds }];
+  });
+  // 同じ段階は、最も新しい言葉 1 項目にまとめる。まとめた兆候の id は属性に残す
+  const unique = distinct.flatMap((s, index) => {
+    if (distinct.findIndex((t) => t.phaseId === s.phaseId) !== index) return [];
+    const signalIds = distinct.filter((t) => t.phaseId === s.phaseId).flatMap((t) => t.signalIds);
+    return [{ ...s, signalIds }];
   });
   const ordered = [
     ...unique.filter((s) => s.phaseId !== null && s.phaseId === currentPhaseId),
@@ -102,12 +111,28 @@ export function selectEvidenceEntries(context: {
   return [
     {
       id: event.id,
+      signalIds: [],
       heard: context.heardCause ?? pickLocalized(event.name, locale),
       phaseId: currentPhaseId,
       phaseName: nameOf(currentPhaseId),
       current: currentPhaseId !== null,
     },
   ];
+}
+
+// 次の段階の兆候を、放送で聞こえる言い回しの例で返す。知見の説明の文は使わない
+// 例は日本語だけなので、英語の画面では空にする。根拠の欄と次に確かめることの欄が同じ並びを引く
+export function listNextSignalPhrases(
+  catalog: KnowledgeCatalog,
+  estimate: Estimate | null,
+  locale: string,
+): string[] {
+  if (locale === "en" || !estimate) return [];
+  const event = findCatalogEvent(catalog, estimate.eventType);
+  if (!event) return [];
+  const index = event.phases.findIndex((p) => p.id === estimate.phaseId);
+  const next = event.phases[index + 1];
+  return (next?.signals ?? []).flatMap((s) => (s.example_phrases[0] ? [s.example_phrases[0]] : []));
 }
 
 // 項目を画面の 2 行の文にする。t は judgment.evidence の訳を引く
@@ -117,6 +142,7 @@ export function buildEvidenceLines(
 ): EvidenceLine[] {
   return entries.map((entry) => ({
     id: entry.id,
+    signalIds: entry.signalIds ?? [],
     phaseId: entry.phaseId,
     current: entry.current,
     heard: t("heardQuote", { quote: entry.heard }),

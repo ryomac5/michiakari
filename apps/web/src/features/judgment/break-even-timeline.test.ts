@@ -136,6 +136,7 @@ describe("期限と判断からの値の選び方", () => {
       remaining: judgment.estimate.remaining,
       firstTrainWaitMinutes: 12,
       deadline: null,
+      action: judgment.action,
     });
     expect(selectTimelineBasis(display.settled, [], null)?.firstTrainWaitMinutes).toBe(0);
     const noRemaining = {

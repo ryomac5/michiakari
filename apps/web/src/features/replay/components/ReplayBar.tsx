@@ -3,11 +3,17 @@
 import { Pause, Play, RotateCcw, SkipBack, SkipForward } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { testIds } from "@/features/judgment/testids";
-import { cn } from "@/lib/utils";
 import { speedChoices } from "../clock";
 import type { ReplayStatus } from "../use-replay-player";
 
-// 上部の帯の下に重ねる小さな再生バー。再生・一時停止、次の発表、時刻と進捗、速度
+// 速度の候補の中で、いまの次の速度。最後の次は最初に戻る
+function selectNextSpeed(speeds: readonly number[], speed: number): number {
+  const index = speeds.indexOf(speed);
+  return speeds[(index + 1) % speeds.length] ?? speed;
+}
+
+// 上部の帯の中に置く再生の操作。再生・一時停止、次の発表、時刻と進捗、速度
+// 帯を 1 本にまとめて地図を広く残す。進捗は帯の下端の細い線で示す
 export function ReplayBar({
   status,
   clockLabel,
@@ -45,7 +51,7 @@ export function ReplayBar({
       data-testid={testIds.replay.bar}
       data-state={status}
       aria-label={t("bar")}
-      className="glass pointer-events-auto relative flex h-14 w-full items-center gap-0.5 overflow-hidden rounded-2xl px-1.5"
+      className="flex min-w-0 flex-1 items-center gap-0.5"
     >
       <button
         type="button"
@@ -87,10 +93,10 @@ export function ReplayBar({
         <SkipBack strokeWidth={1.75} aria-hidden />
       </button>
 
-      <div className="flex min-w-0 flex-1 flex-col items-start pl-1.5 leading-none">
+      <div className="flex min-w-[3.25rem] flex-1 flex-col items-start pl-1 leading-none">
         <p
           data-testid={testIds.replay.clock}
-          className="text-[17px] font-bold tracking-tight tabular-nums"
+          className="text-[15px] font-bold tracking-tight tabular-nums"
         >
           <span className="sr-only">{t("clock")} </span>
           {clockLabel}
@@ -99,37 +105,29 @@ export function ReplayBar({
           data-testid={testIds.replay.progress}
           data-entered={enteredCount}
           data-total={total}
-          className="mt-1 text-[11px] text-muted tabular-nums"
+          className="mt-0.5 text-[11px] text-muted tabular-nums"
         >
           <span className="sr-only">{t("announcements")} </span>
           {t("progress", { count: enteredCount, total })}
         </p>
       </div>
 
-      <fieldset
-        aria-label={t("speed")}
-        className="flex shrink-0 rounded-full bg-foreground/[0.06] p-0.5"
+      {/* 速度は 1 つのボタンで順に切り替える。押せる範囲を 44px に保ったまま帯に収める */}
+      <button
+        type="button"
+        data-testid={testIds.replay.speedToggle}
+        data-speed={speed}
+        aria-label={`${t("speed")} ${speed}x`}
+        title={t("speed")}
+        onClick={() => onChangeSpeed(selectNextSpeed(speeds, speed))}
+        className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-foreground/[0.06] text-[13px] font-semibold tabular-nums transition-colors hover:bg-foreground/[0.1]"
       >
-        {speeds.map((s) => (
-          <button
-            key={s}
-            type="button"
-            data-testid={testIds.replay.speed(s)}
-            aria-pressed={s === speed}
-            onClick={() => onChangeSpeed(s)}
-            className={cn(
-              "h-11 min-w-9 rounded-full px-1.5 text-[12px] font-semibold text-muted tabular-nums transition-colors",
-              s === speed && "bg-surface text-foreground shadow-sm",
-            )}
-          >
-            {s}x
-          </button>
-        ))}
-      </fieldset>
+        {speed}x
+      </button>
 
-      {/* 進捗は下端の細い線で示す */}
+      {/* 進捗は帯の下端の細い線で示す */}
       <div
-        className="absolute inset-x-3 bottom-0 h-[3px] overflow-hidden rounded-full bg-foreground/[0.06]"
+        className="absolute inset-x-4 bottom-0 h-[3px] overflow-hidden rounded-full bg-foreground/[0.06]"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}

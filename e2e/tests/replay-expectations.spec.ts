@@ -74,7 +74,12 @@ async function checkExpectation(page: Page, expectation: Expectation): Promise<v
       "data-evidence-ids",
       new RegExp(`(^| )${id}( |$)`),
     );
-    await expect(page.getByTestId(testIds.judgment.evidenceItem(id)).first(), label).toBeVisible();
+    // 同じ段階の言葉は 1 項目にまとまる。その兆候をまとめた項目が見えることを確かめる
+    const item = page
+      .getByTestId(testIds.judgment.evidence)
+      .locator(`li[data-signal-ids~="${id}"]`);
+    await expect(item, label).toHaveCount(1);
+    await expect(item, label).toBeVisible();
   }
   if (expectation.break_even_shown !== undefined) {
     const breakEven = page.getByTestId(testIds.judgment.breakEven);
@@ -133,7 +138,7 @@ for (const scenario of scenarios) {
       await openReplay(page, scenario.id, testSpeed);
       const bar = page.getByTestId(testIds.replay.bar);
       let previousAction: string | null = null;
-      let previousChance = ja.judgment.change.notCalculated;
+      let previousChance: string | null = null;
 
       for (const [index, entry] of scenario.timeline.entries()) {
         await page.getByTestId(testIds.replay.nextButton).click();
@@ -164,13 +169,34 @@ for (const scenario of scenarios) {
         const currentChance =
           (await chance.count()) > 0
             ? ((await chance.locator("dd").textContent())?.trim() ?? "")
-            : ja.judgment.change.notCalculated;
+            : null;
         if (previousAction !== null && previousAction !== currentAction) {
           await expect(change).toHaveAttribute("data-from", previousAction);
           await expect(change).toHaveAttribute("data-to", currentAction ?? "");
-          await expect(page.getByTestId(testIds.judgment.changeProbability)).toHaveText(
-            `${previousChance} → ${currentChance}`,
+          // 放送、そこから読めること、判断の前後の順に並ぶ
+          const reading = page.getByTestId(testIds.judgment.changeReading);
+          await expect(reading).toBeVisible();
+          await expect(reading).toContainText(ja.judgment.evidence.reading.label);
+          await expect(reading).toHaveAttribute("data-phase-id", /.+/);
+          const order = await change.evaluate((el) =>
+            [...el.querySelectorAll("[data-testid]")].map((c) => c.getAttribute("data-testid")),
           );
+          expect(order.indexOf(testIds.judgment.changeAnnouncement)).toBeLessThan(
+            order.indexOf(testIds.judgment.changeReading),
+          );
+          expect(order.indexOf(testIds.judgment.changeReading)).toBeLessThan(
+            order.indexOf(testIds.judgment.changeBefore),
+          );
+          // 前の値が無ければ後の値だけを出し、「未算出」は出さない
+          await expect(change).not.toContainText("未算出");
+          const probability = page.getByTestId(testIds.judgment.changeProbability);
+          if (currentChance === null) {
+            await expect(probability).toHaveCount(0);
+          } else {
+            await expect(probability).toHaveText(
+              previousChance === null ? currentChance : `${previousChance} → ${currentChance}`,
+            );
+          }
         } else {
           await expect(change).toHaveCount(0);
         }
@@ -226,9 +252,9 @@ for (const scenario of scenarios) {
     }) => {
       await recordJudgedObservations(page);
       await openReplay(page, scenario.id, testSpeed);
-      await expect(page.getByTestId(testIds.replay.speed(testSpeed))).toHaveAttribute(
-        "aria-pressed",
-        "true",
+      await expect(page.getByTestId(testIds.replay.speedToggle)).toHaveAttribute(
+        "data-speed",
+        String(testSpeed),
       );
 
       await page.getByTestId(testIds.replay.playButton).click();

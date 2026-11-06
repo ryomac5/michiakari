@@ -68,6 +68,8 @@ export type GuideStation = {
   recommended: boolean;
   // 推奨の選択肢が最初に乗る駅。おすすめの星を付ける
   starred: boolean;
+  // 待つ判断で、動かなかったときの経路が最初に乗る駅。「動かなければ」の札を付ける
+  fallback: boolean;
   // 吹き出しを押したときに移る選択肢。推奨を優先する
   optionId: string | null;
 };
@@ -116,6 +118,8 @@ export type StationGuideInput = {
   recommendedOptionId: string | null;
   // おすすめの星を付ける選択肢。省略時は recommendedOptionId
   starOptionId?: string | null;
+  // 待つ判断で、動かなかったときに乗る選択肢。乗る駅に「動かなければ」の吹き出しを出す
+  fallbackOptionId?: string | null;
   // 駅間の車内。現在地の印を来た側の駅と次の駅のあいだの線路の上に置く。label は「大阪〜塚本の間」
   between?: { previousStation: string; nextStation: string; label: string } | null;
   // 止まった列車が走っていた線路の折れ線。駅間の現在地を線路の上に置くのに使う
@@ -351,6 +355,10 @@ export function buildStationGuide(
   const starId = input.starOptionId === undefined ? input.recommendedOptionId : input.starOptionId;
   const star = input.options.find((o) => o.id === starId);
   const starBoarding = star ? findBoardingLeg(star) : undefined;
+  const fallbackOption = input.options.find(
+    (o) => o.id === input.fallbackOptionId && o.id !== starId && o.kind !== "wait",
+  );
+  const fallbackBoarding = fallbackOption ? findBoardingLeg(fallbackOption) : undefined;
   const boardings = input.options.flatMap((o) => {
     const leg = findBoardingLeg(o);
     return leg?.fromStationId ? [{ option: o, leg, stationId: leg.fromStationId }] : [];
@@ -384,6 +392,15 @@ export function buildStationGuide(
       recommendedBoarding?.fromStationId !== undefined &&
       recommendedBoarding.fromStationId !== null &&
       station.stationIds.includes(recommendedBoarding.fromStationId);
+    const starred =
+      starBoarding?.fromStationId != null &&
+      station.stationIds.includes(starBoarding.fromStationId);
+    const isFallback =
+      !starred &&
+      fallbackBoarding?.fromStationId != null &&
+      station.stationIds.includes(fallbackBoarding.fromStationId);
+    // 吹き出しに出す乗り方。描く経路の駅は描く経路の、動かなければの駅はその経路の乗り方にする
+    const routeOption = isRecommended ? recommended : isFallback ? fallbackOption : undefined;
     return [
       {
         key: station.key,
@@ -398,14 +415,10 @@ export function buildStationGuide(
         walkSource: walk.source,
         transferService: lines.some((l) => l.transferService),
         recommended: isRecommended,
-        starred:
-          starBoarding?.fromStationId != null &&
-          station.stationIds.includes(starBoarding.fromStationId),
-        route:
-          isRecommended && recommended
-            ? buildGuideRoute(geo, recommended, input, transferLineIds)
-            : null,
-        optionId: isRecommended ? (recommended?.id ?? null) : (boardingHere[0]?.option.id ?? null),
+        starred,
+        fallback: isFallback,
+        route: routeOption ? buildGuideRoute(geo, routeOption, input, transferLineIds) : null,
+        optionId: routeOption?.id ?? boardingHere[0]?.option.id ?? null,
       },
     ];
   });
@@ -494,14 +507,23 @@ export function buildStationGuide(
   };
 }
 
-// 隠さずに出す札。現在地、降りる駅、地図に描く経路の駅、おすすめの星の駅
+// 大きな吹き出しで出す駅。地図に描く経路の駅と、待つ判断で動かなかったときに乗る駅
+export function checkFeaturedStation(
+  station: Pick<GuideStation, "recommended" | "fallback">,
+): boolean {
+  return station.recommended || station.fallback;
+}
+
+// 隠さずに出す札。現在地、降りる駅、地図に描く経路の駅、おすすめの星の駅、動かなければの駅
 export function listRequiredLabelKeys(
-  stations: readonly Pick<GuideStation, "key" | "recommended" | "starred">[],
+  stations: readonly Pick<GuideStation, "key" | "recommended" | "starred" | "fallback">[],
 ): string[] {
   return [
     "here",
     "alight",
-    ...stations.filter((station) => station.recommended || station.starred).map((s) => s.key),
+    ...stations
+      .filter((station) => checkFeaturedStation(station) || station.starred)
+      .map((s) => s.key),
   ];
 }
 
@@ -512,7 +534,12 @@ export type DockedStationRow = { key: string; optionId: string | null; text: str
 export function listDockedStationRows(
   stations: readonly GuideStation[],
   docked: readonly string[],
-  labels: { recommended: string; shown?: string | null; walk: (minutes: number) => string },
+  labels: {
+    recommended: string;
+    fallback?: string;
+    shown?: string | null;
+    walk: (minutes: number) => string;
+  },
 ): DockedStationRow[] {
   return stations
     .filter((station) => docked.includes(station.key))
@@ -522,6 +549,7 @@ export function listDockedStationRows(
       text: [
         ...(labels.shown && station.recommended ? [labels.shown] : []),
         ...(station.starred ? [labels.recommended] : []),
+        ...(station.fallback && labels.fallback ? [labels.fallback] : []),
         station.name,
         ...station.lines.map((line) => line.name),
         labels.walk(station.walkMinutes),

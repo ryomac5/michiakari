@@ -12,6 +12,8 @@ export const mapTestIds = {
   viewToggle: "judgment-map-view-toggle",
   // 乗り換え候補の駅の吹き出し。data-recommended・data-status・data-walk-minutes を出す
   station: (key: string) => `judgment-map-station-${key}`,
+  // 待つ判断で、動かなかったときに乗る駅の吹き出しに付ける「動かなければ」の札
+  fallbackTag: "judgment-map-fallback-tag",
   here: "judgment-map-here",
   // 駅間の車内の人に出す、次に降りる駅の印
   alight: "judgment-map-alight",

@@ -70,12 +70,11 @@ for (const theme of ["light", "dark"] as const) {
       const waitFaster = page.getByTestId(testIds.judgment.resumeChanceWaitFaster);
       await expect(waitFaster).toHaveAttribute("data-tenths", "0");
       await expect(waitFaster).toContainText("1割未満");
-      // 期限があるので、待って期限に間に合う見込みも出る
-      await expect(page.getByTestId(testIds.judgment.resumeChanceWaitOnTime)).toBeVisible();
-      // 間に合うための再開の時刻は、到着の期限と取り違えない名前で示す
+      // 切り替えの判断では、期限の印と期限の文を出さず、境目の印だけを残す。待てそうに読めるため
       const resumeBy = page.getByTestId(testIds.judgment.resumeChanceResumeBy);
-      await expect(resumeBy).toHaveText(/^\d{2}:\d{2}までに動けば間に合う$/);
-      await expect(resumeBy).not.toContainText("期限");
+      await expect(page.getByTestId(testIds.judgment.resumeChanceDeadline)).toHaveCount(0);
+      await expect(resumeBy).toHaveCount(0);
+      await expect(page.getByTestId(testIds.judgment.resumeChanceWaitOnTime)).toHaveCount(0);
 
       const ticks = await readTicks(page);
       expect(ticks.length).toBeGreaterThanOrEqual(4);
@@ -117,6 +116,11 @@ for (const theme of ["light", "dark"] as const) {
         "data-action",
         "wait",
       );
+      // 待つ判断では、期限に間に合うための再開の時刻を、到着の期限と取り違えない名前で示す
+      await expect(page.getByTestId(testIds.judgment.resumeChanceDeadline)).toBeAttached();
+      await expect(page.getByTestId(testIds.judgment.resumeChanceWaitOnTime)).toBeVisible();
+      await expect(resumeBy).toHaveText(/^\d{2}:\d{2}までに動けば間に合う$/);
+      await expect(resumeBy).not.toContainText("期限");
       const later = await readTicks(page);
       const laterTenths = Number(await waitFaster.getAttribute("data-tenths"));
       expect(laterTenths).toBeGreaterThanOrEqual(5);
