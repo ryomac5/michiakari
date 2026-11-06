@@ -323,10 +323,54 @@ test.describe("地図と一覧の同期", () => {
     await waitForMapStill(page);
     const segments = page.locator("[data-testid^='start-map-segment-']");
     await expect.poll(() => segments.count()).toBeGreaterThan(1);
-    // 押すのは線の上。丸の押せる範囲が取れないときも、線を押せば選べる
+    // 引いた地図で丸の押せる範囲が取れないときは、丸を押すとまずそこへ寄せる
+    if ((await selected.getAttribute("data-mode")) === "approach") {
+      const far = await selected.locator("[data-segment-dot]").boundingBox();
+      if (!far) throw new Error("駅の間の印がありません");
+      await page.mouse.click(far.x + far.width / 2, far.y + far.height / 2);
+      await waitForMapStill(page);
+      await expectStage(page, "trainPosition");
+    }
+    await expect(selected).toHaveAttribute("data-mode", "pick");
     const dot = await selected.locator("[data-segment-dot]").boundingBox();
     if (!dot) throw new Error("駅の間の印がありません");
     await page.mouse.click(dot.x + dot.width / 2, dot.y + dot.height / 2);
+    await expectStage(page, "destination");
+  });
+});
+
+test.describe("引いた地図の駅の間", () => {
+  test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+
+  test("引いた地図で駅の間の丸を押すと、隣の駅は選ばれず、そこへ寄ってから選べる", async ({
+    page,
+  }) => {
+    await page.goto("/?mock=1");
+    await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
+      timeout: 30_000,
+    });
+    await chooseTrainDirection(page, "JR環状線", "寺田町");
+    await waitForMapStill(page);
+    const map = page.getByTestId(testIds.start.map);
+    const selected = page.locator("[data-testid^='start-map-segment-'][data-selected='true']");
+    await expect(selected).toHaveCount(1);
+    // 引いた地図では丸が駅の印に重なり、選ぶ押せる丸は取れない。丸は押して寄せる
+    await expect(selected).toHaveAttribute("data-mode", "approach");
+    const before = Number(await map.getAttribute("data-zoom"));
+    const dot = await selected.locator("[data-segment-dot]").boundingBox();
+    if (!dot) throw new Error("駅の間の印がありません");
+    await page.mouse.click(dot.x + dot.width / 2, dot.y + dot.height / 2);
+    await waitForMapStill(page);
+    // 隣の駅は選ばれず、駅の間の段のまま寄る
+    await expectStage(page, "trainPosition");
+    expect(Number(await map.getAttribute("data-zoom"))).toBeGreaterThan(before);
+    await expect(selected).toHaveAttribute("data-mode", "pick");
+    mkdirSync(screenshotDir, { recursive: true });
+    await page.screenshot({ path: `${screenshotDir}segment-track-390x844.png` });
+    // 寄った地図では、丸を押すとその駅の間にいるとして行き先へ進む
+    const near = await selected.locator("[data-segment-dot]").boundingBox();
+    if (!near) throw new Error("駅の間の印がありません");
+    await page.mouse.click(near.x + near.width / 2, near.y + near.height / 2);
     await expectStage(page, "destination");
   });
 });

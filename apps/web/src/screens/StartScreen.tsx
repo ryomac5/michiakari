@@ -83,7 +83,9 @@ import {
 } from "@/features/entry/gps-candidates";
 import { inferEntryRoutes, listTrainLines } from "@/features/entry/infer-route";
 import {
+  buildSegmentPath,
   computeMidpoint,
+  computePathMidpoint,
   findNearestSegment,
   isOnRoute,
   listLinePicks,
@@ -843,21 +845,25 @@ export function StartScreen() {
     [entry.stage, trainStops, currentSegmentIndex],
   );
   const lineColor = entry.line?.color ?? "#626264";
+  // 駅の間の点線と丸は、地図で路線を描く線路の形に沿わせる
+  const segmentTrack = entry.line ? geo?.trackShapes?.get(entry.line.lineId) : undefined;
   const mapSegments = useMemo<MapSegment[]>(
     () =>
-      segmentPicks.map((s) => ({
-        key: `${s.from.choice.id}~${s.to.choice.id}`,
-        label: t("entry.segmentLabel", {
-          from: pickStationName(s.from.choice, locale),
-          to: pickStationName(s.to.choice, locale),
-        }),
-        position: computeMidpoint(s.from.position, s.to.position),
-        from: s.from.position,
-        to: s.to.position,
-        color: lineColor,
-        selected: s.index === currentSegmentIndex,
-      })),
-    [segmentPicks, currentSegmentIndex, lineColor, locale, t],
+      segmentPicks.map((s) => {
+        const path = buildSegmentPath(segmentTrack, s.from.position, s.to.position);
+        return {
+          key: `${s.from.choice.id}~${s.to.choice.id}`,
+          label: t("entry.segmentLabel", {
+            from: pickStationName(s.from.choice, locale),
+            to: pickStationName(s.to.choice, locale),
+          }),
+          position: computePathMidpoint(path) ?? computeMidpoint(s.from.position, s.to.position),
+          path,
+          color: lineColor,
+          selected: s.index === currentSegmentIndex,
+        };
+      }),
+    [segmentPicks, segmentTrack, currentSegmentIndex, lineColor, locale, t],
   );
   // 地図の札で選べる路線。行き先の段では駅の全部の路線、路線の段では一覧と同じ路線
   const pickLines =

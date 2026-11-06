@@ -27,6 +27,8 @@ import type { EntryArea, EntryHub, EntryPlace, Position } from "./entry-places";
 import { pickLocalized, pickPlaceName } from "./entry-places";
 import type { EntryStage } from "./flow";
 import {
+  computeSegmentApproachRadii,
+  computeSegmentApproachZoom,
   computeSegmentHitRadii,
   findNearestLineId,
   measurePathDistance,
@@ -80,12 +82,12 @@ export type MapStop = {
 };
 
 // 車内の駅の間。中ほどの丸を押すと、その駅の間を選ぶ
+// path は線路の形に沿った駅の間の線、position はその中ほどの点
 export type MapSegment = {
   key: string;
   label: string;
   position: Position;
-  from: Position;
-  to: Position;
+  path: Position[];
   color: string;
   selected: boolean;
 };
@@ -436,7 +438,10 @@ export function EntryMap(props: EntryMapProps) {
   const [stopRadii, setStopRadii] = useState<Record<string, number>>({});
   // 選んだ駅の押せる丸の半径。札の印と押せる範囲がぶつからない大きさにする
   const [placeHitRadius, setPlaceHitRadius] = useState(24);
-  const [segmentRadii, setSegmentRadii] = useState<{ key: string; radius: number }[]>([]);
+  // radius は選べる押せる丸の半径。0 なら引いた地図で丸が取れず、approach の半径で押して寄せる
+  const [segmentRadii, setSegmentRadii] = useState<
+    { key: string; radius: number; approach: number }[]
+  >([]);
   const hereLabel = t("here");
   const [zoom, setZoom] = useState(0);
   // 地図の中心。倍率と合わせて、e2e が緯度経度から画面の点を求めるのに使う
@@ -538,7 +543,7 @@ export function EntryMap(props: EntryMapProps) {
             type: "Feature" as const,
             geometry: {
               type: "LineString" as const,
-              coordinates: [selectedSegment.from, selectedSegment.to],
+              coordinates: selectedSegment.path,
             },
             properties: {},
           },
@@ -788,14 +793,24 @@ export function EntryMap(props: EntryMapProps) {
         segments.map((segment) => map.project(segment.position)),
         markers,
       );
-      // 押せる丸が取れない駅の間も印は出し、線を押して選べるようにする
+      // 押せる丸が取れない駅の間は、丸を押すとまずそこへ寄せる。下の駅の押せる丸に押させない
+      const approachRadii = computeSegmentApproachRadii(
+        segments.map((segment) => map.project(segment.position)),
+        markers.map((m) => m.point),
+      );
       const targets = segments.map((segment, i) => ({
         key: segment.key,
         radius: segmentRadiiNext[i] ?? 0,
+        approach: approachRadii[i] ?? 0,
       }));
       setSegmentRadii((prev) =>
         prev.length === targets.length &&
-        prev.every((t, i) => t.key === targets[i]?.key && t.radius === targets[i]?.radius)
+        prev.every(
+          (t, i) =>
+            t.key === targets[i]?.key &&
+            t.radius === targets[i]?.radius &&
+            t.approach === targets[i]?.approach,
+        )
           ? prev
           : targets,
       );
@@ -839,6 +854,34 @@ export function EntryMap(props: EntryMapProps) {
       map.off("moveend", end);
     };
   }, [map]);
+
+  // 引いた地図で駅の間の丸を押したとき。駅は選ばず、丸が押せる大きさになるまでそこへ寄せる
+  // 最初の段で引いた地図の線を押したときと同じく、まず寄せてから選ばせる
+  const approachSegment = (segment: MapSegment) => {
+    if (!map) return;
+    userMovedRef.current = true;
+    lastSceneRef.current = sceneKey;
+    const point = map.project(segment.position);
+    const markerPoints = [
+      ...(place ? [map.project(place.position)] : []),
+      ...visibleStops.map((s) => map.project(s.position)),
+    ];
+    const otherPoints = segments
+      .filter((s) => s.key !== segment.key)
+      .map((s) => map.project(s.position));
+    map.flyTo({
+      center: segment.position,
+      zoom: computeSegmentApproachZoom({
+        zoom: map.getZoom(),
+        point,
+        markerPoints,
+        otherPoints,
+        maxZoom: map.getMaxZoom(),
+      }),
+      offset: buildOffset({ top, right, bottom, left }),
+      duration: prefersReducedMotion() ? 0 : durationMs,
+    });
+  };
 
   props.apiRef.current = {
     approach: (targetArea, point) => {
@@ -937,9 +980,11 @@ export function EntryMap(props: EntryMapProps) {
   ]);
   const hosts = useMarkerHosts(map, markerClass, entries);
   // 印は込み合うので、四角い入れ物は触れず、丸いボタンと札だけが押せるようにする
+  // 駅の間の丸は駅の印より手前に置き、重なっても丸を押せるようにする
   useEffect(() => {
     for (const [key, element] of hosts) {
       if (key !== "destination") element.style.pointerEvents = "none";
+      if (key.startsWith("segment:")) element.style.zIndex = "1";
     }
   }, [hosts]);
   const side = narrow ? "narrow" : "wide";
@@ -997,16 +1042,20 @@ export function EntryMap(props: EntryMapProps) {
         }
         if (key.startsWith("segment:")) {
           const segment = segments.find((s) => `segment:${s.key}` === key);
-          const radius = segmentRadii.find((r) => `segment:${r.key}` === key)?.radius;
-          if (!segment || radius === undefined) return null;
+          const target = segmentRadii.find((r) => `segment:${r.key}` === key);
+          if (!segment || !target) return null;
+          const pickable = target.radius > 0;
           return createPortal(
             <SegmentMarker
               segmentKey={segment.key}
               label={segment.label}
               color={segment.color}
               selected={segment.selected}
-              hitRadius={radius}
-              onSelect={() => props.onSelectSegment(segment.key)}
+              hitRadius={target.radius}
+              approachRadius={pickable ? 0 : target.approach}
+              onSelect={() =>
+                pickable ? props.onSelectSegment(segment.key) : approachSegment(segment)
+              }
             />,
             element,
             key,
