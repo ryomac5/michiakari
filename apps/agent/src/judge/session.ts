@@ -1,4 +1,12 @@
-import type { BreakEven, Evidence, Lang, ProgressStage, ResumeChance } from "@repo/schema";
+import { resolveStopScope, type StopScope } from "@repo/core";
+import type {
+  BreakEven,
+  Evidence,
+  InCarGuide,
+  Lang,
+  ProgressStage,
+  ResumeChance,
+} from "@repo/schema";
 import type { z } from "zod";
 import { selectEventType } from "../domain/phase.ts";
 import { ComputeBreakEvenInputSchema, runComputeBreakEven } from "../tools/compute-break-even.ts";
@@ -17,6 +25,7 @@ import {
 } from "../tools/types.ts";
 import { collectAllowedNumbers, type JudgmentToolResults, validateJudgment } from "./assemble.ts";
 import type { EventSink, JudgmentEventBody } from "./event-sink.ts";
+import { buildInCarGuide, checkInCarBetweenStations } from "./in-car.ts";
 import {
   buildBreakEvenSentence,
   buildDeadlineBreakEvenSentence,
@@ -48,6 +57,10 @@ export type JudgeSession = {
   emitProgress(stage: ProgressStage | undefined, message?: string): Promise<void>;
   // 兆候のイベントで使う事象種別（観測の候補から決める）
   inferredEventType: string | null;
+  // 駅間の車内の人への案内。駅にいる人なら null
+  buildInCarGuide(results: JudgmentToolResults): InCarGuide | null;
+  // 止まり方。その列車だけが止まる事象か、区間を止める事象か
+  resolveStopScope(): StopScope;
 };
 
 // 英語の利用者向けの兆候の根拠。知見の説明は日本語だけなので、引用・段階の英語名・兆候 id で組み立てる
@@ -69,6 +82,8 @@ function presentEstimate(r: EstimateToolResult, language: Lang) {
   const { remainingSamples: _samples, ...rest } = r;
   return {
     ...rest,
+    // 止まり方。train ならその列車だけが止まっていて、区間の運転見合わせではない
+    stopScope: resolveStopScope(r.estimate.eventType),
     labels: {
       phaseStartedAt: formatOptional(r.phaseStartedAt, language),
       statedResumeTime: formatOptional(r.statedResumeTime, language),
@@ -77,14 +92,22 @@ function presentEstimate(r: EstimateToolResult, language: Lang) {
       // 駅間の車内なら、ホームに着ける駅に着く見込みの時刻
       alightArrivalP50: formatOptional(r.trainQueue?.arrival?.p50 ?? null, language),
       alightArrivalP80: formatOptional(r.trainQueue?.arrival?.p80 ?? null, language),
+      // 駅間の車内なら、自分の列車が動き出す見込みの時刻
+      ownDepartureP50: formatOptional(r.trainQueue?.departure?.p50 ?? null, language),
+      ownDepartureP80: formatOptional(r.trainQueue?.departure?.p80 ?? null, language),
     },
   };
 }
 
-function presentAlternatives(r: AlternativesToolResult, language: Lang) {
+// 駅間の車内の人に添える注記。選択肢は着いた後の次の一手を選ぶ比較にだけ使う
+const IN_CAR_ALTERNATIVES_NOTE =
+  "利用者は駅間の車内にいて降りられない。この選択肢はいまの選択肢として示さず、切り替えも勧めない。着いた後の次の一手はサーバーが決めて画面に出す";
+
+function presentAlternatives(r: AlternativesToolResult, language: Lang, inCar: boolean) {
   return {
     ...r,
     options: r.options.map((o) => ({ ...o, arrivalLabel: formatClock(o.arrivalTime, language) })),
+    ...(inCar ? { inCarNote: IN_CAR_ALTERNATIVES_NOTE } : {}),
   };
 }
 
@@ -136,7 +159,25 @@ function presentResumeChance(chance: ResumeChance | null | undefined, language: 
   };
 }
 
+// 駅間の車内の人に添える注記。境目は利用者に見せず、結論にも使わない
+const IN_CAR_BREAK_EVEN_NOTE =
+  "利用者は駅間の車内にいる。境目は画面に出さず、結論は車内で待つ。headline と reason に境目と切り替え先を書かない";
+
 function presentBreakEven(
+  r: BreakEvenToolResult,
+  alternatives: AlternativesToolResult | null,
+  language: Lang,
+  inCar: boolean,
+) {
+  if (inCar)
+    return {
+      ...presentBreakEvenBody(r, alternatives, language),
+      inCarNote: IN_CAR_BREAK_EVEN_NOTE,
+    };
+  return presentBreakEvenBody(r, alternatives, language);
+}
+
+function presentBreakEvenBody(
   r: BreakEvenToolResult,
   alternatives: AlternativesToolResult | null,
   language: Lang,
@@ -204,6 +245,8 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
   const state = createToolState();
   const language = ctx.request.language;
   const inferredEventType = selectEventType(ctx.observations, ctx.content.knowledge);
+  // 駅間の車内の人には、選択肢の一覧と境目を画面へ送らない
+  const inCar = checkInCarBetweenStations(ctx.request);
 
   function parseInput<S extends z.ZodType>(schema: S, input: unknown): z.infer<S> | ToolOutcome {
     const parsed = schema.safeParse(input ?? {});
@@ -233,7 +276,7 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
   }
 
   async function runAlternatives(input: unknown): Promise<ToolOutcome> {
-    if (state.alternatives) return cached(presentAlternatives(state.alternatives, language));
+    if (state.alternatives) return cached(presentAlternatives(state.alternatives, language, inCar));
     if (!state.estimate) {
       return {
         isError: true,
@@ -244,13 +287,13 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     if (isOutcome(parsed)) return parsed;
     const result = await runFindAlternatives(ctx, state.estimate, parsed);
     state.alternatives = result;
-    await sink.emit({ type: "alternatives_computed", options: result.options });
-    return { isError: false, content: presentAlternatives(result, language) };
+    await sink.emit({ type: "alternatives_computed", options: inCar ? [] : result.options });
+    return { isError: false, content: presentAlternatives(result, language, inCar) };
   }
 
   async function runBreakEven(input: unknown): Promise<ToolOutcome> {
     if (state.breakEven)
-      return cached(presentBreakEven(state.breakEven, state.alternatives, language));
+      return cached(presentBreakEven(state.breakEven, state.alternatives, language, inCar));
     if (!state.estimate || !state.alternatives) {
       return {
         isError: true,
@@ -265,9 +308,12 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     state.breakEven = result;
     await sink.emit({
       type: "break_even_computed",
-      breakEven: buildComputedBreakEven(result, state.alternatives, language),
+      breakEven: inCar ? null : buildComputedBreakEven(result, state.alternatives, language),
     });
-    return { isError: false, content: presentBreakEven(result, state.alternatives, language) };
+    return {
+      isError: false,
+      content: presentBreakEven(result, state.alternatives, language, inCar),
+    };
   }
 
   async function runWeather(input: unknown): Promise<ToolOutcome> {
@@ -385,16 +431,18 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
             : `Until a boardable train: p50 ${r.p50} min, p80 ${r.p80} min`,
       });
     }
-    if (state.alternatives && state.alternatives.options.length > 1) {
+    // 駅間の車内の人には、選択肢の比較と境目を根拠に挙げない。切り替えを勧める説明になるため
+    if (!inCar && state.alternatives && state.alternatives.options.length > 1) {
       refs.push({
         kind: "computation",
         id: "alternatives",
         description: language === "ja" ? "代替手段の到着時刻の比較" : "Comparison of arrival times",
       });
     }
-    const be = state.breakEven
-      ? buildComputedBreakEven(state.breakEven, state.alternatives, language)
-      : null;
+    const be =
+      !inCar && state.breakEven
+        ? buildComputedBreakEven(state.breakEven, state.alternatives, language)
+        : null;
     if (be) refs.push({ kind: "computation", id: "break_even", description: be.explanation });
     return refs;
   }
@@ -417,7 +465,13 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
       language,
       recommendedAlternativeId:
         r.kind === "future" || r.kind === "passed" ? r.bestAlternativeId : null,
+      inCarAlternativeLines: inCar ? listAlternativeLines(results) : null,
+      stopScope: resolveSessionStopScope(),
     });
+  }
+
+  function resolveSessionStopScope(): StopScope {
+    return resolveStopScope(state.estimate?.estimate.eventType ?? inferredEventType);
   }
 
   return {
@@ -428,5 +482,17 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     checkJudgment,
     emitProgress,
     inferredEventType,
+    buildInCarGuide: (results) => buildInCarGuide(ctx.request, results),
+    resolveStopScope: resolveSessionStopScope,
   };
+}
+
+// 代替手段で乗る路線名。待つ経路と同じ路線は除く
+function listAlternativeLines(results: JudgmentToolResults): string[] {
+  const rideLines = (kind: "wait" | "other") =>
+    results.alternatives.options
+      .filter((o) => (o.kind === "wait") === (kind === "wait"))
+      .flatMap((o) => o.legs.flatMap((l) => (l.mode === "ride" && l.line ? [l.line] : [])));
+  const waitLines = new Set(rideLines("wait"));
+  return [...new Set(rideLines("other"))].filter((line) => !waitLines.has(line));
 }

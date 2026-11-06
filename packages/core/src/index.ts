@@ -39,6 +39,11 @@ export {
   TRANSIT_PARAMS_SOURCE,
 } from "../params/transit.ts";
 export { WALK_PARAMS_SOURCE } from "../params/walk.ts";
+export {
+  type AfterAlightInput,
+  checkStaysOnToDestination,
+  selectAfterAlightStep,
+} from "./after-alight.ts";
 export { computeArrival, type LegMinutes, sumLegMinutes } from "./arrival.ts";
 export {
   type AlternativeArrival,
@@ -116,6 +121,7 @@ export {
   roundChanceTenths,
   selectKeyTick,
 } from "./resume-chance.ts";
+export { resolveStopScope, type StopScope } from "./stop-scope.ts";
 export {
   checkNightSurcharge,
   computeTaxiFare,

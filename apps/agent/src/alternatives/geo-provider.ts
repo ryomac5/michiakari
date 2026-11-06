@@ -155,6 +155,17 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
       : null;
   }
 
+  // 止まっている区間を、同じ向きの路線の終わりの駅まで延ばす。向きを引けなければそのまま
+  function extendToDirectionEnd(section: BlockedSection): BlockedSection {
+    const line = geo.getLine(section.lineId);
+    if (!line) return section;
+    const direction = listLineDirections(line, section.fromStationId).find((d) =>
+      d.stationIds.includes(section.toStationId),
+    );
+    const end = direction?.stationIds.at(-1);
+    return end ? { ...section, toStationId: end } : section;
+  }
+
   function resolveBlockedSection(
     query: AlternativesQuery,
     origin: Endpoint,
@@ -166,6 +177,10 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
       const to = resolveStation(section.toStation, query.blockedLine);
       const found = from && to ? findBlockedSection(from, to, query.blockedLine) : null;
       if (found) return found;
+      // 区間の終わりが別の路線の駅なら、区間の始まりから出発地を通って、その向きの終わりまでを止まっている区間にする
+      // 駅間の車内で行き先が別の路線にあるとき、止まっている路線に乗る経路を代替手段に数えない
+      const toOrigin = from ? findBlockedSection(from, origin.station, query.blockedLine) : null;
+      if (toOrigin) return extendToDirectionEnd(toOrigin);
     }
     // 区間が分からなければ、出発地と目的地を結ぶ路線が止まっているとみなす
     return findBlockedSection(origin.station, destination.station, query.blockedLine);

@@ -17,7 +17,7 @@ export const FindAlternativesInputSchema = z.object({
 export const findAlternativesDefinition = {
   name: "find_alternatives",
   description:
-    "現在地・行き先・止まっている区間・時刻から、待つ選択肢と代替手段（振替・徒歩・タクシー）の経路、到着時刻、運賃、徒歩時間をコードで計算する。estimate_phase_and_remaining の後に呼ぶ。",
+    "現在地・行き先・止まっている区間・時刻から、待つ選択肢と代替手段（振替・徒歩・タクシー）の経路、到着時刻、運賃、徒歩時間をコードで計算する。estimate_phase_and_remaining の後に呼ぶ。駅間の車内の利用者なら、次の駅に着く見込みの時刻から探す。その結果はいまの選択肢として示さず、切り替えも勧めない。着いた後の次の一手はサーバーが決める。",
   inputSchema: FindAlternativesInputSchema,
 } as const;
 

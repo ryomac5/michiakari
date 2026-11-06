@@ -202,22 +202,20 @@ export type DecisionTextInput = {
   flow?: { outlook: FlowOutlook; sentence: string; inReason: boolean } | null;
   // 待ったほうが早く着く確率など。理由の最後に 1 文で添える。無ければ添えない
   chance?: ChanceTextInput | null;
-  // 駅間の車内にいる利用者。結論は次の駅に着いてからの行動で書く
-  trainQueue?: TrainQueueText | null;
 };
 
 export type TrainQueueText = {
   // ホームに着けて降りられる駅
   alightStation: string;
   arrivalP50: string | null;
+  // 自分の列車が動き出す見込み。無ければ null
+  departureP50: string | null;
   beforeResume: boolean;
   trainsAheadCount: number;
   // 前の列車をふだんの間隔で先を走っていたとみなしたか。目の前に詰まっているとみなしたなら false
   spacedByHeadway: boolean;
   ownTrainType: ConcreteTrainType;
   delays: readonly TrainQueueDelay[];
-  // 切り替え先で最初に乗る路線名。無ければ手段の種類で呼ぶ
-  switchLine: string | null;
 };
 
 const TRAIN_TYPE_NAMES: Record<ConcreteTrainType, { ja: string; en: string }> = {
@@ -236,47 +234,26 @@ function pickFitting(candidates: readonly string[], max: number): string {
   return candidates.find((c) => [...c].length <= max) ?? candidates.at(-1) ?? "";
 }
 
-// 駅間の車内の見出し。その場で取れる行動の言葉にし、「あと N 分」のような時間の指示は使わない
-function buildTrainQueueHeadline(
-  queue: TrainQueueText,
-  action: "switch" | "wait",
-  target: string,
-  language: Lang,
-): string {
+// 駅間の車内の見出し。結論は車内で待つだけにし、2 文目で動く時刻か次の駅に着く時刻を伝える
+// 詰める動きで再開の前に次の駅に着けるなら着く時刻、そうでなければ動き出す時刻を使う
+function buildInCarHeadline(queue: TrainQueueText, language: Lang): string {
   const ja = language === "ja";
-  const st = queue.alightStation;
+  const lead = ja ? "車内で待つ" : "Stay on board.";
   const max = headlineLimits[language].max;
-  if (action === "wait") {
-    return pickFitting(
-      ja
-        ? [`${st}に着いてもそのまま乗る`, `${st}でも降りずに乗る`]
-        : [`Stay on the train when you reach ${st}.`, `Stay on past ${st}.`],
-      max,
+  const st = queue.alightStation;
+  const candidates: string[] = [];
+  if (queue.beforeResume && queue.arrivalP50) {
+    const time = formatClock(queue.arrivalP50, language);
+    candidates.push(
+      ja ? `${lead}。${st}に着くのは${time}ごろ` : `${lead} Reach ${st} around ${time}.`,
+    );
+  } else if (queue.departureP50) {
+    const time = formatClock(queue.departureP50, language);
+    candidates.push(
+      ja ? `${lead}。動くのは${time}ごろの見込み` : `${lead} Expected to move around ${time}.`,
     );
   }
-  const line = queue.switchLine;
-  if (line) {
-    return pickFitting(
-      ja
-        ? [
-            `${st}に着いたら降りて${line}に乗り換える`,
-            `${st}で降りて${line}へ向かう`,
-            `${st}で降りて乗り換える`,
-          ]
-        : [
-            `When you reach ${st}, get off and change to the ${line}.`,
-            `Get off at ${st} and take the ${line}.`,
-            `Get off at ${st} and change trains.`,
-          ],
-      max,
-    );
-  }
-  return pickFitting(
-    ja
-      ? [`${st}に着いたら降りて${target}に切り替える`, `${st}で降りて${target}へ`]
-      : [`When you reach ${st}, get off and switch to ${target}.`, `Get off at ${st} and switch.`],
-    max,
-  );
+  return pickFitting([...candidates, lead], max);
 }
 
 // 次の駅に着く見込みの一文。種別の事情があればそれを先に言う
@@ -554,16 +531,6 @@ function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-// 切り替えになる理由
-const SWITCH_REASONS: ReadonlySet<DecisionReason> = new Set([
-  "break_even_passed",
-  "estimate_extended",
-  "resume_after_break_even",
-  "resume_mostly_after_break_even",
-  "deadline_risk",
-  "stated_resume_after_break_even",
-]);
-
 // 切り替えの見出し。どの路線に、どこから乗るかを言い切る。上限に収まる最初の形を使う
 function buildSwitchHeadline(input: DecisionTextInput): string {
   const ja = input.language === "ja";
@@ -625,7 +592,6 @@ function buildWaitUntilHeadline(input: DecisionTextInput, plain: string): string
 // 情報が足りなくても「判断できない」とは書かず、いまの最善の一手を言い切る
 function buildDecisionHeadline(input: DecisionTextInput): string {
   const ja = input.language === "ja";
-  const target = nameSwitchTarget(input.bestOption, input.language);
   // 短く終わり見込みの立てやすい事象では、待つ見出しを安心させる言い方にする
   const waitHeadline =
     input.flow?.outlook === "short"
@@ -635,11 +601,6 @@ function buildDecisionHeadline(input: DecisionTextInput): string {
       : ja
         ? "運転再開を待つ"
         : "Wait for service to resume.";
-  // 駅間の車内では、時刻まで待つ・あと何分の形は実行できない。次の駅に着いてからの行動にする
-  if (input.trainQueue) {
-    const action = SWITCH_REASONS.has(input.reason) ? "switch" : "wait";
-    return buildTrainQueueHeadline(input.trainQueue, action, target, input.language);
-  }
   switch (input.reason) {
     case "unknown_event":
     case "low_confidence":
@@ -682,8 +643,7 @@ function buildFlowFollowUp(input: DecisionTextInput, outlook: FlowOutlook): stri
 }
 
 // 見込みが立てやすい事象では、理由の頭に流れの一文を置き、確率があれば最後に 1 文で添える
-// 駅間の車内では、次の駅に着く見込みの一文を頭に置く。上限を超えるなら短い形にし、それでも超えれば外す
-// 駅間の一文は確率の一文より先に残し、確率の一文は流れの一文より先に残す
+// 確率の一文は流れの一文より先に残す
 function composeReason(input: DecisionTextInput): string {
   const base = buildDecisionReason(input);
   const flow = input.flow;
@@ -697,23 +657,6 @@ function composeReason(input: DecisionTextInput): string {
     text !== null && chance !== null ? `${text}${glue}${chance}` : null;
   const present = (texts: (string | null)[]): string[] =>
     texts.filter((text): text is string => text !== null);
-  const queue = input.trainQueue;
-  if (queue) {
-    const note = buildTrainQueueNote(queue, input.language);
-    const short = buildShortTrainQueueNote(queue, input.language);
-    const bodies = present([
-      note && withFlow ? `${note}${glue}${withFlow}` : null,
-      note ? `${note}${glue}${base}` : null,
-      short ? `${short}${glue}${base}` : null,
-      withFlow,
-      base,
-    ]);
-    // 各段で確率を添えた形を先に試し、収まらなければ確率だけを外して次の段へ進む
-    return pickFitting(
-      bodies.flatMap((body) => present([withChance(body), body])),
-      max,
-    );
-  }
   const candidates = present([withChance(withFlow), withChance(base), withFlow]);
   return candidates.find((text) => [...text].length <= max) ?? base;
 }
@@ -721,6 +664,73 @@ function composeReason(input: DecisionTextInput): string {
 // 決定論モードの見出しと理由
 export function buildDecisionText(input: DecisionTextInput): DecisionText {
   return { headline: buildDecisionHeadline(input), reason: composeReason(input) };
+}
+
+// 駅間の車内の理由の最後の手。着く見込みも流れも無いとき
+function buildInCarFallbackReason(language: Lang): string {
+  return language === "ja"
+    ? "車内では列車が動くのを待ちます。"
+    : "On board, wait for the train to move.";
+}
+
+export type InCarTextInput = {
+  language: Lang;
+  queue: TrainQueueText;
+  // 理由に置く流れの一文。知見から見積もっているときだけ
+  flowSentence: string | null;
+};
+
+// 駅間の車内の見出しと理由。切り替えの比較は書かず、次の駅に着く見込みと流れだけを書く
+// 理由は上限に収まる最初の形にする。着く見込みの一文は流れの一文より先に残す
+export function buildInCarDecisionText(input: InCarTextInput): DecisionText {
+  const { language, queue, flowSentence } = input;
+  const glue = language === "ja" ? "" : " ";
+  const note = buildTrainQueueNote(queue, language);
+  const short = buildShortTrainQueueNote(queue, language);
+  const join = (a: string | null, b: string | null) => (a && b ? `${a}${glue}${b}` : null);
+  const candidates = [
+    join(note, flowSentence),
+    note,
+    join(short, flowSentence),
+    short,
+    flowSentence,
+    buildInCarFallbackReason(language),
+  ].filter((text): text is string => text !== null);
+  return {
+    headline: buildInCarHeadline(queue, language),
+    reason: pickFitting(candidates, reasonLimits[language].max),
+  };
+}
+
+// 長く止まったときの一文。線路に降りて歩く案内が出ることもあるので、係員の案内に従うよう添える
+export function buildStaffNote(language: Lang): string {
+  return language === "ja"
+    ? "長く止まったときは係員の案内に従う。"
+    : "If the stop runs long, follow the crew's instructions.";
+}
+
+// 着いた後の次の一手の一文。「福島に着いたら阪神本線へ」。乗る駅が別なら「十三まで歩いて」を挟む
+export function buildAfterAlightText(
+  alightStation: string,
+  step: {
+    kind: "transfer" | "taxi" | "walk";
+    line: string | null;
+    boardStation: string | null;
+  },
+  language: Lang,
+): string {
+  const ja = language === "ja";
+  const st = alightStation;
+  if (step.kind === "taxi") return ja ? `${st}に着いたらタクシーへ` : `At ${st}, take a taxi.`;
+  if (step.kind === "walk") return ja ? `${st}に着いたら歩いて向かう` : `At ${st}, walk there.`;
+  if (!step.line) return ja ? `${st}に着いたら乗り換える` : `At ${st}, change trains.`;
+  const board = step.boardStation && step.boardStation !== st ? step.boardStation : null;
+  if (board) {
+    return ja
+      ? `${st}に着いたら${board}まで歩いて${step.line}へ`
+      : `At ${st}, walk to ${board} for the ${step.line}.`;
+  }
+  return ja ? `${st}に着いたら${step.line}へ` : `At ${st}, change to the ${step.line}.`;
 }
 
 const PROGRESS_MESSAGES: Record<ProgressStage, { ja: string; en: string }> = {
