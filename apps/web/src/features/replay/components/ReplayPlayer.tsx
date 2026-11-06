@@ -1,5 +1,6 @@
 "use client";
 
+import { resolveStopScope } from "@repo/core";
 import { type Action, type RouteOption, resolveDeadline } from "@repo/schema";
 import { ArrowLeft, History, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -96,6 +97,8 @@ export function ReplayPlayer({
   const observations = [...player.observations, ...state.observations];
   const lastWithSection = observations.findLast((o) => o.section !== null);
   const blockedLine = observations.findLast((o) => o.line !== null)?.line ?? scenario.line;
+  // 止まり方はシナリオの事象から引く。その列車だけが止まる事象では見合わせの札と区間の線を出さない
+  const stopScope = resolveStopScope(scenario.event_type);
   const lineLabel = useLineLabel(blockedLine);
   const disclaimerExtra =
     display.judgment?.disclaimer ?? state.previousJudgment?.disclaimer ?? null;
@@ -203,7 +206,7 @@ export function ReplayPlayer({
         }
       >
         <TripChip from={names.from} to={names.to} />
-        <StatusChip line={lineLabel} />
+        <StatusChip line={lineLabel} scope={stopScope} />
       </AppHeader>
 
       <MapPanel
@@ -214,6 +217,7 @@ export function ReplayPlayer({
         selectedOptionId={chosenOptionId}
         blockedSection={started ? (lastWithSection?.section ?? null) : null}
         blockedLine={blockedLine}
+        trainOnly={stopScope === "train"}
         insets={{ ...chrome.insets, top: chrome.insets.top + announcementInset }}
         onReachSourceChange={setReachSource}
         onGuideChange={setGuide}

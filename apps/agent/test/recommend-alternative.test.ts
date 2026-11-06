@@ -1,11 +1,5 @@
 import { addMinutesToIso } from "@repo/core";
-import type {
-  JudgeRequest,
-  Judgment,
-  JudgmentEvent,
-  Observation,
-  TrainPosition,
-} from "@repo/schema";
+import type { JudgeRequest, Judgment, JudgmentEvent, Observation } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { createGeoProvider } from "../src/alternatives/geo-provider.ts";
 import type { AlternativesProvider } from "../src/alternatives/provider.ts";
@@ -13,7 +7,7 @@ import { computeBreakEvenForOptions } from "../src/domain/break-even.ts";
 import { createTestApp, createTestDeps, postJudge } from "./helpers.ts";
 
 // 勧める代替手段の決まり。タクシーは、鉄道の代替が無いときと、鉄道の代替では期限に間に合わないときだけ勧める
-// 駅間の車内の既定の流れ（大阪を出て塚本の手前で止まった夜）で確かめる
+// 塚本の駅にいる人の判断で確かめる。駅間の車内の人には選択肢を並べないため、駅にいる人で見る
 
 const now = "2026-11-05T22:00:00+09:00";
 
@@ -31,23 +25,13 @@ function buildEntryObservation(): Observation {
     eventTypeCandidates: [],
     operator: "JR西日本",
     line: "JR神戸線",
-    section: null,
+    // 大阪から先が止まっている。塚本から来た側の大阪へ戻る経路を代替手段に数えない
+    section: { fromStation: "大阪", toStation: "三ノ宮" },
     statedResumeTime: null,
     transferServiceActive: null,
     detectedSignals: [],
   };
 }
-
-// 入口の既定値。前の列車は運転パターンから推し量った並びで、ふだんの間隔で先を走っていたとみなす
-const defaults: TrainPosition = {
-  kind: "between_stations",
-  nextStation: "塚本",
-  previousStation: "大阪",
-  trainsAhead: ["local", "local", "local"],
-  trainsAheadCount: null,
-  ownTrainType: "local",
-  trainsAheadHeadwayMinutes: 7.5,
-};
 
 function buildRequest(deadline: string | null = null): JudgeRequest {
   return {
@@ -58,7 +42,6 @@ function buildRequest(deadline: string | null = null): JudgeRequest {
     constraints: { deadline, knowsAlternatives: true, mobilityNotes: null },
     language: "ja",
     now,
-    trainPosition: defaults,
   };
 }
 

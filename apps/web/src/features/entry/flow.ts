@@ -13,6 +13,7 @@ import type { GpsSegment } from "./gps-candidates";
 // 原因で人・旅客対応か気象・自然を選んだ人だけ、続けて種類を 1 問聞く
 // 現在地から駅を読み取った人は いまどこ → 行き先 へ進む
 // 駅の間を読み取った人は いまどこ → 行き先 へ進み、進む向きは行き先から決める。決まらなければ方面を聞く
+// 駅にいる人は、行き先の段で先に路線を選べる。そのときは 路線 → 方面 → 行き先 の順に進む
 // history は実際に通った段の答えだけを積む。自動で決めた路線や方面は積まず、戻ると直前の段に戻る
 export type EntryStage =
   | "position"
@@ -41,6 +42,8 @@ type EntrySnapshot = {
   direction: string | null;
   directionAuto: boolean;
   routeEditing: boolean;
+  // 行き先より先に路線と方面を選んだか。行き先はその方面の先から選ぶ
+  routeFirst: boolean;
   method: EntryMethod | null;
   cause: CauseAnswer | null;
   elapsed: ElapsedOption["id"] | null;
@@ -65,8 +68,14 @@ export type EntryAction =
       place?: EntryPlace;
       area?: EntryArea;
     }
+  | { type: "pickRoute"; line: OriginLine; autoDirection?: string | null }
   | { type: "chooseDirection"; direction: string; line?: OriginLine }
-  | { type: "chooseDestination"; inferred?: { line: OriginLine; direction: string } }
+  | {
+      type: "chooseDestination";
+      inferred?: { line: OriginLine; direction: string };
+      // 先に選んだ方面の先の駅を選んだか。路線と方面はそのまま使う
+      onRoute?: boolean;
+    }
   | { type: "choosePosition"; line?: OriginLine; direction?: string }
   | { type: "editRoute" }
   | { type: "restore"; state: EntryState }
@@ -87,6 +96,7 @@ export const initialEntryState: EntryState = {
   direction: null,
   directionAuto: false,
   routeEditing: false,
+  routeFirst: false,
   method: null,
   cause: null,
   elapsed: null,
@@ -119,9 +129,11 @@ export const progressSteps = ["position", "destination", "route", "situation"] a
 export function selectProgressIndex(
   stage: EntryStage,
   location: EntryState["location"] = null,
+  routeFirst = false,
 ): number {
   if (["cause", "causeKind", "elapsed", "resume", "input"].includes(stage)) return 3;
   if (stage === "destination") return 1;
+  if (location === "station" && stage === "direction" && routeFirst) return 1;
   if (location === "station" && ["station", "direction"].includes(stage)) return 2;
   return 0;
 }
@@ -196,10 +208,26 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
         directionAuto: auto !== null,
       });
     }
+    // 行き先の段で、地図か一覧から先に路線を選ぶ。方面が 1 つなら方面も決めて行き先へ戻る
+    case "pickRoute": {
+      if (state.stage !== "destination" || state.location !== "station" || state.line) return state;
+      const auto = action.autoDirection ?? null;
+      return advance(state, {
+        stage: auto ? "destination" : "direction",
+        line: action.line,
+        direction: auto,
+        directionAuto: auto !== null,
+        routeFirst: true,
+      });
+    }
     case "chooseDirection":
       return state.stage === "direction" && state.line
         ? advance(state, {
-            stage: state.location === "train" && !state.segment ? "trainPosition" : "cause",
+            stage: state.routeFirst
+              ? "destination"
+              : state.location === "train" && !state.segment
+                ? "trainPosition"
+                : "cause",
             line: action.line ?? state.line,
             direction: action.direction,
           })
@@ -227,6 +255,8 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
             : { stage: "direction" },
         );
       if (state.location === "train") return advance(state, { stage: "cause" });
+      if (state.routeFirst && state.line && state.direction && action.onRoute)
+        return advance(state, { stage: "cause" });
       return advance(
         state,
         action.inferred
@@ -235,8 +265,15 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
               line: action.inferred.line,
               direction: action.inferred.direction,
               directionAuto: true,
+              routeFirst: false,
             }
-          : { stage: "station", line: null, direction: null, directionAuto: false },
+          : {
+              stage: "station",
+              line: null,
+              direction: null,
+              directionAuto: false,
+              routeFirst: false,
+            },
       );
     case "editRoute":
       return state.stage === "cause"
@@ -246,6 +283,7 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
             segment: null,
             direction: null,
             routeEditing: true,
+            routeFirst: false,
           })
         : state;
     case "chooseMethod":

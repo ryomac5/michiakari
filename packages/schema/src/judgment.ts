@@ -119,6 +119,33 @@ export const EvidenceSchema = z.object({
 });
 export type Evidence = z.infer<typeof EvidenceSchema>;
 
+// 駅間の車内の人への案内。結論は車内で待つだけにし、ほかの手段はいまの選択肢として並べない
+// 次の駅に着いた後のほうが早い手段があるときだけ、着いた後の次の一手を 1 つ持つ。サーバーが決定論で詰める
+export const AfterAlightStepSchema = z.object({
+  kind: z.enum(["transfer", "taxi", "walk"]),
+  // 画面に 1 行で出す文。例: 「福島に着いたら阪神本線へ」
+  text: z.string().min(1),
+  // 最初に乗る路線と駅。タクシーと徒歩では null
+  line: z.string().nullable(),
+  boardStation: z.string().nullable(),
+  // 行き先に着く見込み。次の駅に着く見込みの時刻を起点に求めたもの
+  arrivalTime: IsoDateTimeSchema,
+});
+export type AfterAlightStep = z.infer<typeof AfterAlightStepSchema>;
+
+export const InCarGuideSchema = z.object({
+  // ホームに着けて降りられる駅。次の駅が分からなければ null
+  alightStation: z.string().min(1).nullable(),
+  // その駅に着く見込み。見込みが無ければ null
+  alightArrival: IsoDateTimeSchema.nullable(),
+  // 自分の列車が動き出す見込み。見込みが無ければ null
+  departure: IsoDateTimeSchema.nullable(),
+  afterAlight: AfterAlightStepSchema.nullable(),
+  // 長く止まったときの一文。係員の案内に従う旨
+  staffNote: z.string().min(1),
+});
+export type InCarGuide = z.infer<typeof InCarGuideSchema>;
+
 export const JudgmentSchema = z.object({
   action: ActionSchema,
   headline: z.string().min(1),
@@ -134,6 +161,8 @@ export const JudgmentSchema = z.object({
   typicalFlow: TypicalFlowSchema.optional(),
   // 近くのバス停の確認候補。判断の確定後にサーバーが決定論で付ける。無ければ画面は欄を出さない
   busChecks: z.array(BusCheckSchema).max(BUS_CHECK_LIMIT).optional(),
+  // 駅間の車内の人への案内。駅にいる人には付けない。付いていれば options は空で、action は wait
+  inCar: InCarGuideSchema.optional(),
 });
 export type Judgment = z.infer<typeof JudgmentSchema>;
 
@@ -147,6 +176,10 @@ export function checkJudgmentRefs(j: Judgment): string[] {
 
   if (j.action === "switch" && j.recommendedOptionId === null) {
     errors.push("action が switch のときは recommendedOptionId が必要です");
+  }
+
+  if (j.inCar && j.action !== "wait") {
+    errors.push("駅間の車内の人には切り替えを勧めず、action を wait にしてください");
   }
 
   if (j.recommendedOptionId !== null && !j.options.some((o) => o.id === j.recommendedOptionId)) {

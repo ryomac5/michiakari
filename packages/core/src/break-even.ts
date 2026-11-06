@@ -118,6 +118,26 @@ export function computeWaitArrival(
   return formatJstIso(ms);
 }
 
+// 駅間の車内で乗ったまま待つ場合の到着時刻
+// 降りる駅に着く見込みと、再開して前の列車が発車した見込みの遅いほうから、残りの経路を乗る
+export function computeInCarWaitArrival(input: {
+  now: string;
+  remainingMinutes: number;
+  extraWaitMinutes: number;
+  // 降りる駅に着く見込みの時刻
+  alightArrival: string;
+  // 降りる駅から行き先までの乗車時間
+  routeMinutes: number;
+}): string {
+  assertNonNegativeMinutes(input.remainingMinutes, "残り時間");
+  assertNonNegativeMinutes(input.extraWaitMinutes, "前の列車の発車を待つ時間");
+  assertNonNegativeMinutes(input.routeMinutes, "再開後の乗車時間");
+  const resumed =
+    parseIsoToMs(input.now) + (input.remainingMinutes + input.extraWaitMinutes) * MS_PER_MINUTE;
+  const start = Math.max(parseIsoToMs(input.alightArrival), resumed);
+  return formatJstIso(start + input.routeMinutes * MS_PER_MINUTE);
+}
+
 // 再開見込み = 現在 + 残り（乗れるまで）− 初列車待ち。現在より前にはしない
 function buildResumeOutlook(
   nowMs: number,

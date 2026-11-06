@@ -420,3 +420,196 @@ describe("claude モード", () => {
     expect(countType(events, "weather_checked")).toBe(0);
   });
 });
+
+// 駅間の車内と、その列車だけが止まる事象。決定論モードと同じ扱いを検証で強いる
+describe("claude モードの車内と止まり方", () => {
+  const night = "2026-11-05T22:00:00+09:00";
+  const entryLine = {
+    id: "entry-line",
+    observedAt: "2026-11-05T21:50:00+09:00",
+    source: "selection" as const,
+    eventTypeCandidates: [],
+    operator: "JR西日本",
+    line: "JR神戸線",
+    section: null,
+    statedResumeTime: null,
+    transferServiceActive: null,
+    detectedSignals: [],
+  };
+  function buildSelectionRequest(eventType: string, between: boolean) {
+    return {
+      observations: [entryLine],
+      newInput: { type: "selection" as const, eventType, signalIds: [] },
+      origin: { kind: "station" as const, name: "塚本" },
+      destination: { kind: "station" as const, name: "三ノ宮" },
+      constraints: { deadline: null, knowsAlternatives: true, mobilityNotes: null },
+      language: "ja" as const,
+      now: night,
+      ...(between
+        ? {
+            trainPosition: {
+              kind: "between_stations" as const,
+              nextStation: "塚本",
+              previousStation: "大阪",
+              trainsAhead: [],
+              trainsAheadCount: null,
+              ownTrainType: "local" as const,
+              trainsAheadHeadwayMinutes: null,
+            },
+          }
+        : {}),
+    };
+  }
+  function buildSequence(eventType: string): Reply[] {
+    return [
+      replyWithTool("lookup_knowledge", { eventType }),
+      replyWithTool("estimate_phase_and_remaining", { eventType }),
+      replyWithTool("find_alternatives", {}),
+      replyWithTool("compute_break_even", {}),
+    ];
+  }
+  async function runRequest(script: ReturnType<typeof createScriptedLlm>, body: unknown) {
+    const deps = createTestDeps({ mode: "claude", llm: script.llm });
+    const events = await postJudge(createTestApp(deps), body);
+    const ready = events.find((e) => e.type === "judgment_ready");
+    return ready?.type === "judgment_ready" ? ready.judgment : null;
+  }
+  const evidence = (eventType: string) => [
+    { kind: "knowledge", id: eventType, description: "よくある流れ" },
+  ];
+
+  it("駅間の車内の人に切り替えを勧めたら検証で弾き、車内で待つ判断だけを通す", async () => {
+    const switchDecision = {
+      action: "switch",
+      headline: "塚本で降りて阪急神戸線へ",
+      reason: "再開は遅くなりそうです。",
+      breakEvenExplanation: "説明",
+      recommendedOptionId: null,
+      evidence: evidence("person_accident"),
+    };
+    const waitDecision = {
+      ...switchDecision,
+      action: "wait",
+      headline: "車内で待つ",
+      reason: "車内では列車が動くのを待ちます。",
+    };
+    const script = createScriptedLlm({
+      judgment: [
+        ...buildSequence("person_accident"),
+        replyWithTool("emit_judgment", switchDecision),
+        replyWithTool("emit_judgment", waitDecision),
+      ],
+    });
+    const judgment = await runRequest(script, buildSelectionRequest("person_accident", true));
+    const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
+    expect(feedback).toContain("駅間の車内の人には切り替えを勧めず");
+    expect(feedback).toContain("切り替えを勧める言葉");
+    expect(judgment?.action).toBe("wait");
+    expect(judgment?.headline).toBe("車内で待つ");
+    expect(judgment?.options).toEqual([]);
+    expect(judgment?.breakEven).toBeNull();
+    expect(judgment?.inCar?.staffNote).toBe("長く止まったときは係員の案内に従う。");
+  });
+
+  it("根拠の説明も検査する。駅間の切り替えの言い方と、その列車だけの停車での見合わせを弾く", async () => {
+    const base = {
+      action: "wait",
+      headline: "車内で待つ",
+      reason: "車内では列車が動くのを待ちます。",
+      breakEvenExplanation: "説明",
+      recommendedOptionId: null,
+    };
+    const inCar = createScriptedLlm({
+      judgment: [
+        ...buildSequence("person_accident"),
+        replyWithTool("emit_judgment", {
+          ...base,
+          evidence: [
+            { kind: "knowledge", id: "person_accident", description: "塚本で降りて乗り換える" },
+          ],
+        }),
+        replyWithTool("emit_judgment", { ...base, evidence: evidence("person_accident") }),
+      ],
+    });
+    await runRequest(inCar, buildSelectionRequest("person_accident", true));
+    const inCarFeedback = JSON.stringify(inCar.calls.at(-1)?.messages.at(-1)?.content);
+    expect(inCarFeedback).toContain("evidence[0].description の「降りて」");
+
+    const train = createScriptedLlm({
+      judgment: [
+        ...buildSequence("in_car_response"),
+        replyWithTool("emit_judgment", {
+          ...base,
+          headline: "運転再開を待つ",
+          evidence: [
+            { kind: "knowledge", id: "in_car_response", description: "運転見合わせの流れ" },
+          ],
+        }),
+        replyWithTool("emit_judgment", {
+          ...base,
+          headline: "運転再開を待つ",
+          evidence: evidence("in_car_response"),
+        }),
+      ],
+    });
+    await runRequest(train, buildSelectionRequest("in_car_response", false));
+    const trainFeedback = JSON.stringify(train.calls.at(-1)?.messages.at(-1)?.content);
+    expect(trainFeedback).toContain("evidence[0].description の「見合わせ」");
+  });
+
+  it("駅間の車内の人の理由に代わりの路線を書いたら検証で弾く", async () => {
+    const base = {
+      action: "wait",
+      headline: "車内で待つ",
+      breakEvenExplanation: "説明",
+      recommendedOptionId: null,
+      evidence: evidence("person_accident"),
+    };
+    const script = createScriptedLlm({
+      judgment: [
+        ...buildSequence("person_accident"),
+        replyWithTool("emit_judgment", { ...base, reason: "阪急神戸線のほうが早く着きます。" }),
+        replyWithTool("emit_judgment", { ...base, reason: "車内では列車が動くのを待ちます。" }),
+      ],
+    });
+    const judgment = await runRequest(script, buildSelectionRequest("person_accident", true));
+    const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
+    expect(feedback).toContain("「阪急神戸線」は切り替えを勧める言葉");
+    expect(judgment?.reason).toBe("車内では列車が動くのを待ちます。");
+    // 代替手段と境目の結果には、いまの選択肢として示さない旨の注記が付く
+    const history = JSON.stringify(script.calls.at(-1)?.messages);
+    expect(history).toContain("いまの選択肢として示さず");
+  });
+
+  it("その列車だけが止まる事象で「見合わせ」と書いたら検証で弾く。人身事故では通す", async () => {
+    const suspended = {
+      action: "wait",
+      headline: "運転再開を待つ",
+      reason: "運転見合わせはまもなく終わります。",
+      breakEvenExplanation: "説明",
+      recommendedOptionId: null,
+      evidence: evidence("in_car_response"),
+    };
+    const fixed = { ...suspended, reason: "塚本で停車中の列車はまもなく動きます。" };
+    const script = createScriptedLlm({
+      judgment: [
+        ...buildSequence("in_car_response"),
+        replyWithTool("emit_judgment", suspended),
+        replyWithTool("emit_judgment", fixed),
+      ],
+    });
+    const judgment = await runRequest(script, buildSelectionRequest("in_car_response", false));
+    const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
+    expect(feedback).toContain("区間全体が止まる言い方");
+    expect(judgment?.reason).toBe(fixed.reason);
+
+    const accident = createScriptedLlm({
+      judgment: [
+        ...buildSequence("person_accident"),
+        replyWithTool("emit_judgment", { ...suspended, evidence: evidence("person_accident") }),
+      ],
+    });
+    const accepted = await runRequest(accident, buildSelectionRequest("person_accident", false));
+    expect(accepted?.reason).toBe(suspended.reason);
+  });
+});

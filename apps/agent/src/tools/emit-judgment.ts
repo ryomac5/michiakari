@@ -13,7 +13,7 @@ export const DecisionSchema = JudgmentSchema.pick({
   evidence: true,
 }).extend({
   headline: JudgmentSchema.shape.headline.describe(
-    `結論カードに大きく出る一言。1 文目は行動で、どの路線にどこから乗るか、または境目の時刻まで待つと言い切る。待つときは 2 文目に動かなかったときの次の手を書く。理由や経緯は入れない。1 文目は日本語 ${ja.target} 字程度、英語 ${en.target} 文字程度。全体の上限は日本語 ${ja.max} 字、英語 ${en.max} 文字。例: 「大阪梅田まで歩いて阪急京都線へ」「阪急京都線に乗り換える」「20時05分まで待つ。動かなければ阪急京都線へ」。判断しない旨の言い回しは書かない`,
+    `結論カードに大きく出る一言。1 文目は行動で、どの路線にどこから乗るか、または境目の時刻まで待つと言い切る。待つときは 2 文目に動かなかったときの次の手を書く。理由や経緯は入れない。1 文目は日本語 ${ja.target} 字程度、英語 ${en.target} 文字程度。全体の上限は日本語 ${ja.max} 字、英語 ${en.max} 文字。例: 「大阪梅田まで歩いて阪急京都線へ」「阪急京都線に乗り換える」「20時05分まで待つ。動かなければ阪急京都線へ」。駅間の車内の利用者は降りられないので「車内で待つ。動くのは21時40分ごろの見込み」の形にし、切り替えを書かない。判断しない旨の言い回しは書かない`,
   ),
   reason: z
     .string()
@@ -31,6 +31,6 @@ export type Decision = z.infer<typeof DecisionSchema>;
 
 export const emitJudgmentDefinition = {
   name: "emit_judgment",
-  description: `判断を確定する。最後に一度だけ呼ぶ。数値（残り時間・分岐点の時刻・到着時刻・運賃）はサーバーがツールの結果から組み立てるので入れない。時刻を文に書くときはツールの結果の表示をそのまま使う。headline が上限（日本語 ${ja.max} 字、英語 ${en.max} 文字）を、reason が上限（日本語 ${reasonLimits.ja.max} 字、英語 ${reasonLimits.en.max} 文字）を超えると検証エラーになる。検証に失敗したらエラーが返るので、直して呼び直す。`,
+  description: `判断を確定する。最後に一度だけ呼ぶ。駅間の車内の利用者には action を wait、recommendedOptionId を null にし、切り替えを勧めると検証エラーになる。止まり方が train の事象では「見合わせ」と書くと検証エラーになる。どちらも見出し・理由・境目の説明・根拠の説明のすべてを検査する。数値（残り時間・分岐点の時刻・到着時刻・運賃）はサーバーがツールの結果から組み立てるので入れない。時刻を文に書くときはツールの結果の表示をそのまま使う。headline が上限（日本語 ${ja.max} 字、英語 ${en.max} 文字）を、reason が上限（日本語 ${reasonLimits.ja.max} 字、英語 ${reasonLimits.en.max} 文字）を超えると検証エラーになる。検証に失敗したらエラーが返るので、直して呼び直す。`,
   inputSchema: DecisionSchema,
 } as const;

@@ -58,6 +58,8 @@ export type TrainQueueOutcome = {
   alightStation: string;
   // その駅に着く時刻。再開の見込みも詰める動きも無ければ null
   arrival: { p50: string; p80: string } | null;
+  // 自分の列車が動き出す時刻。着く時刻から、その駅までの走行時間を引いたもの。arrival が null なら null
+  departure: { p50: string; p80: string } | null;
   // 再開の前に、詰める動きでその駅に着けるか
   beforeResume: boolean;
   trainsAheadCount: number;
@@ -355,9 +357,14 @@ export function estimateTrainQueueArrival(input: TrainQueueInput): TrainQueueOut
   const useCloseUp =
     closeUpPath !== null && (resumePath === null || closeUpPath.p50 < resumePath.p50);
   if (useCloseUp && closeUpPath) {
+    const ride = sumRideMinutes(stations, closeUpPath.index);
     return {
       alightStation: alightStationName(closeUpPath.index),
       arrival: toArrival(input.now, closeUpPath),
+      departure: toArrival(input.now, {
+        p50: closeUpPath.p50 - ride,
+        p80: closeUpPath.p80 - ride,
+      }),
       beforeResume: true,
       trainsAheadCount,
       blockingCount,
@@ -369,6 +376,12 @@ export function estimateTrainQueueArrival(input: TrainQueueInput): TrainQueueOut
   return {
     alightStation: alightStationName(alightIndex),
     arrival: resumePath ? toArrival(input.now, resumePath) : null,
+    departure: resumePath
+      ? toArrival(input.now, {
+          p50: resumePath.p50 - sumRideMinutes(stations, alightIndex),
+          p80: resumePath.p80 - sumRideMinutes(stations, alightIndex),
+        })
+      : null,
     beforeResume: false,
     trainsAheadCount,
     blockingCount,

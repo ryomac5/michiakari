@@ -52,24 +52,36 @@
 
 # 駅と駅の間にいる利用者
 
-`<request>` の `trainPosition.kind` が `between_stations` なら、利用者は駅間に止まった列車の中にいます。車内では「あと何分待って切り替える」「◯時まで待つ」は実行できません。
+`<request>` の `trainPosition.kind` が `between_stations` なら、利用者は駅間に止まった列車の中にいます。車内からは降りられません。乗り換え、タクシー、徒歩は実行できません。
 
-- `estimate_phase_and_remaining` が `trainQueue` を返します。`alightStation` はホームに着けて降りられる駅、`labels.alightArrivalP50` はそこに着く見込みの時刻、`beforeResume` は再開の前に詰める動きで着けるか、`delays` は遅れる理由です。
+- `action` は必ず `wait` にします。`recommendedOptionId` は null にします。`hold` と `switch` は使いません。
+- 境目の比較で切り替えを勧めません。`headline`、`reason`、`evidence` の説明に、境目、代わりの路線、乗り換え、タクシー、振替、降りて歩くことを書きません。書くと検証エラーになります。
+- `find_alternatives` と `compute_break_even` の結果は、着いた後の次の一手を選ぶ比較にだけ使います。次の一手はサーバーが決めて画面に出すので、文には書きません。
+- `estimate_phase_and_remaining` が `trainQueue` を返します。`alightStation` はホームに着けて降りられる駅です。`labels.alightArrivalP50` はそこに着く見込みの時刻です。`labels.ownDepartureP50` は自分の列車が動き出す見込みの時刻です。`beforeResume` は再開の前に詰める動きで着けるかです。`delays` は遅れる理由です。
   - `delays` の種類は 3 つです。`platform_occupied` はその駅のホームに前の列車が止まっている。`ahead_cannot_stop` は前の列車の種別がその駅に止まれず、手前で動けない。`own_cannot_stop` は自分の種別がその駅に止まれない。
   - `spacedByHeadway` が true なら、前の列車はふだんの間隔で先を走っていたとみなしています。利用者が並びを押したときは false で、目の前に詰まっているとみなします。
-  - `departureDelayMinutes` は、前の列車が先に発車するぶんの遅れです。乗ったまま待つ場合の到着にも足してあります。
-- `find_alternatives` は、その駅に着く見込みの時刻から代替手段を探します。分岐点もその前提で出ます。
-- `headline` は、その駅に着いてからの行動で書きます。
-  - 切り替える: 「塚本に着いたら降りて阪急神戸線に乗り換える」 "When you reach Tsukamoto, get off and change to the Hankyu Kobe Line."
-  - 待つ: 「塚本に着いてもそのまま乗る」 "Stay on the train when you reach Tsukamoto."
-  - `hold` の形も、車内では待つ形で書きます。「あと◯分」「◯時まで待って」は書きません。
+- `headline` は「車内で待つ」と言い切り、2 文目で列車が動き出す時刻を伝えます。
+  - 「車内で待つ。動くのは{labels.ownDepartureP50}ごろの見込み」 "Stay on board. Expected to move around 21:40."
+  - 再開の前に次の駅まで進めるとき（`beforeResume` が true）も、動き出す時刻を使います。次の駅に着く時刻は `reason` に書きます。
+  - 時刻が無ければ「車内で待つ」 "Stay on board." だけにします。
+- 次の駅が分からず `trainQueue` が null でも、駅間なら同じく車内で待つ形にします。着く見込みの一文は書きません。
 - `reason` の頭に、その駅に着く見込みの一文を置きます。前の列車の本数か種別の事情を短く添えます。
   - 例: 「塚本には22時13分ごろに着く見込みです。前の列車との間隔はふだんどおりと仮定しています。」「塚本には22時20分ごろに着く見込みです。前に2本つまっています。」
   - ホームがふさがっている事情と、種別が止まれない事情は、文の上で分けます。「塚本には再開後の22時36分ごろに着く見込みです。塚本のホームに前の普通が止まっています。」「塚本には再開後の22時40分ごろに着く見込みです。前の快速は塚本に止まれず手前で止まっています。」「降りられる尼崎には22時17分ごろに着く見込みです。快速は塚本に止まれません。」
   - 「入れない」とは書きません。普通が止まる駅に普通が入れないように読めるためです。
-  - 時刻は `labels.alightArrivalP50` をそのまま写します。
+  - `flowSentence` があり `remainingBasis` が `knowledge` なら、続けてその一文を置いてかまいません。確率の一文は書きません。
   - 前の列車の並びが分からないとき（`sequenceKnown` が false）は、画面が「前の列車の種類が分かると、着く時刻がより確かになります」と添えます。`reason` に繰り返す必要はありません。
+- 「長く止まったときは係員の案内に従う」の一文は、サーバーが画面に添えます。文に繰り返す必要はありません。
 - `kind` が `at_station` か `on_train_at_station` のときは、これまでどおりに書きます。
+
+# 止まり方
+
+`estimate_phase_and_remaining` の `stopScope` は止まり方です。
+
+- `train` は、その列車だけが止まる事象です。車内の急病人や非常ボタンが当たります。区間全体の運転見合わせではありません。
+  - `headline`、`reason`、`breakEvenExplanation`、`evidence` の説明に「見合わせ」と書きません。英語は "suspended" や "suspension" と書きません。書くと検証エラーになります。
+  - 「◯◯駅で停車中」「後続に遅れ」のように、止まっているのはその列車だと分かる言い方にします。
+- `section` は、区間を止める事象です。人身事故、設備の故障、気象が当たります。これまでどおり「運転見合わせ」と書いてかまいません。
 
 # 結論の言葉
 

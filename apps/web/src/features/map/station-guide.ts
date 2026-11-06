@@ -118,10 +118,14 @@ export type StationGuideInput = {
   starOptionId?: string | null;
   // 駅間の車内。現在地の印を来た側の駅と次の駅のあいだの線路の上に置く。label は「大阪〜塚本の間」
   between?: { previousStation: string; nextStation: string; label: string } | null;
-  // 止まっている区間の折れ線。駅間の現在地を線路の上に置くのに使う
+  // 止まった列車が走っていた線路の折れ線。駅間の現在地を線路の上に置くのに使う
   blockedPath?: readonly Position[] | null;
-  // 止まっている路線。地図の止まっている区間から求めたもの
+  // 止まっている路線。地図の止まっている区間から求めたもの。その列車だけが止まるときは空
   blockedLineIds: readonly string[];
+  // 止まった列車が走っていた路線。駅の名前を引くのに使う。省略時は blockedLineIds
+  trackLineIds?: readonly string[];
+  // 乗り換え候補の駅の吹き出しを出さない。駅間の車内の人は降りられないため
+  hideStations?: boolean;
   // 止まっている路線の呼び方（観測の line）。現在地の札に使う
   blockedLineName: string | null;
   language: Lang;
@@ -335,7 +339,8 @@ export function buildStationGuide(
   input: StationGuideInput,
 ): StationGuide | null {
   const originName = area.originNames[0] as string;
-  const originNode = resolveStationByName(geo.index, originName, input.blockedLineIds);
+  const trackLineIds = input.trackLineIds ?? input.blockedLineIds;
+  const originNode = resolveStationByName(geo.index, originName, trackLineIds);
   if (!originNode) return null;
   const groupNodes = listGroupNodes(geo, originNode);
   const originIds = new Set(groupNodes.map((n) => n.stationId));
@@ -353,7 +358,8 @@ export function buildStationGuide(
   const boardingIds = new Set(boardings.map((b) => b.stationId));
   const transferLineIds = listTransferLineIds(input);
 
-  const stations = selectStations(area, boardingIds).flatMap((station): GuideStation[] => {
+  const candidates = input.hideStations ? [] : selectStations(area, boardingIds);
+  const stations = candidates.flatMap((station): GuideStation[] => {
     const nodes = station.stationIds.flatMap((id) => geo.index.getStation(id) ?? []);
     const first = nodes[0];
     if (!first) return [];
@@ -408,7 +414,7 @@ export function buildStationGuide(
   const originPosition = toPosition(originNode.lonLat);
   // 現在地の印。駅間の車内なら、来た側の駅と次の駅のあいだの線路の上に置く
   const previousNode = input.between
-    ? resolveStationByName(geo.index, input.between.previousStation, input.blockedLineIds)
+    ? resolveStationByName(geo.index, input.between.previousStation, trackLineIds)
     : undefined;
   const herePosition = previousNode
     ? findMidpointAlongPath(

@@ -13,7 +13,14 @@ export type StopLabel = {
   label: string;
   side: LabelSide;
   angle: number | null;
+  // 路線の札は文字が大きく、路線色の印のぶん幅が広い
+  kind?: "line";
 };
+
+// 路線の札の路線色の印と隙間の幅（px）
+const lineSwatchWidth = 12;
+// 路線の札は文字が大きいぶん背が高い（px）
+const lineLabelHeight = 29;
 
 const labelGap = 14;
 const labelHeight = 25;
@@ -43,13 +50,21 @@ function buildDotRect(point: ScreenPoint, radius: number): Rect {
 }
 
 // 駅の札の矩形。名前の文字幅から見積もる
-export function buildStopLabelRect(point: ScreenPoint, label: string, side: LabelSide): Rect {
+export function buildStopLabelRect(
+  point: ScreenPoint,
+  label: string,
+  side: LabelSide,
+  line = false,
+): Rect {
+  const text = line
+    ? lineSwatchWidth + estimateTextWidth(label, 14, 8)
+    : estimateTextWidth(label, 13, 7.5);
   return placeBox(
     {
       key: label,
       point,
       gap: labelGap,
-      size: { w: labelPadding + estimateTextWidth(label, 13, 7.5), h: labelHeight },
+      size: { w: labelPadding + text, h: line ? lineLabelHeight : labelHeight },
     },
     side,
   );
@@ -68,12 +83,27 @@ export function selectVisibleStops<T extends StopLabel>(input: {
     const dot = buildDotRect(point, isDirection ? directionDotRadius : stopDotRadius);
     const sides = [stop.side, ...sideOrder.filter((side) => side !== stop.side)];
     const rectOf = (side: LabelSide) =>
-      expandRect(buildStopLabelRect(point, stop.label, side), margin);
+      expandRect(buildStopLabelRect(point, stop.label, side, stop.kind === "line"), margin);
     const side = sides.find((s) => taken.every((rect) => overlapArea(rectOf(s), rect) === 0));
     if (!side && !isDirection) return [];
     const chosen = side ?? stop.side;
     taken.push(rectOf(chosen), dot);
     return [{ ...stop, side: chosen }];
+  });
+}
+
+// 札の押せる丸の半径（px）。隣の印との中点の内側に収め、押せる範囲がぶつからないようにする
+// 近すぎて丸が取れない札は、札の面か下の一覧から選ぶ
+export function computeStopHitRadii(
+  points: readonly ScreenPoint[],
+  others: readonly ScreenPoint[] = [],
+  max = 24,
+): number[] {
+  return points.map((point, i) => {
+    const near = [...points.filter((_, j) => j !== i), ...others].map((p) =>
+      Math.hypot(p.x - point.x, p.y - point.y),
+    );
+    return Math.max(0, Math.min(max, Math.floor(Math.min(Number.POSITIVE_INFINITY, ...near) / 2)));
   });
 }
 

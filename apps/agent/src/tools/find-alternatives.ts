@@ -17,7 +17,7 @@ export const FindAlternativesInputSchema = z.object({
 export const findAlternativesDefinition = {
   name: "find_alternatives",
   description:
-    "現在地・行き先・止まっている区間・時刻から、待つ選択肢と代替手段（振替・徒歩・タクシー）の経路、到着時刻、運賃、徒歩時間をコードで計算する。estimate_phase_and_remaining の後に呼ぶ。",
+    "現在地・行き先・止まっている区間・時刻から、待つ選択肢と代替手段（振替・徒歩・タクシー）の経路、到着時刻、運賃、徒歩時間をコードで計算する。estimate_phase_and_remaining の後に呼ぶ。駅間の車内の利用者なら、次の駅に着く見込みの時刻から探す。その結果はいまの選択肢として示さず、切り替えも勧めない。着いた後の次の一手はサーバーが決める。",
   inputSchema: FindAlternativesInputSchema,
 } as const;
 
@@ -54,21 +54,25 @@ export async function runFindAlternatives(
   input: z.infer<typeof FindAlternativesInputSchema>,
 ): Promise<AlternativesToolResult> {
   const blockedLine = input.blockedLine ?? findLatest(ctx.observations, (o) => o.line);
-  const blockedSection: Section | null =
-    input.blockedSection ??
-    findLatest(ctx.observations, (o) => o.section) ??
-    buildBetweenStationsSection(ctx);
+  const observedSection = input.blockedSection ?? findLatest(ctx.observations, (o) => o.section);
+  const trainSection = observedSection ? null : buildBetweenStationsSection(ctx);
+  const blockedSection: Section | null = observedSection ?? trainSection;
   const result = await ctx.provider.findAlternatives({
     origin: ctx.request.origin,
     destination: ctx.request.destination,
     blockedLine,
     blockedSection,
+    blockedSectionFromTrain: trainSection !== null,
     now: ctx.request.now,
-    // 駅間の車内なら、次の駅に着く見込みの時刻から代替手段に乗り出す
-    departureTime: estimate.trainQueue?.arrival?.p50 ?? ctx.request.now,
+    // 駅間の車内なら、次の駅に着く見込みの時刻から代替手段に乗り出す。待つ側もこの時刻を起点にする
+    ...(estimate.trainQueue?.arrival ? { departureTime: estimate.trainQueue.arrival.p50 } : {}),
     // 乗ったまま待つ側にも、前の列車が先に発車するぶんの遅れを足す
     extraWaitMinutesAfterResume: estimate.trainQueue?.departureDelayMinutes ?? 0,
     remaining: estimate.estimate.remaining,
+    // 駅間の車内なら、待つ側の到着から初列車待ちを除く
+    ...(estimate.trainQueue && estimate.firstTrainWait
+      ? { firstTrainWaitMinutes: estimate.firstTrainWait.p50 }
+      : {}),
     transferServiceActive: findLatest(ctx.observations, (o) => o.transferServiceActive),
     language: ctx.request.language,
   });

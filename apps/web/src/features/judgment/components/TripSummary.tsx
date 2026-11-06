@@ -1,5 +1,6 @@
 "use client";
 
+import type { StopScope } from "@repo/core";
 import type { Place } from "@repo/schema";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
@@ -103,12 +104,42 @@ export function TripChip({
 
 // 「JR京都線 見合わせ」。色に加えて破線の印で止まっていることを示す
 // 英語名の無い通称のときは line が null で、「Service suspended」だけを出す
-export function StatusChip({ line, testId }: { line: string | null; testId?: string }) {
+// その列車だけが止まる事象では見合わせと言わず、「大阪〜塚本で停車中」か「JR京都線 後続に遅れ」にする
+export function StatusChip({
+  line,
+  testId,
+  scope = "section",
+  place = null,
+}: {
+  line: string | null;
+  testId?: string;
+  scope?: StopScope;
+  // その列車が止まっている場所の表示名。駅で待っている人には null
+  place?: string | null;
+}) {
   const t = useTranslations("judgment");
+
+  if (scope === "train") {
+    const text = place
+      ? t("statusStopped", { place })
+      : line
+        ? t("statusDelayed", { line })
+        : t("statusDelayedOnly");
+    return (
+      <p
+        data-testid={testId}
+        data-scope="train"
+        className="flex h-8 min-w-0 shrink items-center rounded-full bg-hold-surface px-2.5 text-[12px] font-semibold whitespace-nowrap text-hold"
+      >
+        <span className="truncate">{text}</span>
+      </p>
+    );
+  }
 
   return (
     <p
       data-testid={testId}
+      data-scope="section"
       className="flex h-8 min-w-0 shrink items-center gap-1.5 rounded-full bg-danger/10 px-2.5 text-[12px] font-semibold whitespace-nowrap text-danger"
     >
       <svg viewBox="0 0 14 4" className="h-1 w-3.5 shrink-0" aria-hidden>
