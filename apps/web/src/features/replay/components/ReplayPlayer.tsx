@@ -139,6 +139,62 @@ export function ReplayPlayer({
   // 凡例も地図と同じ選択中の選択肢の色にする
   const tone = selectRouteTone(options, mapOptionId);
 
+  // 判断の要点。結末を出すまではシートの要約に置き、結末の後はスクロールできる詳しい段の先頭に置く
+  // 開き直した判断が低い画面でも読めるようにするためである
+  const judgmentBlock = (
+    <div
+      data-testid={testIds.replay.judgment}
+      data-status={state.status}
+      data-observation-id={current?.observationId ?? ""}
+      data-pending-observation-id={pendingId}
+      data-action={current?.action ?? ""}
+      data-phase-id={current?.phaseId ?? ""}
+      data-evidence-ids={current?.evidenceIds.join(" ") ?? ""}
+      data-break-even-shown={current ? String(current.breakEvenShown) : ""}
+      data-changed={changed}
+      data-folded={judgmentFolded}
+      className="flex flex-col gap-3"
+    >
+      {!started && <ReadyCard scenario={scenario} onStart={player.togglePlay} />}
+      {streaming && <ReasoningProgress state={state} catalog={catalog} />}
+      {state.status === "error" && state.error && (
+        <JudgmentError
+          message={state.error.message}
+          retryable={state.error.retryable}
+          onRetry={player.retry}
+        />
+      )}
+      {state.status === "ready" && display.judgment && current && (
+        <ConclusionCard
+          judgment={display.judgment}
+          change={buildJudgmentChange(
+            state.previousJudgment,
+            display.judgment,
+            latestEntry ? pickScenarioText(latestEntry.text, locale) : null,
+            selectChangeEvidence({
+              catalog,
+              estimate: display.judgment.estimate,
+              signals: state.signals,
+              locale,
+            }),
+          )}
+          badge={
+            changed && previousAction ? (
+              <ChangeBadge from={previousAction} to={current.action} />
+            ) : undefined
+          }
+          metric={<BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />}
+        />
+      )}
+      {/* 判断が確定する前と失敗時も、境目の状態を属性で残す */}
+      {started && !streaming && !(state.status === "ready" && display.judgment && current) && (
+        <BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />
+      )}
+      {/* 推定である旨は再生を始める前から出す。結末のカードが出たら、そちらの 1 回だけにする */}
+      {!outcome && <Disclaimer />}
+    </div>
+  );
+
   return (
     <div
       data-testid={testIds.replay.screen}
@@ -218,13 +274,7 @@ export function ReplayPlayer({
           summary={
             <div className="flex flex-col gap-3">
               {outcome && (
-                <div
-                  className={
-                    judgmentFolded
-                      ? "flex flex-col gap-1"
-                      : "flex flex-col gap-1 border-b border-border pb-1"
-                  }
-                >
+                <div className="flex flex-col gap-1">
                   <ReplayOutcomeCard outcome={outcome} deadlineClock={deadlineClock} />
                   <LastJudgmentToggle
                     open={judgmentReopened}
@@ -232,59 +282,7 @@ export function ReplayPlayer({
                   />
                 </div>
               )}
-              <div
-                data-testid={testIds.replay.judgment}
-                data-status={state.status}
-                data-observation-id={current?.observationId ?? ""}
-                data-pending-observation-id={pendingId}
-                data-action={current?.action ?? ""}
-                data-phase-id={current?.phaseId ?? ""}
-                data-evidence-ids={current?.evidenceIds.join(" ") ?? ""}
-                data-break-even-shown={current ? String(current.breakEvenShown) : ""}
-                data-changed={changed}
-                data-folded={judgmentFolded}
-                className={judgmentFolded ? "hidden" : "flex flex-col gap-3"}
-              >
-                {!started && <ReadyCard scenario={scenario} onStart={player.togglePlay} />}
-                {streaming && <ReasoningProgress state={state} catalog={catalog} />}
-                {state.status === "error" && state.error && (
-                  <JudgmentError
-                    message={state.error.message}
-                    retryable={state.error.retryable}
-                    onRetry={player.retry}
-                  />
-                )}
-                {state.status === "ready" && display.judgment && current && (
-                  <ConclusionCard
-                    judgment={display.judgment}
-                    change={buildJudgmentChange(
-                      state.previousJudgment,
-                      display.judgment,
-                      latestEntry ? pickScenarioText(latestEntry.text, locale) : null,
-                      selectChangeEvidence({
-                        catalog,
-                        estimate: display.judgment.estimate,
-                        signals: state.signals,
-                        locale,
-                      }),
-                    )}
-                    badge={
-                      changed && previousAction ? (
-                        <ChangeBadge from={previousAction} to={current.action} />
-                      ) : undefined
-                    }
-                    metric={<BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />}
-                  />
-                )}
-                {/* 判断が確定する前と失敗時も、境目の状態を属性で残す */}
-                {started &&
-                  !streaming &&
-                  !(state.status === "ready" && display.judgment && current) && (
-                    <BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />
-                  )}
-                {/* 推定である旨は再生を始める前から出す。結末のカードが出たら、そちらの 1 回だけにする */}
-                {!outcome && <Disclaimer />}
-              </div>
+              {!outcome && judgmentBlock}
             </div>
           }
         >
@@ -292,6 +290,7 @@ export function ReplayPlayer({
             <>
               {/* 結末で畳んだ判断の詳しい段は、開いた状態を保つため外さずに隠す */}
               <div className={judgmentFolded ? "hidden" : "contents"}>
+                {outcome && <SheetSection>{judgmentBlock}</SheetSection>}
                 {/* 2 段目: 再開の見込みの図。閉じたシートは地図を広く残すため、引き上げたときに見せる */}
                 {state.status === "ready" && display.breakEven && (
                   <SheetSection>
