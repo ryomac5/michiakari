@@ -80,7 +80,7 @@ export const decisionParams = {
   lateShareToSwitch: 0.7,
 } as const;
 
-// 判断の確信度の決め方。出典: 開発者の推定（仮）
+// 判断の確信度の決め方。下限の中は開発者が確かめた値で、ほかは開発者の推定（仮）
 export const confidenceParams = {
   // 知見の見込みの立てやすさがこの水準で、原因が観測から特定できていれば、確信度を下限より下げない
   predictableLevel: "high",

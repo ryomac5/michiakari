@@ -9,7 +9,7 @@
 export const MIN_TYPE_COUNT = 5;
 export const MIN_GROUP_COUNT = 3;
 
-// 時間帯は止まった時刻で分ける。commute は平日の 7〜9 時台と 17〜19 時台で仮の値、other はそれ以外。祝日は区別しない
+// 時間帯は止まった時刻で分ける。commute は平日の 7〜9 時台と 17〜19 時台、other はそれ以外。祝日は区別しない
 // 区分の件数が足りなければ use_mixed とし、p50 と p80 にまぜた値を入れる。区分だけの値は ownP50 と ownP80
 export const MIN_PERIOD_COUNT = 5;
 export const DURATION_PERIODS = ["commute", "other"] as const;
