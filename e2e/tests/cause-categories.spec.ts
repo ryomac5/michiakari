@@ -156,7 +156,7 @@ test("知見の無い電力の大分類を選ぶと、統計値から見込み�
 
   await openSheet(page, "full");
   const premise = page.getByTestId(testIds.judgment.premise);
-  await expect(premise).toContainText("原因は放送で聞いた停電と仮定する");
+  await expect(premise).toContainText("原因は放送で聞いた停電と仮定しています");
   await expect(premise).not.toContainText("境目の時刻を動く目安");
   await expect(premise).not.toContainText("原因は未確認");
   // 見込みの出どころの説明は出さない
@@ -185,7 +185,7 @@ test("知見の無い信号・ポイントを選ぶと、判断まで進んで�
 
   await openSheet(page, "full");
   const premise = page.getByTestId(testIds.judgment.premise);
-  await expect(premise).toContainText("原因は放送で聞いた信号・ポイントと仮定する");
+  await expect(premise).toContainText("原因は放送で聞いた信号・ポイントと仮定しています");
   await expect(premise).not.toContainText("境目の時刻を動く目安");
   // 結論の見出しと理由に、再開までの時間を言い切る文が無い
   const conclusionText = [
