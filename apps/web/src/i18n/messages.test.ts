@@ -18,9 +18,11 @@ describe("メッセージファイル", () => {
     expect(listKeys(en).sort()).toEqual(listKeys(ja).sort());
   });
 
-  it("アプリ名と副題は決めた表記どおり", () => {
-    expect([ja.app.name, ja.app.tagline]).toEqual(["みちあかり", "待つか、乗り換えるか。"]);
-    expect([en.app.name, en.app.tagline]).toEqual(["Michiakari", "Wait, or switch?"]);
+  it("アプリ名は決めた表記どおりで、副題を持たない", () => {
+    expect(ja.app.name).toBe("みちあかり");
+    expect(en.app.name).toBe("Michiakari");
+    expect("tagline" in ja.app).toBe(false);
+    expect("tagline" in en.app).toBe(false);
   });
 
   it("結論の近くに出す注意書きは vision.md 8 章の文言を含む", () => {

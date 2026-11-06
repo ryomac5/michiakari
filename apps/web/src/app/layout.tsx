@@ -21,7 +21,7 @@ const notoSansJp = Noto_Sans_JP({
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("app");
-  const title = `${t("name")} — ${t("tagline")}`;
+  const title = t("name");
   return {
     title: { default: title, template: `%s | ${t("name")}` },
     description: t("description"),
