@@ -6,9 +6,11 @@ import {
   computeTrackHeadwayMinutes,
   countTrainsAhead,
   estimateTrainQueueArrival,
+  findLineOperatorKey,
   findOperationPattern,
   inferDefaultOwnTrainType,
   inferTrainsAheadFromPattern,
+  normalizeOperatorKey,
   normalizeTrainType,
   resolveStationPlatform,
   resolveTrainQueueParams,
@@ -57,6 +59,18 @@ describe("resolveTrainQueueParams と表", () => {
     expect(jrWest.closesUp).toBe(true);
     expect(resolveTrainQueueParams("JR東海").closesUp).toBe(false);
     expect(resolveTrainQueueParams("京阪").closesUp).toBe(false);
+  });
+
+  it("事業者の表記の揺れをそろえ、路線の ID から事業者を引く", () => {
+    for (const name of ["JR West", "JR-West", "西日本旅客鉄道", "ＪＲ西日本", "jr-west"]) {
+      expect(normalizeOperatorKey(name)).toBe("jr-west");
+      expect(resolveTrainQueueParams(name).closesUp).toBe(true);
+    }
+    expect(normalizeOperatorKey("阪急")).toBeNull();
+    expect(normalizeOperatorKey(null)).toBeNull();
+    expect(findLineOperatorKey("jr-west.東海道線")).toBe("jr-west");
+    expect(findLineOperatorKey("hankyu.神戸線")).toBe("hankyu");
+    expect(findLineOperatorKey(null)).toBeNull();
     expect(resolveTrainQueueParams("阪急")).toEqual(DEFAULT_TRAIN_QUEUE_PARAMS);
     expect(resolveTrainQueueParams(null).closesUp).toBe(false);
   });

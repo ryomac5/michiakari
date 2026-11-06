@@ -3,6 +3,7 @@ import {
   DEFAULT_STATION_PLATFORM,
   DEFAULT_TRAIN_QUEUE_PARAMS,
   OPERATION_PATTERNS,
+  OPERATOR_KEY_ALIASES,
   type OperationPattern,
   STATION_PLATFORMS_BY_LINE,
   type StationPlatform,
@@ -151,8 +152,34 @@ export function computeTrackHeadwayMinutes(
   return pattern.cycleMinutes / sequence.length;
 }
 
+function simplifyOperatorName(name: string): string {
+  return name
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\s\-_・]/g, "");
+}
+
+// 事業者名か事業者キーを、路線 ID の先頭と同じ事業者キーにそろえる。表に無ければ null
+export function normalizeOperatorKey(operator: string | null): string | null {
+  if (!operator) return null;
+  const simple = simplifyOperatorName(operator);
+  const found = Object.entries(OPERATOR_KEY_ALIASES).find(([, aliases]) =>
+    aliases.some((a) => simplifyOperatorName(a) === simple),
+  );
+  return found?.[0] ?? null;
+}
+
+// 路線 ID「jr-west.東海道線」から事業者キーを引く
+export function findLineOperatorKey(lineId: string | null): string | null {
+  if (!lineId) return null;
+  const key = lineId.slice(0, lineId.indexOf("."));
+  return key.length > 0 ? key : null;
+}
+
+// 事業者名か事業者キーから、詰める動きの値を引く
 export function resolveTrainQueueParams(operator: string | null): TrainQueueParams {
-  const override = operator ? TRAIN_QUEUE_PARAMS_BY_OPERATOR[operator] : undefined;
+  const key = normalizeOperatorKey(operator) ?? operator;
+  const override = key ? TRAIN_QUEUE_PARAMS_BY_OPERATOR[key] : undefined;
   return { ...DEFAULT_TRAIN_QUEUE_PARAMS, ...override };
 }
 
