@@ -109,9 +109,7 @@ export function ReplayOutcomeCard({
           <TriangleAlert className="size-3 shrink-0" aria-hidden />
           {t("disclaimer.short")}
         </p>
-        <p>
-          {t("replay.outcome.method")} {t("replay.fictional")}
-        </p>
+        <p>{t("replay.fictional")}</p>
       </div>
     </section>
   );

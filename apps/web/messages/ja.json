@@ -35,7 +35,6 @@
     "noResults": "別の書き方で探す",
     "replayLink": "デモを見る",
     "nearestFailed": "駅名で探す。最寄り駅はあとで試し直せる。",
-    "locationNote": "現在地は最寄り駅の検索だけに送る。位置は保存しない。",
     "resultCount": "{count}件の駅が見つかりました",
     "searchFailed": "通信を確かめる。もう一度探す。"
   },
@@ -135,7 +134,6 @@
     },
     "breakEven": {
       "title": "境目",
-      "meaning": "境目の時刻までに動けば待つほうが早く着きます。",
       "passed": "境目を過ぎました",
       "soon": "まもなく境目です。乗り換えに備える",
       "none": "運転再開を待つ",
@@ -443,8 +441,7 @@
         "neither": "どちらも {deadline} の期限に間に合いませんでした。",
         "sameOnTime": "{deadline} の期限に間に合いました。",
         "sameLate": "{deadline} の期限には間に合いませんでした。"
-      },
-      "method": "到着時刻は、各判断で示した推定の所要時間と、シナリオで実際に再開した時刻から求めた目安です。"
+      }
     },
     "announcements": "発表",
     "scenario": "シナリオ",
@@ -517,7 +514,6 @@
     }
   },
   "entry": {
-    "locationNote": "現在地は端末内で近くの駅を探すために使う。位置は保存しない。",
     "nearbyStations": "現在地の近くの駅",
     "nearbyDistance": "約{distance}",
     "nearestEmpty": "近くの駅が見つからない。地図か検索で駅を選ぶ。",
@@ -624,7 +620,6 @@
     "locationTrain": "電車の中にいる",
     "gpsLocate": "現在地から読み取る",
     "gpsLocating": "現在地を読み取っています",
-    "gpsNote": "位置は端末の中で候補を出すだけに使い、送らない。",
     "gpsStationQuestion": "{station}駅にいますか",
     "gpsBetweenQuestion": "{line}の{from}〜{to}の間ですか",
     "gpsYes": "はい",
@@ -636,7 +631,6 @@
     "gpsUnavailable": "現在地を取れなかった。下から選んでください。",
     "gpsUnsupported": "この端末では現在地を取れない。下から選んでください。",
     "gpsNone": "近くに駅も路線も見つからない。下から選んでください。",
-    "gpsUndergroundNote": "地下鉄の地下区間では取れないことが多い。",
     "trainLineQuestion": "乗っている路線を選んでください",
     "trainLineSearch": "路線名で探す",
     "trainSegmentQuestion": "いまいる駅の間を選んでください",

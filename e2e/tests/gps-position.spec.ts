@@ -47,6 +47,8 @@ test("駅の間にいると路線と 2 駅を尋ね、はいで路線と駅間�
   await expect(page.getByTestId(testIds.start.gpsQuestion)).toHaveText(
     "JR神戸線の塚本〜尼崎の間ですか",
   );
+  // 位置の扱いの説明は出さない
+  await expect(page.getByText("位置は端末の中で候補を出すだけに使い、送らない。")).toHaveCount(0);
   await page.getByTestId(testIds.start.gpsConfirm).click();
 
   // 路線・方面・駅間の段を通らずに行き先を聞く
@@ -97,7 +99,7 @@ test("位置情報を拒否すると理由を 1 行出し、手で選ぶ流れ�
   await page.getByTestId(testIds.start.gpsLocate).click();
   const status = page.getByTestId(testIds.start.gpsStatus);
   await expect(status).toContainText("許可されていない");
-  await expect(status).toContainText("地下鉄の地下区間");
+  await expect(status).not.toContainText("地下鉄の地下区間");
   await expect(page.getByTestId(testIds.start.gpsQuestion)).toHaveCount(0);
 
   // 手で選ぶ札はそのまま使える

@@ -16,7 +16,7 @@ import {
 } from "./directions";
 import { type EntryData, type EntryLine, listGroupLines } from "./entry-places";
 
-// 現在地から読み取った候補を、入口で 1 回押せば確定できる形にする。位置は端末の外へ送らない
+// 現在地から読み取った候補を、入口で 1 回押せば確定できる形にする。位置は端末の外へ出さない
 
 // 画面に並べる候補の上限
 export const GPS_CHOICE_LIMIT = 3;
