@@ -179,7 +179,13 @@ test("デモ: リプレイで判断と地図が変わる様子を録画する", 
   await showFirstJudgment(page, scenario);
 
   // 速度を上げて再生し、結論が変わるたびに一時停止して、結論とシートの上部を見せる
-  await page.getByTestId(testIds.replay.speed(playbackSpeed)).click();
+  // 速度は 1 つのボタンで順に切り替わる。録画の速度になるまで押す
+  const speedToggle = page.getByTestId(testIds.replay.speedToggle);
+  for (let i = 0; i < 5; i++) {
+    if ((await speedToggle.getAttribute("data-speed")) === String(playbackSpeed)) break;
+    await speedToggle.click();
+  }
+  await expect(speedToggle).toHaveAttribute("data-speed", String(playbackSpeed));
   await page.getByTestId(testIds.replay.playButton).click();
   const changes = listActionChanges(scenario);
   for (const [index, change] of changes.entries()) {

@@ -259,7 +259,8 @@ export function ReplayPlayer({
                   !(state.status === "ready" && display.judgment && current) && (
                     <BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />
                   )}
-                {started && <Disclaimer />}
+                {/* 推定である旨は再生を始める前から出す */}
+                <Disclaimer />
               </div>
             </div>
           }
