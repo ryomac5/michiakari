@@ -14,6 +14,7 @@ import type { GpsSegment } from "./gps-candidates";
 // 現在地から駅を読み取った人は いまどこ → 行き先 へ進む
 // 駅の間を読み取った人は いまどこ → 行き先 へ進み、進む向きは行き先から決める。決まらなければ方面を聞く
 // 駅にいる人は、行き先の段で先に路線を選べる。そのときは 路線 → 方面 → 行き先 の順に進む
+// 路線を先に選んだ人が地図で路線の駅を押したら、方面を自動で決めて 路線 → 原因 へ進む
 // history は実際に通った段の答えだけを積む。自動で決めた路線や方面は積まず、戻ると直前の段に戻る
 export type EntryStage =
   | "position"
@@ -70,6 +71,8 @@ export type EntryAction =
     }
   | { type: "pickRoute"; line: OriginLine; autoDirection?: string | null }
   | { type: "chooseDirection"; direction: string; line?: OriginLine }
+  // 先に選んだ路線の駅を行き先にする。方面はその駅へ向かう向きで決める
+  | { type: "chooseLineStop"; direction: string }
   | {
       type: "chooseDestination";
       inferred?: { line: OriginLine; direction: string };
@@ -231,6 +234,13 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
             line: action.line ?? state.line,
             direction: action.direction,
           })
+        : state;
+    case "chooseLineStop":
+      return state.stage === "direction" &&
+        state.routeFirst &&
+        state.line &&
+        state.location === "station"
+        ? advance(state, { stage: "cause", direction: action.direction, directionAuto: true })
         : state;
     case "choosePosition":
       return state.stage === "trainPosition" && state.direction

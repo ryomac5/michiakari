@@ -63,12 +63,10 @@ export type EstimateToolResult = {
   // 現在時刻 + 残り時間。再開して乗れる見込みの時刻
   boardableP50: string | null;
   boardableP80: string | null;
-  // 事象のよくある流れ。事象が分からなければ null
+  // 事象の段階と再開までの見込み。事象が分からなければ null
   typicalFlow: TypicalFlow | null;
-  // 見込みが立てやすい事象なら、短く終わるか長くかかるか。結論の言葉に使う
+  // 見込みが立てやすい事象なら、短く終わるか長くかかるか。行動と見出しの選び方に使う
   flowOutlook: FlowOutlook | null;
-  // 結論の理由の頭に置く一文。flowOutlook が null なら null
-  flowSentence: string | null;
   // 確率の計算に使う、乗れるまでの残り時間の標本（分、昇順）。remaining が null なら null。Claude には渡さない
   remainingSamples?: readonly number[] | null;
   // 発生とみなした時刻。最初の観測の時刻

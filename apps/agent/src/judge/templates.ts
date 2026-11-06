@@ -198,8 +198,8 @@ export type DecisionTextInput = {
     | (Pick<RouteOption, "kind" | "label" | "isTransferService"> &
         Partial<Pick<RouteOption, "legs">>)
     | null;
-  // 見込みが立てやすい事象のよくある流れ。inReason は理由の頭に流れの一文を置くか
-  flow?: { outlook: FlowOutlook; sentence: string; inReason: boolean } | null;
+  // 見込みが立てやすい事象の、短く終わるか長くかかるかの区別。見出しの言い方だけに使う
+  flow?: { outlook: FlowOutlook } | null;
   // 待ったほうが早く着く確率など。理由の最後に 1 文で添える。無ければ添えない
   chance?: ChanceTextInput | null;
 };
@@ -617,39 +617,15 @@ function buildDecisionHeadline(input: DecisionTextInput): string {
   }
 }
 
-// 流れの一文に続ける比較。流れの一文が見込みを言うので、比較は短くする
-function buildFlowFollowUp(input: DecisionTextInput, outlook: FlowOutlook): string {
-  const ja = input.language === "ja";
-  const be = input.breakEvenTime ? formatClock(input.breakEvenTime, input.language) : null;
-  const target = nameSwitchTarget(input.bestOption, input.language);
-  if (outlook === "short" && input.reason === "resume_before_break_even") {
-    return ja ? "このまま待つほうが早く着きます。" : "Staying put gets you there sooner.";
-  }
-  if ((input.reason === "low_confidence" || input.reason === "unknown_event") && be) {
-    return ja
-      ? `${be}を過ぎると${target}が早く着きます。`
-      : `After ${be}, ${target} gets you there sooner.`;
-  }
-  return buildDecisionReason(input);
-}
-
-// 見込みが立てやすい事象では、理由の頭に流れの一文を置き、確率があれば最後に 1 文で添える
-// 確率の一文は流れの一文より先に残す
+// 理由に確率の一文を添える。上限を超えるなら比較の文だけにする
+// 再開までの分を事象の決まった流れとして言い切る文は置かない。見込みは画面の図で幅を持たせて示す
 function composeReason(input: DecisionTextInput): string {
   const base = buildDecisionReason(input);
-  const flow = input.flow;
   const max = reasonLimits[input.language].max;
   const glue = input.language === "ja" ? "" : " ";
-  const withFlow = flow?.inReason
-    ? `${flow.sentence}${glue}${buildFlowFollowUp(input, flow.outlook)}`
-    : null;
   const chance = input.chance ? buildChanceSentence(input.chance, input.language) : null;
-  const withChance = (text: string | null): string | null =>
-    text !== null && chance !== null ? `${text}${glue}${chance}` : null;
-  const present = (texts: (string | null)[]): string[] =>
-    texts.filter((text): text is string => text !== null);
-  const candidates = present([withChance(withFlow), withChance(base), withFlow]);
-  return candidates.find((text) => [...text].length <= max) ?? base;
+  const withChance = chance !== null ? `${base}${glue}${chance}` : null;
+  return withChance !== null && [...withChance].length <= max ? withChance : base;
 }
 
 // 決定論モードの見出しと理由
@@ -657,7 +633,7 @@ export function buildDecisionText(input: DecisionTextInput): DecisionText {
   return { headline: buildDecisionHeadline(input), reason: composeReason(input) };
 }
 
-// 駅間の車内の理由の最後の手。着く見込みも流れも無いとき
+// 駅間の車内の理由の最後の手。着く見込みが無いとき
 function buildInCarFallbackReason(language: Lang): string {
   return language === "ja"
     ? "車内では列車が動くのを待ちます。"
@@ -668,26 +644,17 @@ export type InCarTextInput = {
   language: Lang;
   // 次の駅が分からなければ null。見出しは「車内で待つ」だけにする
   queue: TrainQueueText | null;
-  // 理由に置く流れの一文。知見から見積もっているときだけ
-  flowSentence: string | null;
 };
 
-// 駅間の車内の見出しと理由。切り替えの比較は書かず、次の駅に着く見込みと流れだけを書く
-// 理由は上限に収まる最初の形にする。着く見込みの一文は流れの一文より先に残す
+// 駅間の車内の見出しと理由。切り替えの比較は書かず、次の駅に着く見込みだけを書く
+// 理由は上限に収まる最初の形にする
 export function buildInCarDecisionText(input: InCarTextInput): DecisionText {
-  const { language, queue, flowSentence } = input;
-  const glue = language === "ja" ? "" : " ";
+  const { language, queue } = input;
   const note = queue ? buildTrainQueueNote(queue, language) : null;
   const short = queue ? buildShortTrainQueueNote(queue, language) : null;
-  const join = (a: string | null, b: string | null) => (a && b ? `${a}${glue}${b}` : null);
-  const candidates = [
-    join(note, flowSentence),
-    note,
-    join(short, flowSentence),
-    short,
-    flowSentence,
-    buildInCarFallbackReason(language),
-  ].filter((text): text is string => text !== null);
+  const candidates = [note, short, buildInCarFallbackReason(language)].filter(
+    (text): text is string => text !== null,
+  );
   return {
     headline: buildInCarHeadline(queue, language),
     reason: pickFitting(candidates, reasonLimits[language].max),

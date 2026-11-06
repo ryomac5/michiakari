@@ -7,6 +7,7 @@ import type {
   TrainPosition,
 } from "@repo/schema";
 import { describe, expect, it } from "vitest";
+import { findFlowWording } from "../src/domain/flow-wording.ts";
 import { createTestApp, postJudge } from "./helpers.ts";
 
 // 駅間の車内にいる利用者の判断。架空の夜に、駅と駅の間で止まった列車の中にいる
@@ -142,8 +143,9 @@ describe("駅間の車内の 3 つの場面", () => {
     const judgment = findJudgment(await postJudge(app, buildRequest({ trainPosition: defaults })));
     const inCar = expectInCarWait(judgment);
     expect(inCar.afterAlight).toBeNull();
-    // 人身事故のよくある流れの一文を理由に添える
-    expect(judgment.reason).toContain("人身事故はふつう1時間ほどで再開します");
+    // 理由は着く見込みだけにし、再開までの時間を事象の流れとして言い切らない
+    expect(judgment.reason).toMatch(/^塚本には\d{1,2}時\d{2}分ごろに着く見込みです。/);
+    expect(findFlowWording(judgment.reason ?? "", "ja")).toBeNull();
     expect(judgment.typicalFlow).toBeDefined();
   });
 });

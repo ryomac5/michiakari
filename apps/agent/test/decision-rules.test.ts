@@ -68,7 +68,6 @@ function buildInput(input: {
       boardableP80: null,
       typicalFlow: null,
       flowOutlook: input.flowOutlook ?? null,
-      flowSentence: null,
     },
     alternatives: {
       options: [],

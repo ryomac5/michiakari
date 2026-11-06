@@ -4,7 +4,8 @@ import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import { loadReplayKnowledge, openReplay, openSheet, waitForJudged } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
-// よくある流れの欄と、短く終わる事象で慌てず待つと伝える結論
+// 短く終わる事象で慌てず待つと伝える結論と、根拠の欄のいまの段階
+// 事象の決まった流れや再開までの時間を言い切る文は、どこにも出さない
 // 決定論モードの agent とダミーの車内対応で確かめる
 
 test.use({ viewport: { width: 390, height: 844 } });
@@ -14,15 +15,24 @@ const reassuring = "このまま待つ";
 const nonDecisive =
   /まだ判断できません|判断できません|分かりません|わかりません|情報が足りません|材料が不足|見込みが立ちません/;
 
-async function expectFlow(page: Page, sectionId: string, eventType: string): Promise<void> {
-  const flow = page.getByTestId(sectionId);
-  await expect(flow).toBeVisible();
-  await expect(flow).toHaveAttribute("data-event-type", eventType);
-  await expect(flow).toHaveAttribute("data-predictability", "high");
-  await expect(flow).toContainText("よくある流れ");
+const flowWording = /よくある流れ|ふつう|[0-9０-９]+(時間|分)ほどで(再開|終わ)/;
+
+// 根拠の欄を開き、先頭の項目がいまの段階を指すことと、その読めることの文を確かめる
+async function expectCurrentReading(page: Page, phaseId: string, reading: string): Promise<void> {
+  const toggle = page.getByTestId(testIds.judgment.evidenceToggle);
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  const current = page.getByTestId(testIds.judgment.evidence).locator("li").first();
+  await expect(current).toHaveAttribute("data-phase-id", phaseId);
+  await expect(current).toHaveAttribute("data-current", "true");
+  await expect(current.getByTestId(testIds.judgment.evidenceReading)).toHaveText(reading);
 }
 
-test("車内対応のリプレイでは、止まった直後でも待つになり、よくある流れの欄が出る", async ({
+// シートのどこにも、事象の決まった流れや再開までの時間を言い切る文が無い
+async function expectNoFlowWording(page: Page): Promise<void> {
+  await expect(page.getByTestId(testIds.judgment.sheet)).not.toContainText(flowWording);
+}
+
+test("車内対応のリプレイでは、止まった直後でも待つになり、根拠にいまの段階が出る", async ({
   page,
 }) => {
   await openReplay(page, "in_car_response_loop", 60);
@@ -39,30 +49,13 @@ test("車内対応のリプレイでは、止まった直後でも待つにな�
   );
   await expectBlockedTagClearOfToggle(page);
 
-  // 半分では 1 行の要約だけ、全部開くと帯と見込みの根拠が出る
-  await openSheet(page, "half");
-  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(
-    "車内対応はふつう5〜10分で終わります",
+  // 理由は境目との比較で書き、再開までの時間を事象の流れとして言い切らない
+  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toHaveText(
+    /^再開は\d{1,2}時\d{2}分頃の見込みで境目より前です。$/,
   );
-  await expectFlow(page, testIds.replay.phaseStrip, "in_car_response");
-  const current = page.getByTestId(testIds.replay.phase("stopped_for_check"));
-  await expect(current).toHaveAttribute("data-position", "current");
-  await expect(current).toBeHidden();
   await openSheet(page, "full");
-  await expect(current).toBeVisible();
-  await expect(current).toContainText("約2分");
-  // 知見の根拠の文は出さず、数値から組み立てた要約を添える
-  const basis = page.getByTestId(`${testIds.replay.phaseStrip}-basis`);
-  await expect(basis).toBeVisible();
-  await expect(basis).toHaveText("流れが読みやすいふつう5〜10分で終わる");
-  // 帯の各段の目安の合計は、再開までの見込み 5〜10 分の下端にそろう
-  const minutes = await page
-    .getByTestId(testIds.replay.phaseStrip)
-    .locator("li[data-position]")
-    .evaluateAll((els) =>
-      els.map((el) => Number(/約(\d+)分/.exec(el.textContent ?? "")?.[1] ?? Number.NaN)),
-    );
-  expect(minutes.reduce((a, b) => a + b, 0)).toBe(5);
+  await expectCurrentReading(page, "stopped_for_check", "いまは停車して確認の段階です。");
+  await expectNoFlowWording(page);
 });
 
 // 「見合わせ」の札が出るなら、「全体を見る」のボタンに重ならない
@@ -83,7 +76,9 @@ async function expectBlockedTagClearOfToggle(page: Page): Promise<void> {
   ).toBe(false);
 }
 
-test("人身事故のリプレイでは、よくある流れで再開まで 1 時間ほどと伝える", async ({ page }) => {
+test("人身事故のリプレイでは、発生直後から切り替えを言い切り、再開までの時間は文で言い切らない", async ({
+  page,
+}) => {
   await openReplay(page, "person_accident_last_train", 60);
   await page.getByTestId(testIds.replay.nextButton).click();
   await waitForJudged(page, "obs_1");
@@ -95,16 +90,14 @@ test("人身事故のリプレイでは、よくある流れで再開まで 1 �
     "data-level",
     "low",
   );
-  // 理由の先頭は、知見の数値から組み立てたよくある流れの一文
+  // 理由の先頭は境目との比較。再開の見込みは図が幅で示す
   await expect(page.getByTestId(testIds.judgment.conclusionReason)).toHaveText(
-    "人身事故はふつう1時間ほどで再開します。",
+    /^再開は\d{1,2}時\d{2}分頃の見込みで境目より後です。$/,
   );
-  await openSheet(page, "half");
-  await expectFlow(page, testIds.replay.phaseStrip, "person_accident");
-  await expect(page.getByTestId(testIds.replay.phase("initial"))).toHaveAttribute(
-    "data-position",
-    "current",
-  );
+  await expect(page.getByTestId(testIds.judgment.resumeChance)).toBeVisible();
+  await openSheet(page, "full");
+  await expectCurrentReading(page, "initial", "いまは発生直後の段階です。");
+  await expectNoFlowWording(page);
 });
 
 test("入口で「車内の急病人・非常ボタン」を選ぶと、待つの判断と安心させる文が出る", async ({
@@ -122,14 +115,11 @@ test("入口で「車内の急病人・非常ボタン」を選ぶと、待つ�
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
 
   // 様子の段は方式を選ばせず、すぐに原因を聞く。原因、時間、再開見込みの順に答える
-  // 大分類の人身事故・お客様対応を選ぶと、続けて種類を 1 問だけ聞く
-  const passenger = page.getByTestId(testIds.start.cause("passenger"));
-  await expect(passenger).toHaveText("人身事故・お客様対応");
-  await passenger.click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "causeKind");
-  const inCar = page.getByTestId(testIds.start.causeKind("inCar"));
+  // 車内の急病人・非常ボタンは人身事故と別の選択肢で、続けての種類の問いなしに経過の問いへ進む
+  const inCar = page.getByTestId(testIds.start.cause("inCar"));
   await expect(inCar).toHaveText("車内の急病人・非常ボタン");
   await inCar.click();
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "elapsed");
   await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText(
     "車内の急病人・非常ボタン",
   );
@@ -143,26 +133,23 @@ test("入口で「車内の急病人・非常ボタン」を選ぶと、待つ�
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText(reassuring);
   await expect(conclusion).not.toContainText(nonDecisive);
 
-  await openSheet(page, "half");
-  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText(
-    "車内対応はふつう5〜10分で終わります",
-  );
-  await expectFlow(page, testIds.judgment.flow, "in_car_response");
-  // 段階はよくある流れの欄にまとめ、根拠の中には重ねて出さない
+  await expect(page.getByTestId(testIds.judgment.conclusionReason)).not.toContainText(flowWording);
   await openSheet(page, "full");
   // 短く終わる事象なので、次に確かめることは再開見込みではなく発車の放送にする
   const nextCheck = page.getByTestId(testIds.judgment.nextCheck);
   await expect(nextCheck).toContainText("まもなく発車");
   await expect(nextCheck).not.toContainText("再開見込み");
-  await page.getByTestId(testIds.judgment.evidenceToggle).click();
-  await expect(page.getByTestId(testIds.judgment.phaseTimeline)).toHaveCount(0);
-  // 根拠を開いても、知見の本文は出さない。事象の名前と数値から組み立てた要約を出す
+  // 根拠を開いても、知見の本文は出さない。聞いたことは入口で選んだ原因の呼び名にする
+  await expectCurrentReading(page, "stopped_for_check", "いまは停車して確認の段階です。");
   const knowledge = loadReplayKnowledge().find((k) => k.id === "in_car_response");
   if (!knowledge) throw new Error("車内対応の知見がありません");
   const evidence = page.getByTestId(testIds.judgment.evidence);
-  await expect(page.getByTestId(testIds.judgment.evidenceItem("in_car_response"))).toContainText(
-    "車内対応のよくある流れ · ふつう5〜10分で終わる",
+  const item = page.getByTestId(testIds.judgment.evidenceItem("in_car_response"));
+  await expect(item.getByTestId(testIds.judgment.evidenceHeard)).toHaveText(
+    "「車内の急病人・非常ボタン」",
   );
+  await expect(evidence).not.toContainText("車内対応");
+  await expectNoFlowWording(page);
   const sheet = page.getByTestId(testIds.judgment.sheet);
   const knowledgeTexts = [
     knowledge.summary.ja,
@@ -177,7 +164,6 @@ test("入口で「車内の急病人・非常ボタン」を選ぶと、待つ�
     await expect(evidence).not.toContainText(text);
     await expect(sheet).not.toContainText(text);
   }
-  await expect(page.getByTestId(testIds.judgment.flowPhase("stopped_for_check"))).toBeVisible();
 });
 
 test("このアプリについての最初に、作った理由が出る", async ({ page }) => {

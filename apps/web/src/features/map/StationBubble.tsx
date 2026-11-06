@@ -428,8 +428,8 @@ export function HereMarker({
 }
 
 // 止まっている路線の上に 1 つだけ置く札
-export function BlockedTag() {
-  const t = useTranslations("map");
+// 止まっている区間の札。発表の区間から「見合わせ 大阪〜京都」の形で出す
+export function BlockedTag({ label }: { label: string }) {
   return (
     <div
       data-testid={mapTestIds.blockedTag}
@@ -446,7 +446,7 @@ export function BlockedTag() {
           strokeDasharray="3 2"
         />
       </svg>
-      {t("suspended")}
+      {label}
     </div>
   );
 }

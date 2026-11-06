@@ -134,22 +134,21 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   );
   await expect(page.getByTestId(testIds.judgment.conclusionNext)).toContainText("動かなければ");
   await expect(conclusion).not.toContainText(nonDecisive);
-  // 境目の意味を開いたシートで一文で添える
-  await expect(page.getByTestId(testIds.judgment.breakEvenMeaning)).toContainText(
-    "境目の時刻までに動けば待つほうが早く着きます",
-  );
+  // 境目の意味の説明は、条件の文と重なるので出さない
+  await expect(page.getByText("境目の時刻までに動けば待つほうが早く着きます")).toHaveCount(0);
 
-  // 地図は止まっている御堂筋線と、乗り換えられる駅を語る
+  // 地図は乗り換えられる駅を語る。発表に区間が無いので、御堂筋線の区間は描かず、発表で確かめると添える
   const map = page.getByTestId(testIds.judgment.map);
   await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   await expect(map).toHaveAttribute("data-view", "focus");
   await expect(map).toHaveAttribute("data-focus-area", /^auto:/);
-  await expect(map).toHaveAttribute("data-blocked", "true");
+  await expect(map).toHaveAttribute("data-blocked", "false");
   const bubbles = page.locator(`[data-testid^="judgment-map-station-"]`);
   await expect.poll(() => bubbles.count()).toBeGreaterThanOrEqual(1);
   expect(await bubbles.count()).toBeLessThanOrEqual(4);
   await expect(bubbles.first()).toBeVisible();
-  await expect(page.getByTestId(mapTestIds.blockedTag)).toBeVisible();
+  await expect(page.getByTestId(mapTestIds.blockedTag)).toHaveCount(0);
+  await expect(page.getByTestId(mapTestIds.sectionNote)).toContainText("区間は発表で確かめる");
   await expect(page.getByTestId(mapTestIds.here)).toContainText("本町");
   await expect(page.getByTestId(testIds.judgment.disclaimer)).toBeVisible();
   await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("御堂筋線");
@@ -273,8 +272,7 @@ test("判断の画面の戻るを押すと、様子の 3 問目に答えを残�
   await page.getByTestId(testIds.start.hub("umeda")).click();
   await page.getByTestId(testIds.start.place("osaka")).click();
   await page.getByTestId(testIds.start.destinationCandidate("三ノ宮")).click();
-  await page.getByTestId(testIds.start.cause("passenger")).click();
-  await page.getByTestId(testIds.start.causeKind("person")).click();
+  await page.getByTestId(testIds.start.cause("person")).click();
   await page.getByTestId(testIds.start.elapsed("m10")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });

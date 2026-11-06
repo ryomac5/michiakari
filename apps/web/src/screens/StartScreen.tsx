@@ -11,6 +11,7 @@ import { sheetTopInset } from "@/components/MapSheet";
 import {
   type DirectionStop,
   type EntryDirection,
+  isLoopAt,
   listDirectionCandidates,
   listEntryDirections,
   listNearbyStops,
@@ -74,6 +75,7 @@ import {
   type GpsChoice,
   inferSegmentTravel,
   listGpsChoices,
+  listLineTapChoices,
   listSegmentTravels,
   resolveSegmentTravel,
   type SegmentTravel,
@@ -84,11 +86,15 @@ import {
   findNearestSegment,
   isOnRoute,
   listLinePicks,
+  listLineStops,
   listRouteStops,
   listSegmentWindow,
   mergeRouteCandidates,
   pickLineAt,
+  pickLineTap,
+  placeDirectionTag,
   selectAwaySide,
+  selectStopDirection,
 } from "@/features/entry/map-pick";
 import { buildLineObservation } from "@/features/entry/seed";
 import {
@@ -104,7 +110,12 @@ import { testIds } from "@/features/judgment/testids";
 import { loadMapGeoData, type MapGeoData } from "@/features/map/geo-data";
 import type { MapInsets } from "@/features/map/MapPanel";
 import { findFocusArea } from "@/features/map/station-guide";
-import { type CauseAnswer, resolveCauseEventType } from "@/features/situation/cause-categories";
+import {
+  type CauseAnswer,
+  isAskedKind,
+  resolveCauseEventType,
+  toCauseChoiceId,
+} from "@/features/situation/cause-categories";
 import { findElapsedOption, listResumeTimeOptions } from "@/features/situation/plain-questions";
 import {
   findNearestChoices,
@@ -127,6 +138,8 @@ const lineViewMeters = 4000;
 const linePathStops = 4;
 // 路線の札から、行き先の札を出さない範囲（m）
 const lineGapMeters = 700;
+// 路線の駅を両方向とも出す段で、駅を収める余白（px）
+const lineStopMargin = { x: 72, y: 36 };
 
 // 高さを測って地図の余白に使う
 function useElementHeight<T extends HTMLElement>() {
@@ -253,6 +266,17 @@ export function StartScreen() {
         : [],
     [data, entry.line, directions, direction],
   );
+  // 駅にいる人が先に路線を選んだ方面の段。路線の駅を両方向とも地図に出し、押せば行き先にする
+  const lineStopMode =
+    entry.stage === "direction" &&
+    entry.routeFirst &&
+    entry.location === "station" &&
+    !entry.segment &&
+    entry.line !== null;
+  const routeLineStops = useMemo(
+    () => (lineStopMode ? listLineStops(directions) : []),
+    [lineStopMode, directions],
+  );
   // 再開見込みの時刻の候補。問いに入った時刻から並べる
   const resumeTimes = useMemo(
     () => (entry.stage === "resume" ? listResumeTimeOptions(new Date()) : []),
@@ -358,6 +382,35 @@ export function StartScreen() {
     [gps.status, data, geo],
   );
 
+  // 最初の地図で線を押したときの駅の間の候補。現在地の読み取りと同じ部品で確かめる
+  const [mapPick, setMapPick] = useState<{ point: Position; choices: GpsChoice[] } | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 段が変わったら候補を閉じる
+  useEffect(() => {
+    setMapPick(null);
+  }, [entry.stage]);
+  function locateGps() {
+    setMapPick(null);
+    gps.locate();
+  }
+  const positionGps = mapPick
+    ? {
+        status: {
+          kind: "located" as const,
+          point: { lon: mapPick.point[0], lat: mapPick.point[1], accuracy: 0 },
+        },
+        choices: mapPick.choices,
+        onLocate: locateGps,
+        onConfirm: confirmGpsChoice,
+        onDismiss: () => setMapPick(null),
+      }
+    : {
+        status: gps.status,
+        choices: gpsChoices,
+        onLocate: locateGps,
+        onConfirm: confirmGpsChoice,
+        onDismiss: gps.reset,
+      };
+
   function confirmGpsChoice(choice: GpsChoice) {
     if (!data || entry.stage !== "position") return;
     if (choice.kind === "station") {
@@ -386,7 +439,7 @@ export function StartScreen() {
 
   const locateMessage =
     locateStatus === "locating"
-      ? `${t("start.locating")} ${t("entry.locationNote")}`
+      ? t("start.locating")
       : locateStatus === "failed"
         ? t("start.locateFailed")
         : locateStatus === "unsupported"
@@ -397,6 +450,11 @@ export function StartScreen() {
 
   function handleTap(point: Position, reachMeters: number) {
     if (!data) return;
+    if (lineStopMode) {
+      // 線の外は、印を出した駅の近くを押したときだけ、その駅を行き先にする
+      tapLine(point, reachMeters, false);
+      return;
+    }
     if (entry.stage === "position" || entry.stage === "kansai") {
       const area = findAreaAt(data, point, reachMeters);
       if (area) dispatch({ type: "openArea", area });
@@ -405,6 +463,24 @@ export function StartScreen() {
       const mapDepth = Math.max(getDepth("area"), getDepth("kansai"));
       if (mapDepth >= 0) goToDepth(mapDepth);
     }
+  }
+
+  // 最初の段で線を押したら、その駅の間の車内にいるか確かめる。駅の間が無ければ、そのあたりへ寄る
+  function handleRailTap(lineIds: string[], point: Position, reachMeters: number) {
+    if (!data || !geo || entry.stage !== "position") return;
+    const choices = listLineTapChoices(
+      data,
+      geo.nodes,
+      { lon: point[0], lat: point[1] },
+      reachMeters,
+      lineIds,
+    );
+    if (choices.length === 0) {
+      handleTap(point, reachMeters);
+      return;
+    }
+    gps.reset();
+    setMapPick({ point, choices });
   }
 
   // 方面が 1 つしか無い路線（起点の駅など）は、方面を聞かずに決める
@@ -448,6 +524,33 @@ export function StartScreen() {
       line,
       autoDirection: lineDirections.length === 1 ? (lineDirections[0]?.key ?? null) : null,
     });
+  }
+
+  // 路線を選んだ直後の地図を押したとき。印を出した駅の近くならその駅を行き先にし、
+  // 描いた線の上なら押した点に向かう方面を選ぶ
+  function tapLine(point: Position, reachMeters: number, onLine: boolean) {
+    if (!data || !entry.place || !entry.line) return;
+    const tap = pickLineTap({
+      origin: entry.place.position,
+      directions,
+      stops: routeLineStops,
+      loop: isLoopAt(data, entry.line),
+      point,
+      reachMeters,
+      onLine,
+    });
+    if (tap?.stop) chooseLineStop(tap.stop);
+    else if (tap) chooseDirection(tap.direction);
+  }
+
+  // 先に選んだ路線の駅を行き先にする。方面は出発の駅からの駅の数が少ない向きにする
+  function chooseLineStop(stop: DirectionStop) {
+    const chosen = selectStopDirection(directions, stop.choice.id);
+    if (!chosen) return;
+    rememberStationName(stop.choice.name, stop.choice.nameEn);
+    setDestination({ kind: "station", name: stop.choice.name });
+    setDestinationBasis("chosen");
+    dispatch({ type: "chooseLineStop", direction: chosen.key });
   }
 
   // 読み取った駅の間の向きを決められなければ、先へ進めず手で選ぶ流れに戻す
@@ -758,6 +861,7 @@ export function StartScreen() {
     return { lineIds: ids.split(","), mode };
   }, [lineFocusKey]);
   const linePickable =
+    lineStopMode ||
     pickLines.length > 0 ||
     (entry.stage === "station" && onTrain) ||
     entry.stage === "trainPosition";
@@ -801,8 +905,9 @@ export function StartScreen() {
   // ここまでに答えた原因と時間のチップ。押すとその問いまで引いて選び直す
   // 種類まで答えたらその種類、そうでなければ大分類の呼び名
   function nameCause(cause: CauseAnswer): string {
-    if (cause.kind && cause.kind !== "other") return t(`entry.causeKinds.${cause.kind}`);
-    return t(`entry.causes.${cause.category ?? "unknown"}`);
+    if (isAskedKind(cause.kind) && cause.kind !== "other")
+      return t(`entry.causeKinds.${cause.kind}`);
+    return t(`entry.causes.${toCauseChoiceId(cause) ?? "unknown"}`);
   }
   const answered: AnsweredItem[] = [
     ...(entry.cause
@@ -861,18 +966,28 @@ export function StartScreen() {
       side: sideOf(stop.position),
     });
     if (entry.stage === "direction") {
-      return stepDirections.flatMap((d, i) => {
+      // 路線の駅を出すときは、方面の札を出した駅の先に置き、駅の印と重ねない
+      const tags = stepDirections.flatMap((d, i) => {
         const stop = d.stops[Math.min(2, d.stops.length - 1)];
-        if (!stop) return [];
+        const position = lineStopMode ? placeDirectionTag(from, d) : stop?.position;
+        if (!stop || !position) return [];
         return [
           {
             ...toStop(`direction-${i}`, stop),
+            position,
             label: nameDirection(d),
             angle: angles[d.key] ?? 0,
-            side: sideOf(stop.position, true),
+            side: sideOf(position, true),
           },
         ];
       });
+      return [
+        ...tags,
+        ...routeLineStops.map((stop) => ({
+          ...toStop(`pick-${stop.choice.id}`, stop),
+          keep: true,
+        })),
+      ];
     }
     // 路線の段は、駅の路線の札だけを出す
     if (entry.stage === "station" && !onTrain) return lineStops;
@@ -927,8 +1042,18 @@ export function StartScreen() {
       : null;
 
   // 地図の線を押したとき。押した点に近い通称の路線か、駅の間を選ぶ
-  function selectMapLine(lineId: string, point: Position, reachMeters: number) {
+  function selectMapLine(
+    lineId: string,
+    point: Position,
+    reachMeters: number,
+    tapReachMeters: number,
+  ) {
     if (!data) return;
+    // 路線を選んだ直後は、描いた線を押したことを手がかりに方面か行き先を決める
+    if (lineStopMode) {
+      if (lineId === entry.line?.lineId) tapLine(point, tapReachMeters, true);
+      return;
+    }
     if (entry.stage === "trainPosition") {
       // 出ている駅の間から押せる範囲の外なら、同じ路線の線でも決めない
       const segment =
@@ -966,6 +1091,9 @@ export function StartScreen() {
     } else if (kind === "direction") {
       const chosen = stepDirections[Number(id)];
       if (chosen) chooseDirection(chosen);
+    } else if (kind === "pick") {
+      const stop = routeLineStops.find((c) => c.choice.id === id);
+      if (stop) chooseLineStop(stop);
     } else if (kind === "destination") {
       const stop = candidates.find((c) => c.choice.id === id);
       if (stop) chooseDestination(stop.choice);
@@ -999,6 +1127,8 @@ export function StartScreen() {
             : []
         }
         onSelectStop={selectMapStop}
+        // 路線の駅を両方向とも出す段は、名前を隠せるので余白を狭くして大きく寄せる
+        stopMargin={lineStopMode ? lineStopMargin : undefined}
         insets={insets}
         narrow={narrow}
         apiRef={mapApi}
@@ -1021,6 +1151,11 @@ export function StartScreen() {
           if (area) selectPlace(area, place);
         }}
         onTap={handleTap}
+        onSelectRails={entry.stage === "position" ? handleRailTap : undefined}
+        onApproachRails={(point, reachMeters) => {
+          // 段は最初のまま、エリアや何も無い所を押したときと同じ寄せ方で、そのあたりへ寄せる
+          if (data) mapApi.current?.approach(findAreaAt(data, point, reachMeters), point);
+        }}
       />
       <AppHeader
         variant="map"
@@ -1091,13 +1226,7 @@ export function StartScreen() {
             {entry.stage === "position" && (
               <LocationStep
                 onSelect={(location) => dispatch({ type: "chooseLocation", location })}
-                gps={{
-                  status: gps.status,
-                  choices: gpsChoices,
-                  onLocate: gps.locate,
-                  onConfirm: confirmGpsChoice,
-                  onDismiss: gps.reset,
-                }}
+                gps={positionGps}
               >
                 <LocationSearch onSelect={openPlace} />
               </LocationStep>
@@ -1114,7 +1243,9 @@ export function StartScreen() {
                 line={entry.line}
                 directions={stepDirections}
                 angles={angles}
+                stops={routeLineStops}
                 onSelect={chooseDirection}
+                onSelectStop={chooseLineStop}
               />
             )}
             {entry.stage === "destination" && (
@@ -1172,9 +1303,7 @@ export function StartScreen() {
             )}
             {entry.stage === "cause" && (
               <CauseStep
-                onSelect={(category) =>
-                  dispatch({ type: "chooseCause", cause: { category, kind: null } })
-                }
+                onSelect={(cause) => dispatch({ type: "chooseCause", cause })}
                 onMethod={(method) => dispatch({ type: "chooseMethod", method })}
               />
             )}

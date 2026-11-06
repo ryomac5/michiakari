@@ -31,6 +31,32 @@ describe("selectVisibleStops", () => {
     expect(placed.map((s) => s.key)).toEqual(["尼崎", "京都"]);
     expect(placed[0]?.side).not.toBe("top");
   });
+  it("keep の駅は、名前が収まらなくても印を残し、名前だけを隠す", () => {
+    const blockers = (["top", "right", "bottom", "left"] as const).map((side) =>
+      buildStopLabelRect({ x: 100, y: 100 }, "いま大阪", side),
+    );
+    const stops = [{ ...stop("天満", 100, 100), keep: true }, stop("京橋", 400, 100)];
+    const placed = selectVisibleStops({ stops, project, blockers });
+    expect(placed.map((s) => [s.key, s.labelHidden])).toEqual([
+      ["天満", true],
+      ["京橋", false],
+    ]);
+  });
+  it("keep の駅の名前は、見える範囲からはみ出さない側に置き、置けなければ隠す", () => {
+    const view = { left: 0, top: 0, right: 200, bottom: 200 };
+    const edge = { ...stop("京橋", 190, 100), side: "right" as const, keep: true };
+    const [placed] = selectVisibleStops({ stops: [edge], project, blockers: [], view });
+    expect(placed?.side).toBe("left");
+    const corner = { ...stop("玉造", 199, 1), keep: true };
+    const [hidden] = selectVisibleStops({ stops: [corner], project, blockers: [], view });
+    expect(hidden?.labelHidden).toBe(true);
+  });
+  it("keep の駅の名前は、後に並ぶ keep の駅の印に掛けない", () => {
+    const first = { ...stop("大阪城公園", 100, 100), keep: true };
+    const below = { ...stop("森ノ宮", 100, 70), keep: true };
+    const [placed] = selectVisibleStops({ stops: [first, below], project, blockers: [] });
+    expect(placed?.side).not.toBe("top");
+  });
   it("どの側にも収まらない駅は落とす", () => {
     const blockers = (["top", "right", "bottom", "left"] as const).map((side) =>
       buildStopLabelRect({ x: 100, y: 100 }, "いま大阪", side),

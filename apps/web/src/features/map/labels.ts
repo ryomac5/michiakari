@@ -29,7 +29,7 @@ export type MapLabels = {
 const ja: MapLabels = {
   origin: "現在地",
   destination: "行き先",
-  blocked: "運転見合わせ",
+  blocked: "見合わせ",
   loading: "地図を読み込んでいます",
   error: "地図はもう一度開くと表示されます",
   legend: {

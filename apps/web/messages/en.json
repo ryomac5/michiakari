@@ -11,7 +11,6 @@
     },
     "mockBadge": "Showing fictional demo data",
     "name": "Michiakari",
-    "tagline": "Wait, or switch?",
     "skipToContent": "Skip to content",
     "menu": {
       "label": "Menu",
@@ -36,7 +35,6 @@
     "noResults": "Try another spelling",
     "replayLink": "Watch the demo",
     "nearestFailed": "Search by name. Retry nearby stations later.",
-    "locationNote": "Location is sent only to find nearby stations. It is not stored.",
     "resultCount": "{count, plural, one {# station found} other {# stations found}}",
     "searchFailed": "Check your connection and search again."
   },
@@ -136,7 +134,6 @@
     },
     "breakEven": {
       "title": "Cutoff",
-      "meaning": "If service restarts by the cutoff, waiting is faster.",
       "passed": "Cutoff passed",
       "soon": "The cutoff is close. Get ready to switch",
       "none": "Wait for service to resume",
@@ -251,45 +248,13 @@
     },
     "evidence": {
       "title": "Why we think so",
-      "phases": "Phases",
-      "here": "You are here",
-      "elapsed": "About {minutes} min into this phase",
-      "unknownPhase": "The next announcement will narrow down the phase",
-      "signals": "Signals found",
-      "noSignals": "Signals will come from the next announcements and signs",
-      "items": "Knowledge and calculations used",
-      "kinds": {
-        "signal": "Signal",
-        "knowledge": "Knowledge",
-        "weather": "Weather",
-        "computation": "Calculation"
-      },
-      "describe": {
-        "signal": "Announcement: \"{quote}\"",
-        "event": "Typical flow of {event}",
-        "phase": "Current phase: {phase}",
-        "knowledge": "Former dispatcher's knowledge"
-      }
-    },
-    "flow": {
-      "title": "Typical flow",
-      "now": "Now: {phase} · {index}/{total}",
-      "steps": "{total} steps",
-      "minutes": "~{minutes} min",
-      "here": "You are here",
-      "predictability": {
-        "high": "Predictable flow",
-        "medium": "Somewhat variable flow",
-        "low": "Hard-to-read flow"
-      },
-      "usual": {
-        "long": "Usually resumes in about {duration}",
-        "short": "Usually over in {span} min"
-      },
-      "duration": {
-        "minutes": "{minutes} min",
-        "hours": "{hours} h",
-        "hoursMinutes": "{hours} h {minutes} min"
+      "heard": "What you heard",
+      "heardQuote": "“{quote}”",
+      "reading": {
+        "label": "What it tells us",
+        "current": "Service is now at the “{phase}” stage.",
+        "entered": "Service had reached the “{phase}” stage.",
+        "unknown": "The stage is not clear yet."
       }
     },
     "addInfo": {
@@ -407,9 +372,6 @@
       "start": "Start replay"
     },
     "changed": "Advice changed",
-    "phases": "Phase",
-    "here": "Now",
-    "unknownPhase": "The next update will narrow down the phase",
     "history": "Announcements so far",
     "trip": "{origin} → {destination}",
     "bar": "Playback controls",
@@ -444,8 +406,7 @@
         "neither": "Neither made it by {deadline}.",
         "sameOnTime": "You made it by {deadline}.",
         "sameLate": "You did not make it by {deadline}."
-      },
-      "method": "Arrival times are rough figures from the estimated travel times in each piece of advice and the time service actually resumed in the scenario."
+      }
     },
     "announcements": "Announcements",
     "scenario": "Scenario",
@@ -467,6 +428,8 @@
     "viewFocus": "Around you",
     "changeAt": "change at {station}",
     "transferShort": "Transfer",
+    "sectionUnconfirmed": "Check the section in the announcement",
+    "sectionAddAnnouncement": "Paste an announcement with the section to draw it.",
     "between": "between {from} and {to}",
     "alight": "Get off at",
     "walkShort": "{minutes} min walk"
@@ -518,7 +481,6 @@
     }
   },
   "entry": {
-    "locationNote": "Location finds nearby stations on this device. It is not stored.",
     "nearbyStations": "Stations near you",
     "nearbyDistance": "About {distance}",
     "nearestEmpty": "No nearby station found. Use the map or search.",
@@ -557,6 +519,9 @@
     "quickPicks": "Popular stations",
     "directionQuestion": "Pick your direction",
     "directionHint": "Pick the direction of your train",
+    "lineStopQuestion": "Pick a station or direction",
+    "lineStopHint": "Pick a station to set your destination. We choose the direction for you.",
+    "lineStopsLabel": "Stations on this line",
     "directionName": "Toward {names}",
     "destinationHint": "Major stations toward {direction}",
     "destinationUndecided": "Not sure yet",
@@ -576,7 +541,8 @@
     "tripTerminal": "Using the end of the line",
     "causeQuestion": "Pick the cause you heard",
     "causes": {
-      "passenger": "Person or passenger",
+      "person": "Person hit by a train",
+      "inCar": "Illness / emergency button on board",
       "vehicle": "Train fault / inspection",
       "signaling": "Signals / points",
       "power": "Power outage",
@@ -588,8 +554,6 @@
     },
     "causeKindQuestion": "Pick the closest one",
     "causeKinds": {
-      "person": "Person hit by a train",
-      "inCar": "Illness / emergency button on board",
       "rain": "Rain",
       "wind": "Wind",
       "snow": "Snow or ice",
@@ -623,7 +587,6 @@
     "locationTrain": "On a train",
     "gpsLocate": "Read from my location",
     "gpsLocating": "Reading your location",
-    "gpsNote": "Location is used on this device only to find candidates. It is not sent.",
     "gpsStationQuestion": "Are you at {station} Station?",
     "gpsBetweenQuestion": "Between {from} and {to} on the {line}?",
     "gpsYes": "Yes",
@@ -635,7 +598,6 @@
     "gpsUnavailable": "Could not get your location. Choose below.",
     "gpsUnsupported": "This device cannot share its location. Choose below.",
     "gpsNone": "No station or line found nearby. Choose below.",
-    "gpsUndergroundNote": "Underground subway sections often block location.",
     "trainLineQuestion": "Choose the line you are riding",
     "trainLineSearch": "Search for a line",
     "trainSegmentQuestion": "Choose the stations you are between",

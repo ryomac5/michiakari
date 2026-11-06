@@ -79,26 +79,37 @@ describe("reduceEntry", () => {
     );
     expect(reduceEntry(cause, { type: "chooseElapsed", elapsed: "now" })).toBe(cause);
   });
-  it("人・旅客対応を選んだときだけ種類を 1 問聞き、戻ると大分類の問いへ戻る", () => {
+  it("気象・自然を選んだときだけ種類を 1 問聞き、戻ると大分類の問いへ戻る", () => {
     const cause = run(toCause);
     const kind = reduceEntry(cause, {
       type: "chooseCause",
-      cause: { category: "passenger", kind: null },
+      cause: { category: "weather", kind: null },
     });
     expect(kind).toMatchObject({
       stage: "causeKind",
-      cause: { category: "passenger", kind: null },
+      cause: { category: "weather", kind: null },
     });
     expect(selectProgressIndex(kind.stage)).toBe(3);
     expect(reduceEntry(kind, { type: "chooseElapsed", elapsed: "now" })).toBe(kind);
-    const elapsed = reduceEntry(kind, { type: "chooseCauseKind", kind: "inCar" });
+    const elapsed = reduceEntry(kind, { type: "chooseCauseKind", kind: "rain" });
     expect(elapsed).toMatchObject({
       stage: "elapsed",
-      cause: { category: "passenger", kind: "inCar" },
+      cause: { category: "weather", kind: "rain" },
     });
     expect(reduceEntry(elapsed, { type: "back" }).stage).toBe("causeKind");
     expect(reduceEntry(kind, { type: "back" })).toEqual(cause);
-    expect(reduceEntry(cause, { type: "chooseCauseKind", kind: "person" })).toBe(cause);
+    expect(reduceEntry(cause, { type: "chooseCauseKind", kind: "wind" })).toBe(cause);
+  });
+  it("人身事故と車内の急病人は種類を聞かずに経過の問いへ進み、戻ると原因の問いへ戻る", () => {
+    const cause = run(toCause);
+    for (const kind of ["person", "inCar"] as const) {
+      const elapsed = reduceEntry(cause, {
+        type: "chooseCause",
+        cause: { category: "passenger", kind },
+      });
+      expect(elapsed).toMatchObject({ stage: "elapsed", cause: { category: "passenger", kind } });
+      expect(reduceEntry(elapsed, { type: "back" })).toEqual(cause);
+    }
   });
   it("駅にいる人は推定で省略した路線・方面には戻らない", () => {
     let state = run([
@@ -391,6 +402,33 @@ describe("行き先の段で先に路線を選ぶ", () => {
     expect(direction).toMatchObject({ stage: "direction", line: loop, direction: null });
     const first = reduceEntry(direction, { type: "back" });
     expect(first).toMatchObject({ stage: "destination", line: null, routeFirst: false });
+  });
+
+  it("路線の駅を地図で押すと、方面の段を飛ばして様子へ進み、戻ると方面の段に戻る", () => {
+    const picked = run([...toDestination, { type: "pickRoute", line: loop }]);
+    const cause = reduceEntry(picked, { type: "chooseLineStop", direction: loopDirection });
+    expect(cause).toMatchObject({
+      stage: "cause",
+      line: loop,
+      direction: loopDirection,
+      directionAuto: true,
+    });
+    expect(reduceEntry(cause, { type: "back" })).toMatchObject({
+      stage: "direction",
+      line: loop,
+      direction: null,
+    });
+  });
+
+  it("路線を先に選んでいない方面の段では、駅を押しても進まない", () => {
+    const onTrain = run([
+      { type: "chooseLocation", location: "train" },
+      { type: "chooseLine", line: loop },
+    ]);
+    expect(onTrain.stage).toBe("direction");
+    expect(reduceEntry(onTrain, { type: "chooseLineStop", direction: loopDirection })).toBe(
+      onTrain,
+    );
   });
 
   it("方面が 1 つなら方面を聞かず、行き先の段に方面を決めて戻る", () => {
