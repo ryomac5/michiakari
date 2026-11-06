@@ -20,6 +20,8 @@ const loopMiddle: [number, number] = [135.491197, 34.699714];
 // 大阪を出た JR神戸線は、福島の手前まで環状線に沿って描かれている。並ぶ路線は近い順に並べ、押した環状線を先頭に出す
 // 梅田の地下を通る線の「JR神戸線の大阪〜福島」は実在しない駅の間なので出さない
 const osakaPosition: [number, number] = [135.49588, 34.70216];
+// 描いた環状線の上で、大阪駅から福島の側へ約 90m の点
+const loopNearOsaka: [number, number] = [135.49509, 34.70173];
 const loopChoice = "between:jr-west.大阪環状線:";
 const loopLabel = "JR環状線の福島〜大阪の間";
 
@@ -102,6 +104,23 @@ for (const viewport of [
       // 環状線を選ぶと、行き先の段へ進む
       await page.locator(`[data-testid^='start-gps-choice-${loopChoice}']`).click();
       await expectStage(page, "destination");
+    });
+
+    test("駅の間の段で、大阪の印のすぐ外の環状線を押しても、駅ではなく駅の間を選べる", async ({
+      page,
+    }) => {
+      await openMap(page);
+      await page.getByTestId(testIds.start.positionTrain).click();
+      await expectStage(page, "between");
+      await expect.poll(() => readZoom(page), { timeout: 15_000 }).toBeGreaterThanOrEqual(12.5);
+      await waitForMapStill(page);
+      // 大阪の印の中心から約 15px の環状線の上。前は駅の押せる丸の内で、何も起きなかった
+      const point = await projectOnPage(page, loopNearOsaka);
+      const osaka = await projectOnPage(page, osakaPosition);
+      expect(Math.hypot(point.x - osaka.x, point.y - osaka.y)).toBeLessThan(22);
+      await page.mouse.click(point.x, point.y);
+      await expectLoopChoices(page);
+      await expectStage(page, "between");
     });
 
     test("最初の段で、寄った地図の大阪〜福島の環状線の線の中ほどを押すと、その駅の間を選べる", async ({

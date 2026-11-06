@@ -120,8 +120,15 @@ type EntryMapProps = {
     tapReachMeters: number,
   ) => void;
   // 最初の段で、駅の間を決められる倍率のとき、指の下に描いた路線を知らせる。近い順に並べる
-  // reachMeters は押せる大きさ 44px を地図の距離にしたもの
-  onSelectRails?: (lineIds: string[], point: Position, reachMeters: number) => void;
+  // reachMeters は押せる大きさ 44px を地図の距離にしたもの。label は札を押したときの駅で、駅の間が無ければその駅を選ぶ
+  onSelectRails?: (
+    lineIds: string[],
+    point: Position,
+    reachMeters: number,
+    label: EntryPlace | null,
+  ) => void;
+  // 地図に出した駅を、答えとして受け付ける段か。受け付けない段では、駅の印や札の上も線として押させる
+  placePickable?: boolean;
   // 最初の段で、引いた地図の線のあたりを押したとき。駅の間は決めず、まずそのあたりへ寄せる
   onApproachRails?: (point: Position, reachMeters: number) => void;
   segments: MapSegment[];
@@ -417,6 +424,7 @@ function handleTapAt(
   const railPickable =
     onSelectRails !== undefined && (label === null || map.getZoom() >= BETWEEN_PICK_MIN_ZOOM);
   const tapped = railPickable ? queryTappedLines(map, x, y, "entry-rail") : [];
+  const placePickable = props.placePickable ?? true;
   const target = selectMapTapTarget({
     point: { x, y },
     stations: places.map((v) => ({
@@ -430,6 +438,7 @@ function handleTapAt(
       paths: t.paths.map((path) => path.map((p) => map.project(p))),
     })),
     labelKey: label?.key ?? null,
+    placePickable,
   });
   if (target.kind === "station") {
     const place =
@@ -458,7 +467,7 @@ function handleTapAt(
   if (target.kind === "rail") {
     const action = selectRailTapAction(map.getZoom(), target.lineIds.length);
     if (action === "pick") {
-      onSelectRails?.(target.lineIds, point, reach);
+      onSelectRails?.(target.lineIds, point, reach, placePickable ? label : null);
       return;
     }
     if (action === "approach") {
@@ -945,8 +954,11 @@ export function EntryMap(props: EntryMapProps) {
   };
 
   // 駅の印の丸は駅を選ぶ。札は、札の下に描いた線があれば線を押したとみなす
+  // 駅を受け付けない段では、地図に出した駅の印と札の上も、線を押したかで決める
   const tapPlace = (place: EntryPlace, tap: PlaceTap) => {
-    if (!map || !tap?.label) {
+    const shown = shownPlacesRef.current.some((v) => v.place.key === place.key);
+    const passThrough = shown && props.placePickable === false;
+    if (!map || !tap || (!tap.label && !passThrough)) {
       props.onSelectPlace(place);
       return;
     }
@@ -955,7 +967,7 @@ export function EntryMap(props: EntryMapProps) {
       map,
       tap.clientX - rect.left,
       tap.clientY - rect.top,
-      place,
+      passThrough ? null : place,
       props,
       shownPlacesRef.current,
     );

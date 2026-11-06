@@ -13,6 +13,7 @@ import {
   LABEL_RAIL_TAP_PX,
   type ScreenRail,
   selectMapTapTarget,
+  selectRailTapOutcome,
 } from "./map-pick";
 import { listMapStations, selectVisibleStations, type VisibleStation } from "./visible-stations";
 
@@ -253,5 +254,65 @@ describe("listLineTapChoices の駅の間", () => {
     const scene = buildScene(loopMiddle, 12.5);
     const choices = scene.listChoicesAt(loopMiddle, [loop, hanshin]).map(describeChoice);
     expect(choices).toEqual([`${loop}:大阪-福島`, `${hanshin}:大阪梅田-福島`]);
+  });
+});
+
+describe("押した線に環状線が入らないとき", () => {
+  const [lon, lat] = findTrackMidpoint(loop, "大阪", "福島");
+
+  it("東海道線だけを渡しても、2 駅だけの大阪〜福島は出さない", () => {
+    // 線路の形で絞る前の、駅を結ぶ直線の 800m の幅でも出さない
+    for (const shapes of [undefined, geo.trackShapes]) {
+      const choices = listLineTapChoices(data, geo.nodes, { lon, lat }, 250, [kobe], shapes);
+      const pairs = choices.map((c) =>
+        c.kind === "between" ? [c.from.name, c.to.name].sort().join("-") : "",
+      );
+      expect(pairs).not.toContain("大阪-福島");
+    }
+  });
+});
+
+describe("駅を受け付けない段", () => {
+  const station = { key: "a", point: { x: 100, y: 100 }, markRadius: 12, hitRadius: 22 };
+  const rails: ScreenRail[] = [
+    {
+      lineId: "x",
+      paths: [
+        [
+          { x: 0, y: 100 },
+          { x: 200, y: 100 },
+        ],
+      ],
+    },
+  ];
+  const tap = (x: number, y: number, withRails: boolean, labelKey: string | null = null) =>
+    selectMapTapTarget({
+      point: { x, y },
+      stations: [station],
+      rails: withRails ? rails : [],
+      labelKey,
+      placePickable: false,
+    });
+
+  it("駅の近くの線を押すと、駅ではなく線として扱う", () => {
+    // 駅の段の路線の線は rails に入らないので none になり、路線を選ぶ判定へ回る
+    expect(tap(118, 100, false)).toEqual({ kind: "none" });
+    expect(tap(100, 100, false)).toEqual({ kind: "none" });
+    // 駅の間の段は、駅の印の上でも線の上なら駅の間にする
+    expect(tap(118, 100, true)).toEqual({ kind: "rail", lineIds: ["x"] });
+    expect(tap(104, 100, true)).toEqual({ kind: "rail", lineIds: ["x"] });
+  });
+
+  it("札を押しても札の駅は選ばず、線から 22px の内なら駅の間にする", () => {
+    expect(tap(130, 115, true, "a")).toEqual({ kind: "rail", lineIds: ["x"] });
+    expect(tap(130, 140, true, "a")).toEqual({ kind: "none" });
+  });
+});
+
+describe("selectRailTapOutcome", () => {
+  it("駅の間の候補があれば尋ね、無ければ札の駅を選び、札でもなければ何も無い所として扱う", () => {
+    expect(selectRailTapOutcome(2, "osaka")).toEqual({ kind: "ask" });
+    expect(selectRailTapOutcome(0, "osaka")).toEqual({ kind: "station", place: "osaka" });
+    expect(selectRailTapOutcome(0, null)).toEqual({ kind: "tap" });
   });
 });

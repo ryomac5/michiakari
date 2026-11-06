@@ -91,7 +91,10 @@ export function listLineTapChoices(
   trackShapes?: ReadonlyMap<string, TrackParts>,
   limit = GPS_CHOICE_LIMIT,
 ): GpsChoice[] {
-  const lines = data.index.listLines().filter((l) => lineIds.includes(l.lineId));
+  // 2 駅だけの重なる区間は、全部の路線で見てから外す。押した線に絞った後では、重なる相手の路線が外れて見落とす
+  const lines = removeDuplicatedStubs(data.index.listLines(), nodes).filter((l) =>
+    lineIds.includes(l.lineId),
+  );
   const lonLat: LonLat = [point.lon, point.lat];
   const accuracy = Math.min(
     Math.max(reachMeters, TRACK_GAP_METERS),
