@@ -94,6 +94,10 @@ export const testIds = {
     tripSummary: "judgment-trip-summary",
     // 上部の帯の「JR京都線 見合わせ」
     statusChip: "judgment-status-chip",
+    // 駅間の車内の人への案内。着いた後の次の一手と、係員の案内に従う一文
+    inCar: "judgment-in-car",
+    inCarAfterAlight: "judgment-in-car-after-alight",
+    inCarStaffNote: "judgment-in-car-staff-note",
     // 地図の上のシート（PC 幅では右のパネル）。data-snap に collapsed / half / full を出す
     sheet: "judgment-sheet",
     sheetHandle: "judgment-sheet-handle",

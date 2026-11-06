@@ -133,6 +133,25 @@ describe("estimateTrainQueueArrival", () => {
       p50: addMinutesToIso(NOW, 13),
       p80: addMinutesToIso(NOW, 23),
     });
+    // 動き出すのは詰め始める時刻
+    expect(outcome.departure).toEqual({
+      p50: addMinutesToIso(NOW, 10),
+      p80: addMinutesToIso(NOW, 20),
+    });
+  });
+
+  it("再開を待って動くなら、動き出す時刻は再開と前の列車の発車を待った時刻で、着く時刻から走行時間を引いたもの", () => {
+    const outcome = estimateTrainQueueArrival(
+      build({ trainsAhead: ["local"], params: resolveTrainQueueParams("阪急") }),
+    );
+    expect(outcome.beforeResume).toBe(false);
+    // 再開まで 30 分 + 前の列車 1 本ぶん + 塚本まで 3 分
+    const delay = outcome.departureDelayMinutes;
+    expect(outcome.departure).toEqual({
+      p50: addMinutesToIso(NOW, 30 + delay),
+      p80: addMinutesToIso(NOW, 60 + delay),
+    });
+    expect(outcome.arrival?.p50).toBe(addMinutesToIso(NOW, 30 + delay + 3));
   });
 
   it("既定値の並びは、ふだんの間隔で先を走っていたとみなす。次の駅のホームは空いていて、再開の前に着ける", () => {

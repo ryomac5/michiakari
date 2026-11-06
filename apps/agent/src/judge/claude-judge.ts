@@ -131,7 +131,12 @@ function handleEmitJudgment(
   }
   const results = { estimate, alternatives, breakEven };
   const checked = session.checkJudgment(
-    assembleJudgment(results, decision.data, session.ctx.request.language),
+    assembleJudgment(
+      results,
+      decision.data,
+      session.ctx.request.language,
+      session.buildInCarGuide(results),
+    ),
     results,
   );
   if (checked.judgment)

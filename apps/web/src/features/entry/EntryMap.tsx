@@ -16,10 +16,17 @@ import { MapAttribution, mapAttributionHeight } from "@/features/map/MapAttribut
 import { loadMapLibre, type MapInsets, useMarkerHosts } from "@/features/map/MapPanel";
 import { prefersReducedMotion, useDocumentTheme } from "@/lib/use-document-theme";
 import type { LabelSide } from "./areas";
-import { DestinationMarker, HubMarker, PlaceMarker, StopMarker } from "./EntryMarkers";
+import {
+  DestinationMarker,
+  HubMarker,
+  PlaceMarker,
+  SegmentMarker,
+  StopMarker,
+} from "./EntryMarkers";
 import type { EntryArea, EntryHub, EntryPlace, Position } from "./entry-places";
 import { pickLocalized, pickPlaceName } from "./entry-places";
 import type { EntryStage } from "./flow";
+import { computeSegmentHitRadii, findNearestLineId } from "./map-pick";
 import {
   buildEdgeHubRect,
   type EdgeHub,
@@ -34,7 +41,12 @@ import {
   selectVisibleStations,
   type VisibleStation,
 } from "./visible-stations";
-import { buildStopLabelRect, keepStopsIfSame, selectVisibleStops } from "./visible-stops";
+import {
+  buildStopLabelRect,
+  computeStopHitRadii,
+  keepStopsIfSame,
+  selectVisibleStops,
+} from "./visible-stops";
 
 // 入口の地図。関西 → エリア → 駅の順に寄り、行き先を選んだら出発と行き先を結ぶ
 // 段ごとに出す印を絞り、地図そのものは淡く沈める
@@ -53,7 +65,24 @@ export type MapStop = {
   // 方面の札だけが持つ矢印の向き（度）
   angle: number | null;
   side: LabelSide;
+  // 路線の札。路線色の太い印を添える
+  kind?: "line";
 };
+
+// 車内の駅の間。中ほどの丸を押すと、その駅の間を選ぶ
+export type MapSegment = {
+  key: string;
+  label: string;
+  position: Position;
+  from: Position;
+  to: Position;
+  color: string;
+  selected: boolean;
+};
+
+// 地図に描く路線の強さ
+// focus は lineIds を強く描いてほかを薄くし、only は lineIds だけを残す。all は全部の路線を路線色で描く
+export type LineFocus = { lineIds: string[]; mode: "focus" | "only" | "all" };
 
 type EntryMapProps = {
   geo: MapGeoData | null;
@@ -62,8 +91,16 @@ type EntryMapProps = {
   hubs: EntryHub[];
   area: EntryArea | null;
   place: EntryPlace | null;
-  // 選んだ路線。地図ではその路線だけを路線色で太く描く
-  lineId: string | null;
+  // 強く描く路線。null なら全部を淡く描く
+  lineFocus: LineFocus | null;
+  // 線を押して路線を選べるか。押せるのは強く描いた線か、all なら全部の線
+  linePickable: boolean;
+  // reachMeters は押せる範囲の幅を地図の距離にしたもの
+  onSelectLine: (lineId: string, point: Position, reachMeters: number) => void;
+  segments: MapSegment[];
+  onSelectSegment: (key: string) => void;
+  // 選んだ駅の名前の札の向き。地図に出す札を避ける向きにする。null なら設定の向き
+  placeSide: LabelSide | null;
   destination: { position: Position; label: string } | null;
   stops: MapStop[];
   // 札は出さずに視点だけに含める点。いまどこの段で前後の駅まで収める
@@ -83,7 +120,11 @@ const kansaiCenter: Position = [135.5, 34.75];
 const tapReachPx = 44;
 // 様子を聞く段。行き先を選び終えているので、出発と行き先を弧で結び、視点は動かさない
 const situationStages = new Set<EntryStage>(["cause", "causeKind", "elapsed", "resume", "input"]);
-const sourceIds = { lines: "entry-lines", trip: "entry-trip" } as const;
+const sourceIds = { lines: "entry-lines", trip: "entry-trip", segment: "entry-segment" } as const;
+// 線を押したとみなす、押した点からの幅（px）
+const linePickPx = tapReachPx / 2;
+// 駅の間の丸がよける、駅の印と札の丸の半径（px）
+const markerHitRadius = 24;
 // 名前の札のぶん、印のまわりに空ける余白（px）
 const labelMargin = { x: 96, y: 44 };
 const durationMs = 650;
@@ -111,7 +152,7 @@ function buildRailColor(palette: MapPalette) {
   ] as unknown as string;
 }
 
-function applyPaint(map: MapLibreMap, palette: MapPalette, lineId: string | null): void {
+function applyPaint(map: MapLibreMap, palette: MapPalette, focus: LineFocus | null): void {
   type PaintArgs = Parameters<MapLibreMap["setPaintProperty"]>;
   const set = (layer: string, key: string, value: unknown) => {
     if (map.getLayer(layer))
@@ -121,19 +162,20 @@ function applyPaint(map: MapLibreMap, palette: MapPalette, lineId: string | null
   set("gsi-pale", "raster-brightness-min", palette.rasterBrightnessMin);
   set("gsi-pale", "raster-brightness-max", palette.rasterBrightnessMax);
   set("gsi-pale", "raster-contrast", palette.rasterContrast);
-  set("entry-rail", "line-color", buildRailColor(palette));
-  set("entry-rail", "line-opacity", [
-    "interpolate",
-    ["linear"],
-    ["zoom"],
-    9,
-    palette.railOpacity,
-    13,
-    lineId ? 0.2 : 0.45,
-  ]);
+  const all = focus?.mode === "all";
+  set("entry-rail", "line-color", all ? ["get", "color"] : buildRailColor(palette));
+  const near = !focus || all ? 0.45 : focus.mode === "only" ? 0.06 : 0.2;
+  const far = focus?.mode === "only" ? Math.min(0.06, palette.railOpacity) : palette.railOpacity;
+  set(
+    "entry-rail",
+    "line-opacity",
+    all ? 0.85 : ["interpolate", ["linear"], ["zoom"], 9, far, 13, near],
+  );
   set("entry-line-casing", "line-color", palette.routeCasing);
   set("entry-trip", "line-color", palette.text);
-  const filter = ["==", ["get", "lineId"], lineId ?? ""];
+  set("entry-segment", "line-color", palette.text);
+  const ids = focus && !all ? focus.lineIds : [];
+  const filter = ["in", ["get", "lineId"], ["literal", ids]];
   for (const layer of ["entry-line-casing", "entry-line-focus"]) {
     if (map.getLayer(layer))
       map.setFilter(layer, filter as Parameters<MapLibreMap["setFilter"]>[1]);
@@ -167,6 +209,17 @@ function addLayers(map: MapLibreMap, geo: MapGeoData, palette: MapPalette): void
     source: sourceIds.lines,
     layout: { "line-cap": "round", "line-join": "round" },
     paint: { "line-color": ["get", "color"], "line-width": 5.5 },
+  });
+  map.addSource(sourceIds.segment, {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+  map.addLayer({
+    id: "entry-segment",
+    type: "line",
+    source: sourceIds.segment,
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": palette.text, "line-width": 4, "line-dasharray": [1, 1.4] },
   });
   map.addLayer({
     id: "entry-trip",
@@ -209,6 +262,35 @@ function buildAreaReach(center: Position): Position[] {
     [center[0] - lon, center[1] - lat],
     [center[0] + lon, center[1] + lat],
   ];
+}
+
+// 押した点のまわりの線から、いちばん近い路線を探す。押せる線が無ければ null
+function findTappedLine(map: MapLibreMap, x: number, y: number, focus: LineFocus): string | null {
+  const layer = focus.mode === "all" ? "entry-rail" : "entry-line-focus";
+  if (!map.getLayer(layer)) return null;
+  const features = map.queryRenderedFeatures(
+    [
+      [x - linePickPx, y - linePickPx],
+      [x + linePickPx, y + linePickPx],
+    ],
+    { layers: [layer] },
+  );
+  const point = map.unproject([x, y]);
+  return findNearestLineId(
+    features.flatMap((f) => {
+      const lineId = f.properties?.lineId;
+      if (typeof lineId !== "string") return [];
+      const geometry = f.geometry;
+      const paths =
+        geometry.type === "LineString"
+          ? [geometry.coordinates as Position[]]
+          : geometry.type === "MultiLineString"
+            ? (geometry.coordinates as Position[][])
+            : [];
+      return [{ lineId, paths }];
+    }),
+    [point.lng, point.lat],
+  );
 }
 
 // 重なる部品を除いた範囲の中心に寄せるための、画面の中心からのずれ（px）
@@ -260,8 +342,21 @@ export function EntryMap(props: EntryMapProps) {
   const labels = selectMapLabels(locale);
   const theme = useDocumentTheme();
   const palette = mapPalettes[theme];
-  const { geo, stage, hubs, area, place, lineId, destination, stops, focus, insets, narrow } =
-    props;
+  const {
+    geo,
+    stage,
+    hubs,
+    area,
+    place,
+    lineFocus,
+    destination,
+    stops,
+    segments,
+    focus,
+    insets,
+    narrow,
+    placeSide,
+  } = props;
   const containerRef = useRef<HTMLDivElement>(null);
   const paletteRef = useRef(palette);
   paletteRef.current = palette;
@@ -275,6 +370,10 @@ export function EntryMap(props: EntryMapProps) {
     targets: [],
   });
   const [visibleStops, setVisibleStops] = useState<MapStop[]>([]);
+  const [stopRadii, setStopRadii] = useState<Record<string, number>>({});
+  // 選んだ駅の押せる丸の半径。札の印と押せる範囲がぶつからない大きさにする
+  const [placeHitRadius, setPlaceHitRadius] = useState(24);
+  const [segmentRadii, setSegmentRadii] = useState<{ key: string; radius: number }[]>([]);
   const hereLabel = t("here");
   const [zoom, setZoom] = useState(0);
   const [markerClass, setMarkerClass] = useState<typeof Marker | null>(null);
@@ -312,6 +411,21 @@ export function EntryMap(props: EntryMapProps) {
           const target = e.originalEvent.target as HTMLElement | null;
           if (target?.closest(".maplibregl-marker")) return;
           const point: Position = [e.lngLat.lng, e.lngLat.lat];
+          // 線を押して路線や駅の間を選べる段では、線の上を押したらそれを選ぶ
+          const { linePickable, lineFocus: focusNow } = callbacksRef.current;
+          const lineId =
+            linePickable && focusNow
+              ? findTappedLine(loaded, e.point.x, e.point.y, focusNow)
+              : null;
+          if (lineId) {
+            const edge = loaded.unproject([e.point.x + linePickPx, e.point.y]);
+            callbacksRef.current.onSelectLine(
+              lineId,
+              point,
+              computeDistanceMeters(point, [edge.lng, edge.lat]),
+            );
+            return;
+          }
           const edge = loaded.unproject([e.point.x + tapReachPx, e.point.y]);
           callbacksRef.current.onTap(point, computeDistanceMeters(point, [edge.lng, edge.lat]));
         });
@@ -325,8 +439,29 @@ export function EntryMap(props: EntryMapProps) {
   }, [geo]);
 
   useEffect(() => {
-    if (map) applyPaint(map, palette, lineId);
-  }, [map, palette, lineId]);
+    if (map) applyPaint(map, palette, lineFocus);
+  }, [map, palette, lineFocus]);
+
+  // 地図か一覧で選んでいる駅の間を、点線で描く
+  const selectedSegment = segments.find((s) => s.selected) ?? null;
+  useEffect(() => {
+    if (!map) return;
+    const features = selectedSegment
+      ? [
+          {
+            type: "Feature" as const,
+            geometry: {
+              type: "LineString" as const,
+              coordinates: [selectedSegment.from, selectedSegment.to],
+            },
+            properties: {},
+          },
+        ]
+      : [];
+    map
+      .getSource<GeoJSONSource>(sourceIds.segment)
+      ?.setData({ type: "FeatureCollection", features });
+  }, [map, selectedSegment]);
 
   // 行き先を選んだら、出発と行き先を弧で結ぶ
   const origin = place?.position ?? null;
@@ -531,7 +666,7 @@ export function EntryMap(props: EntryMapProps) {
             buildStopLabelRect(
               map.project(place.position),
               `${hereLabel}${pickPlaceName(place, locale)}${"　".repeat(place.lines.length)}`,
-              place.side[narrow ? "narrow" : "wide"],
+              placeSide ?? place.side[narrow ? "narrow" : "wide"],
             ),
           ]
         : [];
@@ -542,6 +677,44 @@ export function EntryMap(props: EntryMapProps) {
       });
       // 出す札が同じなら配列を差し替えず、印を作り直さない
       setVisibleStops((prev) => keepStopsIfSame(prev, next));
+      // 札の押せる丸は、隣の札と選んだ駅の印に届かない大きさにする
+      const placePoints = selectedShown ? [map.project(place.position)] : [];
+      const radii = computeStopHitRadii(
+        next.map((s) => map.project(s.position)),
+        placePoints,
+      );
+      const nextRadii = Object.fromEntries(next.map((s, i) => [s.key, radii[i] ?? 24]));
+      const [placePoint] = placePoints;
+      const placeRadius = placePoint
+        ? (computeStopHitRadii(
+            [placePoint],
+            next.map((s) => map.project(s.position)),
+          )[0] ?? markerHitRadius)
+        : markerHitRadius;
+      setPlaceHitRadius(placeRadius);
+      setStopRadii((prev) =>
+        JSON.stringify(prev) === JSON.stringify(nextRadii) ? prev : nextRadii,
+      );
+      // 駅の間の丸は、駅の印と札の押せる丸に届かず、ほかの駅の間の丸とは中点の内側に収める
+      const markers = [
+        ...(place ? [{ point: map.project(place.position), radius: placeRadius }] : []),
+        ...next.map((s, i) => ({ point: map.project(s.position), radius: radii[i] ?? 0 })),
+      ];
+      const segmentRadiiNext = computeSegmentHitRadii(
+        segments.map((segment) => map.project(segment.position)),
+        markers,
+      );
+      // 押せる丸が取れない駅の間も印は出し、線を押して選べるようにする
+      const targets = segments.map((segment, i) => ({
+        key: segment.key,
+        radius: segmentRadiiNext[i] ?? 0,
+      }));
+      setSegmentRadii((prev) =>
+        prev.length === targets.length &&
+        prev.every((t, i) => t.key === targets[i]?.key && t.radius === targets[i]?.radius)
+          ? prev
+          : targets,
+      );
     };
     update();
     map.on("moveend", update);
@@ -562,8 +735,10 @@ export function EntryMap(props: EntryMapProps) {
     place,
     area,
     stops,
+    segments,
     narrow,
     hereLabel,
+    placeSide,
   ]);
 
   // 視点が動いている間は印を出し、段の切り替え直後の寄せと指の操作がぶつからないようにする
@@ -634,6 +809,10 @@ export function EntryMap(props: EntryMapProps) {
     const list = places.map((p) => at(`place:${p.key}`, p.position));
     if (!showTrip) {
       for (const s of visibleStops) list.push(at(`stop:${s.key}`, s.position));
+      for (const { key } of segmentRadii) {
+        const segment = segments.find((s) => s.key === key);
+        if (segment) list.push(at(`segment:${key}`, segment.position));
+      }
     }
     if (showTrip && destinationPosition) {
       list.push({
@@ -644,12 +823,23 @@ export function EntryMap(props: EntryMapProps) {
       });
     }
     return list;
-  }, [stage, hubLabels, visiblePlaces, zoom, place, showTrip, destinationPosition, visibleStops]);
+  }, [
+    stage,
+    hubLabels,
+    visiblePlaces,
+    zoom,
+    place,
+    showTrip,
+    destinationPosition,
+    visibleStops,
+    segmentRadii,
+    segments,
+  ]);
   const hosts = useMarkerHosts(map, markerClass, entries);
-  // 駅の印は込み合うので、四角い入れ物は触れず、丸いボタンだけが押せるようにする
+  // 印は込み合うので、四角い入れ物は触れず、丸いボタンと札だけが押せるようにする
   useEffect(() => {
     for (const [key, element] of hosts) {
-      if (key.startsWith("place:") || key.startsWith("hub:")) element.style.pointerEvents = "none";
+      if (key !== "destination") element.style.pointerEvents = "none";
     }
   }, [hosts]);
   const side = narrow ? "narrow" : "wide";
@@ -704,6 +894,23 @@ export function EntryMap(props: EntryMapProps) {
             key,
           );
         }
+        if (key.startsWith("segment:")) {
+          const segment = segments.find((s) => `segment:${s.key}` === key);
+          const radius = segmentRadii.find((r) => `segment:${r.key}` === key)?.radius;
+          if (!segment || radius === undefined) return null;
+          return createPortal(
+            <SegmentMarker
+              segmentKey={segment.key}
+              label={segment.label}
+              color={segment.color}
+              selected={segment.selected}
+              hitRadius={radius}
+              onSelect={() => props.onSelectSegment(segment.key)}
+            />,
+            element,
+            key,
+          );
+        }
         if (key.startsWith("stop:")) {
           const target = visibleStops.find((s) => `stop:${s.key}` === key);
           if (!target) return null;
@@ -714,6 +921,8 @@ export function EntryMap(props: EntryMapProps) {
               side={target.side}
               color={target.color}
               angle={target.angle}
+              line={target.kind === "line"}
+              hitRadius={stopRadii[target.key]}
               onSelect={() => props.onSelectStop(target.key)}
             />,
             element,
@@ -729,9 +938,9 @@ export function EntryMap(props: EntryMapProps) {
             ? {
                 place,
                 major: true,
-                hitRadius: 24,
+                hitRadius: placeHitRadius,
                 label: {
-                  side: place.side[side],
+                  side: placeSide ?? place.side[side],
                   size: "large" as const,
                   slide: 0,
                   tappable: true,

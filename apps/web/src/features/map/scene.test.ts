@@ -561,6 +561,23 @@ describe("buildMapScene", () => {
     expect(Math.abs(offsets[1] ?? 0)).toBe(1);
   });
 
+  it("その列車だけが止まる事象では、止まった区間の線と見合わせの札を描かず、線路の道筋だけを残す", () => {
+    const section = buildMapScene(geo, input, labels);
+    const train = buildMapScene(geo, { ...input, trainOnly: true }, labels);
+    expect(train.blocked.features).toEqual([]);
+    expect(train.blockedLineIds).toEqual([]);
+    expect(train.keyStations.features.some((f) => f.properties.role === "blocked-end")).toBe(false);
+    // 駅間の現在地を線路の上に置くための道筋は、区間を止める事象と同じ
+    expect(train.trackLineIds).toEqual(section.blockedLineIds);
+    expect(train.trackPath).toEqual(section.blocked.features[0]?.geometry.coordinates);
+  });
+
+  it("駅間の車内の人には徒歩の範囲を描かない", () => {
+    const scene = buildMapScene(geo, { ...input, hideReach: true }, labels);
+    expect(scene.reach.features).toEqual([]);
+    expect(scene.reachSource).toBeNull();
+  });
+
   it("止まっている区間と並走する代替経路は出さず、並走しない乗車区間だけを出す", () => {
     const scene = buildMapScene(geo, input, labels);
     // 待つ経路は止まっている JR 神戸線そのものなので出さない
