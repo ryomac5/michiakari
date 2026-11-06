@@ -1,6 +1,6 @@
 # みちあかり
 
-> Michiakari helps rail passengers in Kansai decide whether to wait or switch routes during service disruptions.
+> Michiakari helps rail passengers in Kansai see the options they have now, and the outlook for each, during service disruptions.
 > It turns announcements into an estimated phase, a time to resumption, a break-even time, and a concrete action.
 > The judgment draws on a former train dispatcher's knowledge, and every number is computed by code, not by Claude.
 
