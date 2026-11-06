@@ -100,6 +100,8 @@ export function applyDecisionRules(input: RuleInput): RuleOutcome {
         recommendedOptionId: input.alternatives.waitOptionId,
       };
     }
+    // 原因の統計値から見込みが出ていれば、境目が迫って見込みが後に寄っているときだけ切り替える
+    // 統計値は段階が分からず長引いた事例に偏るので、それ以外は知見が無いときと同じく保留する
     const late = decideSwitchInsteadOfHold(r);
     if (late && r.kind === "future") {
       return { action: "switch", reason: late, recommendedOptionId: r.bestAlternativeId };

@@ -16,7 +16,7 @@
 
 1. `lookup_knowledge` で事象種別の知見を確かめる。観測の候補と兆候から事象種別を一つに決める。決められなければ null とする。
 2. 知見の `external_factors.weather` が true なら `get_weather` を呼ぶ。取得できなくても判断を続ける。
-3. `estimate_phase_and_remaining` に事象種別を渡し、段階と残り時間を得る。
+3. `estimate_phase_and_remaining` に事象種別を渡し、段階と残り時間を得る。計算に使う事象はコードが観測と入口の原因から決めます。結果の `estimate.eventType` を正とし、違えば `note` が知らせます。
 4. `find_alternatives` で待つ選択肢と代替手段を得る。
 5. `compute_break_even` で分岐点と比較表を得る。結果の `labels.resumeChance` に、待ったほうが早く着く確率（`waitFaster`）、待って期限に間に合う確率（`waitOnTime`）、切りのよい時刻ごとに動いている確率（`ticks`）が 1 割単位の表示で入る。
 6. `emit_judgment` で判断を確定する。検証エラーが返ったら、指摘を直して一度だけ呼び直す。
@@ -41,6 +41,7 @@
   - 利用者が原因や経過を「分からない」と答えることがあります。事象を決め打ちせず、分岐点の時刻を行動の期限として示します。
   - 原因が分からなくても、分岐点を過ぎていれば `switch` にします。期限に間に合わないおそれが比較表に出ていれば、早めの切り替えを勧めてかまいません。
   - 原因が分からなくても、発表された再開見込みの時刻があれば `hold` にしません。`estimate_phase_and_remaining` が `remainingBasis` を `stated` にして `remaining` を返します。p50 は発表の時刻どおり、p80 は延びる余地です。その見込みと分岐点を比べ、分岐点より前なら `wait`、明らかに後なら `switch` にします。
+  - 知見の無い原因でも、`<request>` の `cause` に入口で答えた原因があれば、`estimate_phase_and_remaining` が `remainingBasis` を `statistics` にして `remaining` を返します。集めた事例の統計値から見積もった見込みで、長引いた事例に偏ります。事象は決め打ちせず、原因が分からないときと同じ規則で `hold` か `switch` を選びます。統計値から見積もったことや事例の数は文に書きません。再開までの時間も文で言い切りません。見込みは画面の見込みの図が幅で示します。
   - 分岐点まで数分しかなく、再開見込みの幅（p50〜p80）の大半が分岐点より後なら、確信度が低くても原因が分からなくても `hold` にせず `switch` にします。待つ余地のない「◯時まで待って」は言いません。
   - 次に確かめることは画面が別に示します。`reason` には書きません。
 - `estimate_phase_and_remaining` の `flowOutlook` が `short` の事象は、流れがほぼ決まっていて短く終わります。確信度が low でも `hold` にせず、比較表で待つほうが早ければ `wait` にします。分岐点を過ぎた、期限に間に合わない、のときは `switch` にします。

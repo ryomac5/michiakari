@@ -282,10 +282,19 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     if (state.estimate) return cached(presentEstimate(state.estimate, language));
     const parsed = parseInput(EstimatePhaseInputSchema, input);
     if (isOutcome(parsed)) return parsed;
-    const result = runEstimatePhase(ctx, parsed);
+    // 事象は観測と入口の原因からコードが決める。Claude の指定が違っても、両方のモードで同じ事象を使う
+    const result = runEstimatePhase(ctx, { eventType: inferredEventType });
     state.estimate = result;
     await sink.emit({ type: "phase_estimated", estimate: result.estimate });
-    return { isError: false, content: presentEstimate(result, language) };
+    const content = presentEstimate(result, language);
+    if (parsed.eventType === inferredEventType) return { isError: false, content };
+    return {
+      isError: false,
+      content: {
+        ...content,
+        note: `eventType は観測と入口の原因から決めた ${inferredEventType ?? "null"} を使いました。指定の ${parsed.eventType ?? "null"} は使っていません`,
+      },
+    };
   }
 
   async function runAlternatives(input: unknown): Promise<ToolOutcome> {
