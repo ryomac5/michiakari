@@ -530,6 +530,26 @@ describe("chooseStationLabelLayout: 札の優先順位", () => {
     expect(measureLayoutOverlap(input, layout)).toBe(0);
   });
 
+  it("縁で欠けるかボタンに重なる任意の札は、地図に残さず隠す", () => {
+    const input: LayoutInput = {
+      items: [
+        { key: "here", point: { x: 200, y: 160 }, size: { w: 140, h: 34 }, gap: 20 },
+        { key: "recommended", point: { x: 250, y: 220 }, size: { w: 140, h: 44 }, gap: 12 },
+        // 左の縁に近く、どの向きに置いても縁で欠ける駅
+        { key: "edge", point: { x: 20, y: 200 }, size: { w: 380, h: 44 }, gap: 12 },
+        // 「全体を見る」のボタンの上に乗る駅
+        { key: "button", point: { x: 330, y: 300 }, size: { w: 120, h: 44 }, gap: 12 },
+      ],
+      here: { x: 200, y: 160 },
+      view: { left: 8, top: 78, right: 382, bottom: 340 },
+      blockers: [{ left: 230, top: 250, right: 390, bottom: 340 }],
+    };
+    const layout = chooseVisibleLabelLayout(input, ["here", "recommended"]);
+    expect(layout.hidden).toEqual(expect.arrayContaining(["edge", "button"]));
+    expect(layout.hidden).not.toContain("here");
+    expect(layout.hidden).not.toContain("recommended");
+  });
+
   it("390×844 で重ならない既定配置と通常の札を保つ", () => {
     const input = buildTsukamotoInput({ w: 108, h: 34 });
     const preferred = chooseLabelLayout(input);

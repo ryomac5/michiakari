@@ -28,12 +28,15 @@ type Variant = {
 };
 
 const mobile = { width: 390, height: 844 };
+const small = { width: 375, height: 667 };
 const desktop = { width: 1280, height: 800 };
 const variants: Variant[] = [
   { name: "ja-dark-390", locale: "ja", theme: "dark", ...mobile },
   { name: "ja-light-390", locale: "ja", theme: "light", ...mobile },
   { name: "en-dark-390", locale: "en", theme: "dark", ...mobile },
   { name: "en-light-390", locale: "en", theme: "light", ...mobile },
+  // 小さいスマートフォンでも横にはみ出さず、押せる部品が 44px 以上あること
+  { name: "ja-light-375", locale: "ja", theme: "light", ...small },
   { name: "ja-dark-1280", locale: "ja", theme: "dark", ...desktop },
   { name: "en-light-1280", locale: "en", theme: "light", ...desktop },
 ];
@@ -96,17 +99,60 @@ async function expectTapTargets(page: Page, label: string) {
   expect(small, `${label}: 44px 未満の操作部品`).toEqual([]);
 }
 
+// シートの取っ手は、押したときは枠を出さず、キーボードで操作したときだけ枠を出す
+async function expectHandleRingOnlyForKeyboard(page: Page) {
+  const sheet = page.getByTestId(testIds.judgment.sheet);
+  const handle = page.getByTestId(testIds.judgment.sheetHandle);
+  const ringStyle = () =>
+    handle.evaluate((el) => {
+      const bar = el.firstElementChild as HTMLElement | null;
+      return bar ? getComputedStyle(bar).outlineStyle : "";
+    });
+  // 前のキーボードの操作で取っ手に残ったフォーカスを外し、指で押した直後の状態にする
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await handle.click();
+  await expect(sheet).toHaveAttribute("data-snap", "half");
+  expect(await ringStyle(), "押したときに取っ手の枠が出ている").toBe("none");
+  await handle.press("ArrowDown");
+  await expect(sheet).toHaveAttribute("data-snap", "collapsed");
+  expect(await ringStyle(), "キーボードで操作したときに取っ手の枠が出ない").toBe("solid");
+  await waitForFiniteAnimations(page);
+}
+
+// 原因の札の言葉が日本語は 2 行、英語は 3 行以内に収まり、札が画面の内側にあること
+async function expectCauseCardsReadable(page: Page, width: number, maxLines: number) {
+  const cards = await page.locator("[data-testid^='start-cause-']").evaluateAll((elements) =>
+    elements.map((el) => {
+      const label = el.querySelector<HTMLElement>("span:last-child");
+      const lineHeight = label ? Number.parseFloat(getComputedStyle(label).lineHeight) : 1;
+      return {
+        id: el.getAttribute("data-testid"),
+        lines: label ? Math.round(label.getBoundingClientRect().height / lineHeight) : 0,
+        right: el.getBoundingClientRect().right,
+        overflow: label ? label.scrollWidth > label.clientWidth + 1 : false,
+      };
+    }),
+  );
+  expect(cards.length).toBeGreaterThan(0);
+  for (const card of cards) {
+    expect(card.lines, `${card.id} の言葉が ${maxLines} 行を超えている`).toBeLessThanOrEqual(
+      maxLines,
+    );
+    expect(card.right, `${card.id} が画面からはみ出している`).toBeLessThanOrEqual(width);
+    expect(card.overflow, `${card.id} の言葉が札からはみ出している`).toBe(false);
+  }
+}
+
 async function checkScreen(page: Page, label: string) {
   await expectNoHorizontalScroll(page, label);
   await expectTapTargets(page, label);
 }
 
-// スマートフォンの閉じたシートに、結論の種類・見出し・分岐点（時間軸を含む）・注意書きが見えていること
+// スマートフォンの閉じたシートに、結論の種類・見出し・数字・注意書きが見え、地図が画面の半分以上残ること
+// 再開の見込みは、シートを半分まで引き上げたときに見えること
 async function expectFirstViewport(page: Page, variant: Variant, label: string) {
-  await expect(page.getByTestId(testIds.judgment.sheet), label).toHaveAttribute(
-    "data-snap",
-    "collapsed",
-  );
+  const sheet = page.getByTestId(testIds.judgment.sheet);
+  await expect(sheet, label).toHaveAttribute("data-snap", "collapsed");
   await waitForFiniteAnimations(page);
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   const breakEven = page.getByTestId(testIds.judgment.breakEven);
@@ -114,8 +160,7 @@ async function expectFirstViewport(page: Page, variant: Variant, label: string) 
   const disclaimer = page.getByTestId(testIds.judgment.disclaimer);
   for (const [name, locator] of [
     ["結論", conclusion],
-    ["分岐点", breakEven],
-    ["再開見込み", resume],
+    ["数字", breakEven],
     ["注意書き", disclaimer],
   ] as const) {
     const box = await locator.boundingBox();
@@ -126,6 +171,10 @@ async function expectFirstViewport(page: Page, variant: Variant, label: string) 
       `${label}: ${name}が閉じたシートに収まらない`,
     ).toBeLessThanOrEqual(variant.height);
   }
+  const sheetTop = (await sheet.boundingBox())?.y ?? 0;
+  expect(sheetTop, `${label}: 閉じたシートが地図を半分以上覆っている`).toBeGreaterThanOrEqual(
+    variant.height / 2,
+  );
   await expect(conclusion, label).toHaveAttribute("data-action", /^(wait|switch|hold)$/);
   const lines = await page
     .getByTestId(testIds.judgment.conclusionHeadline)
@@ -133,6 +182,11 @@ async function expectFirstViewport(page: Page, variant: Variant, label: string) 
       Math.round(el.scrollHeight / Number.parseFloat(getComputedStyle(el).lineHeight)),
     );
   expect(lines, `${label}: 見出しが 4 行を超えている`).toBeLessThanOrEqual(4);
+  await openSheet(page, "half");
+  await expect(resume, `${label}: 半分まで引き上げても再開の見込みが見えない`).toBeInViewport({
+    ratio: 1,
+  });
+  await openSheet(page, "collapsed");
 }
 
 for (const variant of variants) {
@@ -211,6 +265,8 @@ for (const variant of variants) {
       // 様子の段は、原因・止まってからの時間・再開の見込みの 3 問を 1 タップずつ聞く
       await capture(page, variant, "04-situation-cause");
       await checkScreen(page, "状況の入力（原因）");
+      if (variant.width < desktop.width)
+        await expectCauseCardsReadable(page, variant.width, ja ? 2 : 3);
       await page.getByTestId(testIds.start.cause("unknown")).click();
       await expect(page.getByTestId(testIds.start.answer("cause"))).toBeVisible();
       await capture(page, variant, "05a-situation-elapsed");
@@ -249,6 +305,7 @@ for (const variant of variants) {
       if (variant.width === mobile.width) await expectFirstViewport(page, variant, "判断");
 
       if (variant.width === mobile.width) {
+        await expectHandleRingOnlyForKeyboard(page);
         await openSheet(page, "half");
         await capture(page, variant, "07b-judgment-half");
         await openSheet(page, "full");

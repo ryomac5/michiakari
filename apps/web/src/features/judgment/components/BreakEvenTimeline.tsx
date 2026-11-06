@@ -151,7 +151,7 @@ export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: D
           />
         </div>
 
-        {/* 分岐点。縦線と時刻で示す */}
+        {/* 分岐点。時刻は 2 段目の図と下の文が示すので、縦線と「境目」だけにする */}
         <span
           className={cn(
             "absolute top-[14px] h-[20px] w-[2px] -translate-x-1/2 rounded-full bg-foreground",
@@ -164,7 +164,7 @@ export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: D
           align={selectAlign(positions.breakEven, labelReach.breakEven)}
           className={cn("top-0 font-semibold", motion)}
         >
-          {t("breakEven", { time: clock(timeline.breakEvenMs) })}
+          {t("breakEven")}
         </AxisLabel>
 
         {/* いま */}

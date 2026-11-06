@@ -34,7 +34,7 @@ export function AppHeader({
       <header
         data-testid={testIds.app.header}
         className={cn(
-          "pointer-events-none fixed inset-x-0 top-0 z-30 flex flex-col items-center gap-2 px-3 pt-[max(12px,env(safe-area-inset-top))]",
+          "pointer-events-none fixed inset-x-0 top-0 z-30 flex flex-col items-center gap-2 pt-[max(12px,env(safe-area-inset-top))] pr-[max(12px,env(safe-area-inset-right))] pl-[max(12px,env(safe-area-inset-left))]",
           variant === "map" && "lg:right-auto lg:items-start lg:px-4 lg:pt-4",
         )}
       >
@@ -46,7 +46,7 @@ export function AppHeader({
         </a>
         <div
           className={cn(
-            "glass pointer-events-auto flex h-14 w-full items-center gap-1 rounded-2xl pr-1.5 pl-2",
+            "glass pointer-events-auto relative flex h-14 w-full items-center gap-1 rounded-2xl pr-1 pl-1.5",
             variant === "page" ? "max-w-2xl" : "lg:w-[min(560px,calc(100vw-464px))]",
           )}
         >
@@ -72,7 +72,7 @@ export function AppHeader({
               </span>
             </Link>
           )}
-          <div className="flex min-w-0 flex-1 items-center gap-1.5">{children}</div>
+          <div className="flex min-w-0 flex-1 items-center gap-1">{children}</div>
           <AppMenu mock={mockEnabled && variant === "map"} />
         </div>
         {below && (

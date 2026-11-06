@@ -6,7 +6,7 @@ import { ArrowLeft, History, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { MapSheet, sheetTopInset } from "@/components/MapSheet";
+import { MapSheet } from "@/components/MapSheet";
 import { SheetSection, useMapChrome } from "@/components/SheetSection";
 import { Button } from "@/components/ui/button";
 import { selectTimelineBasis } from "@/features/judgment/break-even-timeline";
@@ -22,7 +22,6 @@ import { EvidenceSection } from "@/features/judgment/components/EvidenceSection"
 import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
-import { StatusChip, TripChip } from "@/features/judgment/components/TripSummary";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { buildJudgmentChange } from "@/features/judgment/judgment-change";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
@@ -35,8 +34,6 @@ import { MapLegend } from "@/features/map/MapLegend";
 import { MapPanel, selectRouteTone } from "@/features/map/MapPanel";
 import type { ReachSource } from "@/features/map/scene";
 import type { StationGuide } from "@/features/map/station-guide";
-import { useLineLabel } from "@/features/map/use-line-label";
-import { pickStationName, type StationNames } from "@/features/stations/describe";
 import { computeReplayProgress } from "../clock";
 import { selectReplayOutcome } from "../outcome";
 import {
@@ -54,22 +51,15 @@ import { ReplayOutcomeCard } from "./ReplayOutcomeCard";
 // 選択肢がまだ無いときの空の配列。描画のたびに新しい配列を作ると地図の組み立てが繰り返される
 const noOptions: RouteOption[] = [];
 
-// 上部の帯の下に再生バー（56px）と余白を重ねるぶん、シートの上端を下げる
-const replayTopInset = sheetTopInset + 64;
-// 地図を寄せるときは、せり出す発表のぶんも空ける
-const announcementInset = 64;
-
 // 1 本のシナリオを再生する。判断の表示は判断画面と同じ部品を使う
 export function ReplayPlayer({
   scenario,
   catalog,
-  stationNames,
   initialSpeed,
   onBack,
 }: {
   scenario: ReplayScenario;
   catalog: KnowledgeCatalog;
-  stationNames: StationNames;
   initialSpeed: number;
   onBack: () => void;
 }) {
@@ -78,7 +68,7 @@ export function ReplayPlayer({
   const player = useReplayPlayer(scenario, locale, initialSpeed);
   const { state, history, latestEntry } = player;
   const { origin, destination } = useMemo(() => buildScenarioPlaces(scenario), [scenario]);
-  const chrome = useMapChrome(replayTopInset);
+  const chrome = useMapChrome();
   const { setSnap } = chrome;
   const [reachSource, setReachSource] = useState<ReachSource | null>(null);
   const [guide, setGuide] = useState<StationGuide | null>(null);
@@ -96,7 +86,6 @@ export function ReplayPlayer({
   const blockedLine = observations.findLast((o) => o.line !== null)?.line ?? scenario.line;
   // 止まり方はシナリオの事象から引く。その列車だけが止まる事象では見合わせの札と区間の線を出さない
   const stopScope = resolveStopScope(scenario.event_type);
-  const lineLabel = useLineLabel(blockedLine);
   const options = display.options ?? noOptions;
 
   // 表示中の判断と、その一つ前の判断の行動
@@ -126,13 +115,6 @@ export function ReplayPlayer({
     if (ended) setSnap("half");
   }, [ended, setSnap]);
 
-  const names = {
-    from: pickStationName({ name: origin.name, nameEn: stationNames[origin.name] ?? null }, locale),
-    to: pickStationName(
-      { name: destination.name, nameEn: stationNames[destination.name] ?? null },
-      locale,
-    ),
-  };
   const breakEvenProps = {
     breakEven: display.breakEven,
     known: display.breakEvenKnown,
@@ -173,35 +155,32 @@ export function ReplayPlayer({
           </button>
         }
         below={
-          <>
-            <ReplayBar
-              status={player.status}
-              clockLabel={formatClockTime(nowIso, locale)}
-              progress={computeReplayProgress(scenario.timeline, player.clockMinutes)}
-              enteredCount={player.enteredCount}
-              total={scenario.timeline.length}
-              speed={player.speed}
-              onTogglePlay={player.togglePlay}
-              onNext={player.stepNext}
-              onRestart={player.restart}
-              onChangeSpeed={player.changeSpeed}
+          latestEntry && (
+            <AnnouncementCard
+              key={latestEntry.id}
+              concealed={chrome.snap !== "collapsed"}
+              entry={latestEntry}
+              timeLabel={formatClockTime(
+                resolveScenarioTime(scenario.start_time, latestEntry.offset_minutes),
+                locale,
+              )}
             />
-            {latestEntry && (
-              <AnnouncementCard
-                key={latestEntry.id}
-                concealed={chrome.snap === "full"}
-                entry={latestEntry}
-                timeLabel={formatClockTime(
-                  resolveScenarioTime(scenario.start_time, latestEntry.offset_minutes),
-                  locale,
-                )}
-              />
-            )}
-          </>
+          )
         }
       >
-        <TripChip from={names.from} to={names.to} />
-        <StatusChip line={lineLabel} scope={stopScope} />
+        {/* 再生の操作は見出しの帯の中に置き、帯を 1 本にする。経路と止まった路線は地図とシートが示す */}
+        <ReplayBar
+          status={player.status}
+          clockLabel={formatClockTime(nowIso, locale)}
+          progress={computeReplayProgress(scenario.timeline, player.clockMinutes)}
+          enteredCount={player.enteredCount}
+          total={scenario.timeline.length}
+          speed={player.speed}
+          onTogglePlay={player.togglePlay}
+          onNext={player.stepNext}
+          onRestart={player.restart}
+          onChangeSpeed={player.changeSpeed}
+        />
       </AppHeader>
 
       <MapPanel
@@ -214,7 +193,7 @@ export function ReplayPlayer({
         blockedLine={blockedLine}
         trainOnly={stopScope === "train"}
         showSectionNote={started}
-        insets={{ ...chrome.insets, top: chrome.insets.top + announcementInset }}
+        insets={chrome.insets}
         onReachSourceChange={setReachSource}
         onGuideChange={setGuide}
         onSelectOption={focusOption}
@@ -230,7 +209,6 @@ export function ReplayPlayer({
           snap={chrome.snap}
           onSnapChange={setSnap}
           onCollapsedHeightChange={chrome.setCollapsedHeight}
-          topInset={replayTopInset}
           summary={
             <div className="flex flex-col gap-3">
               {outcome && (
@@ -281,14 +259,20 @@ export function ReplayPlayer({
                   !(state.status === "ready" && display.judgment && current) && (
                     <BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />
                   )}
-                {started && <Disclaimer />}
-                {state.status === "ready" && <ResumeOutlook {...breakEvenProps} />}
+                {/* 推定である旨は再生を始める前から出す */}
+                <Disclaimer />
               </div>
             </div>
           }
         >
           {started && (
             <>
+              {/* 2 段目: 再開の見込みの図。閉じたシートは地図を広く残すため、引き上げたときに見せる */}
+              {state.status === "ready" && display.breakEven && (
+                <SheetSection>
+                  <ResumeOutlook {...breakEvenProps} />
+                </SheetSection>
+              )}
               {/* 気象を使った判断のときだけ、半分の状態の先頭に雨量の推移を出す */}
               {display.weather && (
                 <SheetSection>

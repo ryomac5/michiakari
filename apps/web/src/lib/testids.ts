@@ -187,7 +187,7 @@ export const testIds = {
     playButton: "replay-play-button",
     nextButton: "replay-next-button",
     restartButton: "replay-restart-button",
-    speed: (speed: number) => `replay-speed-${speed}`,
+    speedToggle: "replay-speed",
     clock: "replay-clock",
     progress: "replay-progress",
     announcement: "replay-announcement",

@@ -67,7 +67,7 @@ const chipBase =
 const softChip = "bg-foreground/[0.05] hover:bg-foreground/[0.09]";
 // 大きな選択肢の札。2 つを横に並べる
 const cardBase =
-  "flex min-h-[76px] items-center gap-3 rounded-2xl px-3.5 py-3 text-left transition-[transform,background-color] duration-150 active:scale-[0.97]";
+  "flex min-h-14 items-center gap-2.5 rounded-2xl px-3 py-2 text-left transition-[transform,background-color] duration-150 active:scale-[0.97]";
 
 // 路線色を淡く敷いたチップ。左の太い印で路線色を示す
 function LineButton({
@@ -415,10 +415,11 @@ export function DestinationStep({
           </Eyebrow>
         }
         title={t("destinationQuestion")}
+        // 方面が無いときの「行き先の駅を選んでください」は見出しの言い直しなので出さない
         hint={
           direction
             ? t("destinationHint", { direction: pickLocalized(direction.label, locale) })
-            : t("destinationStationHint")
+            : undefined
         }
       />
       {routeLines.length > 0 && (
@@ -493,6 +494,7 @@ export function DestinationStep({
 export function TripCard({
   originName,
   originNote,
+  routeDirection,
   destinationName,
   destinationNote,
   line,
@@ -501,6 +503,8 @@ export function TripCard({
 }: {
   originName: string;
   originNote: string | null;
+  // 乗る方面。出発の行に路線と並べて出し、押すと路線と方面を選び直せる
+  routeDirection: string | null;
   destinationName: string;
   destinationNote: string | null;
   line: OriginLine;
@@ -520,17 +524,22 @@ export function TripCard({
       />
       <button
         type="button"
-        data-testid={testIds.start.editLine}
+        data-testid={routeDirection ? testIds.start.routeSummary : testIds.start.editLine}
         onClick={onEditLine}
         aria-label={`${t("from")} ${originName}・${t("change")}`}
         className="flex min-h-[52px] items-center gap-3 rounded-xl px-3 py-1.5 text-left hover:bg-foreground/[0.04]"
       >
         <span className="relative size-3.5 shrink-0 rounded-full border-[3px] border-white bg-focus shadow-[0_1px_4px_rgb(0_0_0/0.3)]" />
-        <span className="flex min-w-0 flex-1 flex-col">
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-[16px] font-bold">{originName}</span>
-          {originNote && <span className="truncate text-[12px] text-muted">{originNote}</span>}
+          {originNote && <span className="text-[12px] text-muted">{originNote}</span>}
+          {/* 路線と方面を 1 行に並べ、収まらなければ折り返す */}
+          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+            <LineTag line={line} suspended={t("suspended")} />
+            {routeDirection && <span className="text-[12px] text-muted">{routeDirection}</span>}
+          </span>
         </span>
-        <LineTag line={line} suspended={t("suspended")} />
+        <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
       </button>
       <button
         type="button"
@@ -549,7 +558,7 @@ export function TripCard({
             <span className="truncate text-[12px] text-muted">{destinationNote}</span>
           )}
         </span>
-        <ChevronRight className="size-4 text-muted" aria-hidden />
+        <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
       </button>
     </div>
   );
@@ -700,6 +709,7 @@ function AnswerCard({
   label,
   tone = "soft",
   span = false,
+  stacked = false,
   disabled = false,
   pending = false,
   onClick,
@@ -709,10 +719,13 @@ function AnswerCard({
   label: string;
   tone?: "soft" | "dashed";
   span?: boolean;
+  // 印を言葉の上に置き、言葉に札の幅を全部使わせる。長い原因の名前を 2 行に収める
+  stacked?: boolean;
   disabled?: boolean;
   pending?: boolean;
   onClick: () => void;
 }) {
+  const iconNode = pending ? <LoaderCircle className="size-5 animate-spin" /> : icon;
   return (
     <button
       type="button"
@@ -721,24 +734,31 @@ function AnswerCard({
       onClick={onClick}
       className={cn(
         cardBase,
-        "min-h-[68px] disabled:opacity-60",
+        stacked ? "min-h-16 flex-col items-start justify-center gap-1 py-2" : "min-h-14",
+        "disabled:opacity-60",
         tone === "soft"
           ? softChip
           : "border-[1.5px] border-dashed border-foreground/25 hover:bg-foreground/[0.05]",
         span && "col-span-2",
       )}
     >
-      <span
-        aria-hidden
-        className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-full",
-          tone === "soft"
-            ? "bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.12)]"
-            : "bg-foreground/[0.05] text-muted",
-        )}
-      >
-        {pending ? <LoaderCircle className="size-5 animate-spin" /> : icon}
-      </span>
+      {stacked ? (
+        <span aria-hidden className={cn("flex size-5 shrink-0", tone === "dashed" && "text-muted")}>
+          {iconNode}
+        </span>
+      ) : (
+        <span
+          aria-hidden
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-full",
+            tone === "soft"
+              ? "bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.12)]"
+              : "bg-foreground/[0.05] text-muted",
+          )}
+        >
+          {iconNode}
+        </span>
+      )}
       <span className="text-[15px] leading-snug font-bold text-balance">{label}</span>
     </button>
   );
@@ -765,6 +785,7 @@ export function CauseStep({
               testId={testIds.start.cause(id)}
               icon={<Icon className="size-5" strokeWidth={1.75} />}
               label={t(`causes.${id}`)}
+              stacked
               onClick={() => onSelect(toCauseAnswer(id))}
             />
           );
@@ -774,6 +795,7 @@ export function CauseStep({
           icon={<HelpCircle className="size-5" strokeWidth={1.75} />}
           label={t("causes.unknown")}
           tone="dashed"
+          stacked
           span={causeChoiceIds.length % 2 === 0}
           onClick={() => onSelect({ category: null, kind: null })}
         />
@@ -901,13 +923,13 @@ export function ResumeStep({
           onClick={() => setStatedOpen((v) => !v)}
           className={cn(
             cardBase,
-            "col-span-2 min-h-[68px] disabled:opacity-60",
+            "col-span-2 min-h-14 disabled:opacity-60",
             statedOpen ? "bg-focus/[0.10] ring-2 ring-focus" : softChip,
           )}
         >
           <span
             aria-hidden
-            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.12)]"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.12)]"
           >
             <Clock className="size-5" strokeWidth={1.75} />
           </span>

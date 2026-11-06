@@ -90,13 +90,13 @@ async function zoomOn(page: Page, position: [number, number], target: number): P
   expect(await readZoom(page)).toBeGreaterThanOrEqual(target);
 }
 
-// 点のまわり 10px の内で、印や札に掛からない地図の点を探す。線は 44px の四角で拾うので、少しずれても押せる
+// 点のまわり 18px の内で、印や札に掛からない地図の点を探す。線は 44px の四角で拾うので、少しずれても押せる
 async function findCanvasPointNear(
   page: Page,
   point: { x: number; y: number },
 ): Promise<{ x: number; y: number }> {
   const open = await page.evaluate(({ x, y }) => {
-    for (const distance of [0, 4, 7, 10]) {
+    for (const distance of [0, 4, 7, 10, 14, 18]) {
       for (let step = 0; step < 12; step++) {
         const angle = (step / 12) * Math.PI * 2;
         const px = x + Math.cos(angle) * distance;

@@ -3,7 +3,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { formatStationName } from "@repo/geo";
 import type { Action, Place, RouteOption, Section, TrainPosition } from "@repo/schema";
-import { LocateFixed, Route } from "lucide-react";
+import { ChevronRight, LocateFixed, Route } from "lucide-react";
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -36,7 +36,7 @@ import {
   mapPalettes,
   sourceIds,
 } from "./layers";
-import { MapAttribution } from "./MapAttribution";
+import { MapAttribution, mapAttributionHeight } from "./MapAttribution";
 import { fetchReachAreas, type ReachArea } from "./reach";
 import {
   buildReachLabelRect,
@@ -136,7 +136,7 @@ const markRadius = 20;
 // 「表示中」の札の高さと上下の余白。駅の吹き出しで選んだ経路を示せないときだけ地図の上端に出す
 const selectedRouteTagSpace = 44;
 // 「区間は発表で確かめる」の札の高さと上下の余白。案内の文があれば 1 行ぶん足す
-const sectionNoteSpace = { plain: 44, withAction: 64 } as const;
+const sectionNoteSpace = { plain: 44, withAction: 52 } as const;
 
 // 「全体を見る」のボタンが動き終えたあとの矩形。地図の左上が原点
 // 下の余白が変わるとボタンは 200ms かけて動く。動いている途中の矩形は測らず、余白から求める
@@ -289,9 +289,10 @@ function buildGuidePadding(
   );
   const canvas = map.getCanvas();
   // 駅間の車内の人には吹き出しが無い。現在地と降りる駅の印が「全体を見る」のボタンの下に入らないよう、印の半径も足して下を空ける
+  // 下端の出典の行にも印が掛からないよう、その高さを足す
   const bottom = guide.alight
     ? Math.max(margin.bottom, viewToggleBox.bottom + viewToggleBox.h + markRadius)
-    : margin.bottom;
+    : margin.bottom + mapAttributionHeight;
   return constrainFitPadding({ w: canvas.clientWidth, h: canvas.clientHeight }, insets, {
     ...margin,
     top: margin.top + (tallTop ? recommendedBubbleHeight : 0),
@@ -434,11 +435,12 @@ function layoutAutoPlacements(
       })),
     ],
     here,
+    // 下端は地図の隅の出典の行を除く。札が出典に掛からないようにする
     view: {
       left: insets.left + 8,
       top: insets.top + 8,
       right: width - insets.right - 8,
-      bottom: height - insets.bottom - 8,
+      bottom: height - insets.bottom - mapAttributionHeight - 4,
     },
     preferred: { here: herePreferred, alight: "bottom", ...stationPlacements },
     obstacles: avoid.map((p) => {
@@ -1064,7 +1066,10 @@ export function MapPanel(props: MapPanelProps) {
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
       const visible = (x: number, y: number) =>
-        x > left + 40 && x < width - right - 40 && y > top + 24 && y < height - bottom - 24;
+        x > left + 40 &&
+        x < width - right - 40 &&
+        y > top + 24 &&
+        y < height - bottom - mapAttributionHeight - 24;
       const points = blockedTagMeters.flatMap((m) => {
         const p = findPointAtDistance(blockedPath, here, m);
         return p ? [p] : [];
@@ -1366,25 +1371,28 @@ export function MapPanel(props: MapPanelProps) {
         </p>
       )}
       {sectionNote && (
+        // 区間が分からないことを 1 行の札で示す。押せるときは、発表を貼る欄へ移る
         <div
           data-testid={mapTestIds.sectionNote}
-          className="glass absolute z-10 flex flex-col items-start gap-0.5 rounded-xl px-3 py-1.5 text-[13px] text-foreground"
+          className="glass absolute z-10 flex items-center rounded-full text-[13px] font-semibold text-foreground"
           style={{
             top: props.insets.top + 8 + (floatingTag ? selectedRouteTagSpace : 0),
             left: left + 12,
             maxWidth: `calc(100% - ${left + right + 24}px)`,
           }}
         >
-          <p className="font-semibold">{t("sectionUnconfirmed")}</p>
-          {onAddAnnouncement && (
+          {onAddAnnouncement ? (
             <button
               type="button"
               data-testid={mapTestIds.sectionNoteAction}
               onClick={onAddAnnouncement}
-              className="text-left text-[12px] text-focus underline underline-offset-2"
+              className="flex min-h-11 items-center gap-1 rounded-full pr-2 pl-3.5 text-left"
             >
-              {t("sectionAddAnnouncement")}
+              {t("sectionUnconfirmed")}
+              <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
             </button>
+          ) : (
+            <p className="px-3.5 py-2">{t("sectionUnconfirmed")}</p>
           )}
         </div>
       )}

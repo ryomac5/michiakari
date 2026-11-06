@@ -226,9 +226,9 @@ for (const scenario of scenarios) {
     }) => {
       await recordJudgedObservations(page);
       await openReplay(page, scenario.id, testSpeed);
-      await expect(page.getByTestId(testIds.replay.speed(testSpeed))).toHaveAttribute(
-        "aria-pressed",
-        "true",
+      await expect(page.getByTestId(testIds.replay.speedToggle)).toHaveAttribute(
+        "data-speed",
+        String(testSpeed),
       );
 
       await page.getByTestId(testIds.replay.playButton).click();

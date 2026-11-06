@@ -2,13 +2,12 @@
 
 import type { Judgment } from "@repo/schema";
 import { CornerDownRight } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { splitHeadline } from "../headline";
 import type { buildJudgmentChange } from "../judgment-change";
 import { testIds } from "../testids";
-import { formatClockTime } from "../time";
 import { ActionPill } from "./ActionPill";
 import { JudgmentChangeCard } from "./JudgmentChangeCard";
 import { NoBreakText } from "./NoBreakText";
@@ -87,25 +86,20 @@ export function ConclusionCard({
 }
 
 // 開いて読む段の先頭。理由の残りの文と、見込みの確かさ
+// 到着の時刻は 1 段目の数字と選択肢の行が示すので、ここでは繰り返さない
 export function ConclusionDetail({ judgment }: { judgment: Judgment }) {
   const t = useTranslations("judgment");
-  const locale = useLocale();
   const cardReason = selectCardReason(judgment);
   // 閉じたシートに出した先頭の文を除き、残りだけを出す
   const reason = cardReason ? (judgment.reason ?? "").slice(cardReason.length).trim() : "";
-  const recommended = judgment.options.find((o) => o.id === judgment.recommendedOptionId);
   const remaining = judgment.estimate.remaining;
   const level = judgment.estimate.confidence;
-
-  const chips: string[] = [];
-  // 待つときは、待った場合の到着を添える。切り替えでは閉じたシートが到着を出すので重ねない
-  if (recommended && judgment.action !== "switch") {
-    chips.push(t("conclusion.arrival", { time: formatClockTime(recommended.arrivalTime, locale) }));
-  }
-  if (remaining && judgment.breakEven === null) chips.push(t("conclusion.remaining", remaining));
+  // 境目が無いときだけ、再開までの見込みの幅を添える。境目があれば 2 段目の図が示す
+  const remainingText =
+    remaining && judgment.breakEven === null ? t("conclusion.remaining", remaining) : null;
 
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex flex-col gap-2">
       {reason && (
         <h2 className="text-[13px] font-medium text-muted">{t("conclusion.reasonTitle")}</h2>
       )}
@@ -117,23 +111,17 @@ export function ConclusionDetail({ judgment }: { judgment: Judgment }) {
           <NoBreakText text={reason} />
         </p>
       )}
-      <ul className="flex flex-wrap gap-1.5 text-[12px] text-muted">
-        <li
+      {/* 数字の札と見分けがつくよう、枠の無い小さな文字で添える */}
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted">
+        <span
           data-testid={testIds.judgment.confidence}
           data-level={level}
-          className={cn(
-            "rounded-lg px-2.5 py-1",
-            level === "low" ? "bg-hold-surface text-hold" : "bg-foreground/[0.06]",
-          )}
+          className={cn(level === "low" && "font-semibold text-hold")}
         >
           {t("conclusion.confidence", { level: t(`confidence.${level}`) })}
-        </li>
-        {chips.map((chip) => (
-          <li key={chip} className="rounded-lg bg-foreground/[0.06] px-2.5 py-1 tabular-nums">
-            {chip}
-          </li>
-        ))}
-      </ul>
+        </span>
+        {remainingText && <span className="tabular-nums">{remainingText}</span>}
+      </p>
     </div>
   );
 }

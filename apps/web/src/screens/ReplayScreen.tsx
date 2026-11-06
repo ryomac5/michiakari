@@ -9,17 +9,14 @@ import { testIds } from "@/features/judgment/testids";
 import { ReplayPlayer } from "@/features/replay/components/ReplayPlayer";
 import { ScenarioList } from "@/features/replay/components/ScenarioList";
 import type { ReplayScenario } from "@/features/replay/scenario";
-import type { StationNames } from "@/features/stations/describe";
 
 // リプレイの入口。シナリオを選ぶと再生画面に切り替わる
 export function ReplayScreen({
   scenarios,
-  stationNames,
   initialScenarioId,
   initialSpeed,
 }: {
   scenarios: ReplayScenario[];
-  stationNames: StationNames;
   initialScenarioId: string | null;
   initialSpeed: number;
 }) {
@@ -34,7 +31,6 @@ export function ReplayScreen({
         key={selected.id}
         scenario={selected}
         catalog={catalog}
-        stationNames={stationNames}
         initialSpeed={initialSpeed}
         onBack={() => setSelectedId(null)}
       />
