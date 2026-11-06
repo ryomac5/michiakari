@@ -218,7 +218,13 @@ export function ReplayPlayer({
           summary={
             <div className="flex flex-col gap-3">
               {outcome && (
-                <div className="flex flex-col gap-1 border-b border-border pb-1">
+                <div
+                  className={
+                    judgmentFolded
+                      ? "flex flex-col gap-1"
+                      : "flex flex-col gap-1 border-b border-border pb-1"
+                  }
+                >
                   <ReplayOutcomeCard outcome={outcome} deadlineClock={deadlineClock} />
                   <LastJudgmentToggle
                     open={judgmentReopened}
