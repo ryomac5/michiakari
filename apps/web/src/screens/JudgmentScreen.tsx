@@ -220,13 +220,6 @@ export function JudgmentScreen() {
           onCollapsedHeightChange={chrome.setCollapsedHeight}
           summary={
             <div className="flex flex-col gap-3">
-              {/* 駅と駅の間の人には、次の駅・種別・前の列車の前提をチップで出し、その場で直せるようにする */}
-              <TrainPositionChips
-                busy={streaming}
-                onOpenEditor={() => {
-                  if (chrome.snap === "collapsed") chrome.setSnap("half");
-                }}
-              />
               {streaming && <ReasoningProgress state={state} catalog={catalog} />}
               {state.status === "error" && state.error && (
                 <JudgmentError
@@ -247,6 +240,17 @@ export function JudgmentScreen() {
             </div>
           }
         >
+          {/* 駅と駅の間の人の前提のチップ。閉じたシートは結論だけにし、チップは半分まで開くと見せる */}
+          {trainPosition?.kind === "between_stations" && trainPosition.nextStation && (
+            <SheetSection>
+              <TrainPositionChips
+                busy={streaming}
+                onOpenEditor={() => {
+                  if (chrome.snap === "collapsed") chrome.setSnap("half");
+                }}
+              />
+            </SheetSection>
+          )}
           {/* 2 段目: 再開の見込みの図。閉じたシートは地図を広く残すため、引き上げたときに見せる */}
           {state.status === "ready" && display.breakEven && (
             <SheetSection>
