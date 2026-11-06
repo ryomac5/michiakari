@@ -94,7 +94,9 @@ function expectInCarWait(judgment: Judgment): NonNullable<Judgment["inCar"]> {
   expect(judgment.disclaimer).toContain("公式発表");
   const inCar = judgment.inCar;
   if (!inCar) throw new Error("車内の案内がありません");
-  expect(inCar.staffNote).toBe("長く止まったときは、係員の案内に従ってください。");
+  // 降りられないあいだの過ごし方は伝えない
+  expect(inCar).not.toHaveProperty("staffNote");
+  expect(JSON.stringify(inCar)).not.toContain("係員");
   return inCar;
 }
 

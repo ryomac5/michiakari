@@ -557,7 +557,7 @@ describe("claude モードの車内と止まり方", () => {
     expect(judgment?.headline).toBe("車内で待つ");
     expect(judgment?.options).toEqual([]);
     expect(judgment?.breakEven).toBeNull();
-    expect(judgment?.inCar?.staffNote).toBe("長く止まったときは、係員の案内に従ってください。");
+    expect(JSON.stringify(judgment?.inCar)).not.toContain("係員");
   });
 
   it("根拠の説明も検査する。駅間の切り替えの言い方と、その列車だけの停車での見合わせを弾く", async () => {

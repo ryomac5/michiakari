@@ -148,8 +148,6 @@ export const InCarGuideSchema = z.object({
   // 自分の列車が動き出す見込み。見込みが無ければ null
   departure: IsoDateTimeSchema.nullable(),
   afterAlight: AfterAlightStepSchema.nullable(),
-  // 長く止まったときの一文。係員の案内に従う旨
-  staffNote: z.string().min(1),
 });
 export type InCarGuide = z.infer<typeof InCarGuideSchema>;
 

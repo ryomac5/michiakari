@@ -142,7 +142,7 @@ async function startBetweenStations(
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
 }
 
-// 車内で待つ結論の共通の形。選択肢の一覧・バス停・乗り換え候補の駅・確率の帯を出さず、係員の案内に従う一文を添える
+// 車内で待つ結論の共通の形。選択肢の一覧・バス停・乗り換え候補の駅・確率の帯を出さず、係員の案内の文も出さない
 async function expectInCarWait(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
     "data-action",
@@ -150,9 +150,7 @@ async function expectInCarWait(page: Page): Promise<void> {
   );
   const headline = page.getByTestId(testIds.judgment.conclusionHeadline);
   await expect(headline).toHaveText("車内で待つ");
-  await expect(page.getByTestId(testIds.judgment.inCarStaffNote)).toHaveText(
-    "長く止まったときは、係員の案内に従ってください。",
-  );
+  await expect(page.getByTestId(testIds.judgment.screen)).not.toContainText("係員の案内");
   await expect(page.getByTestId(testIds.judgment.disclaimer)).toContainText(
     "推定であり、公式発表を優先してください",
   );
