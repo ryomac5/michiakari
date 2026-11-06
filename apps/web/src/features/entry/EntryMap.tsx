@@ -20,6 +20,7 @@ import {
   DestinationMarker,
   HubMarker,
   PlaceMarker,
+  type PlaceTap,
   SegmentMarker,
   StopMarker,
 } from "./EntryMarkers";
@@ -27,11 +28,13 @@ import type { EntryArea, EntryHub, EntryPlace, Position } from "./entry-places";
 import { pickLocalized, pickPlaceName } from "./entry-places";
 import type { EntryStage } from "./flow";
 import {
+  BETWEEN_PICK_MIN_ZOOM,
   computeSegmentApproachRadii,
   computeSegmentApproachZoom,
   computeSegmentHitRadii,
   findNearestLineId,
-  measurePathDistance,
+  RAIL_TAP_PX,
+  selectMapTapTarget,
   selectRailTapAction,
 } from "./map-pick";
 import {
@@ -152,7 +155,7 @@ const tapReachPx = 44;
 const situationStages = new Set<EntryStage>(["cause", "causeKind", "elapsed", "resume", "input"]);
 const sourceIds = { lines: "entry-lines", trip: "entry-trip", segment: "entry-segment" } as const;
 // 線を押したとみなす、押した点からの幅（px）
-const linePickPx = tapReachPx / 2;
+const linePickPx = RAIL_TAP_PX;
 // 駅の間の丸がよける、駅の印と札の丸の半径（px）
 const markerHitRadius = 24;
 // 名前の札のぶん、印のまわりに空ける余白（px）
@@ -330,18 +333,6 @@ function findTappedLine(map: MapLibreMap, x: number, y: number, focus: LineFocus
   return findNearestLineId(queryTappedLines(map, x, y, layer), [point.lng, point.lat]);
 }
 
-// 押した点のまわりに描かれた全部の路線を、押した点に近い順に返す
-function listTappedRails(map: MapLibreMap, x: number, y: number): string[] {
-  const point = map.unproject([x, y]);
-  const lonLat: Position = [point.lng, point.lat];
-  const nearest = new Map<string, number>();
-  for (const { lineId, paths } of queryTappedLines(map, x, y, "entry-rail")) {
-    const meters = Math.min(...paths.map((path) => measurePathDistance(lonLat, path)));
-    nearest.set(lineId, Math.min(meters, nearest.get(lineId) ?? Number.POSITIVE_INFINITY));
-  }
-  return [...nearest.entries()].sort((a, b) => a[1] - b[1]).map(([lineId]) => lineId);
-}
-
 // 重なる部品を除いた範囲の中心に寄せるための、画面の中心からのずれ（px）
 function buildOffset(insets: MapInsets): [number, number] {
   return [(insets.left - insets.right) / 2, (insets.top - insets.bottom) / 2];
@@ -407,6 +398,77 @@ function flyToArea(map: MapLibreMap, area: EntryArea, insets: MapInsets, duratio
     });
 }
 
+// 地図を押した点の答えを決めて知らせる。札を押したときは label にその駅を渡す
+// 駅の印の中心の近くは駅、描いた線の上は駅の間、どちらでもなければ何もない所を押したとみなす
+function handleTapAt(
+  map: MapLibreMap,
+  x: number,
+  y: number,
+  label: EntryPlace | null,
+  props: EntryMapProps,
+  places: readonly VisibleStation[],
+): void {
+  const lngLat = map.unproject([x, y]);
+  const point: Position = [lngLat.lng, lngLat.lat];
+  const edge = map.unproject([x + tapReachPx, y]);
+  const reach = computeDistanceMeters(point, [edge.lng, edge.lat]);
+  const { onSelectRails, onApproachRails } = props;
+  // 札の上は、駅の印が出る倍率のときだけ札の下の線を見る。引いた地図の札は駅を選ぶ
+  const railPickable =
+    onSelectRails !== undefined && (label === null || map.getZoom() >= BETWEEN_PICK_MIN_ZOOM);
+  const tapped = railPickable ? queryTappedLines(map, x, y, "entry-rail") : [];
+  const target = selectMapTapTarget({
+    point: { x, y },
+    stations: places.map((v) => ({
+      key: v.place.key,
+      point: map.project(v.place.position),
+      markRadius: v.markRadius,
+      hitRadius: v.hitRadius,
+    })),
+    rails: tapped.map((t) => ({
+      lineId: t.lineId,
+      paths: t.paths.map((path) => path.map((p) => map.project(p))),
+    })),
+    labelKey: label?.key ?? null,
+  });
+  if (target.kind === "station") {
+    const place =
+      places.find((v) => v.place.key === target.key)?.place ??
+      (label?.key === target.key ? label : undefined);
+    if (place) props.onSelectPlace(place);
+    return;
+  }
+  // 線を押して路線や駅の間を選べる段では、線の上を押したらそれを選ぶ
+  const lineId =
+    label === null && props.linePickable && props.lineFocus
+      ? findTappedLine(map, x, y, props.lineFocus)
+      : null;
+  if (lineId) {
+    const lineEdge = map.unproject([x + linePickPx, y]);
+    props.onSelectLine(
+      lineId,
+      point,
+      computeDistanceMeters(point, [lineEdge.lng, lineEdge.lat]),
+      reach,
+    );
+    return;
+  }
+  // 最初の段は、駅の印が出る倍率のときだけ線を押して駅の間を決める
+  // 引いた地図では線が細く駅が込み合うので、線のあたりを押したら、まずそこへ寄せる
+  if (target.kind === "rail") {
+    const action = selectRailTapAction(map.getZoom(), target.lineIds.length);
+    if (action === "pick") {
+      onSelectRails?.(target.lineIds, point, reach);
+      return;
+    }
+    if (action === "approach") {
+      onApproachRails?.(point, reach);
+      return;
+    }
+  }
+  props.onTap(point, reach);
+}
+
 export function EntryMap(props: EntryMapProps) {
   const t = useTranslations("entry");
   const locale = useLocale();
@@ -436,6 +498,11 @@ export function EntryMap(props: EntryMapProps) {
   callbacksRef.current = props;
   const [map, setMap] = useState<MapLibreMap | null>(null);
   const [visiblePlaces, setVisiblePlaces] = useState<VisibleStation[]>([]);
+  // 地図に印を出している駅。押した点が駅の近くかを決めるのに使う
+  const placesShown =
+    stage === "kansai" || stage === "area" || stage === "station" || stage === "between";
+  const shownPlacesRef = useRef<VisibleStation[]>([]);
+  shownPlacesRef.current = placesShown ? visiblePlaces : [];
   // 関西の段の丸と縁の札の矩形。引いた地図の駅の名前はこれを避ける
   const hubBlockersRef = useRef<{ rects: Rect[]; targets: MapTarget[] }>({
     rects: [],
@@ -491,41 +558,14 @@ export function EntryMap(props: EntryMapProps) {
         loaded.on("click", (e) => {
           const target = e.originalEvent.target as HTMLElement | null;
           if (target?.closest(".maplibregl-marker")) return;
-          const point: Position = [e.lngLat.lng, e.lngLat.lat];
-          // 線を押して路線や駅の間を選べる段では、線の上を押したらそれを選ぶ
-          const { linePickable, lineFocus: focusNow } = callbacksRef.current;
-          const lineId =
-            linePickable && focusNow
-              ? findTappedLine(loaded, e.point.x, e.point.y, focusNow)
-              : null;
-          const edge = loaded.unproject([e.point.x + tapReachPx, e.point.y]);
-          const reach = computeDistanceMeters(point, [edge.lng, edge.lat]);
-          if (lineId) {
-            const lineEdge = loaded.unproject([e.point.x + linePickPx, e.point.y]);
-            callbacksRef.current.onSelectLine(
-              lineId,
-              point,
-              computeDistanceMeters(point, [lineEdge.lng, lineEdge.lat]),
-              reach,
-            );
-            return;
-          }
-          // 最初の段は、駅の印が出る倍率のときだけ線を押して駅の間を決める
-          // 引いた地図では線が細く駅が込み合うので、線のあたりを押したら、まずそこへ寄せる
-          const { onSelectRails, onApproachRails } = callbacksRef.current;
-          const rails = onSelectRails ? listTappedRails(loaded, e.point.x, e.point.y) : [];
-          const action = onSelectRails
-            ? selectRailTapAction(loaded.getZoom(), rails.length)
-            : "none";
-          if (action === "pick") {
-            onSelectRails?.(rails, point, reach);
-            return;
-          }
-          if (action === "approach") {
-            onApproachRails?.(point, reach);
-            return;
-          }
-          callbacksRef.current.onTap(point, reach);
+          handleTapAt(
+            loaded,
+            e.point.x,
+            e.point.y,
+            null,
+            callbacksRef.current,
+            shownPlacesRef.current,
+          );
         });
       })
       .catch(() => {});
@@ -904,6 +944,23 @@ export function EntryMap(props: EntryMapProps) {
     });
   };
 
+  // 駅の印の丸は駅を選ぶ。札は、札の下に描いた線があれば線を押したとみなす
+  const tapPlace = (place: EntryPlace, tap: PlaceTap) => {
+    if (!map || !tap?.label) {
+      props.onSelectPlace(place);
+      return;
+    }
+    const rect = map.getCanvas().getBoundingClientRect();
+    handleTapAt(
+      map,
+      tap.clientX - rect.left,
+      tap.clientY - rect.top,
+      place,
+      props,
+      shownPlacesRef.current,
+    );
+  };
+
   props.apiRef.current = {
     approach: (targetArea, point) => {
       if (!map) return;
@@ -964,12 +1021,7 @@ export function EntryMap(props: EntryMapProps) {
       ];
     }
     // 駅を選んだあとは、選んだ駅と札だけを出す
-    const places =
-      stage === "kansai" || stage === "area" || stage === "station" || stage === "between"
-        ? visiblePlaces.map((v) => v.place)
-        : place
-          ? [place]
-          : [];
+    const places = placesShown ? visiblePlaces.map((v) => v.place) : place ? [place] : [];
     const list = places.map((p) => at(`place:${p.key}`, p.position));
     if (!showTrip) {
       for (const s of visibleStops) list.push(at(`stop:${s.key}`, s.position));
@@ -998,6 +1050,7 @@ export function EntryMap(props: EntryMapProps) {
     visibleStops,
     segmentRadii,
     segments,
+    placesShown,
   ]);
   const hosts = useMarkerHosts(map, markerClass, entries);
   // 印は込み合うので、四角い入れ物は触れず、丸いボタンと札だけが押せるようにする
@@ -1103,14 +1156,13 @@ export function EntryMap(props: EntryMapProps) {
         }
         // 駅を選んだあとの選んだ駅は、設定の向きの大きな札で出す
         const visible =
-          (stage === "kansai" || stage === "area" || stage === "station" || stage === "between"
-            ? visiblePlaces.find((v) => `place:${v.place.key}` === key)
-            : null) ??
+          (placesShown ? visiblePlaces.find((v) => `place:${v.place.key}` === key) : null) ??
           (place && `place:${place.key}` === key
             ? {
                 place,
                 major: true,
                 hitRadius: placeHitRadius,
+                markRadius: placeHitRadius,
                 label: {
                   side: placeSide ?? place.side[side],
                   size: "large" as const,
@@ -1128,12 +1180,12 @@ export function EntryMap(props: EntryMapProps) {
             label={pickPlaceName(target, locale)}
             layout={visible.label}
             major={visible.major}
-            hitRadius={visible.hitRadius}
+            hitRadius={visible.markRadius}
             colors={[...new Set(target.lines.map((l) => l.color))]}
             selected={selected}
             dim={place !== null && !selected}
             hereLabel={t("here")}
-            onSelect={() => props.onSelectPlace(target)}
+            onSelect={(tap) => tapPlace(target, tap)}
           />,
           element,
           key,

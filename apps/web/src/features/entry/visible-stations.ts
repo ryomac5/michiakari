@@ -33,6 +33,8 @@ const hereWidth = 28;
 const dotRadius = { large: 8, small: 6 } as const;
 // 押せる丸の半径の上限（px）。隣の印に届くときは、その印の手前まで縮める
 const maxHitRadius = { large: 24, small: 22 } as const;
+// 寄せた地図で印として押せる丸の半径（px）。見た目の丸より少し広くし、印のまわりの線は線として押させる
+const markRadius = { large: 14, small: 12 } as const;
 // 札の幅の見積もりのずれを吸収する余白（px）
 const margin = 3;
 const sideOrder: readonly LabelSide[] = ["right", "left", "top", "bottom"];
@@ -94,11 +96,13 @@ export function estimateTextWidth(text: string, fullWidth: number, halfWidth: nu
 
 export type StationLabelSize = keyof typeof labelStyles;
 // 地図に出す駅。label が null の駅は、名前が重なるので印だけを出す
-// hitRadius は押せる丸の半径。tappable は札も押せるかで、ほかの駅の押せる丸に掛かる札は押せない
+// hitRadius は線から離れた所を押したとき駅とみなす丸の半径。markRadius は印として押せる丸の半径
+// 引いた地図では両方を同じにする。tappable は札も押せるかで、ほかの駅の押せる丸に掛かる札は押せない
 export type VisibleStation = {
   place: EntryPlace;
   major: boolean;
   hitRadius: number;
+  markRadius: number;
   label: { side: LabelSide; size: StationLabelSize; slide: number; tappable: boolean } | null;
 };
 
@@ -257,7 +261,7 @@ export function selectVisibleStations(input: {
     if (label) labels.push(label.box);
     picked.push({ candidate, label: label ? { ...label } : null });
   }
-  return assignHitAreas(picked, targets);
+  return assignHitAreas(picked, targets, overview);
 }
 
 function measureDistance(a: ScreenPoint, b: ScreenPoint): number {
@@ -271,6 +275,7 @@ function assignHitAreas(
     label: { side: LabelSide; size: StationLabelSize; slide: number; box: Rect } | null;
   }[],
   targets: readonly MapTarget[],
+  overview: boolean,
 ): VisibleStation[] {
   const others = (key: string): MapTarget[] => [
     ...targets,
@@ -289,19 +294,26 @@ function assignHitAreas(
     );
     return Math.max(dotRadius[size], Math.min(maxHitRadius[size], ...room));
   });
+  const marks = picked.map(({ candidate }, i) =>
+    overview
+      ? (hits[i] ?? 0)
+      : Math.min(hits[i] ?? 0, markRadius[candidate.major ? "large" : "small"]),
+  );
+  // 札が押せるかは、ほかの駅の印として押せる丸に掛かるかで決める
   const circles: (MapTarget & { key: string })[] = [
     ...targets.map((t, i) => ({ ...t, key: `target:${i}` })),
     ...picked.map((p, i) => ({
       key: p.candidate.place.key,
       point: p.candidate.point,
       dotRadius: 0,
-      hitRadius: hits[i] ?? 0,
+      hitRadius: marks[i] ?? 0,
     })),
   ];
   return picked.map(({ candidate, label }, i) => ({
     place: candidate.place,
     major: candidate.major,
     hitRadius: hits[i] ?? 0,
+    markRadius: marks[i] ?? 0,
     label: label
       ? {
           side: label.side,

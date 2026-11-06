@@ -76,7 +76,7 @@ export function listGpsChoices(
 const TRACK_GAP_METERS = 800;
 
 // 最初の地図で線を押したときの候補。駅は印が受け持つので、押した線の駅の間だけを近い順に返す
-// lineIds は指の下に描かれていた路線。reachMeters は押せる大きさ 44px を地図の距離に直した値
+// lineIds は指の下に描かれていた路線で、描いた線が近い順。reachMeters は押せる大きさ 44px を地図の距離に直した値
 // 路線ごとに一番近い駅の間を 1 つ出す
 export function listLineTapChoices(
   data: EntryData,
@@ -95,9 +95,10 @@ export function listLineTapChoices(
     { nodes, lines },
     { lonLat: [point.lon, point.lat], accuracyMeters: accuracy },
   ).filter((c): c is BetweenPositionCandidate => c.kind === "between");
-  const nearestPerLine = between.filter(
-    (c, i) => between.findIndex((o) => o.line.lineId === c.line.lineId) === i,
-  );
+  // 並べる順は、描いた線が押した点に近い順。駅を結ぶ直線は描いた線から離れるので、順には使わない
+  const nearestPerLine = between
+    .filter((c, i) => between.findIndex((o) => o.line.lineId === c.line.lineId) === i)
+    .sort((a, b) => lineIds.indexOf(a.line.lineId) - lineIds.indexOf(b.line.lineId));
   return convertCandidates(data, nearestPerLine).slice(0, limit);
 }
 
