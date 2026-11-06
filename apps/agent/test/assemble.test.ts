@@ -158,8 +158,9 @@ describe("validateJudgment", () => {
       expect(joined).toContain(raw);
     }
     expect(joined).not.toContain(`${fare.toLocaleString("ja-JP")}円`);
-    expect(errors.filter((e) => e.startsWith("evidence[0].description"))).toHaveLength(1);
-    expect(errors.filter((e) => e.startsWith("reason"))).toHaveLength(1);
+    // 数値の指摘は 1 件ずつ。再開の時間を言い切る言い方の指摘は別に数える
+    expect(errors.filter((e) => e.startsWith("evidence[0].description の数値"))).toHaveLength(1);
+    expect(errors.filter((e) => e.startsWith("reason の数値"))).toHaveLength(1);
   });
 
   it("ツールの結果の残り時間・徒歩・運賃の数値なら通る", async () => {
@@ -177,7 +178,7 @@ describe("validateJudgment", () => {
         reason: `振替なら徒歩${option.walkMinutes}分で済むためです。`,
         breakEvenExplanation: `振替は徒歩${option.walkMinutes}分、タクシーは ¥${fare}`,
         recommendedOptionId: null,
-        evidence: [{ kind: "signal", id: signalId, description: `p50 ${remaining.p50} min` }],
+        evidence: [{ kind: "signal", id: signalId, description: `about ${remaining.p50} min` }],
       },
       "ja",
     );

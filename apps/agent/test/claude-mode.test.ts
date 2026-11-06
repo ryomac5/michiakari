@@ -295,6 +295,52 @@ describe("claude モード", () => {
     expect(feedback).toContain("reason の数値「4321分」");
   });
 
+  it("理由に英語の名前、知見の文、決まった流れの言い方があれば、指摘を返して再生成させる", async () => {
+    const summarySentence = `${knowledge.summary.ja.split("。")[0]}。`;
+    const bad = [
+      { reason: `${signal.id} が出たので待ちます。`, issue: signal.id },
+      { reason: "flowOutlook が long なので待ちます。", issue: "flowOutlook" },
+      { reason: "再開まで p50 の見込みです。", issue: "p50" },
+      { reason: summarySentence, issue: "知見の文" },
+      { reason: "人身事故は通常1時間で再開します。", issue: "言い切る言い方" },
+    ];
+    for (const { reason, issue } of bad) {
+      const script = createScriptedLlm({
+        judgment: [
+          ...buildToolSequence(),
+          replyWithTool("emit_judgment", { ...validDecision, reason }),
+          replyWithTool("emit_judgment", validDecision),
+        ],
+      });
+      const { judgment } = await runWith(script);
+      expect(judgment?.reason, reason).toBe(validDecision.reason);
+      const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
+      expect(feedback, reason).toContain('"is_error":true');
+      expect(feedback, reason).toContain(issue);
+    }
+  });
+
+  it("進み具合の文は、英語の名前、知見の文、決まった流れの言い方を含めば流さない", async () => {
+    const summarySentence = `${knowledge.summary.ja.split("。")[0]}。`;
+    const script = createScriptedLlm({
+      judgment: [
+        replyWithTool("lookup_knowledge", { eventType: knowledge.id }, "知見を確かめます"),
+        replyWithTool(
+          "estimate_phase_and_remaining",
+          { eventType: knowledge.id },
+          `${signal.id} から段階を決めます`,
+        ),
+        replyWithTool("find_alternatives", {}, summarySentence),
+        replyWithTool("compute_break_even", {}, "人身事故は通常1時間で再開します。"),
+        replyWithTool("emit_judgment", validDecision, "remainingBasis を見て境目と比べます"),
+      ],
+    });
+    const { events, judgment } = await runWith(script);
+    expect(judgment?.headline).toBe(validDecision.headline);
+    const notes = events.flatMap((e) => (e.type === "progress" && !e.stage ? [e.message] : []));
+    expect(notes).toEqual(["知見を確かめます"]);
+  });
+
   it("emit_judgment の理由の説明に、長さの目安と上限と例を書く", () => {
     const tool = buildClaudeTools().find((t) => t.name === "emit_judgment");
     const properties = tool?.input_schema.properties as Record<string, unknown> | undefined;
@@ -475,7 +521,7 @@ describe("claude モードの車内と止まり方", () => {
     return ready?.type === "judgment_ready" ? ready.judgment : null;
   }
   const evidence = (eventType: string) => [
-    { kind: "knowledge", id: eventType, description: "よくある流れ" },
+    { kind: "knowledge", id: eventType, description: "起きていること" },
   ];
 
   it("駅間の車内の人に切り替えを勧めたら検証で弾き、車内で待つ判断だけを通す", async () => {

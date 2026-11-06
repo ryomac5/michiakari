@@ -86,10 +86,13 @@ function collectProgressNotes(
           : [],
     )
     .map((t) => t.trim().replace(/\s+/g, " "))
-    .filter((t) => t.length > 0)
-    .map((t) =>
-      t.length > MAX_PROGRESS_NOTE_LENGTH ? `${t.slice(0, MAX_PROGRESS_NOTE_LENGTH - 1)}…` : t,
-    );
+    .filter((t) => t.length > 0);
+}
+
+function shortenProgressNote(note: string): string {
+  return note.length > MAX_PROGRESS_NOTE_LENGTH
+    ? `${note.slice(0, MAX_PROGRESS_NOTE_LENGTH - 1)}…`
+    : note;
 }
 
 function toToolResult(id: string, outcome: ToolOutcome): BetaToolResultBlockParam {
@@ -179,8 +182,11 @@ export async function runClaudeJudgment(
     }
     // 思考のブロックも含めて、応答をそのまま履歴に戻す
     messages.push({ role: "assistant", content: response.content });
+    // 進み具合の文は、送る前に利用者に見せる文と同じ検査を通す。通らない文は流さない
     for (const note of collectProgressNotes(response.content, includeThinkingUpdates)) {
-      await session.emitProgress(undefined, note);
+      if (session.checkProgressNote(note)) {
+        await session.emitProgress(undefined, shortenProgressNote(note));
+      }
     }
 
     const toolUses = response.content.filter((b): b is BetaToolUseBlock => b.type === "tool_use");

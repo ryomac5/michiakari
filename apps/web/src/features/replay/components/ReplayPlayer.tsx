@@ -23,7 +23,6 @@ import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
 import { StatusChip, TripChip } from "@/features/judgment/components/TripSummary";
-import { TypicalFlowSection } from "@/features/judgment/components/TypicalFlow";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { buildJudgmentChange } from "@/features/judgment/judgment-change";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
@@ -48,7 +47,6 @@ import {
 } from "../scenario";
 import { useReplayPlayer } from "../use-replay-player";
 import { AnnouncementCard } from "./AnnouncementCard";
-import { PhaseStrip } from "./PhaseStrip";
 import { ReplayBar } from "./ReplayBar";
 import { ReplayHistory } from "./ReplayHistory";
 import { ReplayOutcomeCard } from "./ReplayOutcomeCard";
@@ -90,7 +88,6 @@ export function ReplayPlayer({
   const nowIso = resolveScenarioTime(scenario.start_time, player.clockMinutes);
   const now = useMemo(() => new Date(nowIso), [nowIso]);
   const display = selectJudgmentDisplay(state);
-  const typicalFlow = display.settled?.judgment.typicalFlow ?? null;
   const streaming = state.status === "streaming";
   const started = player.enteredCount > 0;
 
@@ -100,8 +97,6 @@ export function ReplayPlayer({
   // 止まり方はシナリオの事象から引く。その列車だけが止まる事象では見合わせの札と区間の線を出さない
   const stopScope = resolveStopScope(scenario.event_type);
   const lineLabel = useLineLabel(blockedLine);
-  const disclaimerExtra =
-    display.judgment?.disclaimer ?? state.previousJudgment?.disclaimer ?? null;
   const options = display.options ?? noOptions;
 
   // 表示中の判断と、その一つ前の判断の行動
@@ -321,27 +316,11 @@ export function ReplayPlayer({
                   onSelect={selectOption}
                 />
               </SheetSection>
-              <SheetSection>
-                {typicalFlow ? (
-                  <TypicalFlowSection
-                    flow={typicalFlow}
-                    estimate={display.estimate}
-                    expanded={chrome.desktop || chrome.snap === "full"}
-                    testIds={{ section: testIds.replay.phaseStrip, phase: testIds.replay.phase }}
-                  />
-                ) : (
-                  <PhaseStrip estimate={display.estimate} catalog={catalog} />
-                )}
-              </SheetSection>
-              <SheetSection>
+              <SheetSection className="has-[>[hidden]]:hidden">
                 <EvidenceSection
                   estimate={display.estimate}
                   signals={state.signals}
-                  evidence={display.evidence}
                   catalog={catalog}
-                  disclaimer={disclaimerExtra}
-                  showPhases={typicalFlow === null}
-                  flow={typicalFlow}
                 />
               </SheetSection>
               {state.status === "ready" && (

@@ -26,7 +26,6 @@ import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
 import { TrainPositionChips } from "@/features/judgment/components/TrainPositionChips";
 import { StatusChip, TripSummary } from "@/features/judgment/components/TripSummary";
-import { TypicalFlowSection } from "@/features/judgment/components/TypicalFlow";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { type OriginLine, type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
@@ -39,6 +38,7 @@ import { MapPanel, selectRouteTone } from "@/features/map/MapPanel";
 import type { BlockedDirection, ReachSource } from "@/features/map/scene";
 import type { StationGuide } from "@/features/map/station-guide";
 import { useLineLabel } from "@/features/map/use-line-label";
+import { toCauseChoiceId } from "@/features/situation/cause-categories";
 import { SituationInput } from "@/features/situation/SituationInput";
 
 // 選択肢がまだ無いときの空の配列。描画のたびに新しい配列を作ると地図の組み立てが繰り返される
@@ -54,8 +54,16 @@ function selectBlockedDirection(
   return terminalId ? { lineId: line.lineId, terminalId } : null;
 }
 
+// 入口で選んだ原因。知見に当たる原因を選んだときだけ、根拠の聞いたこととして出す
+function selectHeardCauseChoice(tripContext: TripContext | null) {
+  const answer = tripContext?.entryAnswers?.cause;
+  if (tripContext?.causeUnknown !== false || !answer) return null;
+  return toCauseChoiceId(answer);
+}
+
 export function JudgmentScreen() {
   const t = useTranslations("judgment");
+  const tEntry = useTranslations("entry");
   const router = useRouter();
   const {
     origin,
@@ -122,10 +130,10 @@ export function JudgmentScreen() {
     origin.kind === "station" ? origin.name : null,
   );
   const blockedSection = known.findLast((o) => o.section !== null)?.section ?? null;
-  const disclaimerExtra =
-    display.judgment?.disclaimer ?? state.previousJudgment?.disclaimer ?? null;
   const options = display.options ?? noOptions;
   const typicalFlow = display.settled?.judgment.typicalFlow ?? null;
+  const heardChoice = selectHeardCauseChoice(tripContext);
+  const heardCause = heardChoice ? tEntry(`causes.${heardChoice}`) : null;
   // 近くのバス停の確認候補。確定した判断に載ったものだけを出す
   const busChecks = display.settled?.judgment.busChecks ?? [];
   const breakEvenProps = {
@@ -243,7 +251,7 @@ export function JudgmentScreen() {
               <WeatherPanel weather={display.weather} stale={display.weatherStale} />
             </SheetSection>
           )}
-          {/* 3 段目: 理由の残り、境目の見方、ほかの選択肢、よくある流れ、根拠、判断の過程 */}
+          {/* 3 段目: 理由の残り、境目の見方、ほかの選択肢、根拠、判断の過程 */}
           {display.judgment && (
             <SheetSection>
               <ConclusionDetail judgment={display.judgment} />
@@ -273,16 +281,6 @@ export function JudgmentScreen() {
               <BusChecksSection busChecks={busChecks} />
             </SheetSection>
           )}
-          {typicalFlow && (
-            <SheetSection>
-              <TypicalFlowSection
-                flow={typicalFlow}
-                estimate={display.estimate}
-                expanded={chrome.desktop || chrome.snap === "full"}
-                testIds={{ section: testIds.judgment.flow, phase: testIds.judgment.flowPhase }}
-              />
-            </SheetSection>
-          )}
           {state.status === "ready" && display.estimate && (
             <NextCheckSection
               estimate={display.estimate}
@@ -295,15 +293,12 @@ export function JudgmentScreen() {
             />
           )}
           {state.status === "ready" && <PremiseSection />}
-          <SheetSection>
+          <SheetSection className="has-[>[hidden]]:hidden">
             <EvidenceSection
               estimate={display.estimate}
               signals={state.signals}
-              evidence={display.evidence}
               catalog={catalog}
-              disclaimer={disclaimerExtra}
-              showPhases={typicalFlow === null}
-              flow={typicalFlow}
+              heardCause={heardCause}
             />
           </SheetSection>
           {state.status === "ready" && (

@@ -248,45 +248,13 @@
     },
     "evidence": {
       "title": "Why we think so",
-      "phases": "Phases",
-      "here": "You are here",
-      "elapsed": "About {minutes} min into this phase",
-      "unknownPhase": "The next announcement will narrow down the phase",
-      "signals": "Signals found",
-      "noSignals": "Signals will come from the next announcements and signs",
-      "items": "Knowledge and calculations used",
-      "kinds": {
-        "signal": "Signal",
-        "knowledge": "Knowledge",
-        "weather": "Weather",
-        "computation": "Calculation"
-      },
-      "describe": {
-        "signal": "Announcement: \"{quote}\"",
-        "event": "Typical flow of {event}",
-        "phase": "Current phase: {phase}",
-        "knowledge": "Former dispatcher's knowledge"
-      }
-    },
-    "flow": {
-      "title": "Typical flow",
-      "now": "Now: {phase} · {index}/{total}",
-      "steps": "{total} steps",
-      "minutes": "~{minutes} min",
-      "here": "You are here",
-      "predictability": {
-        "high": "Predictable flow",
-        "medium": "Somewhat variable flow",
-        "low": "Hard-to-read flow"
-      },
-      "usual": {
-        "long": "Usually resumes in about {duration}",
-        "short": "Usually over in {span} min"
-      },
-      "duration": {
-        "minutes": "{minutes} min",
-        "hours": "{hours} h",
-        "hoursMinutes": "{hours} h {minutes} min"
+      "heard": "What you heard",
+      "heardQuote": "“{quote}”",
+      "reading": {
+        "label": "What it tells us",
+        "current": "Service is now at the “{phase}” stage.",
+        "entered": "Service had reached the “{phase}” stage.",
+        "unknown": "The stage is not clear yet."
       }
     },
     "addInfo": {
@@ -404,9 +372,6 @@
       "start": "Start replay"
     },
     "changed": "Advice changed",
-    "phases": "Phase",
-    "here": "Now",
-    "unknownPhase": "The next update will narrow down the phase",
     "history": "Announcements so far",
     "trip": "{origin} → {destination}",
     "bar": "Playback controls",

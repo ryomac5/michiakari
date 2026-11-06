@@ -11,6 +11,7 @@ import {
   type Observation,
 } from "@repo/schema";
 import { headlineLimits, reasonLimits } from "../config.ts";
+import { findFlowWording, findInternalWording, findKnowledgeText } from "../domain/flow-wording.ts";
 import type { Decision } from "../tools/emit-judgment.ts";
 import type {
   AlternativesToolResult,
@@ -201,10 +202,6 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
     estimate.firstTrainWait?.p50,
     estimate.firstTrainWait?.p80,
     results.alternatives.waitRouteMinutesAfterResume,
-    // よくある流れの再開までの見込みと目安の下限。結論の文で事象の流れを伝えるのに使う
-    estimate.typicalFlow?.untilResume.p50,
-    estimate.typicalFlow?.untilResume.p80,
-    estimate.typicalFlow?.typicalFloorMinutes,
     ...results.alternatives.options.flatMap((o) => [
       o.walkMinutes,
       Math.round(diffMinutes(now, o.arrivalTime)),
@@ -318,6 +315,37 @@ const SWITCH_PATTERNS: Record<Lang, RegExp> = {
   en: /\b(change to|change trains|switch|taxi|get off|transfer|walk)/i,
 };
 
+// 事象に決まった流れがあるように語る言い方と、再開までの時間を言い切る言い方があれば指摘する
+export function checkFlowWording(field: string, text: string, language: Lang): string[] {
+  const match = findFlowWording(text, language);
+  if (!match) return [];
+  return [
+    `${field} の「${match}」は、再開までの時間を事象の決まった流れとして言い切る言い方です。再開の見込みは画面の図で幅を持たせて示すので、文には書かず、境目や待つ場合との比較で書いてください`,
+  ];
+}
+
+// 内部の名前と知見の本文を、利用者に見せる文に写していれば指摘する
+export function checkSourceWording(
+  field: string,
+  text: string,
+  knowledgeSentences: readonly string[],
+): string[] {
+  const name = findInternalWording(text);
+  const copied = findKnowledgeText(text, knowledgeSentences);
+  return [
+    ...(name
+      ? [
+          `${field} の「${name}」は内部の名前です。id、項目名、p50 や p80 は書かず、利用者が聞く言葉で書いてください`,
+        ]
+      : []),
+    ...(copied
+      ? [
+          `${field} に知見の文「${copied}」を写しています。知見の文は開発者向けの根拠です。言い換えずに外し、比較の形で書いてください`,
+        ]
+      : []),
+  ];
+}
+
 // 区間全体の運転見合わせを指す言い回し。その列車だけが止まる事象には使わない
 const SUSPENSION_PATTERNS: Record<Lang, RegExp> = {
   ja: /見合わせ/,
@@ -359,6 +387,8 @@ export type JudgmentCheckInput = {
   inCarAlternativeLines?: readonly string[] | null;
   // 止まり方。その列車だけが止まる事象では「見合わせ」と書かせない
   stopScope?: StopScope;
+  // 知見の本文の文。利用者に見せる文に写していれば弾く
+  knowledgeSentences?: readonly string[];
 };
 
 // スキーマ、ID 参照、根拠の出どころ、文中の数値を検査し、問題を文字列で返す
@@ -402,6 +432,10 @@ export function validateJudgment(input: JudgmentCheckInput): {
       copiesServerDescription(e) ? [] : [[`evidence[${i}].description`, e.description]],
     ),
   ];
+  for (const [field, text] of shownTexts) {
+    errors.push(...checkFlowWording(field, text, input.language));
+    errors.push(...checkSourceWording(field, text, input.knowledgeSentences ?? []));
+  }
   if (inCarLines !== null) {
     if (j.recommendedOptionId !== null) {
       errors.push("駅間の車内の人には recommendedOptionId を null にしてください");
