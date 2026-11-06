@@ -274,5 +274,5 @@ ALLOW_PROTECTED_EDIT=1 pnpm scenario:new <scenario_id> --event <event_id>
 
 ## ライセンス
 
-ライセンスは未定です。
-決めるのは開発者で、決まりしだいここに記載します。
+コードは MIT ライセンスです。全文は [LICENSE](LICENSE) にあります。
+データは、[docs/data-sources.md](docs/data-sources.md) に書いた各ライセンスと出典の表示に従います。
