@@ -116,7 +116,6 @@
       "remaining": "Restart in {p50}–{p80} min",
       "confidence": "Outlook certainty: {level}",
       "live": "Advice: {action}. {headline}",
-      "arrival": "Arrive {time}",
       "next": "Next step",
       "reasonTitle": "Why"
     },
@@ -146,7 +145,7 @@
       "condition": "If service restarts by <clock>{time}</clock>, waiting is faster.",
       "timeline": {
         "now": "Now",
-        "breakEven": "Cutoff {time}",
+        "breakEven": "Cutoff",
         "deadline": "Deadline {time}",
         "summary": {
           "before": "Service should restart {from}–{to}. That is before the {breakEven} cutoff, so waiting should be faster.",
@@ -429,7 +428,6 @@
     "changeAt": "change at {station}",
     "transferShort": "Transfer",
     "sectionUnconfirmed": "Check the section in the announcement",
-    "sectionAddAnnouncement": "Paste an announcement with the section to draw it.",
     "between": "between {from} and {to}",
     "alight": "Get off at",
     "walkShort": "{minutes} min walk"
@@ -604,8 +602,6 @@
     "trainSegmentHint": "Stations are listed in your direction of travel. You can also tap the line on the map.",
     "trainSegmentConfirm": "I am between these stations",
     "trainStoppedHint": "Select a station if your train is stopped there.",
-    "destinationStationHint": "Choose your destination station.",
-    "routeInferred": "{line} · {direction} Change",
     "routeLinesLabel": "Or pick a line first",
     "routeLinesHint": "You can also tap a line or its tag on the map.",
     "mapLineHint": "You can also tap the line on the map.",
