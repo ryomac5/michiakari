@@ -55,7 +55,7 @@ describe("原因が分からず、発表の再開見込みがある判断", () =
     expect(judgment.action).toBe("wait");
     // 境目の時刻まで待ち、動かなければ乗る路線を添える
     expect(judgment.headline).toMatch(/^\d{1,2}時\d{2}分まで待つ。動かなければ.+へ$/);
-    expect(judgment.reason).toContain("発表の再開が22時10分なら");
+    expect(judgment.reason).toContain("発表どおり22時10分に再開すれば");
     expect(judgment.reason).toContain("待つほうが早く着きます");
   });
 
@@ -67,8 +67,8 @@ describe("原因が分からず、発表の再開見込みがある判断", () =
     expect(judgment.action).toBe("switch");
     // どの路線に、どこから乗るかを言い切る
     expect(judgment.headline).toMatch(/まで歩いて.+へ$|に乗り換える$/);
-    expect(judgment.reason).toContain("発表の再開が23時30分なら");
-    expect(judgment.reason).toContain("境目の");
+    expect(judgment.reason).toContain("発表どおり23時30分に再開しても");
+    expect(judgment.reason).toContain("のほうが早く着きます");
   });
 
   it("発表の時刻が無ければ、従来どおり分岐点まで待って切り替える形にする", async () => {

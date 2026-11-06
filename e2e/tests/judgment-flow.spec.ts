@@ -96,9 +96,9 @@ test("駅を選び、貼り付けで状況を入れると、推論過程が順�
   await expect(breakEven).toBeVisible();
   await expect(page.getByTestId(testIds.judgment.breakEvenTime)).toHaveText(/^\d{2}:\d{2}$/);
   // 残り時間は時刻と紛れない「あと N 分」で出し、時刻は文の中に置く
-  await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(/^あと \d+ 分$/);
+  await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveText(/^あと\d+分$/);
   await expect(page.getByTestId(testIds.judgment.breakEvenSentence)).toContainText(
-    /\d{2}:\d{2}\s?までに再開すれば/,
+    /\d{1,2}時\d{2}分までに再開すれば/,
   );
 
   const disclaimer = page.getByTestId(testIds.judgment.disclaimer);
@@ -177,16 +177,18 @@ test("情報を追加すると判断が更新され、根拠に段階と兆候�
   // 切り替えでは、閉じたシートに残り時間を出さず、切り替え先の行動を出す
   await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveCount(0);
   for (const id of [testIds.judgment.conclusion, testIds.judgment.breakEven]) {
-    await expect(page.getByTestId(id)).not.toContainText(/あと \d+ (分|時間)/);
+    await expect(page.getByTestId(id)).not.toContainText(/あと ?\d+ ?(分|時間)/);
   }
   const step = page.getByTestId(testIds.judgment.switchStep);
   await expect(step).toHaveAttribute("data-option-id", "transfer_hankyu");
   await expect(step).toContainText("阪急神戸線");
-  await expect(step).toContainText(/大阪梅田まで徒歩 \d+ 分/);
-  await expect(step).toContainText(/\d{2}:\d{2} 着/);
+  await expect(step).toContainText(/大阪梅田まで徒歩\d+分/);
+  await expect(step).toContainText(/\d{2}:\d{2}着/);
   // 分岐点そのものは、全部開いたシートの説明に残す
   await openSheet(page, "full");
-  await expect(page.getByTestId(testIds.judgment.breakEvenSentence)).toContainText(/\d{2}:\d{2}/);
+  await expect(page.getByTestId(testIds.judgment.breakEvenSentence)).toContainText(
+    /\d{1,2}時\d{2}分/,
+  );
   await openSheet(page, "collapsed");
   await expect(page.getByTestId(testIds.judgment.option("transfer_hankyu"))).toHaveAttribute(
     "data-recommended",

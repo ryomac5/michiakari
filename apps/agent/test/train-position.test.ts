@@ -94,7 +94,7 @@ function expectInCarWait(judgment: Judgment): NonNullable<Judgment["inCar"]> {
   expect(judgment.disclaimer).toContain("公式発表");
   const inCar = judgment.inCar;
   if (!inCar) throw new Error("車内の案内がありません");
-  expect(inCar.staffNote).toBe("長く止まったときは係員の案内に従う。");
+  expect(inCar.staffNote).toBe("長く止まったときは、係員の案内に従ってください。");
   return inCar;
 }
 
@@ -161,10 +161,10 @@ describe("駅間の車内にいる利用者の理由", () => {
     expect(judgment.headline).toMatch(/^車内で待つ。動くのは\d+時\d+分ごろの見込み$/);
   });
 
-  it("既定値では、理由の頭にふだんの間隔とみた見込みを置く", async () => {
+  it("既定値では、理由の頭に着く見込みを置き、間隔の仮定は前提のチップに任せる", async () => {
     const judgment = findJudgment(await postJudge(app, buildRequest({ trainPosition: defaults })));
-    expect(judgment.reason).toContain("前の列車との間隔はふだんどおりと仮定");
-    expect(judgment.reason).toMatch(/塚本には\d+時\d+分ごろに着く見込みです。/);
+    expect(judgment.reason).toMatch(/^塚本には\d+時\d+分ごろに着く見込みです。/);
+    expect(judgment.reason).not.toMatch(/仮定|ふだん/);
   });
 
   it("目の前の普通が次の駅に入ると、ホームがふさがっている事情を理由に書く", async () => {

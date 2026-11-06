@@ -66,7 +66,10 @@ export function ConclusionCard({
             <CornerDownRight className="size-4 shrink-0" strokeWidth={2} aria-hidden />
             {/* 駅間の車内では 2 文目は動く見込みで、次の手ではない */}
             {!judgment.inCar && <span className="sr-only">{t("next")}: </span>}
-            <NoBreakText text={rest} />
+            {/* flex の子に分けると時刻の前後に隙間が入るので、1 つの span にまとめる */}
+            <span className="min-w-0">
+              <NoBreakText text={rest} />
+            </span>
           </p>
         )}
         {cardReason && (

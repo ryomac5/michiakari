@@ -57,7 +57,8 @@ export type EstimateToolResult = {
   phaseStartedAt: string | null;
   statedResumeTime: string | null;
   statedExtended: boolean;
-  remainingBasis: "knowledge" | "stated" | "resumed" | null;
+  // 残り時間の根拠。statistics は知見が無く、入口で答えた原因の統計値から見積もった
+  remainingBasis: "knowledge" | "stated" | "resumed" | "statistics" | null;
   skippedPhaseIds: string[];
   firstTrainWait: DurationDist | null;
   // 現在時刻 + 残り時間。再開して乗れる見込みの時刻

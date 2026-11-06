@@ -36,7 +36,7 @@ const scenario = loadReplayScenarios().find(
 const switchAfter = scenario?.expectations[0]?.after;
 const waitAfter = scenario?.expectations.find((e) => e.action === "wait")?.after;
 // 残り時間の言い回し。ja は「あと 36 分」、en は「36 min left」
-const countdownText = /あと \d+ (分|時間)|\d+ min left|\d+ h \d+ min left/;
+const countdownText = /あと ?\d+ ?(分|時間)|\d+ min left|\d+ h \d+ min left/;
 
 test.setTimeout(180_000);
 
@@ -168,11 +168,11 @@ for (const variant of variants) {
       }
       await expect(step).toBeVisible();
       await expect(step).toContainText(
-        variant.locale === "ja" ? /\d{2}:\d{2} 着/ : /Arrive \d{2}:\d{2}/,
+        variant.locale === "ja" ? /\d{2}:\d{2}着/ : /Arrive \d{2}:\d{2}/,
       );
       // 乗る駅まで歩くなら徒歩の分数、その駅で乗るなら駅名を出す
       await expect(step).toContainText(
-        variant.locale === "ja" ? /まで徒歩 \d+ 分|から乗る|タクシー|徒歩/ : /Walk|Board at|taxi/,
+        variant.locale === "ja" ? /まで徒歩\d+分|から乗る|タクシー|徒歩/ : /Walk|Board at|taxi/,
       );
       // 切り替え先の到着は、推奨の選択肢の到着と同じ
       const optionId = await step.getAttribute("data-option-id");

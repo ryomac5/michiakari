@@ -174,8 +174,10 @@ async function expectSummaryMatchesColumns(
   const switchedClock = formatJstClock(expected.counterpart.switchedAt);
   await expect(counterpart).toContainText(locale === "ja" ? "切り替えた人" : "Switched instead");
   await expect(counterpart).toContainText(switchedClock);
+  // 列の札は「22:45」、要約の文は「22時45分」と書く
+  const [hh, mm] = switchedClock.split(":");
   expect(summary).toContain(
-    locale === "ja" ? `${switchedClock} に切り替え` : `switching at ${switchedClock}`,
+    locale === "ja" ? `${Number(hh)}時${mm}分に切り替え` : `switching at ${switchedClock}`,
   );
 }
 

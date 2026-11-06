@@ -19,12 +19,12 @@ export const DecisionSchema = JudgmentSchema.pick({
     .string()
     .min(1)
     .describe(
-      `結論の理由。画面は先頭の1文を見出しの下に出す。1文1主張にする。先頭は日本語25字前後、英語60文字前後で、なぜその行動かを言う。括弧で補足せず読点で節を足さない。2文目からは再開見込みと境目などの比較を書く。利用者向けの文では分岐点を「境目」、英語は cutoff と書く。日本語は ${reasonLimits.ja.target} 字程度で上限 ${reasonLimits.ja.max} 字、英語は ${reasonLimits.en.target} 文字程度で上限 ${reasonLimits.en.max} 文字。例: 「再開は23時40分頃の見込みで境目より後です。」「21時05分を過ぎると阪急京都線が早く着きます。」`,
+      `結論の理由。画面は先頭の1文を見出しの下に出す。1文1主張にする。先頭は日本語25字前後、英語60文字前後で、なぜその行動かを言う。括弧で補足せず読点で節を足さない。2文目からは再開見込みと境目などの比較を書く。利用者向けの文では分岐点を「境目」、英語は cutoff と書く。日本語は ${reasonLimits.ja.target} 字程度で上限 ${reasonLimits.ja.max} 字、英語は ${reasonLimits.en.target} 文字程度で上限 ${reasonLimits.en.max} 文字。です・ます調で書き、時刻には「ごろ」を付ける。「境目より後です」のように境目という言葉だけで比べた結果を言わず、待つ場合と比べてどちらが早く着くかで書く。例: 「待つより阪急京都線のほうが早く着きます。再開は23時40分ごろの見込みです。」「21時05分を過ぎると阪急京都線のほうが早く着きます。」`,
     ),
   breakEvenExplanation: z
     .string()
     .describe(
-      "compute_break_even の explanationTemplate をそのまま使う。通常は「◯時◯分までに再開すれば◯時◯分着の◯◯より待つほうが早く着きます」の形。期限が理由のときや過ぎた境目もテンプレートに従う。理由は reason に分ける",
+      "compute_break_even の explanationTemplate をそのまま使う。多くは「◯時◯分までに再開すれば◯時◯分着の◯◯より待つほうが早く着きます。」の形。期限が理由のときや過ぎた境目もテンプレートに従う。理由は reason に分ける",
     ),
 });
 export type Decision = z.infer<typeof DecisionSchema>;

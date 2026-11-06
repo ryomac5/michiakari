@@ -88,7 +88,7 @@ async function checkExpectation(page: Page, expectation: Expectation): Promise<v
       await expect(
         page.getByTestId(testIds.judgment.breakEvenSentence).locator("time"),
         label,
-      ).toHaveText(/^\d{2}:\d{2}$/);
+      ).toHaveText(/^\d{1,2}時\d{2}分$/);
     } else if (expectation.break_even_shown) {
       await expect(breakEven, label).toHaveAttribute("data-state", /^(open|soon|passed)$/);
       await expect(page.getByTestId(testIds.judgment.breakEvenTime), label).toHaveText(

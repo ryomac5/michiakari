@@ -5,8 +5,8 @@
 
 id: in_car_response
 name:
-  ja: 車内対応
-  en: Onboard assistance
+  ja: 急病人の救護・非常ボタン
+  en: Medical help or emergency button
 summary:
   ja: 車内で非常通報装置が扱われ、列車が止まる事象。車掌がお客様と話して様子を確かめ、近くの駅の係員と対応する。対応が終わればそのまま発車し、短く終わることが多い。
   en: Someone uses the emergency intercom and the train stops. The conductor talks with the passenger and works with staff at a nearby station. Once that is done the train simply departs, and it is usually over quickly.

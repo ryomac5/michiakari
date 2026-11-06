@@ -45,13 +45,13 @@ function estimateBase64Bytes(base64: string): number {
 // スキーマの外にある上限を検査する
 function checkRequestLimits(request: JudgeRequest): string | null {
   if (request.observations.length > safetyLimits.maxObservations) {
-    return `観測は ${safetyLimits.maxObservations} 件までです`;
+    return `発表や掲示は${safetyLimits.maxObservations}件までです。`;
   }
   if (
     request.newInput?.type === "photo" &&
     estimateBase64Bytes(request.newInput.imageBase64) > safetyLimits.maxImageBytes
   ) {
-    return `画像は ${safetyLimits.maxImageBytes / 1024 / 1024}MB までです`;
+    return `画像は${safetyLimits.maxImageBytes / 1024 / 1024}MBまでです。`;
   }
   return null;
 }
@@ -95,14 +95,14 @@ export function createApp(
     "/judge",
     bodyLimit({
       maxSize: safetyLimits.maxRequestBytes,
-      onError: (c) => respondWithError(c, 413, "リクエストが大きすぎます", false),
+      onError: (c) => respondWithError(c, 413, "送った内容が大きすぎます。", false),
     }),
     async (c) => {
       if (!limiter.consume(resolveClientKey(c, trustProxy), readClockMs())) {
         return respondWithError(
           c,
           429,
-          "リクエストが多すぎます。しばらくしてから再試行してください",
+          "アクセスが集中しています。しばらく待ってから、もう一度試してください。",
           true,
         );
       }
@@ -112,7 +112,7 @@ export function createApp(
         const issues = parsed.error.issues
           .map((i) => `${i.path.join(".")}: ${i.message}`)
           .join(" / ");
-        return respondWithError(c, 400, `リクエストが不正です: ${issues}`, false);
+        return respondWithError(c, 400, `送った内容に誤りがあります: ${issues}`, false);
       }
       const limitError = checkRequestLimits(parsed.data);
       if (limitError) return respondWithError(c, 413, limitError, false);
@@ -149,7 +149,7 @@ export function createApp(
           );
           await sink.emit({
             type: "error",
-            message: "判断に失敗しました。再試行してください",
+            message: "判断を出せませんでした。もう一度試してください。",
             retryable: true,
           });
         }

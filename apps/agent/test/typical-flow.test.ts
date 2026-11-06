@@ -60,8 +60,10 @@ describe("判断に載る事象の段階", () => {
       "resume_estimate",
       "preparing_resume",
     ]);
-    // 理由は境目との比較で書き、再開までの時間を事象の流れとして言い切らない
-    expect(judgment.reason).toMatch(/^再開は\d{1,2}時\d{2}分頃の見込みで境目より後です。/);
+    // 理由は待つ場合との比較で書き、再開までの時間を事象の流れとして言い切らない
+    expect(judgment.reason).toMatch(
+      /^待つより.+のほうが早く着きます。再開は\d{1,2}時\d{2}分ごろの見込みです。/,
+    );
     expectNoFlowWording(judgment);
   });
 
@@ -77,7 +79,9 @@ describe("判断に載る事象の段階", () => {
     expect(judgment.estimate.confidence).toBe("medium");
     expect(judgment.action).toBe("wait");
     expect(judgment.headline).toBe("このまま待つ");
-    expect(judgment.reason).toMatch(/^再開は\d{1,2}時\d{2}分頃の見込みで境目より前です。/);
+    expect(judgment.reason).toMatch(
+      /^待つほうが早く着きます。再開は\d{1,2}時\d{2}分ごろの見込みです。/,
+    );
     expectNoFlowWording(judgment);
     expect(judgment.typicalFlow?.untilResume).toEqual({ p50: 5, p80: 10 });
   });
@@ -88,7 +92,9 @@ describe("判断に載る事象の段階", () => {
     );
     expect(judgment.action).toBe("wait");
     expect(judgment.headline).toBe("Stay and wait.");
-    expect(judgment.reason).toMatch(/^Restart is expected around \d{2}:\d{2}, before the cutoff\./);
+    expect(judgment.reason).toMatch(
+      /^Waiting gets you there sooner\. Restart is expected around \d{2}:\d{2}\./,
+    );
     expectNoFlowWording(judgment, "en");
   });
 });
@@ -105,7 +111,9 @@ describe("見込みの立てやすい事象の言い切りと確信度", () => {
     const judgment = findJudgment(steps.find((s) => s.entry.id === "obs_1")?.events ?? []);
     expect(judgment.action).toBe("switch");
     expect(judgment.headline).toMatch(/^.+まで歩いて.+へ$|^.+に乗り換える$/);
-    expect(judgment.reason).toMatch(/^再開は\d{1,2}時\d{2}分頃の見込みで境目より後です。/);
+    expect(judgment.reason).toMatch(
+      /^待つより.+のほうが早く着きます。再開は\d{1,2}時\d{2}分ごろの見込みです。/,
+    );
     expectNoFlowWording(judgment);
     expect(judgment.estimate.confidence).toBe("medium");
   });

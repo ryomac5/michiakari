@@ -305,7 +305,7 @@ export function createGeoProvider(deps: GeoDeps = loadSharedGeoDeps()): Alternat
     return {
       id: WAIT_OPTION_ID,
       kind: "wait",
-      label: query.language === "ja" ? "運転再開を待つ" : "Wait for resumption",
+      label: query.language === "ja" ? "運転再開を待つ" : "Wait for service to restart",
       legs,
       arrivalTime: addMinutesToIso(query.now, query.remaining?.p50 ?? 0),
       fareYen: null,

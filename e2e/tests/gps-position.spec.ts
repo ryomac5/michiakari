@@ -98,7 +98,7 @@ test("位置情報を拒否すると理由を 1 行出し、手で選ぶ流れ�
   });
   await page.getByTestId(testIds.start.gpsLocate).click();
   const status = page.getByTestId(testIds.start.gpsStatus);
-  await expect(status).toContainText("許可されていない");
+  await expect(status).toContainText("許可されていません");
   await expect(status).not.toContainText("地下鉄の地下区間");
   await expect(page.getByTestId(testIds.start.gpsQuestion)).toHaveCount(0);
 

@@ -27,20 +27,20 @@
     "introSolution": "Use a former dispatcher’s estimates to decide.",
     "originLabel": "Where are you?",
     "locate": "Use my location",
-    "locating": "Getting your location…",
-    "locateFailed": "Search by station name. Retry location later.",
-    "locateUnsupported": "Search by station name on this device.",
+    "locating": "Getting your location",
+    "locateFailed": "Could not get your location. Search by station name.",
+    "locateUnsupported": "This device cannot share its location. Search by station name.",
     "currentLocation": "Current location",
     "useFreeText": "Go to “{text}”",
-    "noResults": "Try another spelling",
+    "noResults": "No results. Try another spelling.",
     "replayLink": "Watch the demo",
-    "nearestFailed": "Search by name. Retry nearby stations later.",
+    "nearestFailed": "Could not find nearby stations. Search by station name.",
     "resultCount": "{count, plural, one {# station found} other {# stations found}}",
     "searchFailed": "Check your connection and search again."
   },
   "situation": {
     "heading": "Add what you know",
-    "lead": "Use a sign or announcement to assess progress.",
+    "lead": "Add a station sign or announcement text.",
     "edit": "Edit",
     "tabs": {
       "photo": "Take a photo",
@@ -52,7 +52,7 @@
       "button": "Open camera",
       "retake": "Retake",
       "preview": "Your photo",
-      "unsupported": "Try another photo. Make the text large and clear.",
+      "unsupported": "We could not read it. Pick a photo with large, clear text.",
       "submit": "Use this photo"
     },
     "paste": {
@@ -63,11 +63,11 @@
     "select": {
       "eventLabel": "Pick what happened",
       "signalLabel": "Select all you heard or saw",
-      "empty": "Choices are loading. Take a photo or paste text.",
-      "back": "Choose another event",
+      "empty": "Choices are not ready. Take a photo or paste text.",
+      "back": "Pick what happened again",
       "submit": "Use these answers"
     },
-    "busy": "Thinking…"
+    "busy": "Thinking"
   },
   "judgment": {
     "heading": "Advice",
@@ -112,8 +112,8 @@
     },
     "conclusion": {
       "label": "Advice",
-      "recommended": "Try {label} · Arrive {time}",
-      "remaining": "Resumes in {p50}–{p80} min",
+      "recommended": "Suggested: {label} · Arrive {time}",
+      "remaining": "Restart in {p50}–{p80} min",
       "confidence": "Outlook certainty: {level}",
       "live": "Advice: {action}. {headline}",
       "arrival": "Arrive {time}",
@@ -135,28 +135,28 @@
     "breakEven": {
       "title": "Cutoff",
       "passed": "Cutoff passed",
-      "soon": "The cutoff is close. Get ready to switch",
-      "none": "Wait for service to resume",
-      "noneDetail": "No alternative arrival to compare. Wait for service to resume.",
-      "pending": "Calculating…",
+      "soon": "The cutoff is close. Get ready to switch.",
+      "none": "Wait for service to restart",
+      "noneDetail": "No alternative is available to compare. Wait for service to restart.",
+      "pending": "Calculating",
       "stale": "Updating",
       "countdownMinutes": "{minutes} min left",
       "countdownHours": "{hours} h {minutes} min left",
       "imminent": "Any moment now",
-      "condition": "If trains restart by <clock>{time}</clock>, waiting is faster",
+      "condition": "If service restarts by <clock>{time}</clock>, waiting is faster.",
       "timeline": {
         "now": "Now",
-        "breakEven": "Decision {time}",
+        "breakEven": "Cutoff {time}",
         "deadline": "Deadline {time}",
         "summary": {
-          "before": "Expected restart {from}–{to} is before {breakEven}. Wait to arrive sooner.",
-          "straddle": "Expected restart {from}–{to} spans {breakEven}. Switch if the estimate slips.",
-          "after": "Expected restart {from}–{to} is after {breakEven}. Switch to arrive sooner."
+          "before": "Service should restart {from}–{to}. That is before the {breakEven} cutoff, so waiting should be faster.",
+          "straddle": "Service should restart {from}–{to}. That spans the {breakEven} cutoff. Switch if the estimate slips.",
+          "after": "Service should restart {from}–{to}. That is after the {breakEven} cutoff, so switching should be faster."
         },
         "caption": {
-          "before": "Resumes ~{from}–{to}: <em>before decision</em>",
-          "straddle": "Resumes ~{from}–{to}: <em>spans decision</em>",
-          "after": "Resumes ~{from}–{to}: <em>past decision</em>"
+          "before": "Restart {from}–{to} is <em>before the cutoff</em>",
+          "straddle": "Restart {from}–{to} <em>spans the cutoff</em>",
+          "after": "Restart {from}–{to} is <em>after the cutoff</em>"
         }
       },
       "untilLabel": "until cutoff",
@@ -169,8 +169,8 @@
       "waitFaster": "Chance of restart by the cutoff",
       "waitOnTime": "Chance of making your deadline by waiting",
       "chance": {
-        "under": "<10%",
-        "over": ">90%",
+        "under": "under 10%",
+        "over": "over 90%",
         "tenths": "{n}0%"
       },
       "duration": {
@@ -203,14 +203,14 @@
         "rising": "Rising",
         "falling": "Easing",
         "steady": "Steady",
-        "unknown": "Trend still forming"
+        "unknown": "No trend yet"
       },
       "issued": "{name} in effect",
       "noWarnings": "No warnings or advisories",
-      "warningsUnknown": "Warnings will be checked with the next reading",
+      "warningsUnknown": "We will check warnings with the next update.",
       "mm": "{mm} mm",
-      "missing": "missing",
-      "missingCount": "{count} missing",
+      "missing": "no reading",
+      "missingCount": "{count} without readings",
       "scaleMax": "Top {mm} mm",
       "chartLabel": "10-minute rainfall. {values}",
       "source": "Weather data: Japan Meteorological Agency",
@@ -223,9 +223,9 @@
       "walk": "Walk",
       "minutes": "{minutes} min",
       "recommended": "Suggested",
-      "transferService": "Transfer ticket OK",
-      "pending": "Checking…",
-      "empty": "Waiting for service to resume is the surest option",
+      "transferService": "Transfer service",
+      "pending": "Checking",
+      "empty": "Wait for service to restart",
       "stale": "Updating",
       "note": "Ride times and fares are approximate.",
       "legs": {
@@ -259,9 +259,9 @@
     },
     "addInfo": {
       "title": "Add information",
-      "lead": "Add a new notice or announcement. Update the advice."
+      "lead": "Add a new notice or announcement to update the advice."
     },
-    "sheet": "Judgment details",
+    "sheet": "Advice details",
     "status": "{line} suspended",
     "statusOnly": "Suspended",
     "statusStopped": "Stopped at {place}",
@@ -269,16 +269,16 @@
     "statusDelayedOnly": "Trains behind delayed",
     "premise": {
       "title": "What this assumes",
-      "trainsAheadPhoto": "We read the trains ahead as {types} from your train location image",
-      "trainsAheadPhotoNone": "We read your train location image as showing no trains ahead",
-      "destinationHub": "Destination is set to {station}, a major station toward {direction}",
-      "destinationTerminal": "Destination is set to {station}, the end of the line",
-      "onTrain": "You're on the train, so we start from {station}",
-      "elapsedUnknown": "We count the stop as starting now",
-      "causeUnknown": "Cause not confirmed. We use the cutoff time as your cue",
-      "cause": "We assume the cause is {cause}, as announced",
-      "causeNoPattern": "The announced cause is {cause}. We have no pattern for it, so we use the cutoff time as your cue",
-      "betweenStations": "You're between stations, so we plan what to do once you reach {station}"
+      "trainsAheadPhoto": "We read the trains ahead as {types} from your train location image.",
+      "trainsAheadPhotoNone": "We read no trains ahead from your train location image.",
+      "destinationHub": "We set your destination to {station}, a major station toward {direction}.",
+      "destinationTerminal": "We set your destination to {station}, the end of the line.",
+      "onTrain": "You are on the train. We start from {station}.",
+      "elapsedUnknown": "We count the stop as starting now.",
+      "causeUnknown": "The cause is not confirmed. We use the cutoff time as your cue.",
+      "cause": "We assume the cause is {cause}, as announced.",
+      "causeNoPattern": "The announced cause is {cause}. We use the cutoff time as your cue.",
+      "betweenStations": "You are between stations. We show what to do once you reach {station}."
     },
     "nextCheck": {
       "title": "What to check next",
@@ -294,26 +294,26 @@
       "next": "Next: {station}",
       "own": "On a {type}",
       "aheadNone": "No trains stuck ahead",
-      "aheadUnknown": "Trains ahead: not sure",
+      "aheadUnknown": "Trains ahead not known",
       "ahead": "Trains stuck ahead: {types}",
-      "aheadPattern": "Trains ahead: usual spacing (estimated)",
+      "aheadPattern": "Trains ahead at usual spacing",
       "estimated": "estimated",
-      "edit": "change",
+      "edit": "Change",
       "nextQuestion": "Pick the next station",
       "ownQuestion": "Pick your train type",
       "aheadQuestion": "Tap trains ahead in order from nearest",
       "aheadQueue": "Nearest first",
       "aheadEmpty": "Nothing added yet",
       "removeLast": "Remove the last one",
-      "apply": "Judge again with this",
-      "checkHint": "You can check this on the train location page",
-      "patternHint": "Knowing the trains ahead makes the arrival time more certain",
+      "apply": "Update the advice",
+      "checkHint": "You can check this on the train location page.",
+      "patternHint": "Knowing the trains ahead makes the arrival time more certain.",
       "close": "Close"
     },
     "inCar": {
       "title": "What to do on board",
       "afterAlight": "Next step after you arrive",
-      "arrival": "arr. {time}"
+      "arrival": "Arrive {time}"
     },
     "trainTypes": {
       "local": "local",
@@ -325,7 +325,7 @@
     },
     "tripBetween": "{from}–{to}",
     "change": {
-      "title": "The recommendation changed",
+      "title": "The advice changed",
       "before": "Before",
       "after": "Now",
       "announcement": "Trigger",
@@ -338,7 +338,7 @@
     "heading": "Watch the demo",
     "lead": "Pick a fictional disruption. Each time an announcement comes in, you can watch the advice and the map change.",
     "fictional": "All scenarios are fictional. They are not real incidents or official announcements.",
-    "empty": "Add a scenario to play it here",
+    "empty": "Add a scenario to play it here.",
     "observationCount": "{count} announcements",
     "deadline": "Must arrive by {time}",
     "noDeadline": "No time limit",
@@ -377,19 +377,19 @@
     "bar": "Playback controls",
     "outcome": {
       "title": "How it turned out",
-      "resumed": "Service actually resumed at {time}",
+      "resumed": "Actual restart {time}",
       "followed": "Followed the advice",
       "waited": "Kept waiting",
       "switched": "Switched instead",
       "switchedAt": "Switched at {time}",
       "neverSwitched": "Advice stayed “wait”",
-      "waitedNote": "Boarded after resumption",
+      "waitedNote": "Boarded after the restart",
       "arrival": "Arrival",
       "onTime": "Made it",
       "late": "{minutes} min late",
       "diff": "{minutes} min apart",
       "summary": {
-        "followedEarlierMadeIt": "Following the advice got you there {minutes} min earlier than waiting, in time for {deadline}.",
+        "followedEarlierMadeIt": "Following the advice got you there {minutes} min earlier than waiting. You made it by {deadline}.",
         "followedEarlier": "Following the advice got you there {minutes} min earlier than waiting.",
         "waitedEarlier": "This time, waiting got you there {minutes} min earlier.",
         "aboutSame": "Following the advice or waiting made only {minutes} min of difference.",
@@ -422,7 +422,7 @@
     "recommended": "Suggested",
     "walk": "{minutes} min walk",
     "minutesShort": "{minutes} min",
-    "transferService": "Transfer OK",
+    "transferService": "Transfer service",
     "here": "You",
     "viewOverview": "Whole route",
     "viewFocus": "Around you",
@@ -438,7 +438,7 @@
     "title": "About Michiakari",
     "why": {
       "title": "Why we built this",
-      "p1": "When an incident happens, crews put safety and recovery first, so announcements tend to stop at what happened.",
+      "p1": "When an incident happens, crews put safety and recovery first. Announcements tend to stop at what happened.",
       "p2": "Experienced drivers and dispatchers can read how things will likely unfold. This app brings that reading to the people stuck on the platform right now."
     },
     "purpose": {
@@ -449,7 +449,7 @@
     "approach": {
       "title": "How we estimate",
       "p1": "We use knowledge from a former train dispatcher, generalized into signs anyone can observe.",
-      "p2": "We read signals from the notices you bring and estimate the current phase and a range for the time to resumption.",
+      "p2": "We read signals from the notices you bring. We estimate the current phase and a range for the time until service restarts.",
       "p3": "Numbers such as arrival times and the cutoff time are computed by code. The AI interprets and explains them.",
       "p4": "When we are not confident, we focus on the cutoff time instead of a firm estimate."
     },
@@ -466,7 +466,7 @@
       "title": "Notes",
       "p1": "Everything shown is an estimate. Follow official announcements and station staff first.",
       "p2": "We do not fetch railway service information automatically. Advice is based on what you enter.",
-      "p3": "Ride times and fares are approximate and may differ from actual ones.",
+      "p3": "Ride times and fares are approximate. They may differ from actual ones.",
       "p4": "Your location and input are used only to give advice and are never stored."
     },
     "intro": "Michiakari means a light on the path. When trains stop and the way ahead is unclear, it lights up your next move."
@@ -493,9 +493,9 @@
     "around": "Around {station}",
     "areaQuestion": "Pick your station",
     "areaHint": "Pick a station near {area} on the map or below",
-    "lineQuestion": "Which train were you planning to take?",
-    "lineHint": "Choose the line you plan to use. You can also tap a line or its tag on the map.",
-    "nearby": "Your nearest station is {station}, about {distance} away",
+    "lineQuestion": "Pick the line you planned to take",
+    "lineHint": "You can also tap a line or its tag on the map.",
+    "nearby": "Your nearest station is {station}. It is about {distance} away.",
     "suspended": "Suspended",
     "destinationQuestion": "Pick your destination",
     "destinationLabel": "Destination",
@@ -518,12 +518,12 @@
     "demoNote": "Replay a fictional disruption",
     "quickPicks": "Popular stations",
     "directionQuestion": "Pick your direction",
-    "directionHint": "Pick the direction of your train",
+    "directionHint": "Pick the direction your train is going.",
     "lineStopQuestion": "Pick a station or direction",
     "lineStopHint": "Pick a station to set your destination. We choose the direction for you.",
     "lineStopsLabel": "Stations on this line",
     "directionName": "Toward {names}",
-    "destinationHint": "Major stations toward {direction}",
+    "destinationHint": "Major stations toward {direction}.",
     "destinationUndecided": "Not sure yet",
     "destinationUndecidedNote": "Go with the direction only",
     "destinationSearchLabel": "Find another station",
@@ -542,15 +542,15 @@
     "causeQuestion": "Pick the cause you heard",
     "causes": {
       "person": "Person hit by a train",
-      "inCar": "Illness / emergency button on board",
-      "vehicle": "Train fault / inspection",
-      "signaling": "Signals / points",
+      "inCar": "Illness or emergency button on board",
+      "vehicle": "Train fault or inspection",
+      "signaling": "Signals or points",
       "power": "Power outage",
       "obstruction": "Track obstruction",
       "infrastructure": "Track or facility fault",
       "weather": "Weather or quake",
       "major_accident": "Crash, derail, fire",
-      "unknown": "Didn't catch it / nothing said"
+      "unknown": "Nothing said or not sure"
     },
     "causeKindQuestion": "Pick the closest one",
     "causeKinds": {
@@ -559,7 +559,7 @@
       "snow": "Snow or ice",
       "lightning": "Lightning",
       "earthquake": "Earthquake",
-      "other": "Other / not sure"
+      "other": "Other or not sure"
     },
     "elapsedQuestion": "Pick how long you have been stopped",
     "elapsed": {
@@ -572,8 +572,8 @@
     "resume": {
       "stated": "Yes, they gave a time",
       "statedNote": "Tap to pick the time",
-      "undecided": "They said it's undecided",
-      "unknown": "Nothing said / not sure"
+      "undecided": "They said it is undecided",
+      "unknown": "Nothing said or not sure"
     },
     "resumeTimeQuestion": "Pick the announced time",
     "answers": {
@@ -581,7 +581,7 @@
       "elapsed": "Stopped for"
     },
     "nextStation": "Next: {station}",
-    "positionBetweenTrip": "Between stations. Start from the next station",
+    "positionBetweenTrip": "Between stations, start from the next one",
     "locationQuestion": "Choose where you are now",
     "locationStation": "At a station",
     "locationTrain": "On a train",
@@ -591,7 +591,7 @@
     "gpsBetweenQuestion": "Between {from} and {to} on the {line}?",
     "gpsYes": "Yes",
     "gpsNo": "No",
-    "gpsPickQuestion": "Nearest first. Choose where you are",
+    "gpsPickQuestion": "Choose where you are, nearest first",
     "gpsStationChoice": "At {station} Station",
     "gpsBetweenChoice": "{line}, between {from} and {to}",
     "gpsDenied": "Location access is not allowed. Choose below.",
@@ -615,10 +615,10 @@
   "status": {
     "notFound": {
       "title": "This page may have moved",
-      "lead": "The address may have changed. Try picking your station again from the map."
+      "lead": "Pick your station again from the map."
     },
     "error": {
-      "title": "Let's try that again",
+      "title": "Load the page again",
       "lead": "Please wait a moment and try again. You can always start over from the map."
     },
     "home": "Start from the map",

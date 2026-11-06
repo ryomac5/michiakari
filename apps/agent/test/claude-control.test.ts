@@ -176,7 +176,7 @@ describe("解釈の失敗", () => {
     const error = parseSseEvents(await res.text()).find((e) => e.type === "error");
     expect(error).toMatchObject({
       retryable: true,
-      message: "読み取りに失敗しました。再試行するか文章で入力してください。",
+      message: "読み取れませんでした。もう一度試すか、文章で入力してください。",
     });
   });
 });

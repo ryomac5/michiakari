@@ -98,8 +98,8 @@ function buildInterpretFailure(language: Lang, claudeAvailable: boolean): Judgme
       type: "error",
       message:
         language === "ja"
-          ? "読み取りに失敗しました。再試行するか文章で入力してください。"
-          : "Could not read the input. Please try again or enter the text instead.",
+          ? "読み取れませんでした。もう一度試すか、文章で入力してください。"
+          : "We could not read it. Try again or type the text.",
       retryable: true,
     };
   }
@@ -107,8 +107,8 @@ function buildInterpretFailure(language: Lang, claudeAvailable: boolean): Judgme
     type: "error",
     message:
       language === "ja"
-        ? "写真の読み取りには Claude の API キーが必要です。発表文の貼り付けか選択式で入力してください。"
-        : "Reading photos requires a Claude API key. Please paste the announcement text or use the selection input.",
+        ? "写真の読み取りは、いまは使えません。発表文を貼り付けるか、選んで答えてください。"
+        : "Photo reading is not available now. Paste the announcement text or pick your answers.",
     retryable: false,
   };
 }

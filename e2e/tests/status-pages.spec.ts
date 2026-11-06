@@ -9,7 +9,7 @@ test("見つからない頁から、地図の入口へ戻れる", async ({ page 
   expect(res?.status()).toBe(404);
   const screen = page.getByTestId(testIds.status.screen);
   await expect(screen).toHaveAttribute("data-kind", "notFound");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("移動したか");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("ページが見つからない");
   await page.getByTestId(testIds.status.home).click();
   // 入口は「いまどこ」の問いから始まり、駅にいると答えると関西の地図に出る
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "position", {

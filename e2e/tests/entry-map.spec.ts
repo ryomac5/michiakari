@@ -159,8 +159,8 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   expect(await nextCheck.locator("li").count()).toBeLessThanOrEqual(3);
   const premise = page.getByTestId(testIds.judgment.premise);
   await expect(premise).toContainText("方面の主な駅");
-  await expect(premise).toContainText("車内の位置は本町駅と仮定する");
-  await expect(premise).toContainText("止まった時刻はいまと仮定する");
+  await expect(premise).toContainText("車内の位置は本町駅と仮定しています。");
+  await expect(premise).toContainText("止まった時刻はいまと仮定しています。");
   await expect(premise).toContainText("境目の時刻を動く目安");
   for (const part of [premise, nextCheck, page.getByTestId(testIds.judgment.conclusionReason)]) {
     await expect(part).not.toContainText(nonDecisive);
@@ -291,7 +291,7 @@ test("判断の画面の戻るを押すと、様子の 3 問目に答えを残�
   await expect(page).toHaveURL(/\/\?mock=1$/);
   await expectStage(page, "resume");
   await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText("人身事故");
-  await expect(page.getByTestId(testIds.start.answer("elapsed"))).toContainText("10分くらい");
+  await expect(page.getByTestId(testIds.start.answer("elapsed"))).toContainText("約10分");
   await expect(page.getByTestId(testIds.start.editDestination)).toContainText("三ノ宮");
 
   // 履歴は二重にならず、端末の戻る操作は 1 回で 1 段引く

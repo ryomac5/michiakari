@@ -349,7 +349,10 @@ describe("claude モード", () => {
       expect(reason).toContain(String(n));
     }
     expect(reason).toContain("先頭の1文を見出しの下に出す");
-    expect(reason).toContain("再開は23時40分頃の見込みで境目より後です。");
+    expect(reason).toContain(
+      "待つより阪急京都線のほうが早く着きます。再開は23時40分ごろの見込みです。",
+    );
+    expect(reason).not.toMatch(/\d頃/);
     expect(tool?.input_schema.required).toContain("reason");
     expect(tool?.description).toContain(String(reasonLimits.ja.max));
   });
@@ -554,7 +557,7 @@ describe("claude モードの車内と止まり方", () => {
     expect(judgment?.headline).toBe("車内で待つ");
     expect(judgment?.options).toEqual([]);
     expect(judgment?.breakEven).toBeNull();
-    expect(judgment?.inCar?.staffNote).toBe("長く止まったときは係員の案内に従う。");
+    expect(judgment?.inCar?.staffNote).toBe("長く止まったときは、係員の案内に従ってください。");
   });
 
   it("根拠の説明も検査する。駅間の切り替えの言い方と、その列車だけの停車での見合わせを弾く", async () => {

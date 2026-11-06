@@ -1,6 +1,6 @@
-import { formatClockTime } from "./time";
+import { formatClockInSentence, formatClockTime } from "./time";
 
-// 分岐点の説明文から分岐点の時刻を探し、その前後に分ける。時刻は画面の表記（21:40）にそろえて強調する
+// 境目の説明文から境目の時刻を探し、その前後に分ける。時刻は文の中の書き方にそろえて強調する
 
 export type ClockSplit = { before: string; clock: string; after: string };
 
@@ -12,7 +12,7 @@ function listClockSpellings(clock: string): string[] {
 }
 
 export function splitAroundClock(text: string, timeIso: string, locale: string): ClockSplit | null {
-  const clock = formatClockTime(timeIso, locale);
+  const clock = formatClockTime(timeIso, "en");
   let best: { index: number; spelling: string } | null = null;
   for (const spelling of listClockSpellings(clock)) {
     const index = text.indexOf(spelling);
@@ -28,7 +28,7 @@ export function splitAroundClock(text: string, timeIso: string, locale: string):
   if (best === null) return null;
   return {
     before: text.slice(0, best.index),
-    clock,
+    clock: formatClockInSentence(timeIso, locale),
     after: text.slice(best.index + best.spelling.length),
   };
 }
