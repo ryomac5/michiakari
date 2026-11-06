@@ -11,7 +11,7 @@ import {
   type TimelineBasis,
 } from "../break-even-timeline";
 import { testIds } from "../testids";
-import { formatClockTime } from "../time";
+import { formatClockInSentence, formatClockTime } from "../time";
 
 // 分岐点と再開見込みの関係を横 1 本の時間軸で示す。観測が進むと帯と目盛りが滑らかに動く
 // 動きは motion-reduce と globals.css の prefers-reduced-motion の規則で止まる
@@ -81,7 +81,6 @@ export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: D
   const timeline = buildBreakEvenTimeline({ ...basis, now });
   const { positions, relation } = timeline;
   const clock = (ms: number) => formatClockTime(new Date(ms).toISOString(), locale);
-  const range = { from: clock(timeline.resumeP50Ms), to: clock(timeline.resumeP80Ms) };
   const tickLabels = selectTickLabels(timeline);
   const at = (position: number): CSSProperties => ({ left: toPercent(position) });
   const span = (from: number, to: number): CSSProperties => ({
@@ -95,9 +94,15 @@ export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: D
     "data-resume-p50": new Date(timeline.resumeP50Ms).toISOString(),
     "data-resume-p80": new Date(timeline.resumeP80Ms).toISOString(),
   };
+  // 読み上げの文は、時刻を文の中の書き方にする
+  const spoken = (ms: number) => formatClockInSentence(new Date(ms).toISOString(), locale);
   const summary = (
     <span className="sr-only">
-      {t(`summary.${relation}`, { ...range, breakEven: clock(timeline.breakEvenMs) })}
+      {t(`summary.${relation}`, {
+        from: spoken(timeline.resumeP50Ms),
+        to: spoken(timeline.resumeP80Ms),
+        breakEven: spoken(timeline.breakEvenMs),
+      })}
       {positions.deadline !== null &&
         basis.deadline !== null &&
         ` ${t("deadline", { time: clock(Date.parse(basis.deadline)) })}`}
@@ -222,7 +227,7 @@ export function BreakEvenTimeline({ basis, now }: { basis: TimelineBasis; now: D
   );
 }
 
-// 閉じたシートの 1 行。「おおよその再開 23:43〜23:58 は分岐点より後」。色の見本を添える
+// 閉じたシートの 1 行。「再開の見込み 23:43〜23:58は境目より後」。色の見本を添える
 export function ResumeCaption({ basis, now }: { basis: TimelineBasis; now: Date }) {
   const t = useTranslations("judgment.breakEven.timeline");
   const locale = useLocale();

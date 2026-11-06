@@ -10,7 +10,13 @@ import { splitAroundClock } from "../break-even-text";
 import { buildBreakEvenTimeline, type TimelineBasis } from "../break-even-timeline";
 import type { SwitchStep } from "../switch-step";
 import { testIds } from "../testids";
-import { type Countdown, computeCountdown, computeCountdownFrom, formatClockTime } from "../time";
+import {
+  type Countdown,
+  computeCountdown,
+  computeCountdownFrom,
+  formatClockInSentence,
+  formatClockTime,
+} from "../time";
 import { useNow } from "../use-now";
 import { BreakEvenTimeline, ResumeCaption } from "./BreakEvenTimeline";
 import { NoBreakText } from "./NoBreakText";
@@ -240,7 +246,7 @@ function BreakEvenSentence({ breakEven }: { breakEven: BreakEven }) {
       </p>
     );
   }
-  const formatted = formatClockTime(breakEven.time, locale);
+  const formatted = formatClockInSentence(breakEven.time, locale);
   return (
     <div data-testid={testIds.judgment.breakEvenSentence} className="flex flex-col gap-1">
       <p className={className}>

@@ -26,7 +26,19 @@ export function formatClockTime(iso: string, locale: string): string {
   }).format(new Date(iso));
 }
 
-// 残り時間の表し方。時刻と紛れないよう「あと 13 分」の形にし、1 分未満は「まもなく」とする
+// 文の中に差し込む時刻。「21:40」を ja は「21時40分」、en は「21:40」にする。札と図には「21:40」のまま使う
+export function spellClockInSentence(clock: string, locale: string): string {
+  if (locale !== "ja") return clock;
+  const [hh = "", mm = ""] = clock.split(":");
+  return `${Number(hh)}時${mm.padStart(2, "0")}分`;
+}
+
+// 文の中に差し込む日本時間の時刻
+export function formatClockInSentence(iso: string, locale: string): string {
+  return spellClockInSentence(formatClockTime(iso, "en"), locale);
+}
+
+// 残り時間の表し方。時刻と紛れないよう「あと13分」の形にし、1 分未満は「まもなく」とする
 export type Countdown = {
   totalSeconds: number;
   passed: boolean;
