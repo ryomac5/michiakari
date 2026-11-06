@@ -8,6 +8,7 @@ import {
   type GpsSegment,
   inferSegmentTravel,
   listGpsChoices,
+  listLineTapChoices,
   listSegmentDirections,
   listSegmentTravels,
   resolveSegmentTravel,
@@ -135,5 +136,39 @@ describe("駅の間の進む向き", () => {
     const away = listEntryDirections(data, line).find((d) => d.stops[0]?.choice.name !== "大阪");
     if (!away) throw new Error("福島から野田へ向かう方面がありません");
     expect(resolveSegmentTravel(travels, away)).toBeNull();
+  });
+});
+
+describe("listLineTapChoices", () => {
+  const kobe = "jr-west.東海道線";
+  const tozai = "jr-west.JR東西線";
+  // 描いた JR神戸線の上で、塚本と尼崎の中ほどに一番近い点。駅を結ぶ直線から約650m 北にある
+  const onDrawnTrack = { lat: 34.727764, lon: 135.452974 };
+  // 描いた JR神戸線の上で、ほかの路線の線から約700m 離れた点。e2e で押す点
+  const awayFromOthers = { lat: 34.718828, lon: 135.463484 };
+
+  it("塚本と尼崎の間の線を押すと、JR神戸線の塚本〜尼崎の間を 1 つだけ出す", () => {
+    for (const point of [between, onDrawnTrack, awayFromOthers]) {
+      const choices = listLineTapChoices(data, geo.nodes, point, 120, [kobe]);
+      expect(choices).toHaveLength(1);
+      const [first] = choices;
+      if (first?.kind !== "between") throw new Error("駅の間の候補がありません");
+      expect(first.line.name.ja).toBe("JR神戸線");
+      expect([first.from.name, first.to.name].sort()).toEqual(["塚本", "尼崎"].sort());
+    }
+  });
+
+  it("並んで走る路線を押すと、路線ごとに一番近い駅の間を近い順に 3 つまで出す", () => {
+    const choices = listLineTapChoices(data, geo.nodes, onDrawnTrack, 120, [kobe, tozai]);
+    expect(choices.map((c) => (c.kind === "between" ? c.line.lineId : ""))).toEqual(
+      expect.arrayContaining([kobe, tozai]),
+    );
+    expect(choices.length).toBeLessThanOrEqual(3);
+    expect(choices.every((c) => c.kind === "between")).toBe(true);
+  });
+
+  it("押した線から離れた所や、線の無い所では候補を出さない", () => {
+    expect(listLineTapChoices(data, geo.nodes, { lat: 34.3, lon: 135.9 }, 120, [kobe])).toEqual([]);
+    expect(listLineTapChoices(data, geo.nodes, between, 120, [])).toEqual([]);
   });
 });

@@ -404,6 +404,33 @@ describe("行き先の段で先に路線を選ぶ", () => {
     expect(first).toMatchObject({ stage: "destination", line: null, routeFirst: false });
   });
 
+  it("路線の駅を地図で押すと、方面の段を飛ばして様子へ進み、戻ると方面の段に戻る", () => {
+    const picked = run([...toDestination, { type: "pickRoute", line: loop }]);
+    const cause = reduceEntry(picked, { type: "chooseLineStop", direction: loopDirection });
+    expect(cause).toMatchObject({
+      stage: "cause",
+      line: loop,
+      direction: loopDirection,
+      directionAuto: true,
+    });
+    expect(reduceEntry(cause, { type: "back" })).toMatchObject({
+      stage: "direction",
+      line: loop,
+      direction: null,
+    });
+  });
+
+  it("路線を先に選んでいない方面の段では、駅を押しても進まない", () => {
+    const onTrain = run([
+      { type: "chooseLocation", location: "train" },
+      { type: "chooseLine", line: loop },
+    ]);
+    expect(onTrain.stage).toBe("direction");
+    expect(reduceEntry(onTrain, { type: "chooseLineStop", direction: loopDirection })).toBe(
+      onTrain,
+    );
+  });
+
   it("方面が 1 つなら方面を聞かず、行き先の段に方面を決めて戻る", () => {
     const picked = run([...toDestination, { type: "pickRoute", line, autoDirection: direction }]);
     expect(picked).toMatchObject({

@@ -11,7 +11,6 @@
     },
     "mockBadge": "Showing fictional demo data",
     "name": "Michiakari",
-    "tagline": "Wait, or switch?",
     "skipToContent": "Skip to content",
     "menu": {
       "label": "Menu",
@@ -557,6 +556,9 @@
     "quickPicks": "Popular stations",
     "directionQuestion": "Pick your direction",
     "directionHint": "Pick the direction of your train",
+    "lineStopQuestion": "Pick a station or direction",
+    "lineStopHint": "Pick a station to set your destination. We choose the direction for you.",
+    "lineStopsLabel": "Stations on this line",
     "directionName": "Toward {names}",
     "destinationHint": "Major stations toward {direction}",
     "destinationUndecided": "Not sure yet",

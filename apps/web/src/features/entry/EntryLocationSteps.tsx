@@ -2,6 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { type ReactNode, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { testIds } from "@/features/judgment/testids";
 import { pickStationName } from "@/features/stations/describe";
 import type { DirectionStop } from "./directions";
@@ -14,6 +15,8 @@ const buttonClass = "min-h-12 rounded-2xl bg-foreground/[0.05] px-4 py-3 text-le
 
 export type GpsProps = {
   status: GpsStatus;
+  // 地図で線を押して出した候補か。端末の位置を使っていないので、位置の扱いの説明を出さない
+  fromMap?: boolean;
   choices: GpsChoice[];
   onLocate: () => void;
   onConfirm: (choice: GpsChoice) => void;
@@ -43,7 +46,7 @@ const gpsFailureKeys = {
 } as const;
 
 // 現在地から読み取る。候補が 1 つなら はい で確定し、複数なら近い順に並べて選ばせる
-function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps) {
+function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss, fromMap }: GpsProps) {
   const t = useTranslations("entry");
   const label = useGpsLabel();
   const located = status.kind === "located";
@@ -61,23 +64,23 @@ function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps
           <p className="font-semibold" data-testid={testIds.start.gpsQuestion}>
             {label(only, "question")}
           </p>
+          {/* はいは主のボタン、違うは控えめなボタンにし、押せることがひと目で分かるようにする */}
           <div className="flex gap-2">
-            <button
-              type="button"
-              className={`${buttonClass} flex-1 bg-foreground text-background`}
+            <Button
+              className="flex-1"
               data-testid={testIds.start.gpsConfirm}
               onClick={() => onConfirm(only)}
             >
               {t("gpsYes")}
-            </button>
-            <button
-              type="button"
-              className={`${buttonClass} flex-1`}
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1"
               data-testid={testIds.start.gpsDismiss}
               onClick={onDismiss}
             >
               {t("gpsNo")}
-            </button>
+            </Button>
           </div>
         </div>
       ) : located && choices.length > 1 ? (
@@ -110,7 +113,7 @@ function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps
         <p className="text-sm text-muted" data-testid={testIds.start.gpsStatus} role="status">
           {failure} {t("gpsUndergroundNote")}
         </p>
-      ) : (
+      ) : fromMap ? null : (
         <p className="text-xs text-muted">{t("gpsNote")}</p>
       )}
     </div>

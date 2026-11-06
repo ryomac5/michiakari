@@ -11,7 +11,6 @@
     },
     "mockBadge": "デモ用の架空データで表示しています",
     "name": "みちあかり",
-    "tagline": "待つか、乗り換えるか。",
     "skipToContent": "本文へ移動",
     "menu": {
       "label": "メニュー",
@@ -557,6 +556,9 @@
     "quickPicks": "よく使う駅",
     "directionQuestion": "向かう方面を選ぶ",
     "directionHint": "電車が向かう方向を選ぶ",
+    "lineStopQuestion": "向かう駅か方面を選ぶ",
+    "lineStopHint": "駅を押すと行き先になります。方面は自動で決めます。",
+    "lineStopsLabel": "路線の駅",
     "directionName": "{names}方面",
     "destinationHint": "{direction}方面の主な駅です",
     "destinationUndecided": "まだ決めていない",
