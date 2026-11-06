@@ -17,6 +17,11 @@ import {
 import { listTrainLines } from "./infer-route";
 import {
   BETWEEN_PICK_MIN_ZOOM,
+  buildSegmentPath,
+  computeMidpoint,
+  computePathMidpoint,
+  computeSegmentApproachRadii,
+  computeSegmentApproachZoom,
   computeSegmentHitRadii,
   findNearestLineId,
   findNearestSegment,
@@ -25,6 +30,7 @@ import {
   listLineStops,
   listRouteStops,
   listSegmentWindow,
+  measurePathDistance,
   measureSegmentDistance,
   mergeRouteCandidates,
   pickLineAt,
@@ -387,5 +393,80 @@ describe("selectRailTapAction", () => {
     expect(selectRailTapAction(10.4, 2)).toBe("approach");
     expect(selectRailTapAction(BETWEEN_PICK_MIN_ZOOM, 1)).toBe("pick");
     expect(selectRailTapAction(15, 0)).toBe("none");
+  });
+});
+
+// 北へふくらんだ架空の線路。2 駅を結ぶ直線から 500m ほど離れる
+const curvedTrack: Position[][] = [
+  [
+    [135.49, 34.7],
+    [135.495, 34.704],
+    [135.5, 34.705],
+    [135.505, 34.704],
+    [135.51, 34.7],
+  ],
+];
+
+describe("buildSegmentPath", () => {
+  const from: Position = [135.49, 34.7];
+  const to: Position = [135.51, 34.7];
+
+  it("駅の間の点線を、2 駅を結ぶ直線ではなく線路の形に沿って切り出す", () => {
+    const path = buildSegmentPath(curvedTrack, from, to);
+    expect(path.length).toBeGreaterThan(2);
+    // 点線の頂点はすべて線路の上にある
+    for (const point of path) {
+      expect(measurePathDistance(point, curvedTrack[0] ?? [])).toBeLessThan(1);
+    }
+    // 中ほどの丸も線路の上に置き、直線の中点からは離れる
+    const middle = computePathMidpoint(path);
+    if (!middle) throw new Error("中ほどの点がありません");
+    expect(measurePathDistance(middle, curvedTrack[0] ?? [])).toBeLessThan(1);
+    expect(
+      measureSegmentDistance(middle, computeMidpoint(from, to), computeMidpoint(from, to)),
+    ).toBeGreaterThan(400);
+  });
+
+  it("線路の形が無いか切り出せなければ、2 駅を結ぶ", () => {
+    expect(buildSegmentPath(undefined, from, to)).toEqual([from, to]);
+    expect(buildSegmentPath(curvedTrack, [135.3, 34.9], to)).toEqual([[135.3, 34.9], to]);
+  });
+});
+
+describe("引いた地図の駅の間の丸", () => {
+  it("押せる丸が取れなくても、丸の大きさの押して寄せる範囲を残し、駅の印には届かせない", () => {
+    // 駅の印から 20px の駅の間の丸。選ぶ押せる丸は取れない
+    const point = { x: 0, y: 0 };
+    const station = { x: 20, y: 0 };
+    expect(computeSegmentHitRadii([point], [{ point: station, radius: 24 }])).toEqual([null]);
+    expect(computeSegmentApproachRadii([point], [station])).toEqual([12]);
+    // 駅の印にほぼ重なる丸でも、丸の大きさは押せる
+    expect(computeSegmentApproachRadii([point], [{ x: 6, y: 0 }])).toEqual([8]);
+  });
+
+  it("押して寄せる倍率は、駅の印の押せる丸から押せる丸の半径だけ離れる倍率にする", () => {
+    const zoom = computeSegmentApproachZoom({
+      zoom: 11,
+      point: { x: 0, y: 0 },
+      markerPoints: [{ x: 23, y: 0 }],
+      otherPoints: [{ x: 60, y: 0 }],
+    });
+    // 23px が 46px 以上になる倍率。少なくとも 1 段は寄せる
+    expect(zoom).toBeGreaterThanOrEqual(12);
+    expect(23 * 2 ** (zoom - 11) - 24).toBeGreaterThanOrEqual(22);
+    const radii = computeSegmentHitRadii(
+      [{ x: 0, y: 0 }],
+      [{ point: { x: 23 * 2 ** (zoom - 11), y: 0 }, radius: 24 }],
+    );
+    expect(radii[0]).not.toBeNull();
+    // 上限の倍率を超えない
+    expect(
+      computeSegmentApproachZoom({
+        zoom: 16.5,
+        point: { x: 0, y: 0 },
+        markerPoints: [{ x: 1, y: 0 }],
+        otherPoints: [],
+      }),
+    ).toBe(17);
   });
 });

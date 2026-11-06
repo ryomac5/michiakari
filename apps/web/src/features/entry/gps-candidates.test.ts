@@ -11,6 +11,7 @@ import {
   listLineTapChoices,
   listSegmentDirections,
   listSegmentTravels,
+  listStationPairChoices,
   resolveSegmentTravel,
 } from "./gps-candidates";
 
@@ -170,5 +171,60 @@ describe("listLineTapChoices", () => {
   it("押した線から離れた所や、線の無い所では候補を出さない", () => {
     expect(listLineTapChoices(data, geo.nodes, { lat: 34.3, lon: 135.9 }, 120, [kobe])).toEqual([]);
     expect(listLineTapChoices(data, geo.nodes, between, 120, [])).toEqual([]);
+  });
+});
+
+describe("listStationPairChoices", () => {
+  // 候補を「路線:手前の駅〜先の駅」で並べる
+  function describePairs(first: string, second: string) {
+    return listStationPairChoices(data, geo.nodes, findPoint(first), findPoint(second)).map((c) =>
+      c.kind === "between" ? `${c.line.name.ja}:${c.from.name}〜${c.to.name}` : c.key,
+    );
+  }
+
+  it("隣り合う 2 駅は、その駅の間を 1 つだけ返し、1 つ目の駅を手前にする", () => {
+    expect(describePairs("塚本", "尼崎")).toEqual(["JR神戸線:塚本〜尼崎"]);
+    expect(describePairs("尼崎", "塚本")).toEqual(["JR神戸線:尼崎〜塚本"]);
+    const [choice] = listStationPairChoices(data, geo.nodes, tsukamoto, amagasaki);
+    expect(choice).toMatchObject({
+      kind: "between",
+      key: "between:jr-west.東海道線:塚本:尼崎",
+      line: { lineId: "jr-west.東海道線", observedName: "JR神戸線" },
+    });
+  });
+
+  it("間に駅があれば、間の駅の並びを道順に返す", () => {
+    expect(describePairs("大阪", "尼崎")).toEqual(["JR神戸線:大阪〜塚本", "JR神戸線:塚本〜尼崎"]);
+    // 環状の路線は短い回り方の並びにする
+    expect(describePairs("京橋", "大阪")).toEqual([
+      "JR環状線:京橋〜桜ノ宮",
+      "JR環状線:桜ノ宮〜天満",
+      "JR環状線:天満〜大阪",
+    ]);
+  });
+
+  it("並走する路線は、隣り合う路線を先にしてどれも返す", () => {
+    expect(describePairs("天王寺", "新今宮")).toEqual([
+      "JR環状線:天王寺〜新今宮",
+      "JR大和路線:天王寺〜新今宮",
+    ]);
+    expect(describePairs("十三", "大阪梅田")).toEqual([
+      "阪急京都線:十三〜大阪梅田",
+      "阪急宝塚線:十三〜中津",
+      "阪急宝塚線:中津〜大阪梅田",
+      "阪急神戸線:十三〜中津",
+      "阪急神戸線:中津〜大阪梅田",
+    ]);
+  });
+
+  it("2 駅を通る路線が無いか、同じ駅なら空を返す", () => {
+    expect(describePairs("塚本", "難波")).toEqual([]);
+    expect(describePairs("塚本", "塚本")).toEqual([]);
+  });
+
+  it("並びが長ければ上限までに絞る", () => {
+    const choices = listStationPairChoices(data, geo.nodes, findPoint("大阪"), findPoint("三ノ宮"));
+    expect(choices).toHaveLength(8);
+    expect(listStationPairChoices(data, geo.nodes, tsukamoto, amagasaki, 0)).toEqual([]);
   });
 });

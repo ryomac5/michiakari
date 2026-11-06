@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { chooseTrainDirection } from "../support/entry.ts";
+import { chooseTrainDirection, searchStationPair } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -538,9 +538,31 @@ for (const viewport of [
   });
 }
 
-test("車内では路線・方面・駅間を答えてから行き先を聞く", async ({ page }) => {
+test("駅と駅の間では路線と方面を聞かずに駅の間を答えてから行き先を聞く", async ({ page }) => {
   await openEntry(page, true, false);
   await expectStage(page, "position");
+  await page.getByTestId(testIds.start.positionTrain).click();
+  await expectStage(page, "between");
+  await expect(page.getByTestId(testIds.start.destinationSearch)).toHaveCount(0);
+  await expect(page.getByTestId(testIds.start.progress)).toHaveAttribute("data-step", "0");
+  await searchStationPair(page, "塚本", "尼崎");
+  await page.getByTestId(testIds.start.gpsConfirm).click();
+  await expectStage(page, "destination");
+  await page.getByTestId(testIds.start.destinationSearch).fill("三ノ宮");
+  await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+  await expectStage(page, "cause");
+  await expect(page.getByTestId(testIds.start.trip)).toContainText("尼崎");
+  await expect(page.getByTestId(testIds.start.trip)).toContainText("駅と駅の間");
+  for (const stage of ["destination", "between", "position"]) {
+    await page.goBack();
+    await expectStage(page, stage);
+  }
+});
+
+test("駅と駅の間の人が乗る電車を選び直すと、路線・方面・駅間を答えてから行き先を聞く", async ({
+  page,
+}) => {
+  await openEntry(page, true, false);
   await chooseTrainDirection(page, "JR神戸線", "神戸");
   await expect(page.getByTestId(testIds.start.destinationSearch)).toHaveCount(0);
   await expect(page.getByTestId(testIds.start.progress)).toHaveAttribute("data-step", "0");
@@ -553,7 +575,16 @@ test("車内では路線・方面・駅間を答えてから行き先を聞く",
   await expectStage(page, "cause");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("尼崎");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("駅と駅の間");
-  for (const stage of ["destination", "trainPosition", "direction", "station", "position"]) {
+  for (const stage of [
+    "destination",
+    "trainPosition",
+    "direction",
+    "station",
+    "cause",
+    "destination",
+    "between",
+    "position",
+  ]) {
     await page.goBack();
     await expectStage(page, stage);
   }

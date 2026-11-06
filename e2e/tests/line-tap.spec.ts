@@ -1,114 +1,26 @@
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import { waitForFiniteAnimations } from "../support/replay.ts";
+import {
+  betweenTsukamotoAmagasaki,
+  expectStage,
+  findCanvasPointNear,
+  panTo,
+  readZoom,
+  waitForMapStill,
+  zoomOn,
+} from "../support/map-view.ts";
 import { expect, test } from "../support/test.ts";
 
 // 最初の地図で駅と駅の間の線を押すと、その駅の間の車内にいるか確かめ、はいで行き先の段へ進む
 // 引いた地図で線を押したときは、駅の間を決めずに、まずそのあたりへ寄る
 
 const screenshotDir = fileURLToPath(new URL("../screenshots/line-tap/", import.meta.url));
-// 描いた JR神戸線の上で、塚本と尼崎の間にあり、ほかの路線の線から約700m 離れた点。lines.geojson から求めた
-const betweenTsukamotoAmagasaki: [number, number] = [135.463484, 34.718828];
-
 test.setTimeout(120_000);
 
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "NEXT_LOCALE", value: "ja", url: baseURL ?? "" }]);
 });
-
-function expectStage(page: Page, stage: string) {
-  return expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", stage);
-}
-
-async function waitForMapStill(page: Page): Promise<void> {
-  await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-moving", "false", {
-    timeout: 15_000,
-  });
-  await waitForFiniteAnimations(page);
-}
-
-async function readZoom(page: Page): Promise<number> {
-  return Number(await page.getByTestId(testIds.start.map).getAttribute("data-zoom"));
-}
-
-// 地図の中心と倍率から、緯度経度を画面の点に直す。地図は画面いっぱいで、回転も傾きも無い
-async function projectOnPage(page: Page, [lon, lat]: [number, number]) {
-  const map = page.getByTestId(testIds.start.map);
-  const zoom = Number(await map.getAttribute("data-zoom"));
-  const [centerLon, centerLat] = ((await map.getAttribute("data-center")) ?? "0,0")
-    .split(",")
-    .map(Number) as [number, number];
-  const world = 512 * 2 ** zoom;
-  const toX = (value: number) => ((value + 180) / 360) * world;
-  const toY = (value: number) => {
-    const rad = (value * Math.PI) / 180;
-    return ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) * world;
-  };
-  const viewport = page.viewportSize() ?? { width: 390, height: 844 };
-  return {
-    x: viewport.width / 2 + toX(lon) - toX(centerLon),
-    y: viewport.height / 2 + toY(lat) - toY(centerLat),
-  };
-}
-
-// 矢印のキーで地図を動かし、点を画面の goal の近くへ寄せる。キーの 1 回で 100px 動く
-async function panTo(
-  page: Page,
-  position: [number, number],
-  goal: { x: number; y: number },
-): Promise<{ x: number; y: number }> {
-  for (let i = 0; i < 40; i++) {
-    const point = await projectOnPage(page, position);
-    const dx = goal.x - point.x;
-    const dy = goal.y - point.y;
-    if (Math.abs(dx) < 55 && Math.abs(dy) < 55) return point;
-    const horizontal = Math.abs(dx) >= Math.abs(dy);
-    const key = horizontal
-      ? dx > 0
-        ? "ArrowLeft"
-        : "ArrowRight"
-      : dy > 0
-        ? "ArrowUp"
-        : "ArrowDown";
-    await page.keyboard.press(key);
-    await waitForMapStill(page);
-  }
-  return projectOnPage(page, position);
-}
-
-// 点を画面の中心に置いたまま、キーで 1 段ずつ寄せる
-async function zoomOn(page: Page, position: [number, number], target: number): Promise<void> {
-  const viewport = page.viewportSize() ?? { width: 390, height: 844 };
-  const center = { x: viewport.width / 2, y: viewport.height / 2 };
-  for (let i = 0; i < 12 && (await readZoom(page)) < target; i++) {
-    await panTo(page, position, center);
-    await page.keyboard.press("Equal");
-    await waitForMapStill(page);
-  }
-  expect(await readZoom(page)).toBeGreaterThanOrEqual(target);
-}
-
-// 点のまわり 18px の内で、印や札に掛からない地図の点を探す。線は 44px の四角で拾うので、少しずれても押せる
-async function findCanvasPointNear(
-  page: Page,
-  point: { x: number; y: number },
-): Promise<{ x: number; y: number }> {
-  const open = await page.evaluate(({ x, y }) => {
-    for (const distance of [0, 4, 7, 10, 14, 18]) {
-      for (let step = 0; step < 12; step++) {
-        const angle = (step / 12) * Math.PI * 2;
-        const px = x + Math.cos(angle) * distance;
-        const py = y + Math.sin(angle) * distance;
-        if (document.elementFromPoint(px, py)?.tagName === "CANVAS") return { x: px, y: py };
-      }
-    }
-    return null;
-  }, point);
-  if (!open) throw new Error("印に掛からない点がありません");
-  return open;
-}
 
 for (const viewport of [
   { width: 375, height: 667 },

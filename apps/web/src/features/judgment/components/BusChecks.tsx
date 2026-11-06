@@ -36,13 +36,14 @@ export function BusChecksSection({ busChecks }: { busChecks: readonly BusCheck[]
             <div className="flex flex-wrap items-center gap-x-3 text-[13px] text-muted">
               {check.operators.map((operator) =>
                 operator.officialUrl ? (
+                  // 押せる高さは 44px にし、上下の負の余白で行の高さは詰めたままにする
                   <a
                     key={operator.name}
                     href={operator.officialUrl}
                     target="_blank"
                     rel="noreferrer"
                     aria-label={t("link", { operator: operator.name })}
-                    className="inline-flex items-center gap-0.5 py-0.5 font-medium text-focus underline underline-offset-4"
+                    className="-my-3 inline-flex min-h-11 items-center gap-0.5 font-medium text-focus underline underline-offset-4"
                   >
                     {operator.name}
                     <ExternalLink className="size-3.5 shrink-0" aria-hidden />

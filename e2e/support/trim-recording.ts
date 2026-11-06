@@ -1,11 +1,18 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  buildSceneTimings,
+  type SceneTiming,
+  saveSceneTimings,
+  scenesFile,
+} from "./demo-scenes.ts";
 import { loadRecordingMarks, type RecordingMarks, recordingMarksFile } from "./recording-marks.ts";
 
 // 録画の後処理。Playwright の動画は頁を読む前の暗い画面から始まるので、最初の画面を描き終えた時点から切り出す
 // recordings/<テスト名>/video.webm と recording.json を読み、同じ場所に demo.webm と stills/<場面>.png を書く
+// 台本の場面の目印があれば、各場面の秒を recordings/scenes.json に書く。音声を重ねるときに使う
 // ffmpeg は PATH のもの、無ければ Playwright が同梱するものを使う。新しい依存は足さない
 
 const e2eDir = fileURLToPath(new URL("..", import.meta.url));
@@ -82,18 +89,32 @@ function trimVideo(ffmpeg: string, dir: string, marks: RecordingMarks): number {
   return startMs;
 }
 
-// 目印の場面を切り出した動画から静止画にする
-function writeStills(
-  ffmpeg: string,
-  dir: string,
+// 静止画に残す点。台本の場面は場面の中ほど、それ以外の目印はその時刻
+function listStillPoints(
   marks: RecordingMarks,
   startMs: number,
-): string[] {
+  scenes: SceneTiming[],
+): [string, number][] {
+  const sceneNames = new Set(Object.keys(marks.marks).filter((name) => name.startsWith("scene-")));
+  const others = Object.entries(marks.marks)
+    .filter(([name]) => !sceneNames.has(name))
+    .map(([name, at]): [string, number] => [
+      name,
+      Date.parse(at) - Date.parse(marks.startedAt) - startMs,
+    ]);
+  const middles = scenes.map((s): [string, number] => [
+    `scene-${s.scene}`,
+    ((s.start + s.end) / 2) * 1000,
+  ]);
+  return [...middles, ...others];
+}
+
+// 目印の場面を切り出した動画から静止画にする
+function writeStills(ffmpeg: string, dir: string, points: [string, number][]): string[] {
   const stillsDir = join(dir, "stills");
   mkdirSync(stillsDir, { recursive: true });
   const written: string[] = [];
-  for (const [name, at] of Object.entries(marks.marks)) {
-    const atMs = Date.parse(at) - Date.parse(marks.startedAt) - startMs;
+  for (const [name, atMs] of points) {
     const output = join(stillsDir, `${name}.png`);
     runFfmpeg(ffmpeg, [
       "-loglevel",
@@ -135,8 +156,19 @@ async function trimRecordings(): Promise<void> {
     }
     const marks = await loadRecordingMarks(dir);
     const startMs = trimVideo(ffmpeg, dir, marks);
-    const stills = writeStills(ffmpeg, dir, marks, startMs);
+    const scenes = buildSceneTimings(marks, startMs);
+    const stills = writeStills(ffmpeg, dir, listStillPoints(marks, startMs, scenes));
     const output = join(dir, trimmedVideo);
+    if (scenes.length > 0) {
+      const scenesPath = join(recordingsDir, scenesFile);
+      await saveSceneTimings(scenesPath, relative(recordingsDir, output), scenes);
+      console.log(`[trim-recording] 場面の秒: ${scenesPath}`);
+      for (const s of scenes) {
+        console.log(
+          `[trim-recording] 場面 ${s.scene}: 台本 ${s.script.seconds} 秒、録画 ${s.seconds} 秒（${s.start}〜${s.end}）`,
+        );
+      }
+    }
     console.log(`[trim-recording] ${toSeconds(startMs)} 秒から切り出した: ${output}`);
     console.log(`[trim-recording] 長さ ${readDuration(ffmpeg, output)}`);
     for (const still of stills) console.log(`[trim-recording] 静止画: ${still}`);

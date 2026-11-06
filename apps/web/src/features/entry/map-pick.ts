@@ -1,4 +1,5 @@
 import type { ScreenPoint } from "@/features/map/bubble-layout";
+import { sliceTrackBetween, type TrackParts } from "@/features/map/track-shape";
 import type { LabelSide } from "./areas";
 import type { DirectionStop, EntryDirection } from "./directions";
 import type { EntryLine, Position } from "./entry-places";
@@ -15,6 +16,9 @@ const lineLabelRatio = 0.75;
 export const ROUTE_STOP_LIMIT = 6;
 // 車内の駅の間を地図で選ぶとき、選んでいる駅の間の前後に出す駅の間の数
 const segmentWindow = 3;
+// 駅の間の丸と、駅の印の丸の半径（px）
+const segmentDotRadius = 8;
+const stationDotRadius = 8;
 
 // 緯度経度の差を、その場所の m に直す
 function toMeters(from: Position, to: Position): { x: number; y: number } {
@@ -184,9 +188,89 @@ export function computeSegmentHitRadii(
   });
 }
 
+// 押せる丸が取れない駅の間の丸を、押して寄せるための範囲の半径（px）
+// 丸の大きさは保ち、駅の印と、ほかの駅の間との中点には届かせない
+export function computeSegmentApproachRadii(
+  points: readonly ScreenPoint[],
+  markerPoints: readonly ScreenPoint[],
+  max = 22,
+  min = segmentDotRadius,
+): number[] {
+  return points.map((point, i) => {
+    let radius = max;
+    for (const marker of markerPoints) {
+      radius = Math.min(
+        radius,
+        Math.hypot(point.x - marker.x, point.y - marker.y) - stationDotRadius,
+      );
+    }
+    points.forEach((other, j) => {
+      if (j !== i) radius = Math.min(radius, Math.hypot(point.x - other.x, point.y - other.y) / 2);
+    });
+    return Math.max(min, Math.floor(radius));
+  });
+}
+
+// 引いた地図で駅の間の丸を押したとき、押せる丸が取れるまで寄せる倍率
+// 駅の印の押せる丸と、ほかの駅の間の丸から、押せる丸の半径 hit だけ離れる倍率を求める
+export function computeSegmentApproachZoom(input: {
+  zoom: number;
+  point: ScreenPoint;
+  markerPoints: readonly ScreenPoint[];
+  otherPoints: readonly ScreenPoint[];
+  markerRadius?: number;
+  hit?: number;
+  maxZoom?: number;
+}): number {
+  const { zoom, point, markerPoints, otherPoints } = input;
+  const markerRadius = input.markerRadius ?? 24;
+  const hit = input.hit ?? 22;
+  const maxZoom = input.maxZoom ?? 17;
+  const scales = [
+    ...markerPoints.map(
+      (p) => (markerRadius + hit) / Math.max(1, Math.hypot(point.x - p.x, point.y - p.y)),
+    ),
+    ...otherPoints.map((p) => (hit * 2) / Math.max(1, Math.hypot(point.x - p.x, point.y - p.y))),
+  ];
+  const scale = Math.max(2, ...scales);
+  return Math.min(maxZoom, zoom + Math.log2(scale) + 0.1);
+}
+
 // 駅の間の中ほどの点
 export function computeMidpoint(a: Position, b: Position): Position {
   return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+}
+
+// 駅の間を線路の形に沿って切り出す。判断画面の止まった区間と同じ関数を使う
+// 形が無いか切り出せなければ 2 駅を結ぶ
+export function buildSegmentPath(
+  parts: TrackParts | undefined,
+  from: Position,
+  to: Position,
+): Position[] {
+  const sliced = parts ? sliceTrackBetween(parts, from, to) : null;
+  return sliced && sliced.length >= 2 ? sliced : [from, to];
+}
+
+// 折れ線の長さの半分の点。駅の間の丸を線路の上に置く
+export function computePathMidpoint(path: readonly Position[]): Position | null {
+  const [first] = path;
+  if (!first) return null;
+  const lengths = path.slice(1).map((p, i) => {
+    const d = toMeters(path[i] as Position, p);
+    return Math.hypot(d.x, d.y);
+  });
+  let rest = lengths.reduce((sum, l) => sum + l, 0) / 2;
+  for (const [i, length] of lengths.entries()) {
+    const a = path[i] as Position;
+    const b = path[i + 1] as Position;
+    if (rest <= length) {
+      const t = length === 0 ? 0 : rest / length;
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    }
+    rest -= length;
+  }
+  return path.at(-1) ?? first;
 }
 
 // 選んだ駅の名前の札を、地図に出す札の向きと反対の側に置く

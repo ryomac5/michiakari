@@ -1,4 +1,4 @@
-import { diffMinutes } from "@repo/core";
+import { diffMinutes, selectObservedEventType } from "@repo/core";
 import type { Confidence, Knowledge, Observation, PredictabilityLevel } from "@repo/schema";
 import { confidenceParams } from "../config.ts";
 
@@ -6,29 +6,12 @@ import { confidenceParams } from "../config.ts";
 
 const CONFIDENCE_SCORE: Record<Confidence, number> = { high: 3, medium: 2, low: 1 };
 
-// 観測の候補を確信度で重みづけして事象種別を選ぶ。同点なら新しい観測を優先する
+// 観測の候補から事象種別を選ぶ。選び方は core の 1 か所にあり、画面も同じ関数を使う
 export function selectEventType(
   observations: readonly Observation[],
   knowledge: ReadonlyMap<string, Knowledge>,
 ): string | null {
-  const scores = new Map<string, { score: number; lastIndex: number }>();
-  observations.forEach((o, index) => {
-    for (const c of o.eventTypeCandidates) {
-      if (!knowledge.has(c.eventType)) continue;
-      const prev = scores.get(c.eventType) ?? { score: 0, lastIndex: -1 };
-      scores.set(c.eventType, {
-        score: prev.score + CONFIDENCE_SCORE[c.confidence],
-        lastIndex: index,
-      });
-    }
-  });
-  let best: { eventType: string; score: number; lastIndex: number } | null = null;
-  for (const [eventType, s] of scores) {
-    if (!best || s.score > best.score || (s.score === best.score && s.lastIndex > best.lastIndex)) {
-      best = { eventType, ...s };
-    }
-  }
-  return best?.eventType ?? null;
+  return selectObservedEventType(observations, (id) => knowledge.has(id));
 }
 
 export type PhaseDetection = {
@@ -153,4 +136,27 @@ export function decideEstimateConfidence(input: {
   const predictable = input.predictability === confidenceParams.predictableLevel;
   if (!predictable || !input.identified) return base;
   return CONFIDENCE_SCORE[base] < CONFIDENCE_SCORE[floor] ? floor : base;
+}
+
+// 線路の安全が確かめられたと言い切る放送の言い回し。「〜次第」の条件付きの文は数えない
+const TRACK_CLEARED_PATTERNS: readonly RegExp[] = [
+  /まもなく(?:運転を)?再開/,
+  /順次(?:運転を)?再開/,
+  /運転再開の準備/,
+  /安全(?:が|を)確認(?:でき|され)まし/,
+  /resum\w* shortly|safety (?:has been |was )?confirmed/i,
+];
+
+function checkClearedSentence(sentence: string): boolean {
+  return !sentence.includes("次第") && TRACK_CLEARED_PATTERNS.some((p) => p.test(sentence));
+}
+
+// 線路の安全が確かめられた兆候があるか。再開の見込みの時刻か、再開が近いと言い切る放送で判定する
+// 知見の段階が進んだだけでは数えない。大雨の線路の点検のように、点検中でまだ確かめられていない段階があるため
+export function checkTrackCleared(observations: readonly Observation[]): boolean {
+  return observations.some((o) => {
+    if (o.statedResumeTime) return true;
+    const texts = [o.rawText ?? "", ...o.detectedSignals.map((s) => s.quote)];
+    return texts.some((t) => t.split(/[。.\n]/).some(checkClearedSentence));
+  });
 }

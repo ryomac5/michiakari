@@ -15,6 +15,7 @@ import {
   BreakEvenMetric,
   ResumeOutlook,
 } from "@/features/judgment/components/BreakEvenPanel";
+import { BusChecksSection } from "@/features/judgment/components/BusChecks";
 import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
 import { ConclusionCard, ConclusionDetail } from "@/features/judgment/components/ConclusionCard";
 import { Disclaimer } from "@/features/judgment/components/Disclaimer";
@@ -86,8 +87,16 @@ export function ReplayPlayer({
   const lastWithSection = observations.findLast((o) => o.section !== null);
   const blockedLine = observations.findLast((o) => o.line !== null)?.line ?? scenario.line;
   // 止まり方はシナリオの事象から引く。その列車だけが止まる事象では見合わせの札と区間の線を出さない
-  const stopScope = resolveStopScope(scenario.event_type);
+  // その列車から止まる故障は、発表に区間が出たら区間の見合わせとする
+  const stopScope = resolveStopScope({
+    eventType: scenario.event_type,
+    sectionAnnounced: started && lastWithSection !== undefined,
+  });
   const options = display.options ?? noOptions;
+  // 近くのバス停の確認候補。判断画面と同じく、確定した判断に載ったものだけを出す。車内の判断では出さない
+  const settledJudgment = display.settled?.judgment;
+  const busChecks =
+    settledJudgment && !settledJudgment.inCar ? (settledJudgment.busChecks ?? []) : [];
 
   // 表示中の判断と、その一つ前の判断の行動
   const current = state.status === "ready" ? history.at(-1) : undefined;
@@ -329,6 +338,11 @@ export function ReplayPlayer({
                     onSelect={selectOption}
                   />
                 </SheetSection>
+                {busChecks.length > 0 && (
+                  <SheetSection>
+                    <BusChecksSection busChecks={busChecks} />
+                  </SheetSection>
+                )}
                 <SheetSection className="has-[>[hidden]]:hidden">
                   <EvidenceSection
                     estimate={display.estimate}

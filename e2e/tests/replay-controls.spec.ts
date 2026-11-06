@@ -61,3 +61,52 @@ test("375×667 で、再生の前に注意書きが出て、帯の操作は 44px
   await expect(page.getByTestId(testIds.replay.screen)).toHaveAttribute("data-state", "idle");
   await expect(disclaimer).toBeInViewport({ ratio: 1 });
 });
+
+test("速度のボタンは 1x、2x、4x、8x の順に変わり、8x でも判断が出てから次の発表へ進む", async ({
+  page,
+}) => {
+  if (!scenario) throw new Error("観測が 2 件以上あるシナリオがありません");
+  // 発表が入った時と判断が出た時を順に記録する。判断の前に次の発表が入れば、並びが崩れる
+  await page.addInitScript(() => {
+    const log: string[] = [];
+    Object.assign(window, { __replayLog: log });
+    new MutationObserver(() => {
+      const progress = document.querySelector("[data-testid='replay-progress']");
+      const judgment = document.querySelector("[data-testid='replay-judgment']");
+      const entered = `entered:${progress?.getAttribute("data-entered") ?? ""}`;
+      if (progress && entered !== "entered:0" && !log.includes(entered)) log.push(entered);
+      const id = judgment?.getAttribute("data-observation-id") ?? "";
+      const judged = `judged:${id}`;
+      if (judgment?.getAttribute("data-status") === "ready" && id !== "" && !log.includes(judged))
+        log.push(judged);
+    }).observe(document, { subtree: true, attributes: true, childList: true });
+  });
+  await openReplay(page, scenario.id);
+
+  const speed = page.getByTestId(testIds.replay.speedToggle);
+  const seen: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    seen.push((await speed.getAttribute("data-speed")) ?? "");
+    await speed.click();
+  }
+  expect(seen).toEqual(["1", "2", "4", "8", "1"]);
+  // 5 回押して 2x にある。もう 2 回押して 8x にする
+  for (let i = 0; i < 2; i++) await speed.click();
+  await expect(speed).toHaveAttribute("data-speed", "8");
+  await expect(speed).toHaveText("8x");
+  // 8x の札でも押せる大きさは 44px 以上
+  const box = await speed.boundingBox();
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+  await page.getByTestId(testIds.replay.playButton).click();
+  await expect(page.getByTestId(testIds.replay.screen)).toHaveAttribute("data-state", "ended", {
+    timeout: 90_000,
+  });
+  const log = await page.evaluate(
+    () => (window as unknown as { __replayLog: string[] }).__replayLog,
+  );
+  expect(log).toEqual(
+    scenario.timeline.flatMap((entry, i) => [`entered:${i + 1}`, `judged:${entry.id}`]),
+  );
+});

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import type { JudgmentEvent } from "../../packages/schema/src/index.ts";
-import { chooseTrainDirection } from "../support/entry.ts";
+import { chooseBetweenStations } from "../support/entry.ts";
 import {
   openReplay,
   openSheet,
@@ -179,8 +179,7 @@ async function startBetweenStations(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
   });
-  await chooseTrainDirection(page, "JR神戸線", "神戸");
-  await page.getByTestId(testIds.start.positionBetween).click();
+  await chooseBetweenStations(page, "JR神戸線", "大阪", "塚本");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
@@ -203,7 +202,7 @@ test("駅と駅の間にいる人には、境目と確率の帯を出さず、�
   await expect(page.getByTestId(testIds.judgment.conclusionNext)).toHaveText(
     /^動くのは\d+時\d+分ごろの見込み$/,
   );
-  await expect(page.getByTestId(testIds.judgment.inCarStaffNote)).toBeVisible();
+  await expect(page.getByTestId(testIds.judgment.screen)).not.toContainText("係員の案内");
   // 前提のチップと車内の案内が増えても、閉じたシートに注意書きまで収まる
   await waitForFiniteAnimations(page);
   const box = await page.getByTestId(testIds.judgment.disclaimer).boundingBox();

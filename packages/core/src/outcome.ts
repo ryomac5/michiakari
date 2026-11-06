@@ -86,6 +86,7 @@ function findFirstSwitch(
 }
 
 // 最初の観測で、最も早い代替手段へ切り替えた場合。代替手段が無ければ null
+// 結末のカードで待った人と比べる相手はこの人とする。比べ方は開発者が確かめた
 function findSwitchAtStart(decisions: readonly ReplayDecision[]): SwitchPoint | null {
   const first = decisions[0];
   if (!first?.bestAlternativeArrival) return null;

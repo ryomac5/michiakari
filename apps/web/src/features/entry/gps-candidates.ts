@@ -101,6 +101,66 @@ export function listLineTapChoices(
   return convertCandidates(data, nearestPerLine).slice(0, limit);
 }
 
+// 2 つの駅名で選ぶときに並べる候補の上限
+export const STATION_PAIR_LIMIT = 8;
+
+// 区間の中で、first の駅から second の駅までの駅の並び。環状なら短い回り方にする。通らなければ null
+function traceStationPath(
+  ids: readonly string[],
+  loop: boolean,
+  groupOf: (id: string) => string | undefined,
+  first: string,
+  second: string,
+): string[] | null {
+  const n = ids.length;
+  const walk = (i: number, step: number, count: number) =>
+    Array.from({ length: count + 1 }, (_, k) => ids[(((i + k * step) % n) + n) % n] as string);
+  let best: string[] | null = null;
+  for (let i = 0; i < n; i++) {
+    if (groupOf(ids[i] as string) !== first) continue;
+    for (let j = 0; j < n; j++) {
+      if (i === j || groupOf(ids[j] as string) !== second) continue;
+      const step = i < j ? 1 : -1;
+      const gap = Math.abs(j - i);
+      const options = loop ? [walk(i, step, gap), walk(i, -step, n - gap)] : [walk(i, step, gap)];
+      for (const path of options) if (!best || path.length < best.length) best = path;
+    }
+  }
+  return best;
+}
+
+// 2 つの駅名から駅の間の候補を出す。隣り合う路線を先に並べ、間に駅があればその並びを出す
+// 並走する路線はどれも出して選ばせる。from は 1 つ目の駅の側にする
+export function listStationPairChoices(
+  data: EntryData,
+  nodes: readonly StationNode[],
+  first: StationChoice,
+  second: StationChoice,
+  limit = STATION_PAIR_LIMIT,
+): GpsChoice[] {
+  if (first.id === second.id) return [];
+  const nodeById = new Map(nodes.map((n) => [n.stationId, n]));
+  const groupOf = (id: string) => data.catalog.groupIdByStationId.get(id);
+  const paths = data.index.listLines().flatMap((line) => {
+    const found = line.segments
+      .map((segment) =>
+        traceStationPath(segment.stationIds, segment.loop, groupOf, first.id, second.id),
+      )
+      .filter((path): path is string[] => path !== null)
+      .sort((a, b) => a.length - b.length);
+    return found[0] ? [{ line, path: found[0] }] : [];
+  });
+  paths.sort((a, b) => a.path.length - b.path.length);
+  const candidates: BetweenPositionCandidate[] = paths.flatMap(({ line, path }) =>
+    path.slice(1).flatMap((toId, i) => {
+      const from = nodeById.get(path[i] as string);
+      const to = nodeById.get(toId);
+      return from && to ? [{ kind: "between" as const, line, from, to, distanceMeters: 0 }] : [];
+    }),
+  );
+  return convertCandidates(data, candidates).slice(0, limit);
+}
+
 function findCandidates(
   data: EntryData,
   nodes: readonly StationNode[],

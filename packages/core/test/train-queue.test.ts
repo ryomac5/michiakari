@@ -6,9 +6,11 @@ import {
   computeTrackHeadwayMinutes,
   countTrainsAhead,
   estimateTrainQueueArrival,
+  findLineOperatorKey,
   findOperationPattern,
   inferDefaultOwnTrainType,
   inferTrainsAheadFromPattern,
+  normalizeOperatorKey,
   normalizeTrainType,
   resolveStationPlatform,
   resolveTrainQueueParams,
@@ -47,13 +49,28 @@ function build(overrides: Partial<TrainQueueInput>): TrainQueueInput {
     trainsAheadHeadwayMinutes: null,
     stationsAhead: fromOsaka,
     params: jrWest,
+    closeUpCleared: true,
     ...overrides,
   };
 }
 
 describe("resolveTrainQueueParams と表", () => {
-  it("JR西日本は詰め、ほかの事業者と不明は既定の詰めない値を使う", () => {
+  it("詰める動きは JR西日本だけで、ほかの事業者と不明は既定の詰めない値を使う", () => {
     expect(jrWest.closesUp).toBe(true);
+    expect(resolveTrainQueueParams("JR東海").closesUp).toBe(false);
+    expect(resolveTrainQueueParams("京阪").closesUp).toBe(false);
+  });
+
+  it("事業者の表記の揺れをそろえ、路線の ID から事業者を引く", () => {
+    for (const name of ["JR West", "JR-West", "西日本旅客鉄道", "ＪＲ西日本", "jr-west"]) {
+      expect(normalizeOperatorKey(name)).toBe("jr-west");
+      expect(resolveTrainQueueParams(name).closesUp).toBe(true);
+    }
+    expect(normalizeOperatorKey("阪急")).toBeNull();
+    expect(normalizeOperatorKey(null)).toBeNull();
+    expect(findLineOperatorKey("jr-west.東海道線")).toBe("jr-west");
+    expect(findLineOperatorKey("hankyu.神戸線")).toBe("hankyu");
+    expect(findLineOperatorKey(null)).toBeNull();
     expect(resolveTrainQueueParams("阪急")).toEqual(DEFAULT_TRAIN_QUEUE_PARAMS);
     expect(resolveTrainQueueParams(null).closesUp).toBe(false);
   });
@@ -119,6 +136,25 @@ describe("運転パターンからの既定値", () => {
 });
 
 describe("estimateTrainQueueArrival", () => {
+  it("前の列車 1 本が信号の区間を空けるまでは、中央 4 分、長めで 5 分とする", () => {
+    expect(jrWest.minutesPerTrainAhead).toEqual({ p50: 4, p80: 5 });
+    expect(DEFAULT_TRAIN_QUEUE_PARAMS.minutesPerTrainAhead).toEqual({ p50: 4, p80: 5 });
+  });
+
+  it("線路の安全が確かめられる前は、詰める事業者でも詰めず、再開を待ってから着く", () => {
+    const outcome = estimateTrainQueueArrival(build({ closeUpCleared: false }));
+    expect(outcome.beforeResume).toBe(false);
+    expect(outcome.alightStation).toBe("塚本");
+    // 再開まで 30 分 + 塚本まで 3 分
+    expect(outcome.arrival).toEqual({
+      p50: addMinutesToIso(NOW, 33),
+      p80: addMinutesToIso(NOW, 63),
+    });
+    expect(
+      estimateTrainQueueArrival(build({ closeUpCleared: false, untilResume: null })).arrival,
+    ).toBeNull();
+  });
+
   it("前に列車がいなければ、詰める動きで再開の前に次の駅に着く", () => {
     const outcome = estimateTrainQueueArrival(build({ trainsAhead: [] }));
     expect(outcome.alightStation).toBe("塚本");
@@ -128,15 +164,15 @@ describe("estimateTrainQueueArrival", () => {
     expect(outcome.departureDelayMinutes).toBe(0);
     expect(outcome.spacedByHeadway).toBe(false);
     expect(outcome.delays).toEqual([]);
-    // 詰め始めるまで 10 分 + 塚本まで 3 分
+    // 安全が確かめられたいまから詰め始め、塚本まで 3 分
     expect(outcome.arrival).toEqual({
-      p50: addMinutesToIso(NOW, 13),
-      p80: addMinutesToIso(NOW, 23),
+      p50: addMinutesToIso(NOW, 3),
+      p80: addMinutesToIso(NOW, 3),
     });
-    // 動き出すのは詰め始める時刻
+    // 動き出すのはいま
     expect(outcome.departure).toEqual({
-      p50: addMinutesToIso(NOW, 10),
-      p80: addMinutesToIso(NOW, 20),
+      p50: addMinutesToIso(NOW, 0),
+      p80: addMinutesToIso(NOW, 0),
     });
   });
 
@@ -145,13 +181,16 @@ describe("estimateTrainQueueArrival", () => {
       build({ trainsAhead: ["local"], params: resolveTrainQueueParams("阪急") }),
     );
     expect(outcome.beforeResume).toBe(false);
-    // 再開まで 30 分 + 前の列車 1 本ぶん + 塚本まで 3 分
-    const delay = outcome.departureDelayMinutes;
+    // 再開まで 30 分 + 前の列車 1 本ぶん、中央 4 分で長め 5 分 + 塚本まで 3 分
+    expect(outcome.departureDelayMinutes).toBe(4);
     expect(outcome.departure).toEqual({
-      p50: addMinutesToIso(NOW, 30 + delay),
-      p80: addMinutesToIso(NOW, 60 + delay),
+      p50: addMinutesToIso(NOW, 34),
+      p80: addMinutesToIso(NOW, 65),
     });
-    expect(outcome.arrival?.p50).toBe(addMinutesToIso(NOW, 30 + delay + 3));
+    expect(outcome.arrival).toEqual({
+      p50: addMinutesToIso(NOW, 37),
+      p80: addMinutesToIso(NOW, 68),
+    });
   });
 
   it("既定値の並びは、ふだんの間隔で先を走っていたとみなす。次の駅のホームは空いていて、再開の前に着ける", () => {
@@ -167,8 +206,8 @@ describe("estimateTrainQueueArrival", () => {
     expect(outcome.beforeResume).toBe(true);
     expect(outcome.delays).toEqual([]);
     expect(outcome.arrival).toEqual({
-      p50: addMinutesToIso(NOW, 13),
-      p80: addMinutesToIso(NOW, 23),
+      p50: addMinutesToIso(NOW, 3),
+      p80: addMinutesToIso(NOW, 3),
     });
   });
 
@@ -178,7 +217,7 @@ describe("estimateTrainQueueArrival", () => {
     );
     // 1 本目は 2 分先で塚本の手前、2 本目は 4 分先で尼崎の手前。1 本目が塚本に入り、自分は入れない
     expect(outcome.blockingCount).toBe(1);
-    expect(outcome.departureDelayMinutes).toBe(3);
+    expect(outcome.departureDelayMinutes).toBe(4);
     expect(outcome.beforeResume).toBe(false);
     expect(outcome.delays).toEqual([
       { kind: "platform_occupied", station: "塚本", occupiedBy: "local" },
@@ -192,8 +231,11 @@ describe("estimateTrainQueueArrival", () => {
     expect(outcome.alightStation).toBe("尼崎");
     expect(outcome.beforeResume).toBe(true);
     expect(outcome.delays).toEqual([]);
-    // 10 分 + 目の前の 1 本ぶん 3 分 + 尼崎まで 4 分
-    expect(outcome.arrival?.p50).toBe(addMinutesToIso(NOW, 17));
+    // 目の前の 1 本が信号の区間を空ける 4 分、長め 5 分 + 尼崎まで 4 分
+    expect(outcome.arrival).toEqual({
+      p50: addMinutesToIso(NOW, 8),
+      p80: addMinutesToIso(NOW, 9),
+    });
   });
 
   it("目の前の普通が次の駅に入ると、ホームがふさがって自分は再開のあとに着く", () => {
@@ -203,12 +245,12 @@ describe("estimateTrainQueueArrival", () => {
     expect(outcome.delays).toEqual([
       { kind: "platform_occupied", station: "塚本", occupiedBy: "local" },
     ]);
-    // 再開まで 30 分 + 先に発車する 1 本ぶん 3 分 + 塚本まで 3 分
+    // 再開まで 30 分 + 先に発車する 1 本ぶん 4 分、長め 5 分 + 塚本まで 3 分
     expect(outcome.blockingCount).toBe(1);
-    expect(outcome.departureDelayMinutes).toBe(3);
+    expect(outcome.departureDelayMinutes).toBe(4);
     expect(outcome.arrival).toEqual({
-      p50: addMinutesToIso(NOW, 36),
-      p80: addMinutesToIso(NOW, 66),
+      p50: addMinutesToIso(NOW, 37),
+      p80: addMinutesToIso(NOW, 68),
     });
   });
 
@@ -219,9 +261,9 @@ describe("estimateTrainQueueArrival", () => {
     expect(outcome.delays).toEqual([
       { kind: "ahead_cannot_stop", trainType: "rapid", station: "塚本" },
     ]);
-    // 再開まで 30 分 + 先に発車する 2 本ぶん 6 分 + 塚本まで 3 分
-    expect(outcome.departureDelayMinutes).toBe(6);
-    expect(outcome.arrival?.p50).toBe(addMinutesToIso(NOW, 39));
+    // 再開まで 30 分 + 先に発車する 2 本ぶん 8 分 + 塚本まで 3 分
+    expect(outcome.departureDelayMinutes).toBe(8);
+    expect(outcome.arrival?.p50).toBe(addMinutesToIso(NOW, 41));
   });
 
   it("すぐ前の快速の前が空いていれば、快速は先の駅へ進み、自分は次の駅に着ける", () => {
@@ -229,7 +271,8 @@ describe("estimateTrainQueueArrival", () => {
     expect(outcome.alightStation).toBe("塚本");
     expect(outcome.beforeResume).toBe(true);
     expect(outcome.delays).toEqual([]);
-    expect(outcome.arrival?.p50).toBe(addMinutesToIso(NOW, 16));
+    // 快速が信号の区間を空ける 4 分 + 塚本まで 3 分
+    expect(outcome.arrival?.p50).toBe(addMinutesToIso(NOW, 7));
   });
 
   it("自分が快速で次の駅に着けなければ、降りられるのはその先の駅になる", () => {
@@ -237,8 +280,8 @@ describe("estimateTrainQueueArrival", () => {
     expect(outcome.alightStation).toBe("尼崎");
     expect(outcome.beforeResume).toBe(true);
     expect(outcome.delays).toEqual([{ kind: "own_cannot_stop", station: "塚本" }]);
-    // 10 分 + 塚本まで 3 分 + 尼崎まで 4 分
-    expect(outcome.arrival?.p50).toBe(addMinutesToIso(NOW, 17));
+    // 塚本まで 3 分 + 尼崎まで 4 分
+    expect(outcome.arrival?.p50).toBe(addMinutesToIso(NOW, 7));
   });
 
   it("詰めない事業者では、前に列車がいなくても再開を待ってから着く", () => {
@@ -257,14 +300,14 @@ describe("estimateTrainQueueArrival", () => {
     expect(outcome.delays).toEqual([
       { kind: "platform_occupied", station: "塚本", occupiedBy: "local" },
     ]);
-    // 再開まで 30 分 + 3 本ぶん 9 分 + 塚本まで 3 分
-    expect(outcome.departureDelayMinutes).toBe(9);
-    expect(outcome.arrival?.p50).toBe(addMinutesToIso(NOW, 42));
+    // 再開まで 30 分 + 3 本ぶん 12 分 + 塚本まで 3 分
+    expect(outcome.departureDelayMinutes).toBe(12);
+    expect(outcome.arrival?.p50).toBe(addMinutesToIso(NOW, 45));
   });
 
   it("再開の見込みが無くても、詰める事業者なら詰める動きの時刻を返す。詰めなければ null", () => {
     expect(estimateTrainQueueArrival(build({ untilResume: null })).arrival?.p50).toBe(
-      addMinutesToIso(NOW, 13),
+      addMinutesToIso(NOW, 3),
     );
     expect(
       estimateTrainQueueArrival(
@@ -288,7 +331,7 @@ describe("次の駅に着く見込みと分岐点", () => {
 
   it("再開の見込みが分岐点より前なら、乗ったまま待つほうが早い", () => {
     const untilResume = { p50: 5, p80: 10 };
-    const outcome = estimateTrainQueueArrival(build({ untilResume }));
+    const outcome = estimateTrainQueueArrival(build({ untilResume, closeUpCleared: false }));
     expect(outcome.beforeResume).toBe(false);
     const result = computeBreakEven({
       now: NOW,
@@ -320,7 +363,7 @@ describe("次の駅に着く見込みと分岐点", () => {
 
   it("先に発車する前の列車の遅れは、乗ったまま待つ側の到着にも足す", () => {
     const outcome = estimateTrainQueueArrival(build({ trainsAhead: ["local", "local"] }));
-    expect(outcome.departureDelayMinutes).toBe(6);
+    expect(outcome.departureDelayMinutes).toBe(8);
     const plain = computeBreakEven({
       now: NOW,
       remaining: { p50: 30, p80: 60 },
@@ -336,7 +379,7 @@ describe("次の駅に着く見込みと分岐点", () => {
       alternatives: alternativeFrom(outcome.arrival?.p50 ?? NOW),
     });
     if (plain.kind !== "future" || delayed.kind !== "future") throw new Error("分岐点が無い");
-    // 待つ側が遅くなるぶん、分岐点は 6 分早まる
-    expect(delayed.minutesFromNow).toBe(plain.minutesFromNow - 6);
+    // 待つ側が遅くなるぶん、分岐点は 8 分早まる
+    expect(delayed.minutesFromNow).toBe(plain.minutesFromNow - 8);
   });
 });

@@ -46,8 +46,16 @@ const toCause: EntryAction[] = [
   { type: "openPlace", area, place },
   { type: "chooseDestination", inferred: { line, direction } },
 ];
-const toTrainDestination: EntryAction[] = [
+const segment = { from: "塚本", to: "尼崎" };
+// 駅と駅の間で止まっている人が、行き先まで答えてから乗る電車を選び直す。路線の段から聞き直す
+const toTrainLine: EntryAction[] = [
   { type: "chooseLocation", location: "train" },
+  { type: "locateBetween", line, segment, place, area },
+  { type: "chooseDestination", inferred: { line, direction } },
+  { type: "editRoute" },
+];
+const toTrainDestination: EntryAction[] = [
+  ...toTrainLine,
   { type: "chooseLine", line },
   { type: "chooseDirection", direction },
   { type: "choosePosition" },
@@ -128,25 +136,19 @@ describe("reduceEntry", () => {
     expect(reduceEntry(paste, { type: "back" })).toMatchObject({ stage: "cause", method: null });
   });
   it("方面が一つなら問いを省略し、戻ると路線へ戻る", () => {
-    const state = run([
-      { type: "chooseLocation", location: "train" },
-      { type: "chooseLine", line, autoDirection: direction },
-    ]);
+    const state = run([...toTrainLine, { type: "chooseLine", line, autoDirection: direction }]);
     expect(state).toMatchObject({ stage: "trainPosition", directionAuto: true });
     expect(reduceEntry(state, { type: "back" })).toMatchObject({
       stage: "station",
       line: null,
       direction: null,
     });
-    expect(reduceEntry(state, { type: "backTo", depth: 1 }).stage).toBe("station");
+    expect(reduceEntry(state, { type: "backTo", depth: toTrainLine.length }).stage).toBe("station");
   });
   it("駅を選ぶ前や段の外では路線・行き先を選べない", () => {
     expect(run([{ type: "chooseLine", line }])).toEqual(initialEntryState);
     expect(run([{ type: "chooseDestination" }])).toEqual(initialEntryState);
-    const state = run([
-      { type: "chooseLocation", location: "train" },
-      { type: "chooseLine", line },
-    ]);
+    const state = run([...toTrainLine, { type: "chooseLine", line }]);
     expect(reduceEntry(state, { type: "chooseDestination" })).toBe(state);
   });
   it("実際に通った深さへ引き、先の回答を捨てる", () => {
@@ -166,7 +168,36 @@ describe("reduceEntry", () => {
       reduceEntry(resume, { type: "backTo", depth: stageDepth(resume, "cause") }),
     ).toMatchObject({ stage: "cause", cause: null, elapsed: null });
   });
-  it("車内では路線・方面・駅間を答えてから行き先へ進む", () => {
+  it("駅と駅の間を選ぶと、路線と方面の段を飛ばして駅の間の段へ進み、確定すると行き先へ進む", () => {
+    const between = run([{ type: "chooseLocation", location: "train" }]);
+    expect(between).toMatchObject({ stage: "between", location: "train", line: null });
+    const destination = reduceEntry(between, {
+      type: "locateBetween",
+      line,
+      segment,
+      place,
+      area,
+    });
+    expect(destination).toMatchObject({
+      stage: "destination",
+      location: "train",
+      line,
+      segment,
+      direction: null,
+    });
+    let state = reduceEntry(destination, {
+      type: "chooseDestination",
+      inferred: { line, direction },
+    });
+    expect(state).toMatchObject({ stage: "cause", direction, directionAuto: true });
+    const stages = [];
+    while (state.history.length) {
+      state = reduceEntry(state, { type: "back" });
+      stages.push(state.stage);
+    }
+    expect(stages).toEqual(["destination", "between", "position"]);
+  });
+  it("乗る電車を選び直すときは、路線・方面・駅間を答えてから行き先へ進む", () => {
     let state = run(toTrainDestination);
     expect(state.stage).toBe("destination");
     state = reduceEntry(state, { type: "chooseDestination" });
@@ -175,7 +206,16 @@ describe("reduceEntry", () => {
       state = reduceEntry(state, { type: "back" });
       stages.push(state.stage);
     }
-    expect(stages).toEqual(["destination", "trainPosition", "direction", "station", "position"]);
+    expect(stages).toEqual([
+      "destination",
+      "trainPosition",
+      "direction",
+      "station",
+      "cause",
+      "destination",
+      "between",
+      "position",
+    ]);
   });
   it("複数候補や共通路線なしでは行き先の後で路線を聞く", () => {
     const state = run([...toCause.slice(0, -1), { type: "chooseDestination" }]);
@@ -199,7 +239,6 @@ describe("reduceEntry", () => {
   });
 });
 describe("現在地から読み取った位置", () => {
-  const segment = { from: "塚本", to: "尼崎" };
   const locateBetween: EntryAction = { type: "locateBetween", line, segment, place, area };
   it("駅を読み取ると駅にいる人として行き先へ進み、戻るといまどこへ戻る", () => {
     const state = run([{ type: "locateStation", area, place }]);
@@ -270,6 +309,7 @@ describe("selectProgressIndex", () => {
     expect(selectProgressIndex("station", "train")).toBe(0);
     expect(selectProgressIndex("direction", "train")).toBe(0);
     expect(selectProgressIndex("trainPosition", "train")).toBe(0);
+    expect(selectProgressIndex("between", "train")).toBe(0);
   });
 });
 
@@ -421,10 +461,7 @@ describe("行き先の段で先に路線を選ぶ", () => {
   });
 
   it("路線を先に選んでいない方面の段では、駅を押しても進まない", () => {
-    const onTrain = run([
-      { type: "chooseLocation", location: "train" },
-      { type: "chooseLine", line: loop },
-    ]);
+    const onTrain = run([...toTrainLine, { type: "chooseLine", line: loop }]);
     expect(onTrain.stage).toBe("direction");
     expect(reduceEntry(onTrain, { type: "chooseLineStop", direction: loopDirection })).toBe(
       onTrain,
@@ -461,12 +498,7 @@ describe("行き先の段で先に路線を選ぶ", () => {
   it("路線を選んだあとや車内では、先に路線を選べない", () => {
     const picked = run([...toDestination, { type: "pickRoute", line: loop }]);
     expect(reduceEntry(picked, { type: "pickRoute", line })).toBe(picked);
-    const train = run([
-      { type: "chooseLocation", location: "train" },
-      { type: "chooseLine", line },
-      { type: "chooseDirection", direction },
-      { type: "choosePosition" },
-    ]);
+    const train = run(toTrainDestination);
     expect(reduceEntry(train, { type: "pickRoute", line: loop })).toBe(train);
   });
 

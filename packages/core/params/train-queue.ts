@@ -1,34 +1,35 @@
 // 駅間に止まった列車が次の駅に着くまでの見込みに使う値
-// 出典: 開発者（元指令員）の観察。仮の値。社内規程の数値ではない
+// 出典: 開発者の経験からの目安。社内規程の数値ではない
 
 import type { DurationDist, TrainsAheadCount, TrainType } from "@repo/schema";
 
-export const TRAIN_QUEUE_PARAMS_SOURCE = "開発者（元指令員）の観察。仮の値";
+export const TRAIN_QUEUE_PARAMS_SOURCE = "開発者の経験からの目安";
 
 // 事業者ごとの詰める動き
 export type TrainQueueParams = {
   // 止まっている間に、駅間の列車を前の駅へ順に進めるか
+  // 詰め始めるのは線路の安全が確かめられてから。外からは再開に向けた放送か、再開の見込みの時刻が出たことで分かる
   closesUp: boolean;
-  // 詰め始めるまでの分。止まってからではなく、いまからの分として使う
-  // 出典: 開発者（元指令員）の観察。仮の値
-  closeUpLeadMinutes: DurationDist;
-  // 前の列車 1 本が駅に入って線路を空けるまでの分
-  // 出典: 開発者（元指令員）の観察。仮の値
-  minutesPerTrainAhead: number;
+  // 前の列車 1 本が 1 つの信号の区間を空けるまでの分。信号機と信号機の間には列車が 1 本しか入れない
+  // 経験からの目安で 3〜5 分。中央を 4 分、長めを 5 分とする
+  minutesPerTrainAhead: DurationDist;
 };
 
 // 既定は詰めない。詰める事業者だけを下の表で上書きする
-// 出典: 開発者（元指令員）の観察。仮の値
 export const DEFAULT_TRAIN_QUEUE_PARAMS: TrainQueueParams = {
   closesUp: false,
-  closeUpLeadMinutes: { p50: 10, p80: 20 },
-  minutesPerTrainAhead: 3,
+  minutesPerTrainAhead: { p50: 4, p80: 5 },
 };
 
-// 事業者名は観測の operator と同じ日本語の呼び名で引く
-// JR西日本は駅間で止まった列車を詰める傾向にある。出典: 開発者（元指令員）の観察。仮の値
+// キーは路線 ID の先頭と同じ事業者キー
+// 詰める動きは、まず JR西日本だけを対象にする
 export const TRAIN_QUEUE_PARAMS_BY_OPERATOR: Readonly<Record<string, Partial<TrainQueueParams>>> = {
-  JR西日本: { closesUp: true },
+  "jr-west": { closesUp: true },
+};
+
+// 観測の事業者名の表記の揺れ。空白、ハイフン、大文字小文字を除いてから比べる
+export const OPERATOR_KEY_ALIASES: Readonly<Record<string, readonly string[]>> = {
+  "jr-west": ["jr-west", "JR西日本", "JR西", "JR West", "西日本旅客鉄道"],
 };
 
 // 次の駅までの走行時間を路線データから引けないときの代わりの分。関西の都市部の駅間を控えめに丸めた値

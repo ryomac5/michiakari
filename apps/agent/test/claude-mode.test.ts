@@ -557,7 +557,7 @@ describe("claude モードの車内と止まり方", () => {
     expect(judgment?.headline).toBe("車内で待つ");
     expect(judgment?.options).toEqual([]);
     expect(judgment?.breakEven).toBeNull();
-    expect(judgment?.inCar?.staffNote).toBe("長く止まったときは、係員の案内に従ってください。");
+    expect(JSON.stringify(judgment?.inCar)).not.toContain("係員");
   });
 
   it("根拠の説明も検査する。駅間の切り替えの言い方と、その列車だけの停車での見合わせを弾く", async () => {
@@ -604,6 +604,28 @@ describe("claude モードの車内と止まり方", () => {
     await runRequest(train, buildSelectionRequest("in_car_response", false));
     const trainFeedback = JSON.stringify(train.calls.at(-1)?.messages.at(-1)?.content);
     expect(trainFeedback).toContain("evidence[0].description の「見合わせ」");
+  });
+
+  it("車両の故障はその列車から止まる。発表に区間が無ければ止まり方を train にし、見合わせを弾く", async () => {
+    const base = {
+      action: "wait",
+      headline: "運転再開を待つ",
+      breakEvenExplanation: "説明",
+      recommendedOptionId: null,
+      evidence: evidence("vehicle_failure"),
+    };
+    const script = createScriptedLlm({
+      judgment: [
+        ...buildSequence("vehicle_failure"),
+        replyWithTool("emit_judgment", { ...base, reason: "車両の故障で運転を見合わせています。" }),
+        replyWithTool("emit_judgment", { ...base, reason: "後続の列車に遅れが出ています。" }),
+      ],
+    });
+    await runRequest(script, buildSelectionRequest("vehicle_failure", false));
+    const messages = JSON.stringify(script.calls.at(-1)?.messages);
+    expect(messages).toMatch(/stopScope\W+train/);
+    const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
+    expect(feedback).toContain("reason の「見合わせ」");
   });
 
   it("発表に区間が無いのに止まっている区間を書いたら検証で弾き、利用者のいる駅の間は通す", async () => {

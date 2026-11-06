@@ -171,5 +171,5 @@ test("このアプリについての最初に、作った理由が出る", async
   const why = page.getByTestId(testIds.about.why);
   await expect(why).toBeVisible({ timeout: 30_000 });
   await expect(why).toContainText("作った理由");
-  await expect(why).toContainText("この先の流れはある程度読めます");
+  await expect(why).toContainText("過去の事例から見込みを出します");
 });
