@@ -347,3 +347,107 @@ describe("最初の段からの駅の選択", () => {
     expect(reduceEntry(onTrain, { type: "openPlace", area, place })).toBe(onTrain);
   });
 });
+
+describe("行き先の段で先に路線を選ぶ", () => {
+  const loop: EntryLine = {
+    ...line,
+    key: "大阪|jr-west.大阪環状線|JR環状線",
+    lineId: "jr-west.大阪環状線",
+    observedName: "JR環状線",
+    name: { ja: "JR環状線", en: "JR Osaka Loop Line" },
+  };
+  const loopDirection = "大阪|jr-west.大阪環状線|JR環状線>jr-west.大阪環状線.天王寺";
+  const toDestination: EntryAction[] = [
+    { type: "chooseLocation", location: "station" },
+    { type: "openArea", area },
+    { type: "openPlace", area, place },
+  ];
+
+  it("路線、方面、行き先の順に進み、先の方面の駅なら路線と方面をそのまま使う", () => {
+    const picked = run([...toDestination, { type: "pickRoute", line: loop }]);
+    expect(picked).toMatchObject({ stage: "direction", line: loop, routeFirst: true });
+    expect(selectProgressIndex(picked.stage, picked.location, picked.routeFirst)).toBe(1);
+    const directed = reduceEntry(picked, { type: "chooseDirection", direction: loopDirection });
+    expect(directed).toMatchObject({ stage: "destination", line: loop, direction: loopDirection });
+    const cause = reduceEntry(directed, { type: "chooseDestination", onRoute: true });
+    expect(cause).toMatchObject({
+      stage: "cause",
+      line: loop,
+      direction: loopDirection,
+      directionAuto: false,
+    });
+  });
+
+  it("戻ると方面、路線の順に 1 段ずつ引く", () => {
+    const cause = run([
+      ...toDestination,
+      { type: "pickRoute", line: loop },
+      { type: "chooseDirection", direction: loopDirection },
+      { type: "chooseDestination", onRoute: true },
+    ]);
+    const destination = reduceEntry(cause, { type: "back" });
+    expect(destination).toMatchObject({ stage: "destination", direction: loopDirection });
+    const direction = reduceEntry(destination, { type: "back" });
+    expect(direction).toMatchObject({ stage: "direction", line: loop, direction: null });
+    const first = reduceEntry(direction, { type: "back" });
+    expect(first).toMatchObject({ stage: "destination", line: null, routeFirst: false });
+  });
+
+  it("方面が 1 つなら方面を聞かず、行き先の段に方面を決めて戻る", () => {
+    const picked = run([...toDestination, { type: "pickRoute", line, autoDirection: direction }]);
+    expect(picked).toMatchObject({
+      stage: "destination",
+      line,
+      direction,
+      directionAuto: true,
+      routeFirst: true,
+    });
+  });
+
+  it("方面の外の駅を選んだら、今どおり行き先から路線と方面を決め直す", () => {
+    const directed = run([
+      ...toDestination,
+      { type: "pickRoute", line: loop },
+      { type: "chooseDirection", direction: loopDirection },
+    ]);
+    expect(
+      reduceEntry(directed, { type: "chooseDestination", inferred: { line, direction } }),
+    ).toMatchObject({ stage: "cause", line, direction, routeFirst: false });
+    expect(reduceEntry(directed, { type: "chooseDestination" })).toMatchObject({
+      stage: "station",
+      line: null,
+      routeFirst: false,
+    });
+  });
+
+  it("路線を選んだあとや車内では、先に路線を選べない", () => {
+    const picked = run([...toDestination, { type: "pickRoute", line: loop }]);
+    expect(reduceEntry(picked, { type: "pickRoute", line })).toBe(picked);
+    const train = run([
+      { type: "chooseLocation", location: "train" },
+      { type: "chooseLine", line },
+      { type: "chooseDirection", direction },
+      { type: "choosePosition" },
+    ]);
+    expect(reduceEntry(train, { type: "pickRoute", line: loop })).toBe(train);
+  });
+
+  it("選び直しで路線の段に入ると、先に選んだ路線の流れを外す", () => {
+    const cause = run([
+      ...toDestination,
+      { type: "pickRoute", line: loop },
+      { type: "chooseDirection", direction: loopDirection },
+      { type: "chooseDestination", onRoute: true },
+    ]);
+    const editing = reduceEntry(cause, { type: "editRoute" });
+    expect(editing).toMatchObject({ stage: "station", routeFirst: false });
+    const chosen = run(
+      [
+        { type: "chooseLine", line: loop },
+        { type: "chooseDirection", direction: loopDirection },
+      ],
+      editing,
+    );
+    expect(chosen.stage).toBe("cause");
+  });
+});

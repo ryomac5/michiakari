@@ -359,7 +359,10 @@ export function DestinationStep({
   line,
   direction,
   candidates,
+  routeLines,
+  allowUndecided,
   onSelect,
+  onSelectLine,
   onUndecided,
   onFreeText,
 }: {
@@ -367,7 +370,11 @@ export function DestinationStep({
   line: OriginLine | null;
   direction: EntryDirection | null;
   candidates: DirectionStop[];
+  // 行き先より先に選べる路線。地図の路線の札と同じものを並べる
+  routeLines: EntryLine[];
+  allowUndecided: boolean;
   onSelect: (station: StationChoice) => void;
+  onSelectLine: (line: EntryLine) => void;
   onUndecided: () => void;
   onFreeText: (text: string) => void;
 }) {
@@ -390,7 +397,30 @@ export function DestinationStep({
             : t("destinationStationHint")
         }
       />
-      <div className="flex max-h-48 flex-wrap gap-2 overflow-y-auto">
+      {routeLines.length > 0 && (
+        <section className="flex flex-col gap-2" aria-label={t("routeLinesLabel")}>
+          <p className="text-[13px] font-semibold text-muted">
+            {t("routeLinesLabel")}
+            <span className="ml-1.5 font-medium">{t("routeLinesHint")}</span>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {routeLines.map((routeLine) => (
+              <LineButton
+                key={routeLine.key}
+                line={routeLine}
+                testId={testIds.start.routeLine(routeLine.key)}
+                onClick={() => onSelectLine(routeLine)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+      <div
+        className={cn(
+          "flex flex-wrap gap-2 overflow-y-auto",
+          routeLines.length > 0 ? "max-h-28" : "max-h-48",
+        )}
+      >
         {candidates.map((stop) => (
           <StopChip
             key={stop.choice.id}
@@ -399,7 +429,7 @@ export function DestinationStep({
             onClick={() => onSelect(stop.choice)}
           />
         ))}
-        {direction && (
+        {direction && allowUndecided && (
           <button
             type="button"
             data-testid={testIds.start.destinationUndecided}

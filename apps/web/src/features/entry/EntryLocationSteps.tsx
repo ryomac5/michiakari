@@ -165,7 +165,7 @@ export function TrainLineStep({
   const [query, setQuery] = useState("");
   return (
     <>
-      <SheetTitle title={t("trainLineQuestion")} />
+      <SheetTitle title={t("trainLineQuestion")} hint={t("mapLineHint")} />
       <input
         className={buttonClass}
         data-testid={testIds.start.trainLineSearch}
@@ -197,20 +197,23 @@ export function TrainLineStep({
   );
 }
 
+// 選んでいる駅の間は画面が持ち、地図の点線と同じものを指す
 export function TrainPositionStep({
   stops,
-  initialIndex,
+  index,
+  onIndexChange,
   onBetween,
   onNearStop,
 }: {
   stops: DirectionStop[];
-  initialIndex: number;
+  index: number;
+  onIndexChange: (index: number) => void;
   onBetween: (from: DirectionStop, to: DirectionStop) => void;
   onNearStop: (stop: DirectionStop) => void;
 }) {
   const t = useTranslations("entry");
   const locale = useLocale();
-  const [index, setIndex] = useState(initialIndex);
+  const setIndex = onIndexChange;
   const from = stops[index];
   const to = stops[index + 1];
   return (
