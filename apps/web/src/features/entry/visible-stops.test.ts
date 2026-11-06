@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Position } from "./entry-places";
 import {
   buildStopLabelRect,
+  computeStopHitRadii,
   keepStopsIfSame,
   type StopLabel,
   selectVisibleStops,
@@ -57,5 +58,26 @@ describe("keepStopsIfSame", () => {
     const prev = [stop("三ノ宮", 100, 100)];
     const next = [{ ...stop("三ノ宮", 100, 100), side: "right" as const }];
     expect(keepStopsIfSame(prev, next)).toBe(next);
+  });
+});
+
+describe("路線の札", () => {
+  it("路線の札は路線色の印のぶん幅を広く見積もる", () => {
+    const point = { x: 100, y: 100 };
+    const plain = buildStopLabelRect(point, "JR環状線", "right");
+    const line = buildStopLabelRect(point, "JR環状線", "right", true);
+    expect(line.right - line.left).toBeGreaterThan(plain.right - plain.left);
+  });
+});
+
+describe("computeStopHitRadii", () => {
+  it("押せる丸は隣の印との中ほどまでにし、離れていれば 24px にする", () => {
+    const radii = computeStopHitRadii([
+      { x: 0, y: 0 },
+      { x: 30, y: 0 },
+      { x: 200, y: 0 },
+    ]);
+    expect(radii).toEqual([15, 15, 24]);
+    expect(computeStopHitRadii([{ x: 0, y: 0 }], [{ x: 10, y: 0 }])).toEqual([8]);
   });
 });
