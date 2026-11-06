@@ -19,6 +19,7 @@ import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAn
 import { ConclusionCard, ConclusionDetail } from "@/features/judgment/components/ConclusionCard";
 import { Disclaimer } from "@/features/judgment/components/Disclaimer";
 import { EvidenceSection } from "@/features/judgment/components/EvidenceSection";
+import { InCarGuide } from "@/features/judgment/components/InCarGuide";
 import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { NextCheckSection, PremiseSection } from "@/features/judgment/components/NextCheck";
 import { OptionList } from "@/features/judgment/components/OptionList";
@@ -29,6 +30,7 @@ import { TypicalFlowSection } from "@/features/judgment/components/TypicalFlow";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { type OriginLine, type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
+import { selectStoppedPlace, selectStopScope } from "@/features/judgment/stop-scope";
 import { selectSwitchStep } from "@/features/judgment/switch-step";
 import { testIds } from "@/features/judgment/testids";
 import { useOptionFocus, useOptionSelection } from "@/features/judgment/use-option-focus";
@@ -110,6 +112,15 @@ export function JudgmentScreen() {
 
   const display = selectJudgmentDisplay(state);
   const streaming = state.status === "streaming";
+  // 駅間の車内の人は降りられない。選択肢の一覧・バス停・乗り換え候補の駅を出さず、車内の案内だけを出す
+  const inCar = trainPosition?.kind === "between_stations" && trainPosition.nextStation !== null;
+  const inCarGuide = display.judgment?.inCar ?? null;
+  // 止まり方。その列車だけが止まる事象では、見合わせの札と止まった区間の線を出さない
+  const stopScope = selectStopScope(display.estimate?.eventType, known);
+  const stoppedPlace = selectStoppedPlace(
+    trainPosition,
+    origin.kind === "station" ? origin.name : null,
+  );
   const blockedSection = known.findLast((o) => o.section !== null)?.section ?? null;
   const disclaimerExtra =
     display.judgment?.disclaimer ?? state.previousJudgment?.disclaimer ?? null;
@@ -152,7 +163,20 @@ export function JudgmentScreen() {
           destination={destination}
           testId={testIds.judgment.tripSummary}
         />
-        {blockedLine && <StatusChip line={lineLabel} testId={testIds.judgment.statusChip} />}
+        {(blockedLine || stopScope === "train") && (
+          <StatusChip
+            line={blockedLine ? lineLabel : null}
+            scope={stopScope}
+            place={
+              stoppedPlace === null
+                ? null
+                : stoppedPlace.kind === "between"
+                  ? t("tripBetween", { from: stoppedPlace.from, to: stoppedPlace.to })
+                  : stoppedPlace.name
+            }
+            testId={testIds.judgment.statusChip}
+          />
+        )}
       </AppHeader>
 
       <MapPanel
@@ -165,6 +189,7 @@ export function JudgmentScreen() {
         blockedLine={blockedLine}
         blockedDirection={blockedDirection}
         trainPosition={trainPosition}
+        trainOnly={stopScope === "train"}
         insets={chrome.insets}
         onReachSourceChange={setReachSource}
         onGuideChange={setGuide}
@@ -205,6 +230,7 @@ export function JudgmentScreen() {
                   metric={<BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />}
                 />
               )}
+              {state.status === "ready" && inCarGuide && <InCarGuide guide={inCarGuide} />}
               <Disclaimer />
               {/* 2 段目: 再開の見込みの図 */}
               {state.status === "ready" && <ResumeOutlook {...breakEvenProps} />}
@@ -228,19 +254,21 @@ export function JudgmentScreen() {
               <BreakEvenDetail {...breakEvenProps} />
             </SheetSection>
           )}
-          <SheetSection>
-            <OptionList
-              options={display.options}
-              recommendedOptionId={display.recommendedOptionId}
-              stale={display.optionsStale}
-              pending={streaming}
-              marks={guide?.optionMarks}
-              highlightId={highlightId}
-              selectedId={mapOptionId}
-              onSelect={selectOption}
-            />
-          </SheetSection>
-          {busChecks.length > 0 && (
+          {!inCar && (
+            <SheetSection>
+              <OptionList
+                options={display.options}
+                recommendedOptionId={display.recommendedOptionId}
+                stale={display.optionsStale}
+                pending={streaming}
+                marks={guide?.optionMarks}
+                highlightId={highlightId}
+                selectedId={mapOptionId}
+                onSelect={selectOption}
+              />
+            </SheetSection>
+          )}
+          {!inCar && busChecks.length > 0 && (
             <SheetSection>
               <BusChecksSection busChecks={busChecks} />
             </SheetSection>

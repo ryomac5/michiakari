@@ -47,6 +47,9 @@ export type MapScene = {
   destination: Position | null;
   blockedLineIds: string[];
   blocked: FeatureCollection<LineStringGeometry, { label: string }>;
+  // 止まった列車が走っていた線路の路線と道筋。その列車だけが止まるときも、現在地の印を置くのに使う
+  trackLineIds: string[];
+  trackPath: Position[] | null;
   reach: FeatureCollection<IsochroneGeometry, { minutes: number }>;
   // 現在地が引けず範囲を描かないときは null
   reachSource: ReachSource | null;
@@ -87,6 +90,10 @@ export type MapSceneInput = {
   // 入口で選んだ路線と方面。観測に区間が無いとき、出発の駅から方面の先までを止まっている区間にする
   // 運行の状態は利用者の申告だけから出す
   blockedDirection?: BlockedDirection | null;
+  // その列車だけが止まる事象。区間の運転見合わせではないので、止まった区間の線と札を描かない
+  trainOnly?: boolean;
+  // 徒歩の範囲を描かない。駅間の車内の人は降りられないため
+  hideReach?: boolean;
 };
 
 export type BlockedDirection = { lineId: string; terminalId: string };
@@ -688,13 +695,15 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
     sectionPath === null && input.blockedDirection
       ? buildDirectionBlockedPath(geo, input.origin, input.destination, input.blockedDirection)
       : null;
-  const blockedPath = sectionPath ?? directionPath;
+  const trackPath = sectionPath ?? directionPath;
+  // その列車だけが止まるときは、区間を止まっているものとして描かない
+  const blockedPath = input.trainOnly ? null : trackPath;
   const blockedLineIds = blockedPath ? [blockedPath.lineId] : [];
   const blockedLabel = input.blockedSection
     ? `${labels.blocked} ${input.blockedSection.fromStation}–${input.blockedSection.toStation}`
     : labels.blocked;
 
-  const reach = origin ? buildReachFeatures(origin, input.reachAreas) : null;
+  const reach = origin && !input.hideReach ? buildReachFeatures(origin, input.reachAreas) : null;
   const widestReach = reach?.features[0]?.geometry;
   const reachable = widestReach
     ? listReachableStations(geo.nodes, widestReach, blockedLineIds)
@@ -741,9 +750,10 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
         (id) => (id ? geo.index.getStation(id)?.name : undefined) ?? "",
       )
     : [];
-  const blockedEndNames = input.blockedSection
-    ? [input.blockedSection.fromStation, input.blockedSection.toStation]
-    : directionEnds;
+  const blockedEndNames =
+    input.blockedSection && !input.trainOnly
+      ? [input.blockedSection.fromStation, input.blockedSection.toStation]
+      : directionEnds;
   const keyStations = buildKeyStations([
     {
       position: origin,
@@ -794,6 +804,8 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
     origin,
     destination,
     blockedLineIds,
+    trackLineIds: trackPath ? [trackPath.lineId] : [],
+    trackPath: trackPath?.coordinates ?? null,
     blocked: buildFeatureCollection(
       blockedPath ? [buildLineFeature(blockedPath.coordinates, { label: blockedLabel })] : [],
     ),

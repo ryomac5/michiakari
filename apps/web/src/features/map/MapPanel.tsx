@@ -86,6 +86,8 @@ export type MapPanelProps = {
   blockedDirection?: BlockedDirection | null;
   // 車内の位置。駅と駅の間なら、現在地の印を駅間の線路の上に置き、次の駅を降りる駅として目立たせる
   trainPosition?: TrainPosition | null;
+  // その列車だけが止まる事象。止まった区間の線と「運転見合わせ」の札を描かない
+  trainOnly?: boolean;
   insets: MapInsets;
   onReachSourceChange?: (source: ReachSource | null) => void;
   // 現在地のまわりの案内。シートの選択肢の行に同じ印を添えるのに使う
@@ -556,7 +558,10 @@ export function MapPanel(props: MapPanelProps) {
     blockedLine,
     blockedDirection,
     trainPosition,
+    trainOnly = false,
   } = props;
+  // 駅間の車内の人は降りられないので、乗り換え候補の駅と徒歩の範囲を出さない
+  const inCar = trainPosition?.kind === "between_stations" && trainPosition.nextStation !== null;
   // 地図に描く選択肢。一覧で押したものがあればそれ、無ければ推奨
   const focusOptionId = props.selectedOptionId ?? recommendedOptionId;
   const tone = selectRouteTone(options, focusOptionId);
@@ -660,6 +665,8 @@ export function MapPanel(props: MapPanelProps) {
               blockedLine,
               blockedDirection,
               reachAreas,
+              trainOnly,
+              hideReach: inCar,
             },
             { ...labels, english: locale === "en" },
           )
@@ -675,6 +682,8 @@ export function MapPanel(props: MapPanelProps) {
       blockedSection,
       blockedLine,
       blockedDirection,
+      trainOnly,
+      inCar,
       labels,
       locale,
     ],
@@ -729,11 +738,13 @@ export function MapPanel(props: MapPanelProps) {
             recommendedOptionId: focusOptionId,
             starOptionId: recommendedOptionId,
             blockedLineIds: scene.blockedLineIds,
+            trackLineIds: scene.trackLineIds,
+            hideStations: inCar,
             blockedLineName: blockedLine ?? null,
             language: locale === "en" ? "en" : "ja",
             formatWalk: labels.walkLabel,
             between,
-            blockedPath: scene.blocked.features[0]?.geometry.coordinates ?? null,
+            blockedPath: scene.trackPath,
           })
         : null,
     [
@@ -748,6 +759,7 @@ export function MapPanel(props: MapPanelProps) {
       locale,
       labels,
       between,
+      inCar,
     ],
   );
   const view: MapView = guide ? viewChoice : "overview";

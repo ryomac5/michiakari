@@ -299,6 +299,9 @@
     "sheet": "判断の詳細",
     "status": "{line} 見合わせ",
     "statusOnly": "見合わせ",
+    "statusStopped": "{place}で停車中",
+    "statusDelayed": "{line} 後続に遅れ",
+    "statusDelayedOnly": "後続に遅れ",
     "premise": {
       "title": "この判断の前提",
       "trainsAheadPhoto": "走行位置の画像から前の列車を {types} と読みました",
@@ -341,6 +344,11 @@
       "checkHint": "列車走行位置の画面で確かめられます",
       "patternHint": "前の列車の種類が分かると、着く時刻がより確かになります",
       "close": "閉じる"
+    },
+    "inCar": {
+      "title": "車内での動き方",
+      "afterAlight": "着いた後の次の一手",
+      "arrival": "{time} 着"
     },
     "trainTypes": {
       "local": "普通",
