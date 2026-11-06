@@ -72,16 +72,16 @@ export function selectEvidenceEntries(context: {
     .filter((s) => s.heard.length > 0)
     .reverse();
 
-  const seenQuotes = new Set<string>();
-  const distinct = quoted.filter((s) => {
-    if (seenQuotes.has(s.heard)) return false;
-    seenQuotes.add(s.heard);
-    return true;
+  // 同じ引用は 1 つにまとめる。その引用に入っていた兆候の id はすべて残す
+  const distinct = quoted.flatMap((s, index) => {
+    if (quoted.findIndex((t) => t.heard === s.heard) !== index) return [];
+    const signalIds = quoted.filter((t) => t.heard === s.heard).map((t) => t.id);
+    return [{ ...s, signalIds }];
   });
   // 同じ段階は、最も新しい言葉 1 項目にまとめる。まとめた兆候の id は属性に残す
   const unique = distinct.flatMap((s, index) => {
     if (distinct.findIndex((t) => t.phaseId === s.phaseId) !== index) return [];
-    const signalIds = distinct.filter((t) => t.phaseId === s.phaseId).map((t) => t.id);
+    const signalIds = distinct.filter((t) => t.phaseId === s.phaseId).flatMap((t) => t.signalIds);
     return [{ ...s, signalIds }];
   });
   const ordered = [

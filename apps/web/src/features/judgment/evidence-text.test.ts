@@ -168,6 +168,23 @@ describe("selectEvidenceEntries", () => {
       locale: "ja",
     });
     expect(sameQuote.map((e) => e.id)).toEqual(["pa_held"]);
+    // 引用をまとめても、その引用に入っていた兆候の id はすべて残す
+    expect(sameQuote[0]?.signalIds).toEqual(["pa_held", "pa_occurred"]);
+
+    // 段階の違う兆候が同じ引用に入っていても、どの兆候の id も落とさない
+    const acrossPhases = selectEvidenceEntries({
+      catalog,
+      estimate: estimate("on_site"),
+      signals: [
+        signal("pa_occurred", "人身事故のため、運転を見合わせています。"),
+        signal("pa_held", "警察による現場の確認を行っています。"),
+        signal("police_on_scene", "警察による現場の確認を行っています。"),
+      ],
+      locale: "ja",
+    });
+    const ids = acrossPhases.flatMap((e) => e.signalIds ?? []);
+    expect([...ids].sort()).toEqual(["pa_held", "pa_occurred", "police_on_scene"]);
+    expect(new Set(acrossPhases.map((e) => e.heard)).size).toBe(acrossPhases.length);
   });
 
   it("いまの段階の言葉が無ければ、最も新しい言葉からいまの段階を読む", () => {
