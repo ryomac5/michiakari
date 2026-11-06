@@ -1,6 +1,7 @@
 // 決定論的な計算。Claude を呼ばない
 
 export {
+  COMMUTE_HOUR_RANGES,
   MONTE_CARLO_SAMPLE_COUNT,
   MONTE_CARLO_SEED,
   PREDICTABILITY_HIGH_MAX_RATIO,
@@ -8,6 +9,13 @@ export {
   SHORT_FLOW_MAX_MINUTES,
   STATED_RESUME_SLACK_MINUTES,
 } from "../params/estimation.ts";
+export {
+  type DurationPeriod,
+  INCIDENT_GROUP_IDS,
+  INCIDENT_TYPE_IDS,
+  type IncidentGroupId,
+  type IncidentTypeId,
+} from "../params/incident-durations.ts";
 export * from "../params/routing.ts";
 export {
   OSAKA_CITY_TAXI_FARE,
@@ -78,6 +86,15 @@ export {
   sampleDuration,
   sampleRemainingDuration,
 } from "./duration-model.ts";
+export {
+  classifyDurationPeriod,
+  estimateStatsRemaining,
+  type IncidentDurationTables,
+  type ResolvedIncidentDuration,
+  resolveIncidentDuration,
+  type StatsRemaining,
+  sampleStatsRemaining,
+} from "./incident-stats.ts";
 export {
   compareReplayOutcome,
   OUTCOME_SMALL_DIFF_MINUTES,

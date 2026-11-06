@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { INCIDENT_GROUP_IDS, INCIDENT_TYPE_IDS, resolveIncidentDuration } from "@repo/core";
 import { findRepoRoot } from "@repo/schema/loaders";
 import { describe, expect, it } from "vitest";
 import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
@@ -12,6 +13,7 @@ import {
   listCauseKinds,
   needsCauseKind,
   resolveCauseEventType,
+  resolveIncidentCause,
   toCauseAnswer,
   toCauseChoiceId,
 } from "./cause-categories";
@@ -100,5 +102,65 @@ describe("resolveCauseEventType", () => {
     expect(resolveCauseEventType(null, devCatalog)).toBeNull();
     expect(resolveCauseEventType({ category: null, kind: null }, devCatalog)).toBeNull();
     expect(resolveCauseEventType({ category: "vehicle", kind: null }, [])).toBeNull();
+  });
+});
+
+describe("resolveIncidentCause", () => {
+  it("選択肢を統計値の大分類と種類にする。種類を聞かない大分類は種類を null にする", () => {
+    const resolve = (choice: CauseChoiceId) => resolveIncidentCause(toCauseAnswer(choice));
+    expect(resolve("person")).toEqual({ group: "passenger", type: "person_collision" });
+    expect(resolve("inCar")).toEqual({ group: "passenger", type: "medical_response" });
+    expect(resolve("signaling")).toEqual({ group: "signaling", type: null });
+    expect(resolveIncidentCause({ category: "weather", kind: "wind" })).toEqual({
+      group: "weather",
+      type: "strong_wind",
+    });
+    expect(resolveIncidentCause({ category: "weather", kind: "other" })).toEqual({
+      group: "weather",
+      type: null,
+    });
+    expect(resolveIncidentCause(null)).toBeNull();
+    expect(resolveIncidentCause({ category: null, kind: null })).toBeNull();
+  });
+
+  it("送る大分類と種類は、すべて統計値にある id", () => {
+    const answers = [
+      ...causeChoiceIds.map(toCauseAnswer),
+      ...listCauseKinds("weather").map((kind) => ({ category: "weather" as const, kind })),
+    ];
+    for (const answer of answers) {
+      const cause = resolveIncidentCause(answer);
+      expect(INCIDENT_GROUP_IDS).toContain(cause?.group);
+      if (cause?.type) expect(INCIDENT_TYPE_IDS).toContain(cause.type);
+    }
+  });
+
+  // 見込みの出どころは、知見があれば知見、無ければ統計値、統計値も無ければなし
+  it("ダミー知見では、知見のある 4 つは知見、ほかの大分類は統計値、分からないはなし", () => {
+    const stoppedAt = "2026-11-06T12:00:00+09:00";
+    const decideSource = (answer: Parameters<typeof resolveIncidentCause>[0]) => {
+      if (resolveCauseEventType(answer, devCatalog)) return "knowledge";
+      const cause = resolveIncidentCause(answer);
+      return cause && resolveIncidentDuration(cause, stoppedAt) ? "statistics" : "none";
+    };
+    const sources = Object.fromEntries(
+      causeChoiceIds.map((choice) => [choice, decideSource(toCauseAnswer(choice))]),
+    );
+    expect(sources).toEqual({
+      person: "knowledge",
+      inCar: "knowledge",
+      vehicle: "knowledge",
+      signaling: "statistics",
+      power: "statistics",
+      obstruction: "statistics",
+      infrastructure: "statistics",
+      weather: "statistics",
+      major_accident: "statistics",
+    });
+    expect(decideSource({ category: "weather", kind: "rain" })).toBe("knowledge");
+    for (const kind of ["wind", "snow", "lightning", "earthquake", "other"] as const) {
+      expect(decideSource({ category: "weather", kind })).toBe("statistics");
+    }
+    expect(decideSource(null)).toBe("none");
   });
 });

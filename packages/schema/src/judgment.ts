@@ -102,13 +102,20 @@ export const BreakEvenSchema = z.object({
 });
 export type BreakEven = z.infer<typeof BreakEvenSchema>;
 
+// 再開の見込みの出どころ。知見、原因の統計値、どちらも無い。画面には説明の文を出さず、前提の言い方を選ぶのに使う
+export const EstimateSourceSchema = z.enum(["knowledge", "statistics", "none"]);
+export type EstimateSource = z.infer<typeof EstimateSourceSchema>;
+
 // 事象を特定できないときは eventType を null にし、分岐点だけで判断を返す
+// 知見が無くても入口で答えた原因の統計値があれば、remaining を統計値から詰める
 export const EstimateSchema = z.object({
   eventType: IdSchema.nullable(),
   phaseId: IdSchema.nullable(),
   elapsedMinutes: NonNegativeIntSchema.nullable(),
   remaining: DurationDistSchema.nullable(),
   confidence: ConfidenceSchema,
+  // 省略は以前の記録との互換のため。agent は常に詰める
+  source: EstimateSourceSchema.optional(),
 });
 export type Estimate = z.infer<typeof EstimateSchema>;
 
