@@ -8,6 +8,12 @@ import type {
   ResumeChance,
 } from "@repo/schema";
 import type { z } from "zod";
+import {
+  collectKnowledgeSentences,
+  findFlowWording,
+  findInternalWording,
+  findKnowledgeText,
+} from "../domain/flow-wording.ts";
 import { selectEventType } from "../domain/phase.ts";
 import { ComputeBreakEvenInputSchema, runComputeBreakEven } from "../tools/compute-break-even.ts";
 import { EstimatePhaseInputSchema, runEstimatePhase } from "../tools/estimate-phase.ts";
@@ -53,6 +59,8 @@ export type JudgeSession = {
     judgment: unknown,
     results: JudgmentToolResults,
   ): ReturnType<typeof validateJudgment>;
+  // Claude の進み具合の文を画面に流してよいか。内部の名前、知見の文、決まった流れの言い方を含めば流さない
+  checkProgressNote(note: string): boolean;
   // 途中経過を送る。段階を渡すと定型文を使う
   emitProgress(stage: ProgressStage | undefined, message?: string): Promise<void>;
   // 兆候のイベントで使う事象種別（観測の候補から決める）
@@ -245,6 +253,7 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
   const state = createToolState();
   const language = ctx.request.language;
   const inferredEventType = selectEventType(ctx.observations, ctx.content.knowledge);
+  const knowledgeSentences = collectKnowledgeSentences(ctx.content.knowledge.values());
   // 駅間の車内の人には、選択肢の一覧と境目を画面へ送らない
   const inCar = checkInCarBetweenStations(ctx.request);
 
@@ -466,6 +475,7 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
         r.kind === "future" || r.kind === "passed" ? r.bestAlternativeId : null,
       inCarAlternativeLines: inCar ? listAlternativeLines(results) : null,
       stopScope: resolveSessionStopScope(),
+      knowledgeSentences,
     });
   }
 
@@ -479,6 +489,10 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     executeTool,
     collectEvidenceRefs,
     checkJudgment,
+    checkProgressNote: (note) =>
+      findFlowWording(note, language) === null &&
+      findInternalWording(note) === null &&
+      findKnowledgeText(note, knowledgeSentences) === null,
     emitProgress,
     inferredEventType,
     buildInCarGuide: (results) => buildInCarGuide(ctx.request, results),

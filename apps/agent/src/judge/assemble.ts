@@ -11,7 +11,7 @@ import {
   type Observation,
 } from "@repo/schema";
 import { headlineLimits, reasonLimits } from "../config.ts";
-import { findFlowWording } from "../domain/flow-wording.ts";
+import { findFlowWording, findInternalWording, findKnowledgeText } from "../domain/flow-wording.ts";
 import type { Decision } from "../tools/emit-judgment.ts";
 import type {
   AlternativesToolResult,
@@ -324,6 +324,28 @@ export function checkFlowWording(field: string, text: string, language: Lang): s
   ];
 }
 
+// 内部の名前と知見の本文を、利用者に見せる文に写していれば指摘する
+export function checkSourceWording(
+  field: string,
+  text: string,
+  knowledgeSentences: readonly string[],
+): string[] {
+  const name = findInternalWording(text);
+  const copied = findKnowledgeText(text, knowledgeSentences);
+  return [
+    ...(name
+      ? [
+          `${field} の「${name}」は内部の名前です。id、項目名、p50 や p80 は書かず、利用者が聞く言葉で書いてください`,
+        ]
+      : []),
+    ...(copied
+      ? [
+          `${field} に知見の文「${copied}」を写しています。知見の文は開発者向けの根拠です。言い換えずに外し、比較の形で書いてください`,
+        ]
+      : []),
+  ];
+}
+
 // 区間全体の運転見合わせを指す言い回し。その列車だけが止まる事象には使わない
 const SUSPENSION_PATTERNS: Record<Lang, RegExp> = {
   ja: /見合わせ/,
@@ -365,6 +387,8 @@ export type JudgmentCheckInput = {
   inCarAlternativeLines?: readonly string[] | null;
   // 止まり方。その列車だけが止まる事象では「見合わせ」と書かせない
   stopScope?: StopScope;
+  // 知見の本文の文。利用者に見せる文に写していれば弾く
+  knowledgeSentences?: readonly string[];
 };
 
 // スキーマ、ID 参照、根拠の出どころ、文中の数値を検査し、問題を文字列で返す
@@ -410,6 +434,7 @@ export function validateJudgment(input: JudgmentCheckInput): {
   ];
   for (const [field, text] of shownTexts) {
     errors.push(...checkFlowWording(field, text, input.language));
+    errors.push(...checkSourceWording(field, text, input.knowledgeSentences ?? []));
   }
   if (inCarLines !== null) {
     if (j.recommendedOptionId !== null) {
