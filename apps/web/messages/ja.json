@@ -250,45 +250,13 @@
     },
     "evidence": {
       "title": "判断の根拠",
-      "phases": "段階",
-      "here": "いまここ",
-      "elapsed": "この段階に入って約{minutes}分",
-      "unknownPhase": "段階は次の放送や掲示で絞り込めます",
-      "signals": "検出した兆候",
-      "noSignals": "兆候は次の放送や掲示から拾います",
-      "items": "使った知見と計算",
-      "kinds": {
-        "signal": "兆候",
-        "knowledge": "知見",
-        "weather": "気象",
-        "computation": "計算"
-      },
-      "describe": {
-        "signal": "発表の「{quote}」",
-        "event": "{event}のよくある流れ",
-        "phase": "いまの段階は「{phase}」",
-        "knowledge": "元指令員の知見"
-      }
-    },
-    "flow": {
-      "title": "よくある流れ",
-      "now": "いま {phase}・{index}/{total}",
-      "steps": "全{total}段",
-      "minutes": "約{minutes}分",
-      "here": "いまここ",
-      "predictability": {
-        "high": "流れが読みやすい",
-        "medium": "流れにやや幅",
-        "low": "流れが読みにくい"
-      },
-      "usual": {
-        "long": "ふつう{duration}ほどで再開",
-        "short": "ふつう{span}分で終わる"
-      },
-      "duration": {
-        "minutes": "{minutes}分",
-        "hours": "{hours}時間",
-        "hoursMinutes": "{hours}時間{minutes}分"
+      "heard": "聞いたこと",
+      "heardQuote": "「{quote}」",
+      "reading": {
+        "label": "そこから読めること",
+        "current": "いまは{phase}の段階です。",
+        "entered": "{phase}の段階に入ったと読めます。",
+        "unknown": "段階はまだ絞れていません。"
       }
     },
     "addInfo": {
@@ -406,9 +374,6 @@
       "start": "再生をはじめる"
     },
     "changed": "判断が変わりました",
-    "phases": "段階",
-    "here": "いまここ",
-    "unknownPhase": "段階は次の観測で絞り込めます",
     "history": "これまでの発表",
     "trip": "{origin} → {destination}",
     "bar": "再生の操作",

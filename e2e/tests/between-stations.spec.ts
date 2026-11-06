@@ -300,9 +300,13 @@ test("人身事故で長く止まっても、乗ったままで三ノ宮に着�
   await expectInCarWait(page);
   await expect(page.getByTestId(testIds.judgment.inCarAfterAlight)).toHaveCount(0);
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).not.toContainText("タクシー");
+  // 理由は次の駅に着く見込みで始め、再開までの時間を事象の流れとして言い切らない
+  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toHaveText(
+    /^塚本には\d{1,2}時\d{2}分ごろに着く見込みです。$/,
+  );
   await openSheet(page, "half");
-  await expect(page.getByTestId(testIds.judgment.conclusionReasonDetail)).toContainText(
-    "人身事故はふつう1時間ほどで再開します",
+  await expect(page.getByTestId(testIds.judgment.sheet)).not.toContainText(
+    /よくある流れ|ふつう|\d+(時間|分)ほどで再開/,
   );
 });
 

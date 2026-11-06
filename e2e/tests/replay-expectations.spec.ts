@@ -63,10 +63,11 @@ async function checkExpectation(page: Page, expectation: Expectation): Promise<v
   }
   if (expectation.phase !== undefined) {
     await expect(judgment, label).toHaveAttribute("data-phase-id", expectation.phase);
-    await expect(page.getByTestId(testIds.replay.phase(expectation.phase)), label).toHaveAttribute(
-      "data-position",
-      "current",
-    );
+    // 根拠の欄の先頭の項目が、いまの段階を読む
+    const firstItem = page.getByTestId(testIds.judgment.evidence).locator("li").first();
+    await expect(firstItem, label).toHaveAttribute("data-phase-id", expectation.phase);
+    await expect(firstItem, label).toHaveAttribute("data-current", "true");
+    await expect(firstItem.getByTestId(testIds.judgment.evidenceReading), label).toBeVisible();
   }
   for (const id of expectation.evidence_includes ?? []) {
     await expect(judgment, label).toHaveAttribute(
