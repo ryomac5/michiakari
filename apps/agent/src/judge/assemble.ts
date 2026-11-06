@@ -1,7 +1,9 @@
+import type { StopScope } from "@repo/core";
 import { diffMinutes, getJstMinuteOfDay } from "@repo/core";
 import {
   checkJudgmentRefs,
   type Evidence,
+  type InCarGuide,
   type Judgment,
   JudgmentSchema,
   type Knowledge,
@@ -25,11 +27,33 @@ export type JudgmentToolResults = {
   breakEven: BreakEvenToolResult;
 };
 
+// 駅間の車内の人には、境目と選択肢の一覧を付けず、車内の案内だけを付ける
 export function assembleJudgment(
   results: JudgmentToolResults,
   decision: Decision,
   language: Lang,
+  inCar: InCarGuide | null = null,
 ): Judgment {
+  if (inCar) {
+    const typicalFlow = results.estimate.typicalFlow;
+    return {
+      action: decision.action,
+      headline: decision.headline,
+      reason: decision.reason,
+      breakEven: null,
+      estimate: results.estimate.estimate,
+      options: [],
+      recommendedOptionId: decision.recommendedOptionId,
+      evidence: decision.evidence.map((e) => ({
+        kind: e.kind,
+        id: e.id,
+        description: e.description,
+      })),
+      disclaimer: buildDisclaimer(language),
+      ...(typicalFlow ? { typicalFlow } : {}),
+      inCar,
+    };
+  }
   const r = results.breakEven.result;
   const typicalFlow = results.estimate.typicalFlow;
   // 時刻ごとの再開の見込みと、待ったほうが早く着く確率。分岐点の計算で求め、分岐点と一緒に届ける
@@ -147,9 +171,11 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
     results.estimate.boardableP50,
     results.estimate.boardableP80,
     results.estimate.phaseStartedAt,
-    // 駅間の車内なら、ホームに着ける駅に着く見込みの時刻
+    // 駅間の車内なら、ホームに着ける駅に着く見込みの時刻と、自分の列車が動き出す見込みの時刻
     results.estimate.trainQueue?.arrival?.p50 ?? null,
     results.estimate.trainQueue?.arrival?.p80 ?? null,
+    results.estimate.trainQueue?.departure?.p50 ?? null,
+    results.estimate.trainQueue?.departure?.p80 ?? null,
     results.breakEven.deadline,
     // 確率の目盛りの時刻、期限に間に合うために動いていなければならない時刻、発生とみなした時刻
     ...(chance
@@ -286,6 +312,42 @@ export function checkDecisiveWording(field: string, text: string, language: Lang
   ];
 }
 
+// 切り替えを勧める言い回し。駅間の車内の人には使わない
+const SWITCH_PATTERNS: Record<Lang, RegExp> = {
+  ja: /乗り換え|乗換|切り替え|切替|タクシー|振替|降りて|歩いて/,
+  en: /\b(change to|change trains|switch|taxi|get off|transfer|walk)/i,
+};
+
+// 区間全体の運転見合わせを指す言い回し。その列車だけが止まる事象には使わない
+const SUSPENSION_PATTERNS: Record<Lang, RegExp> = {
+  ja: /見合わせ/,
+  en: /suspen/i,
+};
+
+// 駅間の車内の人に切り替えを勧めていれば指摘する。代替手段の路線名も勧める言葉とみなす
+export function checkInCarWording(
+  field: string,
+  text: string,
+  language: Lang,
+  alternativeLines: readonly string[],
+): string[] {
+  const match =
+    SWITCH_PATTERNS[language].exec(text)?.[0] ?? alternativeLines.find((l) => text.includes(l));
+  if (!match) return [];
+  return [
+    `${field} の「${match}」は切り替えを勧める言葉です。駅間の車内の人は降りられないので、車内で待つことだけを書いてください`,
+  ];
+}
+
+// その列車だけが止まる事象で、運転見合わせと書いていれば指摘する
+export function checkStopScopeWording(field: string, text: string, language: Lang): string[] {
+  const match = SUSPENSION_PATTERNS[language].exec(text);
+  if (!match) return [];
+  return [
+    `${field} の「${match[0]}」は区間全体が止まる言い方です。この事象で止まっているのはその列車だけです。停車中や後続の遅れとして書いてください`,
+  ];
+}
+
 export type JudgmentCheckInput = {
   judgment: unknown;
   language: Lang;
@@ -293,6 +355,10 @@ export type JudgmentCheckInput = {
   allowedNumbers: AllowedNumbers;
   // core が勧める代替手段の id（分岐点の計算に使ったもの）。代替手段が無ければ null か省く
   recommendedAlternativeId?: string | null;
+  // 駅間の車内の人なら、代替手段で乗る路線名。駅にいる人なら null か省く
+  inCarAlternativeLines?: readonly string[] | null;
+  // 止まり方。その列車だけが止まる事象では「見合わせ」と書かせない
+  stopScope?: StopScope;
 };
 
 // スキーマ、ID 参照、根拠の出どころ、文中の数値を検査し、問題を文字列で返す
@@ -319,6 +385,30 @@ export function validateJudgment(input: JudgmentCheckInput): {
   for (const e of j.evidence) {
     if (!input.evidenceRefs.some((r) => r.kind === e.kind && r.id === e.id)) {
       errors.push(`根拠がツールの結果にありません: ${e.kind}/${e.id}`);
+    }
+  }
+  const inCarLines = input.inCarAlternativeLines ?? null;
+  // 利用者に見せる生成文。根拠の説明のうち、サーバーが作った説明をそのまま写したものは発表の引用を含むので除く
+  const serverDescriptions = new Set(input.evidenceRefs.map((r) => r.description));
+  const shownTexts: [string, string][] = [
+    ["headline", j.headline],
+    ["reason", j.reason ?? ""],
+    ["breakEven.explanation", j.breakEven?.explanation ?? ""],
+    ...j.evidence.flatMap((e, i): [string, string][] =>
+      serverDescriptions.has(e.description) ? [] : [[`evidence[${i}].description`, e.description]],
+    ),
+  ];
+  if (inCarLines !== null) {
+    if (j.recommendedOptionId !== null) {
+      errors.push("駅間の車内の人には recommendedOptionId を null にしてください");
+    }
+    for (const [field, text] of shownTexts) {
+      errors.push(...checkInCarWording(field, text, input.language, inCarLines));
+    }
+  }
+  if (input.stopScope === "train") {
+    for (const [field, text] of shownTexts) {
+      errors.push(...checkStopScopeWording(field, text, input.language));
     }
   }
   const recommended = j.options.find((o) => o.id === j.recommendedOptionId);

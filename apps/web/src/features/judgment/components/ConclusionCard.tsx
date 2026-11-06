@@ -64,7 +64,8 @@ export function ConclusionCard({
             className="-mt-1 flex items-center gap-1.5 text-[15px] font-semibold text-muted"
           >
             <CornerDownRight className="size-4 shrink-0" strokeWidth={2} aria-hidden />
-            <span className="sr-only">{t("next")}: </span>
+            {/* 駅間の車内では 2 文目は動く見込みで、次の手ではない */}
+            {!judgment.inCar && <span className="sr-only">{t("next")}: </span>}
             <NoBreakText text={rest} />
           </p>
         )}

@@ -148,7 +148,12 @@ async function finishDeterministically(session: JudgeSession, sink: EventSink): 
   await session.emitProgress("judgment");
   const decision = decideDeterministically(session, results);
   const checked = session.checkJudgment(
-    assembleJudgment(results, decision, session.ctx.request.language),
+    assembleJudgment(
+      results,
+      decision,
+      session.ctx.request.language,
+      session.buildInCarGuide(results),
+    ),
     results,
   );
   if (!checked.judgment)

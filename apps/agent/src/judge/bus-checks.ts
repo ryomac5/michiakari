@@ -3,11 +3,13 @@ import type { AlternativesProvider } from "../alternatives/provider.ts";
 
 // 確定した判断に、出発地の近くのバス停の確認候補を付ける
 // 判断の後に決定論で付けるので、Claude には渡らず、見出し・理由・推奨にも入らない
+// 駅間の車内の人は降りられないので付けない
 export function attachBusChecks(
   judgment: Judgment,
   provider: AlternativesProvider,
   origin: Place,
 ): Judgment {
+  if (judgment.inCar) return judgment;
   const busChecks = provider.listBusChecks(origin);
   return busChecks.length > 0 ? { ...judgment, busChecks } : judgment;
 }

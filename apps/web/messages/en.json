@@ -299,6 +299,9 @@
     "sheet": "Judgment details",
     "status": "{line} suspended",
     "statusOnly": "Suspended",
+    "statusStopped": "Stopped at {place}",
+    "statusDelayed": "{line}: trains behind delayed",
+    "statusDelayedOnly": "Trains behind delayed",
     "premise": {
       "title": "What this assumes",
       "trainsAheadPhoto": "We read the trains ahead as {types} from your train location image",
@@ -341,6 +344,11 @@
       "checkHint": "You can check this on the train location page",
       "patternHint": "Knowing the trains ahead makes the arrival time more certain",
       "close": "Close"
+    },
+    "inCar": {
+      "title": "What to do on board",
+      "afterAlight": "Next step after you arrive",
+      "arrival": "arr. {time}"
     },
     "trainTypes": {
       "local": "local",

@@ -1,37 +1,19 @@
 import { computeLateShare, selectKeyTick } from "@repo/core";
-import type { Action, Knowledge, RouteOption } from "@repo/schema";
+import type { Action, Knowledge } from "@repo/schema";
 import { decisionParams } from "../config.ts";
 import type { Decision } from "../tools/emit-judgment.ts";
 import type { BreakEvenToolResult, EstimateToolResult, WeatherToolResult } from "../tools/types.ts";
 import type { JudgmentToolResults } from "./assemble.ts";
+import { buildTrainQueueText, checkInCarBetweenStations } from "./in-car.ts";
 import { buildComputedBreakEven, type JudgeSession } from "./session.ts";
 import {
   buildDecisionText,
+  buildInCarDecisionText,
   buildNoAlternativeSentence,
   type ChanceTextInput,
   type DecisionReason,
   type DecisionTextInput,
-  type TrainQueueText,
 } from "./templates.ts";
-
-// 駅間の車内の利用者向けの文の材料。切り替え先の路線は、推奨の選択肢が最初に乗る路線
-export function buildTrainQueueText(
-  estimate: EstimateToolResult,
-  bestOption: Pick<RouteOption, "legs"> | null,
-): TrainQueueText | null {
-  const queue = estimate.trainQueue;
-  if (!queue) return null;
-  return {
-    alightStation: queue.alightStation,
-    arrivalP50: queue.arrival?.p50 ?? null,
-    beforeResume: queue.beforeResume,
-    trainsAheadCount: queue.trainsAheadCount,
-    spacedByHeadway: queue.spacedByHeadway,
-    ownTrainType: queue.ownTrainType,
-    delays: queue.delays,
-    switchLine: bestOption?.legs.find((l) => l.mode === "ride")?.line ?? null,
-  };
-}
 
 // 決定論モードの判断規則。API キーが無いときと Claude の失敗時に使う
 
@@ -210,6 +192,23 @@ export function decideDeterministically(
   results: JudgmentToolResults,
 ): Decision {
   const language = session.ctx.request.language;
+  // 駅間の車内では、結論は車内で待つだけにする。境目の比較で切り替えを勧めない。次の駅が分からなくても同じ
+  if (checkInCarBetweenStations(session.ctx.request)) {
+    const flow = buildFlowText(results.estimate);
+    const text = buildInCarDecisionText({
+      language,
+      queue: buildTrainQueueText(results.estimate),
+      flowSentence: flow?.inReason ? flow.sentence : null,
+    });
+    return {
+      action: "wait",
+      headline: text.headline,
+      reason: text.reason,
+      breakEvenExplanation: buildNoAlternativeSentence(language),
+      recommendedOptionId: null,
+      evidence: session.collectEvidenceRefs(),
+    };
+  }
   const eventType = results.estimate.estimate.eventType;
   const outcome = applyDecisionRules({
     ...results,
@@ -235,7 +234,6 @@ export function decideDeterministically(
     bestOption,
     flow: buildFlowText(results.estimate),
     chance: buildChanceText(results.breakEven, outcome.reason),
-    trainQueue: buildTrainQueueText(results.estimate, bestOption),
   });
   return {
     action: outcome.action,

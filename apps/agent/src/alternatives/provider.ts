@@ -9,8 +9,11 @@ export type AlternativesQuery = {
   // 止まっている路線と区間。不明なら null
   blockedLine: string | null;
   blockedSection: Section | null;
+  // 止まっている区間を、駅間の車内のために来た側の駅から作ったか。観測の区間なら省略する
+  blockedSectionFromTrain?: boolean;
   now: string;
   // 代替手段に乗り出せる時刻。駅間の車内なら次の駅に着く見込み。省略すれば now
+  // 駅間の車内なら、乗ったまま待つ側もこの時刻より前には出発の駅を出られない
   departureTime?: string;
   // 再開後に、乗ったまま待つ側の到着へ足す分。駅間の車内なら、前の列車が先に発車するぶんの遅れ
   extraWaitMinutesAfterResume?: number;
