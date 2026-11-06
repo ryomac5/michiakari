@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import type { MapInsets } from "@/features/map/MapPanel";
 import { desktopMediaQuery, useMediaQuery } from "@/lib/use-media-query";
+import { computeHeaderShift, useSafeArea } from "@/lib/use-safe-area";
 import { cn } from "@/lib/utils";
 import { type SheetSnap, sheetTopInset } from "./MapSheet";
 
@@ -22,7 +23,10 @@ export function SheetSection({
   return (
     <div
       data-testid={testId}
-      className={cn("flex flex-col gap-3 border-t border-border py-4 first:border-t-0", className)}
+      className={cn(
+        "flex flex-col gap-3 border-t border-border py-4 first:border-t-0 first:pt-1",
+        className,
+      )}
     >
       {title && <h2 className="text-[13px] font-medium text-muted">{title}</h2>}
       {children}
@@ -39,8 +43,10 @@ export function useMapChrome(topInset: number = sheetTopInset) {
   const [snap, setSnap] = useState<SheetSnap>("collapsed");
   const [collapsedHeight, setCollapsedHeight] = useState(200);
   const desktop = useMediaQuery(desktopMediaQuery);
+  // 端末の上の余白で帯が下がるぶん、地図の上の余白も広げる
+  const top = topInset + computeHeaderShift(useSafeArea());
   const insets: MapInsets = desktop
-    ? { top: topInset, right: panelInset, bottom: 0, left: 0 }
-    : { top: topInset, right: 0, bottom: collapsedHeight, left: 0 };
+    ? { top, right: panelInset, bottom: 0, left: 0 }
+    : { top, right: 0, bottom: collapsedHeight, left: 0 };
   return { snap, setSnap, setCollapsedHeight, insets, desktop, topInset };
 }

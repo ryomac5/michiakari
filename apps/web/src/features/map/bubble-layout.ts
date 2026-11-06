@@ -418,6 +418,22 @@ function isCollisionFree(input: LayoutInput, layout: LabelLayout): boolean {
   );
 }
 
+// 必須でない札が、見える範囲の縁や覆ってはいけないボタンにかかる面積の合計（px²）
+// 縁で欠けた札とボタンに重なる札は読めないので、隠すほうを選ぶ
+function measureOptionalEdgeOverlap(input: LayoutInput, layout: LabelLayout): number {
+  return input.items
+    .filter((item) => !input.inside?.includes(item.key) && !layout.hidden?.includes(item.key))
+    .reduce((total, item) => {
+      const rect = placeBox(
+        item,
+        layout.placements[item.key] ?? "right",
+        layout.slides[item.key] ?? 0,
+      );
+      const blocked = (input.blockers ?? []).reduce((a, b) => a + overlapArea(rect, b), 0);
+      return total + outsideArea(rect, input.view) + blocked;
+    }, 0);
+}
+
 // 隠す札の組み合わせを、枚数の少ない順、同じ枚数なら後ろの低優先の札を隠す順に並べる
 function listHiddenSubsets(optionalKeys: readonly string[]): string[][] {
   const subsets: number[][] = [[]];
@@ -450,7 +466,7 @@ function buildVisibleInput(input: LayoutInput, hidden: readonly string[]): Layou
 }
 
 // 隠す札を最少にし、同じ枚数なら後ろの低優先の札から隠す。必須の札は隠さず、画面の内側に収める
-// 隠す理由は札どうしと駅の印への重なり、必須の札のはみ出しだけにする。ほかの札は縁やボタンにかかってもよい
+// 隠す理由は札どうしと駅の印への重なり、必須の札のはみ出し、ほかの札の縁とボタンへのかかりにする
 // 隠し切っても触れるときは、必須の札のはみ出しが無いもの、重なりの小さい順、隠す枚数の少ない順に選ぶ
 export function chooseVisibleLabelLayout(
   input: LayoutInput,
@@ -466,7 +482,12 @@ export function chooseVisibleLabelLayout(
     const visibleInput = buildVisibleInput(insideInput, hidden);
     const search = searchLabelLayout(visibleInput);
     const layout = { ...search.layout, hidden };
-    if (isCollisionFree(visibleInput, layout)) return layout;
+    if (
+      isCollisionFree(visibleInput, layout) &&
+      measureOptionalEdgeOverlap(visibleInput, layout) === 0
+    ) {
+      return layout;
+    }
     exhausted ||= search.exhausted;
     candidates.push(layout);
   }
@@ -536,6 +557,9 @@ function pickCleanChoice(
   for (const choice of listChoices(input, item)) {
     const rect = placeBox(item, choice.placement, choice.slide);
     if (placed.some((other) => overlapArea(rect, other) > 0)) continue;
+    // 縁で欠けるか、ボタンに重なる置き方は選ばない
+    if (outsideArea(rect, input.view) > 0) continue;
+    if ((input.blockers ?? []).some((blocker) => overlapArea(rect, blocker) > 0)) continue;
     const dot = input.items.reduce(
       (area, other, j) => area + (j === index ? 0 : overlapArea(rect, dotRect(other))),
       0,

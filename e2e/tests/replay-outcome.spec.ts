@@ -3,6 +3,7 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
+import ja from "../../apps/web/messages/ja.json" with { type: "json" };
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
   compareReplayOutcome,
@@ -227,6 +228,26 @@ for (const scenario of scenarios) {
         "data-counterpart-switched-at",
         expected.counterpart.switchedAt ?? "",
       );
+      // 判断に従った人は、再開より前に最初に切り替えを勧めた時点で移り、後の待つの判断では戻らない
+      const resumedMs = Date.parse(expected.resumedAt);
+      const firstSwitch = recorded.find(
+        (r) =>
+          r.judgment.action === "switch" &&
+          Date.parse(r.now) < resumedMs &&
+          r.judgment.recommendedOptionId !== null,
+      );
+      expect(expected.followed.switchedAt ? Date.parse(expected.followed.switchedAt) : null).toBe(
+        firstSwitch ? Date.parse(firstSwitch.now) : null,
+      );
+      await expect(card).toHaveAttribute(
+        "data-followed-switched-at",
+        expected.followed.switchedAt ?? "",
+      );
+      if (expected.followed.switchedAt) {
+        await expect(page.getByTestId(testIds.replay.outcomeFollowed)).toContainText(
+          formatJstClock(expected.followed.switchedAt),
+        );
+      }
       await expect(card).toHaveAttribute("data-diff-minutes", String(expected.diffMinutes));
       await expect(card).toHaveAttribute("data-verdict", expected.verdict);
       await expect(page.getByTestId(testIds.replay.outcomeFollowed)).toHaveAttribute(
@@ -244,6 +265,20 @@ for (const scenario of scenarios) {
       );
       await expect(card).toContainText(
         locale === "ja" ? "推定であり、公式発表を優先してください" : "Estimate only",
+      );
+
+      // 結末を出すと最後の判断は畳まれ、推定の注意書きは結末のカードの 1 回だけになる
+      const judgment = page.getByTestId(testIds.replay.judgment);
+      const toggle = page.getByTestId(testIds.replay.lastJudgmentToggle);
+      await expect(judgment).toHaveAttribute("data-folded", "true");
+      await expect(page.getByTestId(testIds.judgment.conclusion)).toBeHidden();
+      await expect(toggle).toHaveAttribute("aria-expanded", "false");
+      await expect(page.getByTestId(testIds.judgment.disclaimer)).toHaveCount(1);
+      await expect(card.getByTestId(testIds.judgment.disclaimer)).toBeVisible();
+      const disclaimerText =
+        locale === "ja" ? "推定であり、公式発表を優先してください" : "Estimate only";
+      await expect(page.getByTestId(testIds.judgment.sheet).getByText(disclaimerText)).toHaveCount(
+        1,
       );
 
       // 終わるとシートが半分まで開き、390x844 の画面に結末のカードが収まる
@@ -265,6 +300,15 @@ for (const scenario of scenarios) {
         path: `${screenshotDir}replay-outcome-${scenario.id}-${locale}-390x844.png`,
       });
 
+      // 開き直すと最後の判断が結末の下に出る。注意書きは増えない
+      await toggle.click();
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      await expect(judgment).toHaveAttribute("data-folded", "false");
+      await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible();
+      await expect(page.getByTestId(testIds.judgment.disclaimer)).toHaveCount(1);
+      await toggle.click();
+      await expect(page.getByTestId(testIds.judgment.conclusion)).toBeHidden();
+
       // PC 幅でも横にはみ出さない
       await page.setViewportSize({ width: 1280, height: 900 });
       await waitForFiniteAnimations(page);
@@ -277,4 +321,69 @@ for (const scenario of scenarios) {
       });
     });
   }
+}
+
+// 低い画面で最後の判断を開き直しても、スクロールで判断と一番下の注意書きまで読める
+const mainScenario = scenarios.find((s) => s.id === "person_accident_last_train") ?? scenarios[0];
+test.describe("低い画面で開き直した判断", () => {
+  test.use({ viewport: { width: 375, height: 667 } });
+
+  test("375×667 で開き直した判断は、スクロールできる部分に置かれ、一番下の注意書きまで届く", async ({
+    page,
+  }) => {
+    if (!mainScenario) throw new Error("ground_truth のあるシナリオがありません");
+    await openReplay(page, mainScenario.id, testSpeed);
+    await page.getByTestId(testIds.replay.playButton).click();
+    await expect(page.getByTestId(testIds.replay.outcome)).toBeVisible({ timeout: 120_000 });
+    await page.getByTestId(testIds.replay.lastJudgmentToggle).click();
+    await waitForFiniteAnimations(page);
+
+    const sheet = page.getByTestId(testIds.judgment.sheet);
+    const conclusion = page.getByTestId(testIds.judgment.conclusion);
+    await expect(conclusion).toBeVisible();
+    // 判断はシートのスクロールできる部分に入っている
+    const scrollable = await conclusion.evaluate((el) => {
+      let node: HTMLElement | null = el.parentElement;
+      while (node) {
+        if (getComputedStyle(node).overflowY === "auto") {
+          return node.scrollHeight > node.clientHeight;
+        }
+        node = node.parentElement;
+      }
+      return false;
+    });
+    expect(scrollable, "開き直した判断がスクロールできる部分にある").toBe(true);
+
+    // 利用者と同じくホイールでスクロールし、判断と一番下の注意書きを画面に入れる
+    const body = conclusion.locator("xpath=ancestor::*[contains(@class,'overflow-y-auto')][1]");
+    const box = await body.boundingBox();
+    if (!box) throw new Error("シートのスクロールできる部分がありません");
+    await page.mouse.move(box.x + box.width / 2, box.y + Math.min(box.height / 2, 40));
+    const lastNote = sheet.getByText(ja.replay.fictional).last();
+    for (let i = 0; i < 40 && !(await isFullyInViewport(lastNote)); i++) {
+      await page.mouse.wheel(0, 200);
+      await page.waitForTimeout(50);
+    }
+    await expect(lastNote).toBeInViewport({ ratio: 1 });
+    for (let i = 0; i < 40 && !(await isFullyInViewport(conclusion)); i++) {
+      await page.mouse.wheel(0, -200);
+      await page.waitForTimeout(50);
+    }
+    await expect(conclusion).toBeInViewport({ ratio: 1 });
+    await page.screenshot({
+      path: `${screenshotDir}replay-outcome-reopened-${mainScenario.id}-375x667.png`,
+    });
+  });
+});
+
+async function isFullyInViewport(locator: ReturnType<Page["locator"]>): Promise<boolean> {
+  return locator.evaluate(
+    (el) =>
+      new Promise<boolean>((resolve) => {
+        new IntersectionObserver((entries, observer) => {
+          observer.disconnect();
+          resolve((entries[0]?.intersectionRatio ?? 0) >= 0.99);
+        }).observe(el);
+      }),
+  );
 }

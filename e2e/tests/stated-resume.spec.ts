@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -83,6 +84,25 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
   await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
     timeout: 30_000,
   });
+  // 動かなかったときに乗る駅には、切り替えのおすすめと同じ見た目の吹き出しに「動かなければ」を添える
+  const nextText = (await page.getByTestId(testIds.judgment.conclusionNext).textContent()) ?? "";
+  const fallbackLine = /動かなければ(.+)へ/.exec(nextText)?.[1] ?? "";
+  const fallback = page.locator("[data-testid^='judgment-map-station-'][data-fallback='true']");
+  await expect(fallback).toHaveCount(1);
+  await expect(fallback).toBeVisible();
+  // 地図が狭く小さな札に縮めるときも、「動かなければ」の言葉は残す
+  await expect(fallback.getByTestId(mapTestIds.fallbackTag)).toBeVisible();
+  await expect(fallback.getByTestId(mapTestIds.fallbackTag)).toHaveText("動かなければ");
+  // 吹き出しの駅は、見出しの「動かなければ◯◯へ」の路線に乗る駅にする
+  expect(fallbackLine.length).toBeGreaterThan(0);
+  await expect(fallback).toHaveAttribute(
+    "aria-label",
+    new RegExp(`^動かなければ .*${fallbackLine}`),
+  );
+  // 待つ判断では、おすすめの星は出さない
+  await expect(
+    page.locator("[data-testid^='judgment-map-station-'][data-starred='true']"),
+  ).toHaveCount(0);
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}stated-resume-wait-390x844.png` });
   await openSheet(page, "half");

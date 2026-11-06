@@ -60,7 +60,7 @@ export function TripChip({
 }) {
   const t = useTranslations();
   const content = stacked ? (
-    <span className="flex h-8 min-w-0 items-center rounded-full bg-foreground/[0.06] px-2.5 text-[11px] leading-[1.15] font-semibold whitespace-nowrap">
+    <span className="flex h-8 min-w-0 items-center rounded-full bg-foreground/[0.06] px-2 text-[11px] leading-[1.15] font-semibold whitespace-nowrap">
       <span className="sr-only">{t("judgment.trip", { origin: from, destination: to })}</span>
       <span aria-hidden className="flex min-w-0 flex-col">
         <span className="truncate">{from}</span>
@@ -71,7 +71,7 @@ export function TripChip({
       </span>
     </span>
   ) : (
-    <span className="flex h-8 min-w-0 items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 text-[13px] font-semibold whitespace-nowrap">
+    <span className="flex h-8 min-w-0 items-center gap-0.5 rounded-full bg-foreground/[0.06] px-2 text-[13px] font-semibold whitespace-nowrap">
       <span className="sr-only">{t("judgment.trip", { origin: from, destination: to })}</span>
       <span aria-hidden className="truncate">
         {from}
@@ -129,7 +129,7 @@ export function StatusChip({
       <p
         data-testid={testId}
         data-scope="train"
-        className="flex h-8 min-w-0 shrink items-center rounded-full bg-hold-surface px-2.5 text-[12px] font-semibold whitespace-nowrap text-hold"
+        className="flex h-8 min-w-0 shrink items-center rounded-full bg-hold-surface px-2 text-[12px] font-semibold whitespace-nowrap text-hold"
       >
         <span className="truncate">{text}</span>
       </p>
@@ -140,7 +140,7 @@ export function StatusChip({
     <p
       data-testid={testId}
       data-scope="section"
-      className="flex h-8 min-w-0 shrink items-center gap-1.5 rounded-full bg-danger/10 px-2.5 text-[12px] font-semibold whitespace-nowrap text-danger"
+      className="flex h-8 min-w-0 shrink items-center gap-1 rounded-full bg-danger/10 px-2 text-[12px] font-semibold whitespace-nowrap text-danger"
     >
       <svg viewBox="0 0 14 4" className="h-1 w-3.5 shrink-0" aria-hidden>
         <line

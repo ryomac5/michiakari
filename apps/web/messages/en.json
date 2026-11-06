@@ -25,6 +25,7 @@
     "introAudience": "For anyone stranded by a train disruption in Kansai.",
     "introProblem": "Service notices say what happened, not what to do.",
     "introSolution": "Use a former dispatcher’s estimates to decide.",
+    "introClose": "Close",
     "originLabel": "Where are you?",
     "locate": "Use my location",
     "locating": "Getting your location",
@@ -116,7 +117,6 @@
       "remaining": "Restart in {p50}–{p80} min",
       "confidence": "Outlook certainty: {level}",
       "live": "Advice: {action}. {headline}",
-      "arrival": "Arrive {time}",
       "next": "Next step",
       "reasonTitle": "Why"
     },
@@ -146,7 +146,7 @@
       "condition": "If service restarts by <clock>{time}</clock>, waiting is faster.",
       "timeline": {
         "now": "Now",
-        "breakEven": "Cutoff {time}",
+        "breakEven": "Cutoff",
         "deadline": "Deadline {time}",
         "summary": {
           "before": "Service should restart {from}–{to}. That is before the {breakEven} cutoff, so waiting should be faster.",
@@ -255,7 +255,8 @@
         "current": "Service is now at the “{phase}” stage.",
         "entered": "Service had reached the “{phase}” stage.",
         "unknown": "The stage is not clear yet."
-      }
+      },
+      "next": "If you hear “{phrase}”, the restart is getting closer."
     },
     "addInfo": {
       "title": "Add information",
@@ -330,7 +331,6 @@
       "after": "Now",
       "announcement": "Trigger",
       "probability": "Chance waiting is faster",
-      "notCalculated": "Not calculated",
       "noAnnouncement": "No new announcement"
     }
   },
@@ -388,6 +388,8 @@
       "onTime": "Made it",
       "late": "{minutes} min late",
       "diff": "{minutes} min apart",
+      "showLastJudgment": "Show the last advice",
+      "hideLastJudgment": "Hide the last advice",
       "summary": {
         "followedEarlierMadeIt": "Following the advice got you there {minutes} min earlier than waiting. You made it by {deadline}.",
         "followedEarlier": "Following the advice got you there {minutes} min earlier than waiting.",
@@ -420,6 +422,7 @@
     "statusSuspended": "Suspended",
     "statusRunning": "Running",
     "recommended": "Suggested",
+    "fallback": "If still stopped",
     "walk": "{minutes} min walk",
     "minutesShort": "{minutes} min",
     "transferService": "Transfer service",
@@ -429,7 +432,6 @@
     "changeAt": "change at {station}",
     "transferShort": "Transfer",
     "sectionUnconfirmed": "Check the section in the announcement",
-    "sectionAddAnnouncement": "Paste an announcement with the section to draw it.",
     "between": "between {from} and {to}",
     "alight": "Get off at",
     "walkShort": "{minutes} min walk"
@@ -604,8 +606,6 @@
     "trainSegmentHint": "Stations are listed in your direction of travel. You can also tap the line on the map.",
     "trainSegmentConfirm": "I am between these stations",
     "trainStoppedHint": "Select a station if your train is stopped there.",
-    "destinationStationHint": "Choose your destination station.",
-    "routeInferred": "{line} · {direction} Change",
     "routeLinesLabel": "Or pick a line first",
     "routeLinesHint": "You can also tap a line or its tag on the map.",
     "mapLineHint": "You can also tap the line on the map.",

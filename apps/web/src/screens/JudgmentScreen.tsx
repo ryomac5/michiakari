@@ -27,6 +27,7 @@ import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/
 import { TrainPositionChips } from "@/features/judgment/components/TrainPositionChips";
 import { StatusChip, TripSummary } from "@/features/judgment/components/TripSummary";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
+import { selectFallbackOptionId } from "@/features/judgment/fallback-option";
 import { type OriginLine, type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { selectStoppedPlace, selectStopScope } from "@/features/judgment/stop-scope";
@@ -150,6 +151,8 @@ export function JudgmentScreen() {
   // 一覧で押した選択肢を地図に描く。判断が変わって選択肢が消えたら推奨に戻す
   const chosenOptionId = options.some((o) => o.id === selectedOptionId) ? selectedOptionId : null;
   const mapOptionId = chosenOptionId ?? display.recommendedOptionId;
+  // 待つ判断で動かなかったときに乗る選択肢。地図のその駅に「動かなければ」の吹き出しを出す
+  const fallbackOptionId = selectFallbackOptionId(display.judgment ?? null);
   // 凡例も地図と同じ選択中の選択肢の色にする
   const tone = selectRouteTone(options, mapOptionId);
 
@@ -193,6 +196,7 @@ export function JudgmentScreen() {
         options={options}
         recommendedOptionId={display.recommendedOptionId}
         selectedOptionId={chosenOptionId}
+        fallbackOptionId={fallbackOptionId}
         blockedSection={blockedSection}
         blockedLine={blockedLine}
         blockedDirection={blockedDirection}
@@ -220,13 +224,6 @@ export function JudgmentScreen() {
           onCollapsedHeightChange={chrome.setCollapsedHeight}
           summary={
             <div className="flex flex-col gap-3">
-              {/* 駅と駅の間の人には、次の駅・種別・前の列車の前提をチップで出し、その場で直せるようにする */}
-              <TrainPositionChips
-                busy={streaming}
-                onOpenEditor={() => {
-                  if (chrome.snap === "collapsed") chrome.setSnap("half");
-                }}
-              />
               {streaming && <ReasoningProgress state={state} catalog={catalog} />}
               {state.status === "error" && state.error && (
                 <JudgmentError
@@ -244,11 +241,26 @@ export function JudgmentScreen() {
               )}
               {state.status === "ready" && inCarGuide && <InCarGuide guide={inCarGuide} />}
               <Disclaimer />
-              {/* 2 段目: 再開の見込みの図 */}
-              {state.status === "ready" && <ResumeOutlook {...breakEvenProps} />}
             </div>
           }
         >
+          {/* 駅と駅の間の人の前提のチップ。閉じたシートは結論だけにし、チップは半分まで開くと見せる */}
+          {trainPosition?.kind === "between_stations" && trainPosition.nextStation && (
+            <SheetSection>
+              <TrainPositionChips
+                busy={streaming}
+                onOpenEditor={() => {
+                  if (chrome.snap === "collapsed") chrome.setSnap("half");
+                }}
+              />
+            </SheetSection>
+          )}
+          {/* 2 段目: 再開の見込みの図。閉じたシートは地図を広く残すため、引き上げたときに見せる */}
+          {state.status === "ready" && display.breakEven && (
+            <SheetSection>
+              <ResumeOutlook {...breakEvenProps} />
+            </SheetSection>
+          )}
           {/* 気象を使った判断のときだけ、半分の状態の先頭に雨量の推移を出す */}
           {display.weather && (
             <SheetSection>

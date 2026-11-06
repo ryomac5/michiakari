@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, ArrowRightLeft, Footprints, Star } from "lucide-react";
+import { ArrowRight, ArrowRightLeft, CornerDownRight, Footprints, Star } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
@@ -9,7 +9,7 @@ import type { GuideLine, GuideStation, StationGuide } from "./station-guide";
 import { mapTestIds } from "./testids";
 
 // 地図の上の吹き出し。駅名、乗れる路線、運行の状態、徒歩の分数、振替の対象、おすすめの印
-// おすすめは full で詳しく出す。ほかは PC 幅では medium、スマートフォン幅では compact に縮める
+// おすすめと、待つ判断で動かなかったときに乗る駅は full で詳しく出す。ほかは PC 幅では medium、スマートフォン幅では compact に縮める
 // medium は駅名・事業者・分数と、路線色付きの路線名 1 行。compact は駅名・路線色・分数だけ
 export type BubbleVariant = "full" | "medium" | "compact";
 
@@ -124,6 +124,7 @@ export function StationBubble({
   const label = [
     shownLabel,
     station.starred ? t("recommended") : null,
+    station.fallback ? t("fallback") : null,
     `${station.name} ${station.operator}`,
     station.lines.map((l) => l.name).join("、"),
     status,
@@ -133,11 +134,27 @@ export function StationBubble({
     .filter(Boolean)
     .join(" ");
 
-  // 小さな札では「表示中」を 1 段目に置き、札の幅を広げない
+  // 「動かなければ」の札。大きな吹き出しと小さな札の両方で、同じ言葉を出す
+  const fallbackTag = station.fallback ? (
+    <span
+      data-testid={mapTestIds.fallbackTag}
+      className="flex items-center gap-1 text-[11px] leading-none font-bold whitespace-nowrap text-switch"
+    >
+      <CornerDownRight className="size-3" strokeWidth={2.5} aria-hidden />
+      {t("fallback")}
+    </span>
+  ) : null;
+
+  // 小さな札では「表示中」と「動かなければ」を 1 段目に置き、札の幅を広げない
   const body = compact ? (
-    shown ? (
+    shown || fallbackTag ? (
       <span className="flex flex-col items-start gap-1">
-        {shown}
+        {(shown || fallbackTag) && (
+          <span className="flex items-center gap-1.5">
+            {shown}
+            {fallbackTag}
+          </span>
+        )}
         <CompactRow station={station} />
       </span>
     ) : (
@@ -145,7 +162,12 @@ export function StationBubble({
     )
   ) : variant === "medium" ? (
     <span className="flex w-[176px] flex-col gap-1 text-left">
-      {shown && <span className="flex">{shown}</span>}
+      {(shown || fallbackTag) && (
+        <span className="flex items-center gap-1.5">
+          {shown}
+          {fallbackTag}
+        </span>
+      )}
       <span className="flex items-baseline justify-between gap-2">
         <span className="min-w-0 truncate text-[13px] font-bold">
           {station.name}
@@ -178,7 +200,7 @@ export function StationBubble({
     </span>
   ) : (
     <span className="flex w-[172px] flex-col gap-1.5 text-left sm:w-[196px]">
-      {(station.starred || shown) && (
+      {(station.starred || station.fallback || shown) && (
         <span className="flex items-center gap-1.5">
           {shown}
           {station.starred && (
@@ -187,6 +209,7 @@ export function StationBubble({
               {t("recommended")}
             </span>
           )}
+          {fallbackTag}
         </span>
       )}
       <span className="flex items-baseline justify-between gap-2">
@@ -238,7 +261,7 @@ export function StationBubble({
     "after:absolute after:border-[6px] after:content-['']",
     tailClass[placement],
     compact ? "bg-surface px-2 py-1.5" : "bg-surface px-3 py-2.5",
-    station.recommended && "ring-2 ring-switch-border",
+    (station.recommended || station.fallback) && "ring-2 ring-switch-border",
   );
   const style = { "--bubble-slide": `${slide}px` } as CSSProperties;
 
@@ -246,6 +269,7 @@ export function StationBubble({
     "data-testid": mapTestIds.station(station.key),
     "data-recommended": station.recommended,
     "data-starred": station.starred,
+    "data-fallback": station.fallback,
     "data-status": station.suspended ? "suspended" : "running",
     "data-walk-minutes": station.walkMinutes,
     "data-placement": placement,

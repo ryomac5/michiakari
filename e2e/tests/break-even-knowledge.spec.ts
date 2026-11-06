@@ -64,12 +64,15 @@ test("待つ判断では再開見込みが分岐点より前、切り替える�
 
   await stepUntil(page, waitExpectation.after);
   await expect(conclusion).toHaveAttribute("data-action", "wait");
-  // 閉じたシートでは再開見込みを 1 行で示し、半分開くと時間軸の全体が見える
+  // 半分開くと再開見込みを 1 行で示し、全部開くと境目の見方に時間軸の全体が見える
+  await openSheet(page, "half");
+  await expect(page.getByTestId(testIds.judgment.breakEvenResume)).toBeInViewport();
   await expect(page.getByTestId(testIds.judgment.breakEvenResume)).toHaveAttribute(
     "data-relation",
     "before",
   );
-  await openSheet(page, "half");
+  await openSheet(page, "full");
+  await timeline.scrollIntoViewIfNeeded();
   await expect(timeline).toBeInViewport();
   await expect(timeline).toHaveAttribute("data-relation", "before");
   await captureTop(page, `timeline-${waitExpectation.after}`);

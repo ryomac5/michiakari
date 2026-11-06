@@ -217,6 +217,27 @@ describe("buildStationGuide", () => {
     expect(waiting.stations.some((s) => s.recommended)).toBe(false);
   });
 
+  it("待つ判断では、動かなかったときに乗る駅に「動かなければ」の印と乗り方を付け、押すとその選択肢へ移る", () => {
+    const waiting = buildGuide({ recommendedOptionId: "wait", fallbackOptionId: "transfer_1" });
+    const fallback = waiting.stations.filter((s) => s.fallback);
+    expect(fallback.map((s) => s.key)).toEqual(["metro-umeda"]);
+    expect(fallback[0]?.optionId).toBe("transfer_1");
+    expect(fallback[0]?.route?.first.name).toBe("地下鉄御堂筋線");
+    expect(fallback[0]?.starred).toBe(false);
+    expect(waiting.stations.some((s) => s.recommended || s.starred)).toBe(false);
+    // 動かなければの駅は、ほかの札に隠されない
+    expect(listRequiredLabelKeys(waiting.stations)).toContain("metro-umeda");
+  });
+
+  it("動かなかったときの選択肢が無いか、おすすめの星と同じなら、「動かなければ」の印を付けない", () => {
+    expect(buildGuide({ recommendedOptionId: "wait" }).stations.some((s) => s.fallback)).toBe(
+      false,
+    );
+    const same = buildGuide({ fallbackOptionId: "transfer_1" });
+    expect(same.stations.some((s) => s.fallback)).toBe(false);
+    expect(same.stations.find((s) => s.key === "metro-umeda")?.starred).toBe(true);
+  });
+
   it("徒歩の分数は選択肢の徒歩区間、乗換の徒歩、core の概算の順に使う", () => {
     const guide = buildGuide();
     const byKey = new Map(guide.stations.map((s) => [s.key, s]));
@@ -374,6 +395,7 @@ describe("listDockedStationRows", () => {
     route: null,
     recommended: !starred,
     starred,
+    fallback: false,
     optionId: `option_${key}`,
   });
   const labels = { recommended: "おすすめ", walk: (minutes: number) => `徒歩 ${minutes} 分` };
@@ -389,6 +411,15 @@ describe("listDockedStationRows", () => {
     expect(rows[1]?.text).toBe("福島駅 · 福島線 · 徒歩 5 分");
     expect(rows.filter((row) => row.text.includes("おすすめ"))).toHaveLength(1);
     expect(rows.map((row) => row.optionId)).toEqual(["option_梅田", "option_福島"]);
+  });
+
+  it("動かなければの駅の行に、その言葉を添える", () => {
+    const rows = listDockedStationRows(
+      [{ ...buildStation("梅田", false), recommended: false, fallback: true }],
+      ["梅田"],
+      { ...labels, fallback: "動かなければ" },
+    );
+    expect(rows[0]?.text).toBe("動かなければ · 梅田駅 · 梅田線 · 徒歩 5 分");
   });
 
   it("経路を描いている駅の行にだけ表示中を添える", () => {

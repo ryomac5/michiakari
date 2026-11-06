@@ -57,6 +57,7 @@ export function ResumeChanceChart({
   now,
   showOnset,
   relation,
+  switching = false,
 }: {
   chance: ResumeChance;
   breakEvenTime: string | null;
@@ -66,10 +67,17 @@ export function ResumeChanceChart({
   showOnset: boolean;
   // 再開見込みの幅と境目の位置関係。従来の 1 行の見込みと同じ属性で出す
   relation: ResumeRelation | null;
+  // 結論が切り替えか。切り替えでは期限の印と期限の文を出さない
+  switching?: boolean;
 }) {
   const t = useTranslations("judgment.resumeChance");
   const locale = useLocale();
-  const chart = buildChanceChart({ chance, breakEvenTime, nowMs: now?.getTime() ?? null });
+  const chart = buildChanceChart({
+    chance,
+    breakEvenTime,
+    nowMs: now?.getTime() ?? null,
+    switching,
+  });
   const paths = buildChartPaths(chart.points);
   const clock = (iso: string) => formatClockTime(iso, locale);
   const onsetKnown = showOnset && chance.onsetTime !== null;

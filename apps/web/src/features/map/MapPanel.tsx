@@ -3,7 +3,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { formatStationName } from "@repo/geo";
 import type { Action, Place, RouteOption, Section, TrainPosition } from "@repo/schema";
-import { LocateFixed, Route } from "lucide-react";
+import { ChevronRight, LocateFixed, Route } from "lucide-react";
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -36,7 +36,7 @@ import {
   mapPalettes,
   sourceIds,
 } from "./layers";
-import { MapAttribution } from "./MapAttribution";
+import { MapAttribution, mapAttributionHeight } from "./MapAttribution";
 import { fetchReachAreas, type ReachArea } from "./reach";
 import {
   buildReachLabelRect,
@@ -59,6 +59,7 @@ import {
 } from "./scene";
 import {
   buildStationGuide,
+  checkFeaturedStation,
   findFocusArea,
   findPointAtDistance,
   findRingLabelPoint,
@@ -79,6 +80,8 @@ export type MapPanelProps = {
   recommendedOptionId: string | null;
   // 選択肢の一覧で押した選択肢。地図はこの経路と乗る駅を描く。省略時は推奨
   selectedOptionId?: string | null;
+  // 待つ判断で、動かなかったときに乗る選択肢。乗る駅に「動かなければ」の吹き出しを出す
+  fallbackOptionId?: string | null;
   // 止まっている区間。発表の観測から分かったものだけを渡す
   blockedSection: Section | null;
   // 止まっている路線の名前（観測の line）。無ければ「待つ」経路の路線から推し量る
@@ -136,7 +139,7 @@ const markRadius = 20;
 // 「表示中」の札の高さと上下の余白。駅の吹き出しで選んだ経路を示せないときだけ地図の上端に出す
 const selectedRouteTagSpace = 44;
 // 「区間は発表で確かめる」の札の高さと上下の余白。案内の文があれば 1 行ぶん足す
-const sectionNoteSpace = { plain: 44, withAction: 64 } as const;
+const sectionNoteSpace = { plain: 44, withAction: 52 } as const;
 
 // 「全体を見る」のボタンが動き終えたあとの矩形。地図の左上が原点
 // 下の余白が変わるとボタンは 200ms かけて動く。動いている途中の矩形は測らず、余白から求める
@@ -285,13 +288,14 @@ function buildGuidePadding(
   const margins = guide.areaId.startsWith("auto:") ? autoFocusMargin : focusMargin;
   const margin = narrow ? margins.narrow : margins.wide;
   const tallTop = guide.stations.some(
-    (s) => s.recommended && s.placement[narrow ? "narrow" : "wide"] === "top",
+    (s) => checkFeaturedStation(s) && s.placement[narrow ? "narrow" : "wide"] === "top",
   );
   const canvas = map.getCanvas();
   // 駅間の車内の人には吹き出しが無い。現在地と降りる駅の印が「全体を見る」のボタンの下に入らないよう、印の半径も足して下を空ける
+  // 下端の出典の行にも印が掛からないよう、その高さを足す
   const bottom = guide.alight
     ? Math.max(margin.bottom, viewToggleBox.bottom + viewToggleBox.h + markRadius)
-    : margin.bottom;
+    : margin.bottom + mapAttributionHeight;
   return constrainFitPadding({ w: canvas.clientWidth, h: canvas.clientHeight }, insets, {
     ...margin,
     top: margin.top + (tallTop ? recommendedBubbleHeight : 0),
@@ -314,13 +318,14 @@ function estimateBubbleSize(
   narrow: boolean,
   compactRecommended = false,
 ): { w: number; h: number } {
-  if (station.recommended && !compactRecommended) return { w: narrow ? 196 : 220, h: 150 };
-  if (!narrow) return { w: 200, h: 64 };
+  if (checkFeaturedStation(station) && !compactRecommended)
+    return { w: narrow ? 196 : 220, h: 150 };
+  if (!narrow) return { w: 200, h: station.fallback ? 80 : 64 };
   // 路線色の印と分数のぶんを足す。おすすめの小さな札は、星の分だけ広い
   return {
     w: estimateTextWidth(station.shortName, 12) + 100 + (station.starred ? 16 : 0),
-    // 上下の配置では 44px のタップ領域を基準にアンカーが付く。
-    h: 44,
+    // 上下の配置では 44px のタップ領域を基準にアンカーが付く。「動かなければ」の札は 1 段ぶん高い
+    h: station.fallback ? 60 : 44,
   };
 }
 
@@ -427,18 +432,19 @@ function layoutAutoPlacements(
         key: s.key,
         point: toScreen(s.position),
         size: measureSize(
-          `${s.key}:${s.recommended && !compactRecommended ? "full" : narrow ? "compact" : "medium"}`,
+          `${s.key}:${checkFeaturedStation(s) && !compactRecommended ? "full" : narrow ? "compact" : "medium"}`,
           estimateBubbleSize(s, narrow, compactRecommended),
         ),
         gap: 12,
       })),
     ],
     here,
+    // 下端は地図の隅の出典の行を除く。札が出典に掛からないようにする
     view: {
       left: insets.left + 8,
       top: insets.top + 8,
       right: width - insets.right - 8,
-      bottom: height - insets.bottom - 8,
+      bottom: height - insets.bottom - mapAttributionHeight - 4,
     },
     preferred: { here: herePreferred, alight: "bottom", ...stationPlacements },
     obstacles: avoid.map((p) => {
@@ -573,6 +579,7 @@ export function MapPanel(props: MapPanelProps) {
     blockedDirection,
     trainPosition,
     trainOnly = false,
+    fallbackOptionId = null,
   } = props;
   // 駅間の車内の人は降りられないので、乗り換え候補の駅と徒歩の範囲を出さない
   const inCar = trainPosition?.kind === "between_stations";
@@ -751,6 +758,7 @@ export function MapPanel(props: MapPanelProps) {
             options,
             recommendedOptionId: focusOptionId,
             starOptionId: recommendedOptionId,
+            fallbackOptionId,
             blockedLineIds: scene.blockedLineIds,
             trackLineIds: scene.trackLineIds,
             hideStations: inCar,
@@ -769,6 +777,7 @@ export function MapPanel(props: MapPanelProps) {
       options,
       focusOptionId,
       recommendedOptionId,
+      fallbackOptionId,
       blockedLine,
       locale,
       labels,
@@ -1064,7 +1073,10 @@ export function MapPanel(props: MapPanelProps) {
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
       const visible = (x: number, y: number) =>
-        x > left + 40 && x < width - right - 40 && y > top + 24 && y < height - bottom - 24;
+        x > left + 40 &&
+        x < width - right - 40 &&
+        y > top + 24 &&
+        y < height - bottom - mapAttributionHeight - 24;
       const points = blockedTagMeters.flatMap((m) => {
         const p = findPointAtDistance(blockedPath, here, m);
         return p ? [p] : [];
@@ -1255,6 +1267,7 @@ export function MapPanel(props: MapPanelProps) {
   const dockedRows = autoPlacements?.docked
     ? listDockedStationRows(guide?.stations ?? [], autoPlacements.docked, {
         recommended: t("recommended"),
+        fallback: t("fallback"),
         shown: shownStationKey ? labels.selectedRoute : null,
         walk: labels.walkLabel,
       })
@@ -1335,7 +1348,7 @@ export function MapPanel(props: MapPanelProps) {
             placement={placeStation(station)}
             slide={autoPlacements?.slides[station.key] ?? 0}
             variant={
-              station.recommended && !autoPlacements?.compactRecommended
+              checkFeaturedStation(station) && !autoPlacements?.compactRecommended
                 ? "full"
                 : narrow
                   ? "compact"
@@ -1366,25 +1379,28 @@ export function MapPanel(props: MapPanelProps) {
         </p>
       )}
       {sectionNote && (
+        // 区間が分からないことを 1 行の札で示す。押せるときは、発表を貼る欄へ移る
         <div
           data-testid={mapTestIds.sectionNote}
-          className="glass absolute z-10 flex flex-col items-start gap-0.5 rounded-xl px-3 py-1.5 text-[13px] text-foreground"
+          className="glass absolute z-10 flex items-center rounded-full text-[13px] font-semibold text-foreground"
           style={{
             top: props.insets.top + 8 + (floatingTag ? selectedRouteTagSpace : 0),
             left: left + 12,
             maxWidth: `calc(100% - ${left + right + 24}px)`,
           }}
         >
-          <p className="font-semibold">{t("sectionUnconfirmed")}</p>
-          {onAddAnnouncement && (
+          {onAddAnnouncement ? (
             <button
               type="button"
               data-testid={mapTestIds.sectionNoteAction}
               onClick={onAddAnnouncement}
-              className="text-left text-[12px] text-focus underline underline-offset-2"
+              className="flex min-h-11 items-center gap-1 rounded-full pr-2 pl-3.5 text-left"
             >
-              {t("sectionAddAnnouncement")}
+              {t("sectionUnconfirmed")}
+              <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
             </button>
+          ) : (
+            <p className="px-3.5 py-2">{t("sectionUnconfirmed")}</p>
           )}
         </div>
       )}

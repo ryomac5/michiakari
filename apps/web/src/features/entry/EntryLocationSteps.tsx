@@ -1,10 +1,13 @@
 "use client";
 
+import { Play } from "lucide-react";
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { testIds } from "@/features/judgment/testids";
 import { pickStationName } from "@/features/stations/describe";
+import { cn } from "@/lib/utils";
 import type { DirectionStop } from "./directions";
 import { SheetTitle } from "./EntrySheet";
 import { type EntryLine, pickLocalized } from "./entry-places";
@@ -12,6 +15,11 @@ import type { GpsChoice } from "./gps-candidates";
 import type { GpsStatus } from "./use-gps-position";
 
 const buttonClass = "min-h-12 rounded-2xl bg-foreground/[0.05] px-4 py-3 text-left font-semibold";
+// 16px 未満の入力欄は iPhone で拡大されるので 16px にする
+const fieldClass = `${buttonClass} text-[16px]`;
+// 最初の段の選び方。幅いっぱいの札にせず、詰めて並べる
+const chipClass =
+  "inline-flex min-h-11 items-center rounded-full bg-foreground/[0.05] px-3.5 text-[14px] font-semibold transition-colors hover:bg-foreground/[0.09] disabled:opacity-60";
 
 export type GpsProps = {
   status: GpsStatus;
@@ -55,8 +63,14 @@ function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps
         ? t("gpsNone")
         : null;
   const [only] = choices;
+  // 読み取る前は 1 つの札だけなので、ほかの選び方と同じ並びに入れる
+  const idle = !(located && choices.length > 0) && !failure;
   return (
-    <div className="flex flex-col gap-2" data-testid={testIds.start.gps} data-status={status.kind}>
+    <div
+      className={idle ? "contents" : "flex w-full flex-col gap-2"}
+      data-testid={testIds.start.gps}
+      data-status={status.kind}
+    >
       {located && only && choices.length === 1 ? (
         <div className="flex flex-col gap-2 rounded-2xl bg-foreground/[0.05] p-3">
           <p className="font-semibold" data-testid={testIds.start.gpsQuestion}>
@@ -99,7 +113,7 @@ function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps
       ) : (
         <button
           type="button"
-          className={buttonClass}
+          className={cn(chipClass, "self-start")}
           data-testid={testIds.start.gpsLocate}
           disabled={status.kind === "locating"}
           onClick={onLocate}
@@ -127,27 +141,38 @@ export function LocationStep({
   children?: ReactNode;
 }) {
   const t = useTranslations("entry");
+  const tStart = useTranslations("start");
   return (
     <>
       <SheetTitle title={t("question")} />
-      <GpsLocate {...gps} />
       {children}
-      <button
-        type="button"
-        className={buttonClass}
-        data-testid={testIds.start.positionStation}
-        onClick={() => onSelect("station")}
-      >
-        {t("locationMap")}
-      </button>
-      <button
-        type="button"
-        className={buttonClass}
-        data-testid={testIds.start.positionTrain}
-        onClick={() => onSelect("train")}
-      >
-        {t("locationTrain")}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <GpsLocate {...gps} />
+        <button
+          type="button"
+          className={chipClass}
+          data-testid={testIds.start.positionStation}
+          onClick={() => onSelect("station")}
+        >
+          {t("locationMap")}
+        </button>
+        <button
+          type="button"
+          className={chipClass}
+          data-testid={testIds.start.positionTrain}
+          onClick={() => onSelect("train")}
+        >
+          {t("locationTrain")}
+        </button>
+        <Link
+          href="/replay"
+          data-testid={testIds.start.replayLink}
+          className={cn(chipClass, "gap-1.5 bg-brand/10 text-brand hover:bg-brand/15")}
+        >
+          <Play className="size-3.5 fill-current" aria-hidden />
+          {tStart("replayLink")}
+        </Link>
+      </div>
     </>
   );
 }
@@ -166,7 +191,7 @@ export function TrainLineStep({
     <>
       <SheetTitle title={t("trainLineQuestion")} hint={t("mapLineHint")} />
       <input
-        className={buttonClass}
+        className={fieldClass}
         data-testid={testIds.start.trainLineSearch}
         aria-label={t("trainLineSearch")}
         placeholder={t("trainLineSearch")}
@@ -219,7 +244,7 @@ export function TrainPositionStep({
     <>
       <SheetTitle title={t("trainSegmentQuestion")} hint={t("trainSegmentHint")} />
       <select
-        className={buttonClass}
+        className={fieldClass}
         data-testid={testIds.start.trainSegment}
         aria-label={t("trainSegmentQuestion")}
         value={index}

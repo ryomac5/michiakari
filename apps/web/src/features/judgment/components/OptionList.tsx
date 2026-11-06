@@ -8,10 +8,12 @@ import type { OptionMark } from "@/features/map/station-guide";
 import { useLineTranslator } from "@/features/map/use-line-label";
 import { cn } from "@/lib/utils";
 import { actionStyles, optionIcons, selectOptionTone } from "../action-style";
+import { listRideLines, selectOptionFacts } from "../option-row";
 import { testIds } from "../testids";
 import { formatClockTime, formatFare } from "../time";
 
-// 選択肢を簡潔な行で並べる。アイコン・名前・到着・徒歩・運賃。推奨は強調する
+// 選択肢を簡潔な行で並べる。アイコン・名前・乗る路線・到着・徒歩・運賃。推奨は強調する
+// 徒歩が 0 分なら徒歩を、運賃が分からなければ運賃を出さない
 // 行を押すと、その選択肢の経路を地図に描き直す
 export function OptionList({
   options,
@@ -104,13 +106,14 @@ function OptionRow({
   const mainRide = findMainRideLeg(option.legs, undefined) as
     | (RouteOption["legs"][number] & { lineId?: string | null })
     | undefined;
-  // 英語の画面に日本語の路線名を混ぜない。英語名が無ければ「乗車」と書く
-  const legs = option.legs
-    .filter((leg) => leg.mode !== "wait")
-    .map((leg) => {
-      const line = leg.line ? translateLine(leg.line) : null;
-      return `${line ?? t(`legs.${leg.mode}`)} ${t("minutes", { minutes: leg.minutes })}`;
-    });
+  // 乗る路線の名前だけを並べ、途中で切らない。英語の画面に日本語の路線名を混ぜず、英語名が無ければ「乗車」と書く
+  const lines = listRideLines(option.legs, (line) => translateLine(line) ?? t("legs.ride"));
+  const facts = selectOptionFacts(option);
+  const tags = [
+    recommended && "recommended",
+    selected && "selected",
+    option.isTransferService && "transferService",
+  ].filter((tag) => tag !== false);
 
   return (
     <li
@@ -160,35 +163,60 @@ function OptionRow({
             {t("from", { station: mark.stationName })}
           </p>
         )}
-        <p className="line-clamp-2 text-[12px] leading-snug text-muted">
-          {recommended && (
-            <span className={cn("font-semibold", tone.text)}>
-              <Star className="mr-0.5 inline size-3 -translate-y-px fill-current" aria-hidden />
-              {t("recommended")} ·{" "}
-            </span>
-          )}
-          {selected && (
-            <span className="font-semibold text-foreground">
-              <MapPin className="mr-0.5 inline size-3 -translate-y-px" aria-hidden />
-              {t("selected")} ·{" "}
-            </span>
-          )}
-          {option.isTransferService && <span>{t("transferService")} · </span>}
-          {legs.join(" → ")}
-        </p>
+        {(tags.length > 0 || lines.length > 0) && (
+          <p
+            data-testid={testIds.judgment.optionLines}
+            className="text-[12px] leading-snug text-muted"
+          >
+            {recommended && (
+              <span className={cn("font-semibold", tone.text)}>
+                <Star className="mr-0.5 inline size-3 -translate-y-px fill-current" aria-hidden />
+                {t("recommended")}
+              </span>
+            )}
+            {selected && (
+              <span className="font-semibold text-foreground">
+                {recommended && " · "}
+                <MapPin className="mr-0.5 inline size-3 -translate-y-px" aria-hidden />
+                {t("selected")}
+              </span>
+            )}
+            {option.isTransferService && (
+              <span>
+                {(recommended || selected) && " · "}
+                {t("transferService")}
+              </span>
+            )}
+            {tags.length > 0 && lines.length > 0 && " · "}
+            {lines.join(" → ")}
+          </p>
+        )}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1 pt-0.5 text-right">
         <p className="text-[17px] leading-none font-bold tabular-nums">
           <span className="sr-only">{t("arrival")} </span>
           {formatClockTime(option.arrivalTime, locale)}
         </p>
-        <p className="text-[12px] whitespace-nowrap text-muted tabular-nums">
-          <span className="sr-only">{t("walk")} </span>
-          {t("walkShort", { minutes: option.walkMinutes })}
-          <span aria-hidden> · </span>
-          <span className="sr-only">{t("fare")} </span>
-          {formatFare(option.fareYen, locale)}
-        </p>
+        {(facts.walkMinutes !== null || facts.fareYen !== null) && (
+          <p
+            data-testid={testIds.judgment.optionFacts}
+            className="text-[12px] whitespace-nowrap text-muted tabular-nums"
+          >
+            {facts.walkMinutes !== null && (
+              <>
+                <span className="sr-only">{t("walk")} </span>
+                {t("walkShort", { minutes: facts.walkMinutes })}
+              </>
+            )}
+            {facts.walkMinutes !== null && facts.fareYen !== null && <span aria-hidden> · </span>}
+            {facts.fareYen !== null && (
+              <>
+                <span className="sr-only">{t("fare")} </span>
+                {formatFare(facts.fareYen, locale)}
+              </>
+            )}
+          </p>
+        )}
       </div>
     </li>
   );

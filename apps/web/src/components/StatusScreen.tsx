@@ -26,7 +26,7 @@ export function StatusScreen({
         id="main"
         data-testid={testIds.status.screen}
         data-kind={kind}
-        className="relative z-10 flex min-h-dvh items-center justify-center px-4 pt-[88px] pb-16"
+        className="relative z-10 flex min-h-dvh items-center justify-center px-4 pt-[calc(max(12px,env(safe-area-inset-top))+76px)] pb-[calc(4rem+env(safe-area-inset-bottom))]"
       >
         <section className="glass-strong flex w-full max-w-md animate-rise-in flex-col items-center gap-5 rounded-[28px] px-6 py-8 text-center">
           <LogoMark className="size-16" />

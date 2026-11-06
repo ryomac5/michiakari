@@ -14,6 +14,7 @@ export function EntrySheet({
   onHeightChange,
   progress,
   compact = false,
+  fill = false,
   children,
 }: {
   // 段が変わるたびに中身を短い動きで差し替える
@@ -24,10 +25,18 @@ export function EntrySheet({
   progress?: ReactNode;
   // 地図を押して選ぶ段。地図の見える範囲を残すため、シートを低く抑えて中身を送る
   compact?: boolean;
+  // 選択肢が多い段。細い帯の地図は読めないので、スマートフォンでは地図を覆って画面いっぱいに選択肢を並べる
+  fill?: boolean;
   children: ReactNode;
 }) {
   const t = useTranslations();
   const ref = useRef<HTMLElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 段が変わったら中身を先頭から見せる
+  useLayoutEffect(() => {
+    if (stageKey && scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [stageKey]);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -46,14 +55,27 @@ export function EntrySheet({
       aria-labelledby="entry-sheet-title"
       className={cn(
         "fixed inset-x-0 bottom-0 z-20 flex animate-rise-in flex-col rounded-t-[28px] border border-b-0 border-[var(--glass-border)] bg-surface shadow-[0_-4px_24px_rgb(0_0_0/0.10)] lg:top-4 lg:right-4 lg:bottom-auto lg:left-auto lg:max-h-[calc(100dvh-32px)] lg:w-[400px] lg:rounded-[24px] lg:border-b lg:shadow-[var(--shadow-float)]",
-        compact ? "max-h-[min(56dvh,640px)]" : "max-h-[min(78dvh,640px)]",
+        fill
+          ? "max-lg:top-0 max-lg:max-h-none max-lg:rounded-none max-lg:border-0 max-lg:shadow-none"
+          : compact
+            ? "max-h-[min(42dvh,640px)]"
+            : "max-h-[min(78dvh,640px)]",
       )}
     >
-      <div aria-hidden className="flex h-4 shrink-0 justify-center pt-2 lg:hidden">
-        <span className="h-[5px] w-9 rounded-full bg-foreground/15" />
-      </div>
-      <div className="min-h-0 overflow-y-auto overscroll-contain px-5 pt-2 pb-[max(16px,env(safe-area-inset-bottom))] lg:px-6 lg:pt-5">
-        <div key={stageKey} className="flex animate-step-in flex-col gap-4">
+      {!fill && (
+        <div aria-hidden className="flex h-4 shrink-0 justify-center pt-2 lg:hidden">
+          <span className="h-[5px] w-9 rounded-full bg-foreground/15" />
+        </div>
+      )}
+      <div
+        ref={scrollRef}
+        className={cn(
+          "min-h-0 overflow-y-auto overscroll-contain px-4 pt-2 pb-[max(12px,env(safe-area-inset-bottom))] lg:px-6 lg:pt-5",
+          // 上部の帯の下から中身を始め、送った中身が帯の下に透けないようにする
+          fill && "max-lg:mt-[calc(max(12px,env(safe-area-inset-top))+60px)]",
+        )}
+      >
+        <div key={stageKey} className="flex animate-step-in flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
@@ -68,7 +90,7 @@ export function EntrySheet({
           </div>
           {children}
         </div>
-        <p className="mt-5 flex items-center gap-1.5 text-[12px] text-muted">
+        <p className="mt-3 flex items-center gap-1.5 text-[12px] text-muted">
           <Info className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
           {t("disclaimer.short")}
         </p>
@@ -91,7 +113,7 @@ export function SheetTitle({
       {eyebrow}
       <h1
         id="entry-sheet-title"
-        className="text-[24px] leading-tight font-bold tracking-tight text-balance"
+        className="text-[20px] leading-tight font-bold tracking-tight text-balance"
       >
         {title}
       </h1>

@@ -1,8 +1,8 @@
 import type { JudgmentSchema, ResumeChanceSchema } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
-import { buildPersonAccidentEvents } from "./fixtures/person-accident";
-import { buildJudgmentChange } from "./judgment-change";
+import { buildPersonAccidentEvents, personAccidentCatalog } from "./fixtures/person-accident";
+import { buildJudgmentChange, selectChangeEvidence } from "./judgment-change";
 import { buildTestRequest } from "./test-helpers";
 
 type Judgment = z.infer<typeof JudgmentSchema>;
@@ -51,6 +51,7 @@ describe("buildJudgmentChange", () => {
       before: "wait",
       after: "switch",
       announcement: "再開の見込みが延びました。",
+      evidence: null,
       beforeChance: 8,
       afterChance: 2,
     });
@@ -110,5 +111,51 @@ describe("buildJudgmentChange", () => {
     );
     expect(Array.from(result?.announcement ?? "")).toHaveLength(50);
     expect(result?.announcement?.endsWith("…")).toBe(true);
+  });
+
+  it("読めることの項目をそのまま載せる", () => {
+    const evidence = {
+      id: "rescue_announced",
+      heard: "救護活動を行っています。",
+      phaseId: "rescue",
+      phaseName: "救護・確認",
+      current: true,
+    };
+    expect(
+      buildJudgmentChange(buildJudgment("wait", 8), buildJudgment("switch", 2), null, evidence)
+        ?.evidence,
+    ).toEqual(evidence);
+  });
+});
+
+describe("selectChangeEvidence", () => {
+  const signals = [
+    { eventType: "person_accident", signalId: "accident_announced", quote: "人身事故です。" },
+    { eventType: "person_accident", signalId: "rescue_announced", quote: "救護活動中です。" },
+  ];
+
+  it("根拠の欄の先頭の項目を使い、いまの段階を読む", () => {
+    expect(
+      selectChangeEvidence({
+        catalog: personAccidentCatalog,
+        estimate: { ...judgment.estimate, eventType: "person_accident", phaseId: "rescue" },
+        signals,
+        locale: "ja",
+      }),
+    ).toMatchObject({ id: "rescue_announced", phaseId: "rescue", current: true });
+  });
+
+  it("段階が絞れなければ null にする", () => {
+    expect(
+      selectChangeEvidence({
+        catalog: personAccidentCatalog,
+        estimate: { ...judgment.estimate, eventType: "person_accident", phaseId: null },
+        signals: [],
+        locale: "ja",
+      }),
+    ).toBeNull();
+    expect(
+      selectChangeEvidence({ catalog: [], estimate: null, signals: [], locale: "ja" }),
+    ).toBeNull();
   });
 });

@@ -331,22 +331,25 @@ function describeSwitchTarget(option: DecisionTextInput["bestOption"]): SwitchTa
     .reduce((sum, leg) => sum + leg.minutes, 0);
   return {
     kind: option?.kind ?? null,
-    line: option?.kind === "transfer" ? (ride?.line ?? null) : null,
-    station: option?.kind === "transfer" ? (ride?.from ?? null) : null,
+    line: option?.kind === "transfer" ? ride?.line || null : null,
+    station: option?.kind === "transfer" ? ride?.from || null : null,
     walkMinutes,
     transferService: option?.isTransferService ?? false,
   };
 }
 
-// 切り替え先の呼び名。路線が分かれば路線名、無ければ手段の種類で呼ぶ
+// 切り替え先の呼び名。路線、乗る駅、振替輸送、手段の種類の順に、分かるもので呼ぶ
 function nameSwitchTarget(option: DecisionTextInput["bestOption"], language: Lang): string {
   const ja = language === "ja";
   const target = describeSwitchTarget(option);
   if (target.kind === "taxi") return ja ? "タクシー" : "a taxi";
   if (target.kind === "walk") return ja ? "徒歩" : "walking";
   if (target.line) return ja ? target.line : `the ${target.line}`;
+  if (target.station)
+    return ja ? `${target.station}からの電車` : `the train from ${target.station}`;
   if (target.transferService) return ja ? "振替輸送" : "the transfer service";
-  return ja ? "おすすめの経路" : "the suggested route";
+  if (target.kind === "transfer") return ja ? "乗り換え" : "changing trains";
+  return ja ? "代わりの手段" : "another way there";
 }
 
 // 期限が理由でタクシーを勧めるときの理由。境目は、待っても期限に間に合う最後の再開の時刻なので、
@@ -543,9 +546,19 @@ function buildSwitchHeadline(input: DecisionTextInput): string {
       max,
     );
   }
-  // 路線が分からないときは、選択肢の一覧でおすすめの印が付いた経路を指す
+  // 路線が分からないときは、乗る駅、振替輸送、手段の種類の順に、分かるもので言い切る
+  if (station) {
+    return target.walkMinutes > 0
+      ? ja
+        ? `${station}まで歩いて乗り換える`
+        : `Walk to ${station} and change trains.`
+      : ja
+        ? `${station}で乗り換える`
+        : `Change trains at ${station}.`;
+  }
   if (target.transferService) return ja ? "振替輸送で向かう" : "Use the transfer service.";
-  return ja ? "おすすめの経路に乗り換える" : "Take the suggested route.";
+  if (target.kind === "transfer") return ja ? "電車を乗り換える" : "Change trains.";
+  return ja ? "代わりの手段で向かう" : "Take another way there.";
 }
 
 // 動かなかったときの次の手。待つ見出しの 2 文目に置く
@@ -555,10 +568,19 @@ function buildFallbackStep(input: DecisionTextInput): string | null {
   const target = describeSwitchTarget(input.bestOption);
   if (target.kind === "taxi")
     return ja ? "動かなければタクシーへ" : "If still stopped, take a taxi.";
+  if (target.kind === "walk")
+    return ja ? "動かなければ歩いて向かう" : "If still stopped, walk there.";
   if (target.line) {
     return ja ? `動かなければ${target.line}へ` : `If still stopped, take the ${target.line}.`;
   }
-  return ja ? "動かなければおすすめの経路へ" : "If still stopped, take the suggested route.";
+  // 路線が分からないときは、乗る駅、振替輸送、手段の種類の順に、分かるもので言い切る
+  if (target.station) {
+    return ja ? `動かなければ${target.station}へ` : `If still stopped, go to ${target.station}.`;
+  }
+  if (target.transferService) {
+    return ja ? "動かなければ振替輸送へ" : "If still stopped, use the transfer service.";
+  }
+  return ja ? "動かなければ電車を乗り換える" : "If still stopped, change trains.";
 }
 
 // 待つ見出し。境目の時刻まで待つと言い切り、動かなければ何に乗るかを添える

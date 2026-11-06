@@ -23,10 +23,10 @@ const kindIcons: Record<ObservableKind, LucideIcon> = {
   train_movement: TrainFront,
 };
 
-// 全文を見せておく時間。過ぎたら 1 行に縮める
+// 見せておく時間。過ぎたら畳む
 const expandedMs = 4500;
 
-// 入力したばかりの掲示や発表。上から通知のようにせり出し、数秒で小さくなる
+// 入力したばかりの掲示や発表。上部の帯の下に通知のようにせり出し、数秒で畳む
 // 呼び出し側で key を観測 id にし、変わるたびにせり出させる
 export function AnnouncementCard({
   entry,
@@ -35,7 +35,7 @@ export function AnnouncementCard({
 }: {
   entry: TimelineEntry;
   timeLabel: string;
-  // シートを全部開いている間は隠す
+  // シートを開いている間は隠す。開いたシートの上端は再生バーのすぐ下まで来る
   concealed?: boolean;
 }) {
   const t = useTranslations("replay.kinds");
@@ -48,6 +48,7 @@ export function AnnouncementCard({
     return () => window.clearTimeout(timer);
   }, []);
 
+  // 数秒見せたら畳み、地図を広く残す。発表はシートの経過にも残る
   return (
     <section
       data-testid={testIds.replay.announcement}
@@ -57,19 +58,17 @@ export function AnnouncementCard({
       data-map-obstacle
       aria-live="polite"
       className={cn(
-        "glass pointer-events-auto flex w-full animate-drop-in items-start gap-2.5 rounded-2xl px-3 py-2.5",
-        concealed && "hidden",
+        "glass pointer-events-auto flex w-full animate-drop-in items-start gap-2 rounded-xl px-3 py-2",
+        (concealed || !expanded) && "hidden",
       )}
     >
-      <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground/[0.07]">
-        <Icon className="size-4" strokeWidth={1.75} aria-hidden />
-      </span>
+      <Icon className="mt-0.5 size-4 shrink-0 text-muted" strokeWidth={1.75} aria-hidden />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <p className="flex items-center gap-2 text-[12px] text-muted">
           <span className="font-medium text-foreground">{t(entry.kind)}</span>
           <span className="ml-auto tabular-nums">{timeLabel}</span>
         </p>
-        <p className={cn("text-[13px] leading-snug", expanded ? "line-clamp-3" : "line-clamp-1")}>
+        <p className="line-clamp-2 text-[14px] leading-snug">
           {pickScenarioText(entry.text, locale)}
         </p>
       </div>
