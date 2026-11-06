@@ -11,7 +11,8 @@ import { expect, test } from "../support/test.ts";
 
 // 入口で「電車の中・駅と駅の間」を選んだ人の判断
 // 追加の問いは出さず、次の駅・種別・前の列車を既定値で置いて判断を出す。前提は判断の画面のチップで直せる
-// 結論は次の駅に着いてからの行動で書き、「あと N 分」で始めない。決定論モードの agent とダミーの内容で確かめる
+// 車内からは降りられない。結論は車内で待つだけにし、選択肢の一覧・乗り換え候補の駅・バス停を出さない
+// 着いた後のほうが早い手段があるときだけ、着いた後の次の一手を 1 行で添える。決定論モードの agent とダミーの内容で確かめる
 
 const screenshotRoot = fileURLToPath(new URL("../screenshots/between-stations/", import.meta.url));
 
@@ -123,11 +124,14 @@ async function reachPositionStep(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.start.positionBetween)).toBeVisible();
 }
 
-// 駅と駅の間を選び、人身事故・10 分くらい・見込みは言っていないで判断を始める
-async function startBetweenStations(page: Page): Promise<void> {
+// 駅と駅の間を選び、人身事故・10 分くらい・見込みは言っていないで判断を始める。行き先は既定で三ノ宮
+async function startBetweenStations(
+  page: Page,
+  destination: { search: string; name: string } = { search: "さんのみや", name: "三ノ宮" },
+): Promise<void> {
   await page.getByTestId(testIds.start.positionBetween).click();
-  await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
-  await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+  await page.getByTestId(testIds.start.destinationSearch).fill(destination.search);
+  await page.getByTestId(testIds.start.destinationOption(destination.name)).click();
   // 駅間の後に行き先を答え、様子へ進む
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("塚本");
@@ -139,6 +143,32 @@ async function startBetweenStations(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
 }
 
+// 車内で待つ結論の共通の形。選択肢の一覧・バス停・乗り換え候補の駅・確率の帯を出さず、係員の案内に従う一文を添える
+async function expectInCarWait(page: Page): Promise<void> {
+  await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
+    "data-action",
+    "wait",
+  );
+  const headline = page.getByTestId(testIds.judgment.conclusionHeadline);
+  await expect(headline).toHaveText("車内で待つ");
+  await expect(page.getByTestId(testIds.judgment.inCarStaffNote)).toHaveText(
+    "長く止まったときは係員の案内に従う。",
+  );
+  await expect(page.getByTestId(testIds.judgment.disclaimer)).toContainText(
+    "推定であり、公式発表を優先してください",
+  );
+  await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(0);
+  await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
+    timeout: 30_000,
+  });
+  await expect(page.locator("[data-testid^='judgment-map-station-']")).toHaveCount(0);
+  await openSheet(page, "full");
+  await expect(page.getByTestId(testIds.judgment.options)).toHaveCount(0);
+  await expect(page.locator("[data-testid^='judgment-option-']")).toHaveCount(0);
+  await expect(page.getByTestId(testIds.judgment.busChecks)).toHaveCount(0);
+  await openSheet(page, "collapsed");
+}
+
 for (const theme of ["light", "dark"] as const) {
   test.describe(`駅と駅の間 ${theme}`, () => {
     test.beforeEach(async ({ context, baseURL }) => {
@@ -148,20 +178,18 @@ for (const theme of ["light", "dark"] as const) {
       ]);
     });
 
-    test("駅と駅の間を選ぶと、追加の問いなしで判断が出て、見出しに既定の次の駅の名前が入る", async ({
+    test("駅と駅の間を選ぶと、追加の問いなしで車内で待つ判断が出て、次の駅に着く時刻を添える", async ({
       page,
     }) => {
       await reachPositionStep(page);
       await capture(page, theme, "01-entry-position");
       await startBetweenStations(page);
 
-      // 見出しは次の駅に着いてからの行動で、「あと N 分」で始まらない
-      const headline = page.getByTestId(testIds.judgment.conclusionHeadline);
-      await expect(headline).toContainText("塚本");
-      await expect(headline).not.toHaveText(/^あと\s?\d+\s?分/);
-      await expect(headline).not.toContainText(/まで待って/);
-      // 塚本は別の鉄道の駅まで歩いて 20 分以上かかるが、鉄道の代替があるので、タクシーには切り替えない
-      await expect(headline).not.toContainText("タクシー");
+      // 見出しは車内で待つだけで、2 文目に次の駅に着く時刻を出す。乗り換えやタクシーは勧めない
+      await expectInCarWait(page);
+      await expect(page.getByTestId(testIds.judgment.conclusionNext)).toHaveText(
+        /^塚本に着くのは\d+時\d+分ごろ$/,
+      );
 
       // 前提のチップは既定値の見た目で、前の列車はふだんの運転から推し量った並びになる
       const next = page.getByTestId(testIds.judgment.trainPositionChip("next"));
@@ -177,9 +205,6 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByTestId(testIds.judgment.trainPositionHint)).toContainText(
         "前の列車の種類が分かると",
       );
-      await expect(page.getByTestId(testIds.judgment.disclaimer)).toContainText(
-        "推定であり、公式発表を優先してください",
-      );
       // 既定値の理由は、ふだんの間隔とみた見込みを言い、「入れない」とは書かない
       const reason = page.getByTestId(testIds.judgment.conclusionReasonDetail);
       await expect(reason).toContainText("ふだんどおり");
@@ -187,9 +212,9 @@ for (const theme of ["light", "dark"] as const) {
 
       // 利用者は大阪と塚本の間にいる。上部の帯と現在地の札は駅の間にいることを出し、塚本は降りる駅として目立たせる
       await expect(page.getByTestId(testIds.judgment.tripSummary)).toContainText("大阪〜塚本");
-      await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
-        timeout: 30_000,
-      });
+      // 人身事故は区間を止めるので、見合わせの札と止まった区間の線を出す
+      await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("見合わせ");
+      await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "true");
       await expect(page.getByTestId(mapTestIds.here)).toContainText("大阪〜塚本の間");
       await expect(page.getByTestId(mapTestIds.alight)).toContainText("塚本");
       // 「いま」の札と「降りる駅」の札は、互いにも、駅の印にも、「全体を見る」のボタンにも重ならない
@@ -207,42 +232,76 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
-test("別の鉄道の駅まで歩いて 20 分以上かかる塚本でも、地図の歩ける駅が代替手段に入り、タクシーは勧めず運賃つきで残る", async ({
+test("福島〜大阪の車内で急病人により止まり、行き先が大阪なら、車内で待ち、動く時刻だけを出し、見合わせと言わない", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
+    timeout: 30_000,
+  });
+  await chooseTrainDirection(page, "JR環状線", "寺田町");
+  await page.getByTestId(testIds.start.trainSegment).selectOption({ label: "福島 → 大阪" });
+  await page.getByTestId(testIds.start.positionBetween).click();
+  await page.getByTestId(testIds.start.destinationSearch).fill("大阪");
+  await page.getByTestId(testIds.start.destinationOption("大阪")).click();
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
+  await page.getByTestId(testIds.start.cause("passenger")).click();
+  await page.getByTestId(testIds.start.causeKind("inCar")).click();
+  await page.getByTestId(testIds.start.elapsed("now")).click();
+  await page.getByTestId(testIds.start.resume("unknown")).click();
+  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
+
+  await expectInCarWait(page);
+  await expect(page.getByTestId(testIds.judgment.conclusionNext)).toHaveText(
+    /^動くのは\d+時\d+分ごろの見込み$/,
+  );
+  // 行き先が次の駅なので、着いた後の次の一手は出さない
+  await expect(page.getByTestId(testIds.judgment.inCarAfterAlight)).toHaveCount(0);
+
+  // 車内の急病人はその列車だけが止まる。見合わせの札と止まった区間の線と札を出さず、止まった場所を示す
+  const status = page.getByTestId(testIds.judgment.statusChip);
+  await expect(status).toHaveText("福島〜大阪で停車中");
+  await expect(status).toHaveAttribute("data-scope", "train");
+  await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "false");
+  await expect(page.getByTestId(mapTestIds.blockedTag)).toHaveCount(0);
+  await expect(page.getByTestId(mapTestIds.here)).toContainText("福島〜大阪の間");
+  await expect(page.getByTestId(testIds.judgment.screen)).not.toContainText("見合わせ");
+  // シートを閉じた操作の枠を外してから撮る
+  await page.getByTestId(testIds.judgment.sheetHandle).blur();
+  await capture(page, "light", "04-fukushima-osaka-in-car");
+});
+
+test("行き先が別の路線にあり、次の駅に着いた後のほうが早ければ、着いた後の次の一手だけを 1 行で添える", async ({
+  page,
+}) => {
+  await reachPositionStep(page);
+  await startBetweenStations(page, { search: "西宮北口", name: "西宮北口" });
+
+  await expectInCarWait(page);
+  const step = page.getByTestId(testIds.judgment.inCarAfterAlight);
+  await expect(step).toBeVisible();
+  await expect(step).toHaveAttribute("data-kind", "transfer");
+  await expect(step).toContainText(/塚本に着いたら.+へ/);
+  await expect(step).toContainText(/\d{2}:\d{2} 着/);
+  // 見出しと理由には切り替えを書かない
+  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).not.toContainText("乗り換え");
+  await expect(page.getByTestId(testIds.judgment.conclusionReason)).not.toContainText("乗り換え");
+});
+
+test("人身事故で長く止まっても、乗ったままで三ノ宮に着けるなら、選択肢も着いた後の次の一手も出さない", async ({
   page,
 }) => {
   await reachPositionStep(page);
   await startBetweenStations(page);
 
-  // 結論は鉄道の代替への切り替えで、見出しにも理由にもタクシーは出ない
-  await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
-    "data-action",
-    "switch",
-  );
+  await expectInCarWait(page);
+  await expect(page.getByTestId(testIds.judgment.inCarAfterAlight)).toHaveCount(0);
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).not.toContainText("タクシー");
-  await expect(page.getByTestId(testIds.judgment.conclusionReasonDetail)).not.toContainText(
-    "タクシー",
+  await openSheet(page, "half");
+  await expect(page.getByTestId(testIds.judgment.conclusionReasonDetail)).toContainText(
+    "人身事故はふつう1時間ほどで再開します",
   );
-
-  // 地図の歩ける駅は代替手段の探索の候補でもある。徒歩は通常の上限の 15 分を超え、おすすめは 1 つだけ
-  await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
-    timeout: 30_000,
-  });
-  const bubbles = page.locator("[data-testid^='judgment-map-station-']");
-  await expect.poll(() => bubbles.count()).toBeGreaterThanOrEqual(2);
-  for (const bubble of await bubbles.all()) {
-    expect(Number(await bubble.getAttribute("data-walk-minutes"))).toBeGreaterThan(15);
-  }
-  await expect(bubbles.and(page.locator("[data-recommended='true']"))).toHaveCount(1);
-
-  // 選択肢は、歩いて乗りに行く鉄道の代替が推奨になり、タクシーは運賃と一緒に並ぶ
-  await openSheet(page, "full");
-  const recommended = page.locator("[data-testid^='judgment-option-'][data-recommended='true']");
-  await expect(recommended).toHaveCount(1);
-  await expect(recommended).toHaveAttribute("data-kind", "transfer");
-  const taxi = page.getByTestId(testIds.judgment.option("taxi"));
-  await expect(taxi).toHaveAttribute("data-kind", "taxi");
-  await expect(taxi).toHaveAttribute("data-recommended", "false");
-  await expect(taxi).toContainText(/\d,\d{3}/);
 });
 
 test("判断の画面で前の列車のチップを押し、快速と普通を並べて直すと、判断が出し直され、理由に種別の事情が入る", async ({
@@ -274,7 +333,11 @@ test("判断の画面で前の列車のチップを押し、快速と普通を�
   await expect(page.getByTestId(testIds.judgment.conclusionReason)).toContainText("再開後");
   await expect(reason).not.toContainText("入れない");
   await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready");
-  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toContainText("塚本");
+  // 再開を待って動くので、見出しの 2 文目は動き出す時刻になる
+  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText("車内で待つ");
+  await expect(page.getByTestId(testIds.judgment.conclusionNext)).toHaveText(
+    /^動くのは\d+時\d+分ごろの見込み$/,
+  );
 });
 
 test("持ち込んだ走行位置画像の種別を判断入力に使う", async ({ page }) => {

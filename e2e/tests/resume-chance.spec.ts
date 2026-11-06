@@ -189,18 +189,20 @@ async function startBetweenStations(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
 }
 
-test("駅と駅の間にいる人の判断にも、確率の帯と分岐点までに再開する見込みが出る", async ({
+test("駅と駅の間にいる人には、境目と確率の帯を出さず、車内で待つ見出しと動く見込みを出す", async ({
   page,
 }) => {
   await startBetweenStations(page);
-  const band = page.getByTestId(testIds.judgment.resumeChance);
-  await expect(band).toBeVisible();
-  await expect(band).toHaveAttribute("data-onset", "known");
-  await expect(page.getByTestId(testIds.judgment.resumeChanceWaitFaster)).toContainText(/割/);
-  await expect(page.getByTestId(testIds.judgment.resumeChanceOnset)).toContainText("発生から");
-  const ticks = await readTicks(page);
-  expect(ticks.length).toBeGreaterThanOrEqual(4);
-  // 前提のチップが増えても、閉じたシートに注意書きまで収まる
+  // 車内からは切り替えられないので、境目と待ったほうが早く着く見込みは出さない
+  await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(0);
+  await expect(page.getByTestId(testIds.judgment.resumeChanceWaitFaster)).toHaveCount(0);
+  await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveCount(0);
+  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText("車内で待つ");
+  await expect(page.getByTestId(testIds.judgment.conclusionNext)).toHaveText(
+    /^(動くのは\d+時\d+分ごろの見込み|塚本に着くのは\d+時\d+分ごろ)$/,
+  );
+  await expect(page.getByTestId(testIds.judgment.inCarStaffNote)).toBeVisible();
+  // 前提のチップと車内の案内が増えても、閉じたシートに注意書きまで収まる
   await waitForFiniteAnimations(page);
   const box = await page.getByTestId(testIds.judgment.disclaimer).boundingBox();
   expect(box, "注意書きが見つからない").not.toBeNull();
