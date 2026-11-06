@@ -34,6 +34,8 @@ import {
   computeSegmentHitRadii,
   findNearestLineId,
   RAIL_TAP_PX,
+  SECTION_FOCUS_STRENGTH,
+  type SectionGlow,
   selectMapTapTarget,
   selectRailTapAction,
 } from "./map-pick";
@@ -132,6 +134,10 @@ type EntryMapProps = {
   // 最初の段で、引いた地図の線のあたりを押したとき。駅の間は決めず、まずそのあたりへ寄せる
   onApproachRails?: (point: Position, reachMeters: number) => void;
   segments: MapSegment[];
+  // 線を押して出した駅の間の候補か、確定した駅の間。光らせて描き、ほかの線を薄くする
+  sections: SectionGlow;
+  // 線を押した点。新しい点が来るたびに、波紋の印を一瞬だけ出す
+  tapPoint: Position | null;
   onSelectSegment: (key: string) => void;
   // 選んだ駅の名前の札の向き。地図に出す札を避ける向きにする。null なら設定の向き
   placeSide: LabelSide | null;
@@ -160,7 +166,20 @@ const betweenZoom = 13.5;
 const tapReachPx = 44;
 // 様子を聞く段。行き先を選び終えているので、出発と行き先を弧で結び、視点は動かさない
 const situationStages = new Set<EntryStage>(["cause", "causeKind", "elapsed", "resume", "input"]);
-const sourceIds = { lines: "entry-lines", trip: "entry-trip", segment: "entry-segment" } as const;
+const sourceIds = {
+  lines: "entry-lines",
+  trip: "entry-trip",
+  segment: "entry-segment",
+  section: "entry-section",
+} as const;
+// 光らせる駅の間の層。外側のぼかし、縁、路線色の線の順に重ねる
+const sectionLayers = {
+  glow: "entry-section-glow",
+  casing: "entry-section-casing",
+  line: "entry-section-line",
+} as const;
+// 押した点の波紋を出しておく時間（ms）
+const tapRippleMs = 650;
 // 線を押したとみなす、押した点からの幅（px）
 const linePickPx = RAIL_TAP_PX;
 // 駅の間の丸がよける、駅の印と札の丸の半径（px）
@@ -192,7 +211,13 @@ function buildRailColor(palette: MapPalette) {
   ] as unknown as string;
 }
 
-function applyPaint(map: MapLibreMap, palette: MapPalette, focus: LineFocus | null): void {
+// dimmed は駅の間を光らせているか。光らせている間は、ほかの線を薄くして浮き上がらせる
+function applyPaint(
+  map: MapLibreMap,
+  palette: MapPalette,
+  focus: LineFocus | null,
+  dimmed: boolean,
+): void {
   type PaintArgs = Parameters<MapLibreMap["setPaintProperty"]>;
   const set = (layer: string, key: string, value: unknown) => {
     if (map.getLayer(layer))
@@ -204,14 +229,19 @@ function applyPaint(map: MapLibreMap, palette: MapPalette, focus: LineFocus | nu
   set("gsi-pale", "raster-contrast", palette.rasterContrast);
   const all = focus?.mode === "all";
   set("entry-rail", "line-color", all ? ["get", "color"] : buildRailColor(palette));
-  const near = !focus || all ? 0.45 : focus.mode === "only" ? 0.06 : 0.2;
-  const far = focus?.mode === "only" ? Math.min(0.06, palette.railOpacity) : palette.railOpacity;
+  const dim = dimmed ? 0.45 : 1;
+  const near = (!focus || all ? 0.45 : focus.mode === "only" ? 0.06 : 0.2) * dim;
+  const far =
+    (focus?.mode === "only" ? Math.min(0.06, palette.railOpacity) : palette.railOpacity) * dim;
   set(
     "entry-rail",
     "line-opacity",
-    all ? 0.85 : ["interpolate", ["linear"], ["zoom"], 9, far, 13, near],
+    all ? 0.85 * dim : ["interpolate", ["linear"], ["zoom"], 9, far, 13, near],
   );
+  set("entry-line-casing", "line-opacity", 0.9 * dim);
+  set("entry-line-focus", "line-opacity", dim);
   set("entry-line-casing", "line-color", palette.routeCasing);
+  set(sectionLayers.casing, "line-color", palette.routeCasing);
   set("entry-trip", "line-color", palette.text);
   set("entry-segment", "line-color", palette.text);
   const ids = focus && !all ? focus.lineIds : [];
@@ -250,6 +280,7 @@ function addLayers(map: MapLibreMap, geo: MapGeoData, palette: MapPalette): void
     layout: { "line-cap": "round", "line-join": "round" },
     paint: { "line-color": ["get", "color"], "line-width": 5.5 },
   });
+  addSectionLayers(map, palette);
   map.addSource(sourceIds.segment, {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] },
@@ -267,6 +298,52 @@ function addLayers(map: MapLibreMap, geo: MapGeoData, palette: MapPalette): void
     source: sourceIds.trip,
     layout: { "line-cap": "round", "line-join": "round" },
     paint: { "line-color": palette.text, "line-width": 2.5, "line-dasharray": [1.2, 1.8] },
+  });
+}
+
+// 駅の間を光らせる層。strength が 1 の候補ほど太く濃く描く
+function addSectionLayers(map: MapLibreMap, palette: MapPalette): void {
+  map.addSource(sourceIds.section, {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+  });
+  const strength = ["get", "strength"];
+  const scale = (base: number, gain: number) =>
+    ["+", base, ["*", gain, strength]] as unknown as number;
+  const layout = { "line-cap": "round", "line-join": "round" } as const;
+  map.addLayer({
+    id: sectionLayers.glow,
+    type: "line",
+    source: sourceIds.section,
+    layout,
+    paint: {
+      "line-color": ["get", "color"] as unknown as string,
+      "line-width": scale(10, 20),
+      "line-blur": scale(4, 10),
+      "line-opacity": scale(0.1, 0.8),
+    },
+  });
+  map.addLayer({
+    id: sectionLayers.casing,
+    type: "line",
+    source: sourceIds.section,
+    layout,
+    paint: {
+      "line-color": palette.routeCasing,
+      "line-width": scale(3, 7),
+      "line-opacity": scale(0.2, 0.75),
+    },
+  });
+  map.addLayer({
+    id: sectionLayers.line,
+    type: "line",
+    source: sourceIds.section,
+    layout,
+    paint: {
+      "line-color": ["get", "color"] as unknown as string,
+      "line-width": scale(2, 5),
+      "line-opacity": scale(0.4, 0.6),
+    },
   });
 }
 
@@ -405,6 +482,26 @@ function flyToArea(map: MapLibreMap, area: EntryArea, insets: MapInsets, duratio
     });
 }
 
+// 点が上部の帯やシートに隠れていれば、倍率を変えずに見える所の中ほどへ動かす。隠れていなければ動かさない
+function keepPointVisible(
+  map: MapLibreMap,
+  position: Position,
+  insets: MapInsets,
+  duration: number,
+): void {
+  const padding = buildPadding(map, insets, { x: 24, y: 24 });
+  const canvas = map.getCanvas();
+  const point = map.project(position);
+  const right = canvas.clientWidth - padding.right;
+  const bottom = canvas.clientHeight - padding.bottom;
+  const goal = {
+    x: point.x < padding.left || point.x > right ? (padding.left + right) / 2 : point.x,
+    y: point.y < padding.top || point.y > bottom ? (padding.top + bottom) / 2 : point.y,
+  };
+  if (goal.x === point.x && goal.y === point.y) return;
+  map.panBy([point.x - goal.x, point.y - goal.y], { duration });
+}
+
 // 地図を押した点の答えを決めて知らせる。札を押したときは label にその駅を渡す
 // 駅の印の中心の近くは駅、描いた線の上は駅の間、どちらでもなければ何もない所を押したとみなす
 function handleTapAt(
@@ -495,6 +592,8 @@ export function EntryMap(props: EntryMapProps) {
     destination,
     stops,
     segments,
+    sections,
+    tapPoint,
     focus,
     insets,
     narrow,
@@ -561,7 +660,9 @@ export function EntryMap(props: EntryMapProps) {
         });
         // 指やキーで地図を動かしたか。動かした後は、シートの高さが変わっただけでは寄せ直さない
         loaded.on("movestart", (e) => {
-          if (e.originalEvent) userMovedRef.current = true;
+          if (!e.originalEvent) return;
+          userMovedRef.current = true;
+          tapMovedRef.current = true;
         });
         // 印の上の操作は印が受け持つ。何もない所を触ったときだけ知らせる
         loaded.on("click", (e) => {
@@ -585,9 +686,58 @@ export function EntryMap(props: EntryMapProps) {
     };
   }, [geo]);
 
+  const dimmed = sections.features.length > 0;
   useEffect(() => {
-    if (map) applyPaint(map, palette, lineFocus);
-  }, [map, palette, lineFocus]);
+    if (map) applyPaint(map, palette, lineFocus, dimmed);
+  }, [map, palette, lineFocus, dimmed]);
+
+  // 駅の間の候補を光らせる。描けた区間の数と一番強い区間は、e2e が確かめられるよう属性に出す
+  const [sectionShown, setSectionShown] = useState({ count: 0, focus: "" });
+  useEffect(() => {
+    if (!map) return;
+    map.getSource<GeoJSONSource>(sourceIds.section)?.setData(sections);
+    const read = () => {
+      const rendered = map.queryRenderedFeatures({ layers: [sectionLayers.line] });
+      const keys = new Set(rendered.map((f) => String(f.properties.key)));
+      const focused = rendered.find((f) => f.properties.strength === SECTION_FOCUS_STRENGTH);
+      setSectionShown({ count: keys.size, focus: String(focused?.properties.key ?? "") });
+    };
+    map.on("idle", read);
+    map.triggerRepaint();
+    return () => {
+      map.off("idle", read);
+    };
+  }, [map, sections]);
+
+  // 線を押した点に、波紋の印を一瞬だけ出す。動きを減らす設定では動かさずに出して消す
+  // 印は押した点の緯度経度に結び付け、地図が動くたびに画面の位置を直す
+  const [ripple, setRipple] = useState<{ position: Position; id: string } | null>(null);
+  const rippleRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!map || !tapPoint) return;
+    setRipple({ position: tapPoint, id: tapPoint.join(",") });
+    const timer = window.setTimeout(() => setRipple(null), tapRippleMs);
+    // 消える前に候補を閉じても、印を残さない
+    return () => {
+      window.clearTimeout(timer);
+      setRipple(null);
+    };
+  }, [map, tapPoint]);
+  useEffect(() => {
+    if (!map || !ripple) return;
+    const place = () => {
+      const element = rippleRef.current;
+      if (!element) return;
+      const { x, y } = map.project(ripple.position);
+      element.style.left = `${x - 10}px`;
+      element.style.top = `${y - 10}px`;
+    };
+    place();
+    map.on("move", place);
+    return () => {
+      map.off("move", place);
+    };
+  }, [map, ripple]);
 
   // 地図か一覧で選んでいる駅の間を、点線で描く
   const selectedSegment = segments.find((s) => s.selected) ?? null;
@@ -646,16 +796,32 @@ export function EntryMap(props: EntryMapProps) {
     showTrip ? destinationPosition : null,
     stage === "between" ? betweenFocus : null,
   ]);
-  const cameraKey = JSON.stringify([sceneKey, top, right, bottom, left]);
+  const tapKey = tapPoint?.join(",") ?? "";
+  const cameraKey = JSON.stringify([sceneKey, top, right, bottom, left, tapKey]);
   const firstFitRef = useRef(true);
   const userMovedRef = useRef(false);
   const lastSceneRef = useRef<string | null>(null);
+  // 線を押して候補を出してから、利用者が地図を動かしたか。押すたびに戻す
+  const lastTapRef = useRef("");
+  const tapMovedRef = useRef(false);
   // biome-ignore lint/correctness/useExhaustiveDependencies: 視点は cameraKey が変わったときだけ動かす
   useEffect(() => {
     if (!map) return;
-    // 利用者が地図を動かした後に余白だけが変わったときは、見ている所を保つ
-    if (userMovedRef.current && lastSceneRef.current === sceneKey) return;
     const sameScene = lastSceneRef.current === sceneKey;
+    // 線を押して候補を出している間は、段の寄せ方をせず、倍率を保ったまま押した点を見える所に置くだけにする
+    // 候補を出した後に利用者が地図を動かしていれば、シートの高さが変わっても動かさない
+    if (tapPoint && sameScene) {
+      if (lastTapRef.current !== tapKey) tapMovedRef.current = false;
+      lastTapRef.current = tapKey;
+      if (!tapMovedRef.current) {
+        const duration = prefersReducedMotion() ? 0 : durationMs;
+        keepPointVisible(map, tapPoint, { top, right, bottom, left }, duration);
+      }
+      return;
+    }
+    lastTapRef.current = tapKey;
+    // 利用者が地図を動かした後に余白だけが変わったときは、見ている所を保つ
+    if (userMovedRef.current && sameScene) return;
     lastSceneRef.current = sceneKey;
     userMovedRef.current = false;
     const duration = firstFitRef.current || prefersReducedMotion() ? 0 : durationMs;
@@ -1084,10 +1250,21 @@ export function EntryMap(props: EntryMapProps) {
       data-zoom={zoom.toFixed(2)}
       data-center={center.map((v) => v.toFixed(6)).join(",")}
       data-moving={moving}
+      data-section-count={sectionShown.count}
+      data-section-focus={sectionShown.focus}
       aria-label={t("mapLabel")}
       className="fixed inset-0 z-0 bg-background"
     >
       <div ref={containerRef} className="h-full w-full" />
+      {ripple && (
+        <span
+          key={ripple.id}
+          ref={rippleRef}
+          aria-hidden
+          data-testid={testIds.start.tapRipple}
+          className="pointer-events-none absolute z-[4] size-5 rounded-full border-2 border-foreground/70 bg-foreground/15 motion-safe:animate-tap-ripple"
+        />
+      )}
       {(zoom < STATION_LABEL_MIN_ZOOM ? edgeHubs : []).map(({ hub, x, y, angle }) => (
         <button
           key={hub.areaId}

@@ -3,7 +3,7 @@
 import { Play, X } from "lucide-react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { testIds } from "@/features/judgment/testids";
 import type { StationChoice } from "@/features/stations/catalog";
@@ -14,6 +14,7 @@ import type { DirectionStop } from "./directions";
 import { SheetTitle } from "./EntrySheet";
 import { type EntryLine, pickLocalized } from "./entry-places";
 import type { GpsChoice } from "./gps-candidates";
+import { selectAttendedChoiceKey } from "./map-pick";
 import type { GpsStatus } from "./use-gps-position";
 
 const buttonClass = "min-h-12 rounded-2xl bg-foreground/[0.05] px-4 py-3 text-left font-semibold";
@@ -29,6 +30,8 @@ export type GpsProps = {
   onLocate: () => void;
   onConfirm: (choice: GpsChoice) => void;
   onDismiss: () => void;
+  // 候補に指を置くかフォーカスしたとき、その候補の key。離れたら null
+  onFocusChoice?: (key: string | null) => void;
 };
 
 // 候補の呼び名。問いの形と、並べたときの形の 2 つ
@@ -54,19 +57,29 @@ const gpsFailureKeys = {
 } as const;
 
 // 位置の候補の確かめ。候補が 1 つなら はい で確定し、複数なら並べて選ばせる
+// 並べた候補に指を置くかフォーカスすると onFocusChoice で知らせ、地図でその区間を強く光らせる
 function PlaceConfirm({
   choices,
   pickTitle,
   onConfirm,
   onDismiss,
+  onFocusChoice,
 }: {
   choices: GpsChoice[];
   pickTitle: string;
   onConfirm: (choice: GpsChoice) => void;
   onDismiss: () => void;
+  onFocusChoice?: (key: string | null) => void;
 }) {
   const t = useTranslations("entry");
   const label = useGpsLabel();
+  // 指を置いている候補とフォーカスしている候補を分けて持ち、指が離れてもフォーカスの候補を残す
+  const [pointerKey, setPointerKey] = useState<string | null>(null);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const attended = selectAttendedChoiceKey(pointerKey, focusKey);
+  useEffect(() => {
+    onFocusChoice?.(attended);
+  }, [attended, onFocusChoice]);
   const [only] = choices;
   if (only && choices.length === 1)
     return (
@@ -104,6 +117,11 @@ function PlaceConfirm({
           className={buttonClass}
           data-testid={testIds.start.gpsChoice(choice.key)}
           onClick={() => onConfirm(choice)}
+          onPointerEnter={() => setPointerKey(choice.key)}
+          onPointerDown={() => setPointerKey(choice.key)}
+          onPointerLeave={() => setPointerKey(null)}
+          onFocus={() => setFocusKey(choice.key)}
+          onBlur={() => setFocusKey(null)}
         >
           {label(choice, "choice")}
         </button>
@@ -113,7 +131,7 @@ function PlaceConfirm({
 }
 
 // 現在地から読み取る。読み取れたら候補を確かめる
-function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps) {
+function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss, onFocusChoice }: GpsProps) {
   const t = useTranslations("entry");
   const located = status.kind === "located";
   const failure =
@@ -136,6 +154,7 @@ function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps
           pickTitle={t("gpsPickQuestion")}
           onConfirm={onConfirm}
           onDismiss={onDismiss}
+          onFocusChoice={onFocusChoice}
         />
       ) : (
         <button
@@ -238,12 +257,14 @@ export function BetweenStep({
   listPairChoices,
   onSearch,
   onConfirm,
+  onFocusChoice,
 }: {
   mapChoices: GpsChoice[] | null;
   onDismissMap: () => void;
   listPairChoices: (first: StationChoice, second: StationChoice) => GpsChoice[];
   onSearch: () => void;
   onConfirm: (choice: GpsChoice) => void;
+  onFocusChoice?: (key: string | null) => void;
 }) {
   const t = useTranslations("entry");
   const [first, setFirst] = useState<StationChoice | null>(null);
@@ -264,6 +285,7 @@ export function BetweenStep({
           pickTitle={mapChoices ? t("gpsPickQuestion") : t("betweenPickQuestion")}
           onConfirm={onConfirm}
           onDismiss={mapChoices ? onDismissMap : () => setSecond(null)}
+          onFocusChoice={mapChoices ? onFocusChoice : undefined}
         />
       ) : null}
       {!mapChoices && pairChoices?.length === 0 ? (
