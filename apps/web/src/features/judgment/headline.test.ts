@@ -65,12 +65,12 @@ describe("pickInitialHeadlineSize", () => {
 describe("splitAroundClock", () => {
   const time = "2026-11-05T21:40:00+09:00";
 
-  it("説明文の時刻を見つけ、表記を HH:MM にそろえる", () => {
+  it("説明文の時刻を見つけ、表記を文の中の書き方にそろえる", () => {
     expect(
       splitAroundClock("21時40分までに再開しなければ、阪急のほうが早く着きます。", time, "ja"),
     ).toEqual({
       before: "",
-      clock: "21:40",
+      clock: "21時40分",
       after: "までに再開しなければ、阪急のほうが早く着きます。",
     });
     expect(
@@ -79,6 +79,14 @@ describe("splitAroundClock", () => {
       before: "If service has not resumed by ",
       clock: "21:40",
       after: ", Hankyu is faster.",
+    });
+  });
+
+  it("ja の文に混じった「21:40」も「21時40分」にそろえる", () => {
+    expect(splitAroundClock("21:40までに再開すれば待つほうが早く着きます。", time, "ja")).toEqual({
+      before: "",
+      clock: "21時40分",
+      after: "までに再開すれば待つほうが早く着きます。",
     });
   });
 

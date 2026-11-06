@@ -1,7 +1,7 @@
 {
   "app": {
     "title": "みちあかり",
-    "description": "運転見合わせで待つか乗り換えるかを決める。元指令員の知見から見込みと行動を示す。",
+    "description": "運転見合わせで、待つか乗り換えるかを決められます。元指令員の知見から見込みと行動を示します。",
     "home": "地図から始める",
     "about": "このアプリについて",
     "language": "言語",
@@ -9,7 +9,7 @@
       "toLight": "ライト表示にする",
       "toDark": "ダーク表示にする"
     },
-    "mockBadge": "デモ用の架空データで表示しています",
+    "mockBadge": "デモ用の架空データを表示中",
     "name": "みちあかり",
     "skipToContent": "本文へ移動",
     "menu": {
@@ -23,24 +23,24 @@
   },
   "start": {
     "introAudience": "関西の運転見合わせで足が止まった人へ。",
-    "introProblem": "運行情報は何が起きたかまでしか伝えない。",
-    "introSolution": "元指令員の知見から次の一手を選ぶ。",
+    "introProblem": "運行情報は、何が起きたかまでしか伝えません。",
+    "introSolution": "元指令員の知見から、次の一手を示します。",
     "originLabel": "いまいる駅",
     "locate": "現在地を使う",
-    "locating": "現在地を取得しています…",
-    "locateFailed": "駅名で探す。現在地はあとで試し直せる。",
-    "locateUnsupported": "この端末では駅名で探す。",
+    "locating": "現在地を取得しています",
+    "locateFailed": "現在地を取れませんでした。駅名で探してください。",
+    "locateUnsupported": "この端末では現在地を使えません。駅名で探してください。",
     "currentLocation": "現在地",
     "useFreeText": "「{text}」を行き先にする",
-    "noResults": "別の書き方で探す",
+    "noResults": "見つかりませんでした。別の書き方で探してください。",
     "replayLink": "デモを見る",
-    "nearestFailed": "駅名で探す。最寄り駅はあとで試し直せる。",
+    "nearestFailed": "最寄り駅を取れませんでした。駅名で探してください。",
     "resultCount": "{count}件の駅が見つかりました",
-    "searchFailed": "通信を確かめる。もう一度探す。"
+    "searchFailed": "通信を確かめて、もう一度探してください。"
   },
   "situation": {
     "heading": "いまの状況を伝える",
-    "lead": "掲示や発表からいまの段階を読み取る。",
+    "lead": "駅の掲示か、発表の文を入れてください。",
     "edit": "変更する",
     "tabs": {
       "photo": "撮影する",
@@ -48,11 +48,11 @@
       "select": "選んで答える"
     },
     "photo": {
-      "hint": "駅の掲示や案内画面を撮る。",
+      "hint": "駅の掲示や案内画面を撮ってください。",
       "button": "カメラで撮影する",
       "retake": "撮り直す",
       "preview": "撮影した写真",
-      "unsupported": "別の写真を選ぶ。掲示の文字を大きく写す。",
+      "unsupported": "読み取れませんでした。掲示の文字が大きく写った写真を選んでください。",
       "submit": "この写真で判断する"
     },
     "paste": {
@@ -63,11 +63,11 @@
     "select": {
       "eventLabel": "起きていることを選ぶ",
       "signalLabel": "聞こえた案内・見えた様子をすべて選ぶ",
-      "empty": "選択肢は準備中。撮影か貼り付けで伝える。",
-      "back": "事象を選び直す",
+      "empty": "選択肢を用意しています。撮影か貼り付けで伝えてください。",
+      "back": "起きていることを選び直す",
       "submit": "この内容で判断する"
     },
-    "busy": "判断しています…"
+    "busy": "判断しています"
   },
   "judgment": {
     "heading": "判断",
@@ -79,7 +79,7 @@
         "reading": "掲示・発表を読み取る",
         "signals": "兆候を見つける",
         "phase": "いまの段階を推定する",
-        "options": "代替手段を調べる",
+        "options": "代わりの手段を調べる",
         "breakEven": "境目の時刻を計算する"
       },
       "status": {
@@ -112,11 +112,11 @@
     },
     "conclusion": {
       "label": "結論",
-      "recommended": "おすすめ: {label}・{time} 着",
-      "remaining": "再開まで 約{p50}〜{p80}分",
+      "recommended": "おすすめ {label}・{time}着",
+      "remaining": "再開まで約{p50}〜{p80}分",
       "confidence": "見込みの確かさ {level}",
       "live": "結論: {action}。{headline}",
-      "arrival": "{time} 着",
+      "arrival": "{time}着",
       "next": "次の手",
       "reasonTitle": "理由"
     },
@@ -127,36 +127,36 @@
     },
     "error": {
       "title": "通信が途切れました",
-      "retryable": "通信を確かめる。もう一度判断する。",
-      "fatal": "時間をおく。もう一度判断する。",
+      "retryable": "通信を確かめて、もう一度判断してください。",
+      "fatal": "少し時間をおいて、もう一度判断してください。",
       "retry": "もう一度判断する",
       "detail": "詳細: {message}"
     },
     "breakEven": {
       "title": "境目",
-      "passed": "境目を過ぎました",
-      "soon": "まもなく境目です。乗り換えに備える",
+      "passed": "境目を過ぎた",
+      "soon": "まもなく境目です。乗り換えの用意をしてください。",
       "none": "運転再開を待つ",
-      "noneDetail": "到着時刻を比べられる代わりの経路はない。運転再開を待つ。",
-      "pending": "計算しています…",
+      "noneDetail": "比べられる代わりの手段がありません。運転再開を待ってください。",
+      "pending": "計算しています",
       "stale": "更新中",
-      "countdownMinutes": "あと {minutes} 分",
-      "countdownHours": "あと {hours} 時間 {minutes} 分",
+      "countdownMinutes": "あと{minutes}分",
+      "countdownHours": "あと{hours}時間{minutes}分",
       "imminent": "まもなく",
-      "condition": "<clock>{time}</clock> までに再開すれば待つほうが早く着く",
+      "condition": "<clock>{time}</clock>までに再開すれば待つほうが早く着きます。",
       "timeline": {
         "now": "いま",
         "breakEven": "境目 {time}",
         "deadline": "期限 {time}",
         "summary": {
-          "before": "再開見込み {from}〜{to} は境目 {breakEven} より前。待つほうが早く着く見込み。",
-          "straddle": "再開見込み {from}〜{to} は境目 {breakEven} をまたぐ。見込みが延びたら切り替える。",
-          "after": "再開見込み {from}〜{to} は境目 {breakEven} より後。切り替えるほうが早く着く見込み。"
+          "before": "再開の見込みは{from}〜{to}です。境目の{breakEven}より前なので、待つほうが早く着く見込みです。",
+          "straddle": "再開の見込みは{from}〜{to}です。境目の{breakEven}をまたぐので、見込みが延びたら切り替えてください。",
+          "after": "再開の見込みは{from}〜{to}です。境目の{breakEven}より後なので、切り替えるほうが早く着く見込みです。"
         },
         "caption": {
-          "before": "おおよその再開 {from}〜{to} は<em>境目より前</em>",
-          "straddle": "おおよその再開 {from}〜{to} が<em>境目をまたぐ</em>",
-          "after": "おおよその再開 {from}〜{to} は<em>境目より後</em>"
+          "before": "再開の見込み {from}〜{to}は<em>境目より前</em>",
+          "straddle": "再開の見込み {from}〜{to}は<em>境目をまたぐ</em>",
+          "after": "再開の見込み {from}〜{to}は<em>境目より後</em>"
         }
       },
       "untilLabel": "境目まで",
@@ -189,28 +189,28 @@
     },
     "switchStep": {
       "title": "切り替え先",
-      "walkTo": "{station}まで徒歩 {minutes} 分",
+      "walkTo": "{station}まで徒歩{minutes}分",
       "boardAt": "{station}から乗る",
       "taxi": "タクシーで向かう",
-      "walk": "徒歩 {minutes} 分で向かう",
-      "arrival": "{time} 着",
+      "walk": "徒歩{minutes}分で向かう",
+      "arrival": "{time}着",
       "arrivalLabel": "到着の見込み"
     },
     "weather": {
-      "title": "雨量の推移 10分ごと",
+      "title": "10分ごとの雨量",
       "stale": "更新中",
       "trend": {
         "rising": "強まっている",
         "falling": "弱まっている",
         "steady": "横ばい",
-        "unknown": "向きはこれから"
+        "unknown": "傾向はまだ出ていない"
       },
       "issued": "{name} 発表中",
       "noWarnings": "警報・注意報の発表なし",
-      "warningsUnknown": "警報・注意報は次の観測で確かめます",
+      "warningsUnknown": "警報と注意報は次の更新で確かめます。",
       "mm": "{mm}mm",
-      "missing": "欠測",
-      "missingCount": "欠測 {count}件",
+      "missing": "観測なし",
+      "missingCount": "観測なし {count}件",
       "scaleMax": "上端 {mm}mm",
       "chartLabel": "10分雨量の推移。{values}",
       "source": "気象データ: 気象庁",
@@ -224,7 +224,7 @@
       "minutes": "{minutes}分",
       "recommended": "おすすめ",
       "transferService": "振替輸送",
-      "pending": "調べています…",
+      "pending": "調べています",
       "empty": "運転再開を待つ",
       "stale": "更新中",
       "note": "乗車時間と運賃は概算です。",
@@ -259,7 +259,7 @@
     },
     "addInfo": {
       "title": "情報を追加する",
-      "lead": "新しい掲示や発表を入れる。判断を更新する。"
+      "lead": "新しい掲示や発表を入れると、判断を更新します。"
     },
     "sheet": "判断の詳細",
     "status": "{line} 見合わせ",
@@ -269,16 +269,16 @@
     "statusDelayedOnly": "後続に遅れ",
     "premise": {
       "title": "この判断の前提",
-      "trainsAheadPhoto": "走行位置の画像から前の列車を {types} と読みました",
-      "trainsAheadPhotoNone": "走行位置の画像から前に列車はいないと読みました",
-      "destinationHub": "行き先は{direction}方面の主な駅の{station}と仮定する",
-      "destinationTerminal": "行き先は終点の{station}と仮定する",
-      "onTrain": "車内の位置は{station}駅と仮定する",
-      "elapsedUnknown": "止まった時刻はいまと仮定する",
-      "causeUnknown": "原因は未確認。境目の時刻を動く目安にする",
-      "cause": "原因は放送で聞いた{cause}と仮定する",
-      "causeNoPattern": "原因は放送で聞いた{cause}。傾向の無い原因なので境目の時刻を動く目安にする",
-      "betweenStations": "駅と駅の間にいる。{station}に着いてからの行動を示す"
+      "trainsAheadPhoto": "走行位置の画像から、前の列車を{types}と読みました。",
+      "trainsAheadPhotoNone": "走行位置の画像から、前に列車はいないと読みました。",
+      "destinationHub": "行き先は{direction}方面の主な駅の{station}と仮定しています。",
+      "destinationTerminal": "行き先は終点の{station}と仮定しています。",
+      "onTrain": "車内の位置は{station}駅と仮定しています。",
+      "elapsedUnknown": "止まった時刻はいまと仮定しています。",
+      "causeUnknown": "原因は未確認です。境目の時刻を動く目安にしています。",
+      "cause": "原因は放送で聞いた{cause}と仮定しています。",
+      "causeNoPattern": "原因は放送で聞いた{cause}です。境目の時刻を動く目安にしています。",
+      "betweenStations": "駅と駅の間にいます。{station}に着いてからの行動を示します。"
     },
     "nextCheck": {
       "title": "次に確かめること",
@@ -294,9 +294,9 @@
       "next": "次は{station}",
       "own": "{type}に乗車",
       "aheadNone": "前に詰まっている列車はいない",
-      "aheadUnknown": "前の列車 分からない",
+      "aheadUnknown": "前の列車は不明",
       "ahead": "前に詰まっている列車 {types}",
-      "aheadPattern": "前の列車はふだんの間隔と推定",
+      "aheadPattern": "前の列車は通常の間隔と推定",
       "estimated": "推定",
       "edit": "直す",
       "nextQuestion": "次に着く駅を選ぶ",
@@ -304,16 +304,16 @@
       "aheadQuestion": "前に止まっている列車を近い順に押す",
       "aheadQueue": "近い順",
       "aheadEmpty": "まだ押していません",
-      "removeLast": "最後の 1 つを消す",
+      "removeLast": "最後の1つを消す",
       "apply": "この前提で判断し直す",
-      "checkHint": "列車走行位置の画面で確かめられます",
-      "patternHint": "前の列車の種類が分かると、着く時刻がより確かになります",
+      "checkHint": "列車走行位置の画面で確かめられます。",
+      "patternHint": "前の列車の種類が分かると、着く時刻がより確かになります。",
       "close": "閉じる"
     },
     "inCar": {
       "title": "車内での動き方",
       "afterAlight": "着いた後の次の一手",
-      "arrival": "{time} 着"
+      "arrival": "{time}着"
     },
     "trainTypes": {
       "local": "普通",
@@ -321,7 +321,7 @@
       "special_rapid": "新快速",
       "limited_express": "特急",
       "unknown": "分からない",
-      "unknownType": "種別は分からない"
+      "unknownType": "種別の分からない列車"
     },
     "tripBetween": "{from}〜{to}",
     "change": {
@@ -336,9 +336,9 @@
   },
   "replay": {
     "heading": "デモを見る",
-    "lead": "架空の運転見合わせを 1 つ選んでください。発表が届くたびに、判断と地図が変わる様子を再生します。",
+    "lead": "架空の運転見合わせを1つ選んでください。発表が届くたびに、判断と地図が変わる様子を再生します。",
     "fictional": "すべて架空のシナリオです。実在の事故や公式発表ではありません。",
-    "empty": "シナリオを追加すると、ここで再生できます",
+    "empty": "シナリオを追加すると、ここで再生できます。",
     "observationCount": "発表 {count}件",
     "deadline": "{time}までに着きたい",
     "noDeadline": "時間の制約なし",
@@ -357,7 +357,7 @@
       "paused": "一時停止中",
       "judging": "判断しています",
       "error": "通信が途切れました",
-      "ended": "再生が終わりました"
+      "ended": "再生終了"
     },
     "kinds": {
       "announcement": "新しい発表",
@@ -377,11 +377,11 @@
     "bar": "再生の操作",
     "outcome": {
       "title": "結末",
-      "resumed": "実際の運転再開は {time}",
+      "resumed": "実際の再開 {time}",
       "followed": "判断に従った人",
       "waited": "待ち続けた人",
       "switched": "切り替えた人",
-      "switchedAt": "{time} に切り替え",
+      "switchedAt": "{time}に切り替え",
       "neverSwitched": "最後まで待つ判断",
       "waitedNote": "再開を待って乗車",
       "arrival": "到着",
@@ -389,23 +389,23 @@
       "late": "{minutes}分遅れ",
       "diff": "差 {minutes}分",
       "summary": {
-        "followedEarlierMadeIt": "判断に従うと、待ち続けた人より {minutes}分早く着き、{deadline} の期限に間に合いました。",
-        "followedEarlier": "判断に従うと、待ち続けた人より {minutes}分早く着きました。",
-        "waitedEarlier": "今回は待ち続けたほうが {minutes}分早く着きました。",
-        "aboutSame": "判断に従っても待ち続けても、着く時刻の差は {minutes}分でした。",
-        "waitWon": "待つ判断に従うと、{time} に切り替えた人より {minutes}分早く着きました。",
-        "switchWouldWin": "今回は待つ判断が外れました。{time} に切り替えた人のほうが {minutes}分早く着きました。",
-        "waitAboutSame": "待つ判断に従っても {time} に切り替えても、着く時刻の差は {minutes}分でした。",
+        "followedEarlierMadeIt": "判断に従うと、待ち続けた人より{minutes}分早く着きました。{deadline}の期限にも間に合いました。",
+        "followedEarlier": "判断に従うと、待ち続けた人より{minutes}分早く着きました。",
+        "waitedEarlier": "今回は待ち続けたほうが{minutes}分早く着きました。",
+        "aboutSame": "判断に従っても待ち続けても、着く時刻の差は{minutes}分でした。",
+        "waitWon": "待つ判断に従うと、{time}に切り替えた人より{minutes}分早く着きました。",
+        "switchWouldWin": "今回は待つ判断が外れました。{time}に切り替えた人のほうが{minutes}分早く着きました。",
+        "waitAboutSame": "待つ判断に従っても{time}に切り替えても、着く時刻の差は{minutes}分でした。",
         "neverSwitched": "最後まで待つ判断で、待ち続けた人と同じ時刻に着きました。"
       },
       "deadline": {
-        "both": "どちらも {deadline} の期限に間に合いました。",
-        "followedOnly": "判断に従った人だけが {deadline} の期限に間に合いました。",
-        "waitedOnly": "待ち続けた人だけが {deadline} の期限に間に合いました。",
-        "switchedOnly": "切り替えた人だけが {deadline} の期限に間に合いました。",
-        "neither": "どちらも {deadline} の期限に間に合いませんでした。",
-        "sameOnTime": "{deadline} の期限に間に合いました。",
-        "sameLate": "{deadline} の期限には間に合いませんでした。"
+        "both": "どちらも{deadline}の期限に間に合いました。",
+        "followedOnly": "判断に従った人だけが{deadline}の期限に間に合いました。",
+        "waitedOnly": "待ち続けた人だけが{deadline}の期限に間に合いました。",
+        "switchedOnly": "切り替えた人だけが{deadline}の期限に間に合いました。",
+        "neither": "どちらも{deadline}の期限に間に合いませんでした。",
+        "sameOnTime": "{deadline}の期限に間に合いました。",
+        "sameLate": "{deadline}の期限には間に合いませんでした。"
       }
     },
     "announcements": "発表",
@@ -420,7 +420,7 @@
     "statusSuspended": "見合わせ中",
     "statusRunning": "運転中",
     "recommended": "おすすめ",
-    "walk": "徒歩 {minutes} 分",
+    "walk": "徒歩{minutes}分",
     "minutesShort": "{minutes}分",
     "transferService": "振替輸送",
     "here": "いま",
@@ -429,7 +429,7 @@
     "changeAt": "{station}で",
     "transferShort": "振替",
     "sectionUnconfirmed": "区間は発表で確かめる",
-    "sectionAddAnnouncement": "発表に区間があれば、貼ると地図に描きます。",
+    "sectionAddAnnouncement": "区間のある発表を貼ると、地図に描きます。",
     "between": "{from}〜{to}の間",
     "alight": "降りる駅",
     "walkShort": "徒歩{minutes}分"
@@ -438,7 +438,7 @@
     "title": "このアプリについて",
     "why": {
       "title": "作った理由",
-      "p1": "事故が起きると、現場は安全と復旧が先になり、案内は「何が起きたか」で止まりがちです。",
+      "p1": "事故が起きると、現場は安全と復旧を優先します。案内は「何が起きたか」で止まりがちです。",
       "p2": "運転士や指令員の経験があれば、この先の流れはある程度読めます。その読みを、いま困っている人の手元へ届けます。"
     },
     "purpose": {
@@ -451,7 +451,7 @@
       "p1": "元指令員の経験を、外から観察できる兆候にもとづいて一般化した知見を使います。",
       "p2": "あなたが持ち込んだ掲示や発表から兆候を読み取り、いまの段階と再開までの残り時間を幅で推定します。",
       "p3": "到着時刻や境目の時刻などの数値はプログラムで計算し、AI はその結果を解釈して説明します。",
-      "p4": "確信が持てないときは見込みを断言せず、境目の時刻を中心に示します。"
+      "p4": "確かな見込みが立たないときは、境目の時刻を中心に示します。"
     },
     "attribution": {
       "title": "出典",
@@ -483,19 +483,19 @@
   "entry": {
     "nearbyStations": "現在地の近くの駅",
     "nearbyDistance": "約{distance}",
-    "nearestEmpty": "近くの駅が見つからない。地図か検索で駅を選ぶ。",
+    "nearestEmpty": "近くの駅が見つかりません。地図か検索で駅を選んでください。",
     "question": "いま止まっている場所を選ぶ",
-    "hint": "エリアを押す。地図を広げて近くの駅を選ぶ。",
+    "hint": "エリアか近くの駅を選んでください。",
     "searchPlaceholder": "駅名・よみがなで探す",
     "mapLabel": "駅を選ぶ地図",
     "back": "戻る",
     "here": "いま",
     "around": "{station}のあたり",
     "areaQuestion": "駅を選ぶ",
-    "areaHint": "{area}の駅を地図か下の一覧から選ぶ",
-    "lineQuestion": "どの電車に乗る予定でしたか",
-    "lineHint": "利用する路線を選んでください。地図の線や路線の札を押しても選べます。",
-    "nearby": "最寄りは{station}。距離は約{distance}",
+    "areaHint": "{area}の駅を、地図か下の一覧から選んでください。",
+    "lineQuestion": "乗る予定の路線を選ぶ",
+    "lineHint": "地図の線や路線の札を押しても選べます。",
+    "nearby": "最寄りは約{distance}先の{station}です。",
     "suspended": "見合わせ",
     "destinationQuestion": "行き先を選ぶ",
     "destinationLabel": "行き先",
@@ -518,17 +518,17 @@
     "demoNote": "架空のシナリオで判断の流れを再生",
     "quickPicks": "よく使う駅",
     "directionQuestion": "向かう方面を選ぶ",
-    "directionHint": "電車が向かう方向を選ぶ",
+    "directionHint": "電車が向かう方向を選んでください。",
     "lineStopQuestion": "向かう駅か方面を選ぶ",
     "lineStopHint": "駅を押すと行き先になります。方面は自動で決めます。",
     "lineStopsLabel": "路線の駅",
     "directionName": "{names}方面",
-    "destinationHint": "{direction}方面の主な駅です",
+    "destinationHint": "{direction}方面の主な駅です。",
     "destinationUndecided": "まだ決めていない",
     "destinationUndecidedNote": "方面だけで進む",
     "destinationSearchLabel": "ほかの駅を探す",
     "positionTrain": "電車の中・駅に止まっている",
-    "progress": "{current} / {total}・{step}",
+    "progress": "{current}/{total}・{step}",
     "steps": {
       "line": "路線",
       "direction": "方面",
@@ -564,7 +564,7 @@
     "elapsedQuestion": "止まってからの時間を選ぶ",
     "elapsed": {
       "now": "いま止まった",
-      "m10": "10分くらい",
+      "m10": "約10分",
       "m30": "30分以上",
       "unknown": "分からない"
     },
@@ -581,8 +581,8 @@
       "elapsed": "止まってから"
     },
     "nextStation": "次は{station}",
-    "positionBetweenTrip": "駅と駅の間。次に着く駅を出発にする",
-    "locationQuestion": "いまいる場所を選んでください",
+    "positionBetweenTrip": "駅と駅の間・次に着く駅を出発にする",
+    "locationQuestion": "いまいる場所を選ぶ",
     "locationStation": "駅にいる",
     "locationTrain": "電車の中にいる",
     "gpsLocate": "現在地から読み取る",
@@ -591,20 +591,20 @@
     "gpsBetweenQuestion": "{line}の{from}〜{to}の間ですか",
     "gpsYes": "はい",
     "gpsNo": "違う",
-    "gpsPickQuestion": "近い順に並べた。いまいる場所を選んでください",
+    "gpsPickQuestion": "いまいる場所を近い順から選ぶ",
     "gpsStationChoice": "{station}駅にいる",
     "gpsBetweenChoice": "{line}の{from}〜{to}の間",
-    "gpsDenied": "位置情報の利用が許可されていない。下から選んでください。",
-    "gpsUnavailable": "現在地を取れなかった。下から選んでください。",
-    "gpsUnsupported": "この端末では現在地を取れない。下から選んでください。",
-    "gpsNone": "近くに駅も路線も見つからない。下から選んでください。",
-    "trainLineQuestion": "乗っている路線を選んでください",
+    "gpsDenied": "位置情報の利用が許可されていません。下から選んでください。",
+    "gpsUnavailable": "現在地を取れませんでした。下から選んでください。",
+    "gpsUnsupported": "この端末では現在地を取れません。下から選んでください。",
+    "gpsNone": "近くに駅も路線も見つかりません。下から選んでください。",
+    "trainLineQuestion": "乗っている路線を選ぶ",
     "trainLineSearch": "路線名で探す",
-    "trainSegmentQuestion": "いまいる駅の間を選んでください",
+    "trainSegmentQuestion": "いまいる駅の間を選ぶ",
     "trainSegmentHint": "電車の進む向きに駅を並べています。地図の線を押しても選べます。",
     "trainSegmentConfirm": "この駅の間にいる",
-    "trainStoppedHint": "駅に停車中なら駅を選んでください",
-    "destinationStationHint": "行き先の駅を選んでください",
+    "trainStoppedHint": "駅に停車中なら、駅を選んでください。",
+    "destinationStationHint": "行き先の駅を選んでください。",
     "routeInferred": "{line}・{direction} 変更する",
     "routeLinesLabel": "路線から選ぶ",
     "routeLinesHint": "地図の線や路線の札を押しても選べます。",
@@ -614,11 +614,11 @@
   },
   "status": {
     "notFound": {
-      "title": "この頁は移動したか、まだ無いようです",
-      "lead": "URL が変わったのかもしれません。地図から選び直してみてください。"
+      "title": "ページが見つからない",
+      "lead": "地図から選び直してください。"
     },
     "error": {
-      "title": "表示をやり直します",
+      "title": "画面を表示し直す",
       "lead": "少し待ってから、もう一度試してください。続くときは地図から始め直せます。"
     },
     "home": "地図から始める",

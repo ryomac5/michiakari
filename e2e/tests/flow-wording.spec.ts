@@ -49,9 +49,9 @@ test("車内対応のリプレイでは、止まった直後でも待つにな�
   );
   await expectBlockedTagClearOfToggle(page);
 
-  // 理由は境目との比較で書き、再開までの時間を事象の流れとして言い切らない
+  // 理由は待つ場合との比較で書き、再開までの時間を事象の流れとして言い切らない
   await expect(page.getByTestId(testIds.judgment.conclusionReason)).toHaveText(
-    /^再開は\d{1,2}時\d{2}分頃の見込みで境目より前です。$/,
+    /^待つほうが早く着きます。$/,
   );
   await openSheet(page, "full");
   await expectCurrentReading(page, "stopped_for_check", "いまは停車して確認の段階です。");
@@ -90,9 +90,9 @@ test("人身事故のリプレイでは、発生直後から切り替えを言�
     "data-level",
     "low",
   );
-  // 理由の先頭は境目との比較。再開の見込みは図が幅で示す
+  // 理由の先頭は待つ場合との比較。境目という言葉だけで比べた結果を言わない
   await expect(page.getByTestId(testIds.judgment.conclusionReason)).toHaveText(
-    /^再開は\d{1,2}時\d{2}分頃の見込みで境目より後です。$/,
+    /^待つより.+のほうが早く着きます。$/,
   );
   await expect(page.getByTestId(testIds.judgment.resumeChance)).toBeVisible();
   await openSheet(page, "full");

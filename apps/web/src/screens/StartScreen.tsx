@@ -1,7 +1,7 @@
 "use client";
 
 import { computeDistanceMeters } from "@repo/geo";
-import type { RawInput } from "@repo/schema";
+import type { IncidentCause, RawInput } from "@repo/schema";
 import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -114,6 +114,7 @@ import {
   type CauseAnswer,
   isAskedKind,
   resolveCauseEventType,
+  resolveIncidentCause,
   toCauseChoiceId,
 } from "@/features/situation/cause-categories";
 import { findElapsedOption, listResumeTimeOptions } from "@/features/situation/plain-questions";
@@ -699,6 +700,7 @@ export function StartScreen() {
       elapsedMinutes: number | null;
       causeUnknown: boolean;
       statedResumeTime: string | null;
+      cause: IncidentCause | null;
     } | null = null,
   ) {
     if (!entry.line || !direction || origin === null) return;
@@ -719,14 +721,18 @@ export function StartScreen() {
         ? { elapsedMinutes: answers.elapsedMinutes, causeUnknown: answers.causeUnknown }
         : {}),
     });
-    startJudgment(input, [
-      buildLineObservation(
-        entry.line,
-        new Date(),
-        answers?.elapsedMinutes ?? null,
-        answers?.statedResumeTime ?? null,
-      ),
-    ]);
+    startJudgment(
+      input,
+      [
+        buildLineObservation(
+          entry.line,
+          new Date(),
+          answers?.elapsedMinutes ?? null,
+          answers?.statedResumeTime ?? null,
+        ),
+      ],
+      answers?.cause ?? null,
+    );
     setHandingOff(true);
     if (findFocusArea(origin)) await mapApi.current?.zoomToOrigin(handoffZoom);
     router.push("/judgment");
@@ -939,6 +945,7 @@ export function StartScreen() {
       elapsedMinutes: elapsed?.minutes ?? null,
       causeUnknown: eventType === null,
       statedResumeTime: answer.time?.iso ?? null,
+      cause: resolveIncidentCause(entry.cause),
     });
   }
 

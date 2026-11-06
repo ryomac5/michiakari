@@ -1,4 +1,5 @@
 import {
+  type IncidentCause,
   type JudgeRequest,
   JudgeRequestSchema,
   type Lang,
@@ -28,6 +29,8 @@ export type JudgeRequestParams = {
   constraints?: UserConstraints;
   // 車内の位置。無ければ送らず、駅にいるとみなされる
   trainPosition?: TrainPosition | null;
+  // 入口で答えた原因。無ければ送らない
+  cause?: IncidentCause | null;
 };
 
 export function buildJudgeRequest(params: JudgeRequestParams): JudgeRequest {
@@ -40,5 +43,6 @@ export function buildJudgeRequest(params: JudgeRequestParams): JudgeRequest {
     language: params.language,
     now: formatIsoWithOffset(params.now),
     ...(params.trainPosition ? { trainPosition: params.trainPosition } : {}),
+    ...(params.cause ? { cause: params.cause } : {}),
   });
 }

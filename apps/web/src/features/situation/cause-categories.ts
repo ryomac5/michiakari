@@ -1,3 +1,5 @@
+import type { IncidentGroupId, IncidentTypeId } from "@repo/core";
+import type { IncidentCause } from "@repo/schema";
 import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 
 // 入口で聞く原因の大分類と、判断で使う知見の事象の対応。対応はこの 1 か所にまとめる
@@ -6,6 +8,7 @@ import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 // 大分類の中で種類によって事象が違うときは知見なしとする。気象・自然だけは種類を 1 問聞いて絞る
 // 人身事故と車内の急病人は事象の大きさが違うので、統計の大分類は人・旅客対応のまま、画面の最初の選択肢だけ分ける
 // 線路への立ち入りなど、ほかの人・旅客対応は選択肢を足さず、分からないと同じ知見なしの流れにする
+// 知見の無い原因は、統計値の大分類と種類（incidentType）で判断に送り、統計値から再開の見込みを出す
 
 export const causeCategoryIds = [
   "passenger",
@@ -37,7 +40,8 @@ export function isAskedKind(kind: CauseKindId | null): kind is AskedKindId {
   return kind !== null && kind !== "person" && kind !== "inCar";
 }
 
-type CauseKind = { id: CauseKindId; eventType: string | null };
+// incidentType は packages/core/params/incident-durations.ts の種類の id。対応する種類が無ければ null
+type CauseKind = { id: CauseKindId; eventType: string | null; incidentType: IncidentTypeId | null };
 type CauseCategory = {
   id: CauseCategoryId;
   eventType: string | null;
@@ -53,8 +57,8 @@ const causeCategories: Record<CauseCategoryId, CauseCategory> = {
     eventType: null,
     kindChosenFirst: true,
     kinds: [
-      { id: "person", eventType: "person_accident" },
-      { id: "inCar", eventType: "in_car_response" },
+      { id: "person", eventType: "person_accident", incidentType: "person_collision" },
+      { id: "inCar", eventType: "in_car_response", incidentType: "medical_response" },
     ],
   },
   // 故障と発煙の確認は、どちらも車両故障の事象に当たる
@@ -68,12 +72,12 @@ const causeCategories: Record<CauseCategoryId, CauseCategory> = {
     id: "weather",
     eventType: null,
     kinds: [
-      { id: "rain", eventType: "heavy_rain" },
-      { id: "wind", eventType: null },
-      { id: "snow", eventType: null },
-      { id: "lightning", eventType: null },
-      { id: "earthquake", eventType: null },
-      { id: "other", eventType: null },
+      { id: "rain", eventType: "heavy_rain", incidentType: "heavy_rain" },
+      { id: "wind", eventType: null, incidentType: "strong_wind" },
+      { id: "snow", eventType: null, incidentType: "snow_ice" },
+      { id: "lightning", eventType: null, incidentType: "lightning" },
+      { id: "earthquake", eventType: null, incidentType: "earthquake" },
+      { id: "other", eventType: null, incidentType: null },
     ],
   },
   major_accident: { id: "major_accident", eventType: null },
@@ -131,4 +135,14 @@ export function resolveCauseEventType(
     ? (category.kinds.find((k) => k.id === answer.kind)?.eventType ?? null)
     : category.eventType;
   return eventType && catalog.some((e) => e.id === eventType) ? eventType : null;
+}
+
+// 答えを統計値の大分類と種類にする。大分類の id は統計値の大分類と同じ。分からないは null
+// 種類を聞かない大分類や「その他」では、種類を null にして大分類の値を使わせる
+export function resolveIncidentCause(answer: CauseAnswer | null): IncidentCause | null {
+  if (!answer?.category) return null;
+  const kinds = causeCategories[answer.category].kinds;
+  const type = kinds?.find((k) => k.id === answer.kind)?.incidentType ?? null;
+  const group: IncidentGroupId = answer.category;
+  return { group, type };
 }

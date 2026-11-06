@@ -5,7 +5,11 @@ import { CircleCheck, CircleX, Flag, TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { actionStyles } from "@/features/judgment/action-style";
 import { testIds } from "@/features/judgment/testids";
-import { formatClockTime } from "@/features/judgment/time";
+import {
+  formatClockInSentence,
+  formatClockTime,
+  spellClockInSentence,
+} from "@/features/judgment/time";
 import { cn } from "@/lib/utils";
 import { selectOutcomeSummary } from "../outcome";
 
@@ -23,9 +27,14 @@ export function ReplayOutcomeCard({
   const t = useTranslations();
   const locale = useLocale();
   const summary = selectOutcomeSummary(outcome);
-  const deadline = deadlineClock ?? "";
+  // 結末の文に差し込む時刻は文の中の書き方にする。列の札は「21:40」のまま
+  const deadline = deadlineClock ? spellClockInSentence(deadlineClock, locale) : "";
+  const sentenceGlue = locale === "ja" ? "" : " ";
   const { followed, counterpart } = outcome;
   const counterpartTime = counterpart.switchedAt
+    ? formatClockInSentence(counterpart.switchedAt, locale)
+    : "";
+  const counterpartClock = counterpart.switchedAt
     ? formatClockTime(counterpart.switchedAt, locale)
     : "";
 
@@ -65,7 +74,10 @@ export function ReplayOutcomeCard({
           time: counterpartTime,
         })}
         {summary.deadlineKey && (
-          <> {t(`replay.outcome.deadline.${summary.deadlineKey}`, { deadline })}</>
+          <>
+            {sentenceGlue}
+            {t(`replay.outcome.deadline.${summary.deadlineKey}`, { deadline })}
+          </>
         )}
       </p>
 
@@ -90,7 +102,7 @@ export function ReplayOutcomeCard({
           label={t(counterpart.switchedAt ? "replay.outcome.switched" : "replay.outcome.waited")}
           note={
             counterpart.switchedAt
-              ? t("replay.outcome.switchedAt", { time: counterpartTime })
+              ? t("replay.outcome.switchedAt", { time: counterpartClock })
               : t("replay.outcome.waitedNote")
           }
           arrival={counterpart.arrival}

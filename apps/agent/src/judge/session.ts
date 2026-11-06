@@ -282,10 +282,19 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     if (state.estimate) return cached(presentEstimate(state.estimate, language));
     const parsed = parseInput(EstimatePhaseInputSchema, input);
     if (isOutcome(parsed)) return parsed;
-    const result = runEstimatePhase(ctx, parsed);
+    // 事象は観測と入口の原因からコードが決める。Claude の指定が違っても、両方のモードで同じ事象を使う
+    const result = runEstimatePhase(ctx, { eventType: inferredEventType });
     state.estimate = result;
     await sink.emit({ type: "phase_estimated", estimate: result.estimate });
-    return { isError: false, content: presentEstimate(result, language) };
+    const content = presentEstimate(result, language);
+    if (parsed.eventType === inferredEventType) return { isError: false, content };
+    return {
+      isError: false,
+      content: {
+        ...content,
+        note: `eventType は観測と入口の原因から決めた ${inferredEventType ?? "null"} を使いました。指定の ${parsed.eventType ?? "null"} は使っていません`,
+      },
+    };
   }
 
   async function runAlternatives(input: unknown): Promise<ToolOutcome> {
@@ -398,8 +407,8 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
               language === "en"
                 ? buildSignalEvidenceEn(s.signalId, s.quote, phase?.name.en ?? phase?.name.ja)
                 : phase
-                  ? `「${phase.name.ja}」の段階の兆候「${s.quote}」`
-                  : `発表の「${s.quote}」`,
+                  ? `「${s.quote}」は「${phase.name.ja}」の段階の兆候です。`
+                  : `発表に「${s.quote}」とあります。`,
           });
         }
       }
@@ -409,7 +418,7 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
         description:
           language === "en"
             ? `What is happening: ${knowledge.name.en ?? knowledge.name.ja}`
-            : `起きていることは${knowledge.name.ja}`,
+            : `起きていることは${knowledge.name.ja}です。`,
       });
       const phase = knowledge.phases.find((p) => p.id === state.estimate?.estimate.phaseId);
       if (phase) {
@@ -419,7 +428,7 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
           description:
             language === "en"
               ? `Current phase: ${phase.name.en ?? phase.name.ja}`
-              : `いまの段階は「${phase.name.ja}」`,
+              : `いまは「${phase.name.ja}」の段階です。`,
         });
       }
     }
@@ -428,8 +437,8 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
       const ja = language === "ja";
       const detail = latest
         ? ja
-          ? `${formatClock(latest.time, language)}の10分雨量 ${latest.rainfall10minMm}mm${latest.warnings.length > 0 ? `、${latest.warnings.join("・")}` : ""}（出典: 気象庁）`
-          : `10-min rainfall at ${formatClock(latest.time, language)}: ${latest.rainfall10minMm} mm${latest.warnings.length > 0 ? `, ${latest.warnings.join(", ")}` : ""} (source: JMA)`
+          ? `${formatClock(latest.time, language)}の10分雨量は${latest.rainfall10minMm}mmです。${latest.warnings.length > 0 ? `${latest.warnings.join("・")}が出ています。` : ""}出典は気象庁です。`
+          : `The 10-min rainfall at ${formatClock(latest.time, language)} was ${latest.rainfall10minMm} mm.${latest.warnings.length > 0 ? ` In effect: ${latest.warnings.join(", ")}.` : ""} Source: JMA.`
         : "";
       refs.push({ kind: "weather", id: "weather", description: detail });
     }
@@ -448,7 +457,10 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
       refs.push({
         kind: "computation",
         id: "alternatives",
-        description: language === "ja" ? "代替手段の到着時刻の比較" : "Comparison of arrival times",
+        description:
+          language === "ja"
+            ? "待つ場合と代わりの手段の到着時刻を比べました。"
+            : "We compared arrival times for waiting and the alternatives.",
       });
     }
     const be =

@@ -273,14 +273,16 @@ export function ResumeChanceChart({
             className="flex items-center gap-1 text-[12px] font-semibold text-danger"
           >
             <Clock className="size-3 shrink-0" aria-hidden />
-            {t.rich("marks.resumeBy", {
-              time: clock(deadline.time),
-              clock: (chunks) => (
-                <time dateTime={deadline.time} className="tabular-nums">
-                  {chunks}
-                </time>
-              ),
-            })}
+            <span className="min-w-0">
+              {t.rich("marks.resumeBy", {
+                time: clock(deadline.time),
+                clock: (chunks) => (
+                  <time dateTime={deadline.time} className="tabular-nums">
+                    {chunks}
+                  </time>
+                ),
+              })}
+            </span>
           </p>
         )}
         {/* 目盛りごとの値。読み上げと検証に使う */}

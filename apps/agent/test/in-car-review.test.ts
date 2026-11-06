@@ -104,7 +104,11 @@ describe("根拠の説明の検査を除く条件", () => {
   const quote = "発表の「運転を見合わせています。振替輸送を行っています」";
   const evidenceRefs = [
     { kind: "signal" as const, id: "sig_quote", description: quote },
-    { kind: "knowledge" as const, id: "in_car_response", description: "起きていることは車内対応" },
+    {
+      kind: "knowledge" as const,
+      id: "in_car_response",
+      description: "起きていることは急病人の救護・非常ボタンです。",
+    },
   ];
   const judgmentWith = (evidence: { kind: string; id: string; description: string }[]) => ({
     action: "wait",
@@ -201,7 +205,7 @@ describe("次の駅が分からない駅間の車内", () => {
     expect(judgment.headline).toBe("車内で待つ");
     expect(judgment.inCar?.alightStation).toBeNull();
     expect(judgment.inCar?.afterAlight).toBeNull();
-    expect(judgment.inCar?.staffNote).toBe("長く止まったときは係員の案内に従う。");
+    expect(judgment.inCar?.staffNote).toBe("長く止まったときは、係員の案内に従ってください。");
   });
 });
 

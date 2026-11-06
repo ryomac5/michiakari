@@ -33,7 +33,7 @@ for (const back of ["device", "header"] as const) {
     await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "resume");
     await expectDepth(page, 6);
     await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText("人身事故");
-    await expect(page.getByTestId(testIds.start.answer("elapsed"))).toContainText("10分くらい");
+    await expect(page.getByTestId(testIds.start.answer("elapsed"))).toContainText("約10分");
     // 復元で入口の履歴を積み直すと、判断への進む履歴が消えて戻るが空振りする。
     expect(await page.evaluate(() => window.history.length)).toBe(entryHistoryLength + 1);
     await page.goBack();

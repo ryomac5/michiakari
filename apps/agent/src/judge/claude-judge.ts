@@ -40,6 +40,8 @@ function buildUserMessage(session: JudgeSession): string {
     constraints: request.constraints,
     // 車内の位置。駅間なら次の駅・自分の種別・前の列車の並びを持つ。無ければ駅にいる
     trainPosition: request.trainPosition ?? null,
+    // 入口で答えた原因の統計値の大分類と種類。分からなければ null。見込みの数値はツールが返す
+    cause: request.cause ?? null,
     replay: scenario !== null,
   };
   return [

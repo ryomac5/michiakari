@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   computeCountdown,
   computeCountdownFrom,
+  formatClockInSentence,
   formatClockTime,
   formatFare,
   formatIsoWithOffset,
+  spellClockInSentence,
 } from "./time";
 
 describe("formatIsoWithOffset", () => {
@@ -20,6 +22,22 @@ describe("formatClockTime", () => {
   it("日本時間の HH:MM を返す", () => {
     expect(formatClockTime("2026-11-05T12:40:00Z", "ja")).toBe("21:40");
     expect(formatClockTime("2026-11-05T21:40:00+09:00", "en")).toBe("21:40");
+  });
+});
+
+describe("formatClockInSentence", () => {
+  it("ja の文には「21時40分」、en の文には「21:40」を返す", () => {
+    expect(formatClockInSentence("2026-11-05T12:40:00Z", "ja")).toBe("21時40分");
+    expect(formatClockInSentence("2026-11-05T20:05:00+09:00", "ja")).toBe("20時05分");
+    expect(formatClockInSentence("2026-11-05T00:05:00+09:00", "ja")).toBe("0時05分");
+    expect(formatClockInSentence("2026-11-05T21:40:00+09:00", "en")).toBe("21:40");
+  });
+});
+
+describe("spellClockInSentence", () => {
+  it("「HH:MM」を ja の文では「21時40分」にし、en ではそのまま返す", () => {
+    expect(spellClockInSentence("00:25", "ja")).toBe("0時25分");
+    expect(spellClockInSentence("21:40", "en")).toBe("21:40");
   });
 });
 
