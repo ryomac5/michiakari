@@ -348,6 +348,26 @@ export function checkStopScopeWording(field: string, text: string, language: Lan
   ];
 }
 
+// 駅名の範囲の言い回し。「大阪〜京都」「Osaka–Kyoto」。数字を含む時刻や分の幅は拾わない
+const STATION_RANGE_PATTERNS: Record<Lang, RegExp> = {
+  ja: /([一-龥々ヶァ-ヶーぁ-ゖA-Za-z]+?)駅?[〜～~–]([一-龥々ヶァ-ヶーA-Za-z]+)(の間)?/g,
+  en: /\b([A-Z][A-Za-z-]*(?: [A-Z][A-Za-z-]*)*) ?– ?([A-Z][A-Za-z-]*(?: [A-Z][A-Za-z-]*)*)/g,
+};
+
+// 発表に区間が無いのに、止まっている区間を書いていれば指摘する
+// 「大阪〜塚本の間」のように利用者のいる場所を言うのは区間ではないので許す
+export function checkUnannouncedSectionWording(
+  field: string,
+  text: string,
+  language: Lang,
+): string[] {
+  const found = [...text.matchAll(STATION_RANGE_PATTERNS[language])].find((m) => !m[3]);
+  if (!found) return [];
+  return [
+    `${field} の「${found[0]}」は止まっている区間の言い方です。発表に区間が無いので、区間を書かないでください。区間は発表で確かめるよう画面が添えます`,
+  ];
+}
+
 export type JudgmentCheckInput = {
   judgment: unknown;
   language: Lang;
@@ -359,6 +379,8 @@ export type JudgmentCheckInput = {
   inCarAlternativeLines?: readonly string[] | null;
   // 止まり方。その列車だけが止まる事象では「見合わせ」と書かせない
   stopScope?: StopScope;
+  // 発表で止まっている区間が分かったか。false なら区間を書かせない。省くと検査しない
+  sectionAnnounced?: boolean;
 };
 
 // スキーマ、ID 参照、根拠の出どころ、文中の数値を検査し、問題を文字列で返す
@@ -413,6 +435,11 @@ export function validateJudgment(input: JudgmentCheckInput): {
   if (input.stopScope === "train") {
     for (const [field, text] of shownTexts) {
       errors.push(...checkStopScopeWording(field, text, input.language));
+    }
+  }
+  if (input.sectionAnnounced === false) {
+    for (const [field, text] of shownTexts) {
+      errors.push(...checkUnannouncedSectionWording(field, text, input.language));
     }
   }
   const recommended = j.options.find((o) => o.id === j.recommendedOptionId);

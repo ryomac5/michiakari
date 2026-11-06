@@ -5,6 +5,7 @@ import {
   checkDecisiveWording,
   checkHeadlineLength,
   checkReasonLength,
+  checkUnannouncedSectionWording,
   extractTextNumbers,
 } from "../src/judge/assemble.ts";
 import { createEventSink } from "../src/judge/event-sink.ts";
@@ -297,6 +298,31 @@ describe("checkDecisiveWording", () => {
     const { judgment: valid, errors } = session.checkJudgment(judgment, results);
     expect(valid).toBeNull();
     expect(errors.some((e) => e.includes("判断しない旨"))).toBe(true);
+  });
+});
+
+describe("checkUnannouncedSectionWording", () => {
+  it("駅名の範囲で書いた区間を指摘し、利用者のいる駅の間と時刻や分の幅は通す", () => {
+    for (const text of [
+      "大阪〜京都で見合わせています。",
+      "大阪駅〜三ノ宮駅間は止まっています。",
+      "塚本〜三ノ宮が止まっています。",
+    ]) {
+      expect(checkUnannouncedSectionWording("reason", text, "ja")).toHaveLength(1);
+    }
+    for (const text of [
+      "大阪〜塚本の間で止まっています。",
+      "再開見込みは21時40分〜22時10分ごろです。",
+      "多くの場合5〜10分で終わります。",
+    ]) {
+      expect(checkUnannouncedSectionWording("reason", text, "ja")).toEqual([]);
+    }
+    expect(
+      checkUnannouncedSectionWording("reason", "Osaka–Kyoto is suspended.", "en"),
+    ).toHaveLength(1);
+    expect(
+      checkUnannouncedSectionWording("reason", "Restart is likely 21:40–22:10.", "en"),
+    ).toEqual([]);
   });
 });
 

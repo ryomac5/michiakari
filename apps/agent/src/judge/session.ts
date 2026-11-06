@@ -11,7 +11,11 @@ import type { z } from "zod";
 import { selectEventType } from "../domain/phase.ts";
 import { ComputeBreakEvenInputSchema, runComputeBreakEven } from "../tools/compute-break-even.ts";
 import { EstimatePhaseInputSchema, runEstimatePhase } from "../tools/estimate-phase.ts";
-import { FindAlternativesInputSchema, runFindAlternatives } from "../tools/find-alternatives.ts";
+import {
+  FindAlternativesInputSchema,
+  findAnnouncedSection,
+  runFindAlternatives,
+} from "../tools/find-alternatives.ts";
 import { GetWeatherInputSchema, runGetWeather } from "../tools/get-weather.ts";
 import { LookupKnowledgeInputSchema, runLookupKnowledge } from "../tools/lookup-knowledge.ts";
 import {
@@ -467,6 +471,7 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
         r.kind === "future" || r.kind === "passed" ? r.bestAlternativeId : null,
       inCarAlternativeLines: inCar ? listAlternativeLines(results) : null,
       stopScope: resolveSessionStopScope(),
+      sectionAnnounced: findAnnouncedSection(ctx.observations) !== null,
     });
   }
 

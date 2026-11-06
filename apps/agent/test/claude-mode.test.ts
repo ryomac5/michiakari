@@ -557,6 +557,49 @@ describe("claude モードの車内と止まり方", () => {
     expect(trainFeedback).toContain("evidence[0].description の「見合わせ」");
   });
 
+  it("発表に区間が無いのに止まっている区間を書いたら検証で弾き、利用者のいる駅の間は通す", async () => {
+    const base = {
+      action: "wait",
+      headline: "車内で待つ",
+      breakEvenExplanation: "説明",
+      recommendedOptionId: null,
+      evidence: evidence("person_accident"),
+    };
+    const fixedReason = "大阪〜塚本の間で列車が動くのを待ちます。";
+    const script = createScriptedLlm({
+      judgment: [
+        ...buildSequence("person_accident"),
+        replyWithTool("emit_judgment", { ...base, reason: "大阪〜三ノ宮で見合わせています。" }),
+        replyWithTool("emit_judgment", { ...base, reason: fixedReason }),
+      ],
+    });
+    const judgment = await runRequest(script, buildSelectionRequest("person_accident", true));
+    const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
+    expect(feedback).toContain("reason の「大阪〜三ノ宮」は止まっている区間の言い方です");
+    expect(judgment?.reason).toBe(fixedReason);
+  });
+
+  it("発表に区間があれば、その区間を書いても通す", async () => {
+    const decision = {
+      action: "wait",
+      headline: "車内で待つ",
+      reason: "大阪〜三ノ宮で見合わせています。",
+      breakEvenExplanation: "説明",
+      recommendedOptionId: null,
+      evidence: evidence("person_accident"),
+    };
+    const script = createScriptedLlm({
+      judgment: [...buildSequence("person_accident"), replyWithTool("emit_judgment", decision)],
+    });
+    const request = buildSelectionRequest("person_accident", true);
+    const announced = {
+      ...request,
+      observations: [{ ...entryLine, section: { fromStation: "大阪", toStation: "三ノ宮" } }],
+    };
+    const judgment = await runRequest(script, announced);
+    expect(judgment?.reason).toBe(decision.reason);
+  });
+
   it("駅間の車内の人の理由に代わりの路線を書いたら検証で弾く", async () => {
     const base = {
       action: "wait",

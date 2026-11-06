@@ -204,3 +204,48 @@ describe("次の駅が分からない駅間の車内", () => {
     expect(judgment.inCar?.staffNote).toBe("長く止まったときは係員の案内に従う。");
   });
 });
+
+describe("発表に区間が無い駅間の車内", () => {
+  it("決定論モードの判断の文に、駅の間の位置から作った区間を書かない", async () => {
+    const request: JudgeRequest = {
+      observations: [
+        {
+          id: "entry-line",
+          observedAt: addMinutesToIso(now, -10),
+          source: "selection",
+          eventTypeCandidates: [],
+          operator: "JR西日本",
+          line: "JR神戸線",
+          section: null,
+          statedResumeTime: null,
+          transferServiceActive: null,
+          detectedSignals: [],
+        },
+      ],
+      newInput: { type: "selection", eventType: "person_accident", signalIds: [] },
+      origin: { kind: "station", name: "塚本" },
+      destination: { kind: "station", name: "三ノ宮" },
+      constraints: { deadline: null, knowsAlternatives: true, mobilityNotes: null },
+      language: "ja",
+      now,
+      trainPosition: {
+        kind: "between_stations",
+        nextStation: "塚本",
+        previousStation: "大阪",
+        trainsAhead: null,
+        trainsAheadCount: null,
+        ownTrainType: null,
+      },
+    };
+    const judgment = findJudgment(await postJudge(app, request));
+    const texts = [
+      judgment.headline,
+      judgment.reason ?? "",
+      judgment.breakEven?.explanation ?? "",
+      ...judgment.evidence.map((e) => e.description),
+    ].join("\n");
+    // 代わりの手段から外す範囲の仮定「大阪〜三ノ宮」は、判断の文に出さない
+    expect(texts).not.toContain("大阪〜三ノ宮");
+    expect(texts).not.toMatch(/大阪[〜～–]三ノ宮/);
+  });
+});

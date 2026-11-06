@@ -36,10 +36,15 @@ function findLatest<T>(
   return null;
 }
 
-// 駅間の車内なら、来た側の駅から先は確かに止まっている
-// 観測に区間が無ければ、来た側の駅から行き先までを止まっている区間にする。行き先が駅でなければ次の駅まで
+// 発表で分かった止まっている区間。新しい観測を優先する
+export function findAnnouncedSection(observations: readonly Observation[]): Section | null {
+  return findLatest(observations, (o) => o.section);
+}
+
+// 駅間の車内の人のための、代わりの手段から外す範囲の仮定。来た側の駅から行き先まで、行き先が駅でなければ次の駅まで
 // 出発地は次の駅なので、これが無いと来た側の駅へ戻る経路を代替手段に数えてしまう
-function buildBetweenStationsSection(ctx: ToolContext): Section | null {
+// 根拠は利用者がそこにいることだけで、見合わせの広さではない。画面にも判断の文にも区間として出さない
+function buildAssumedTrainSection(ctx: ToolContext): Section | null {
   const position = ctx.request.trainPosition;
   if (position?.kind !== "between_stations" || !position.previousStation) return null;
   const destination = ctx.request.destination;
@@ -54,8 +59,8 @@ export async function runFindAlternatives(
   input: z.infer<typeof FindAlternativesInputSchema>,
 ): Promise<AlternativesToolResult> {
   const blockedLine = input.blockedLine ?? findLatest(ctx.observations, (o) => o.line);
-  const observedSection = input.blockedSection ?? findLatest(ctx.observations, (o) => o.section);
-  const trainSection = observedSection ? null : buildBetweenStationsSection(ctx);
+  const observedSection = input.blockedSection ?? findAnnouncedSection(ctx.observations);
+  const trainSection = observedSection ? null : buildAssumedTrainSection(ctx);
   const blockedSection: Section | null = observedSection ?? trainSection;
   const result = await ctx.provider.findAlternatives({
     origin: ctx.request.origin,
