@@ -190,10 +190,23 @@ export function selectRouteTone(
 }
 
 // MapLibre の worker は別ファイル。バンドラに資産として出させ、その URL を渡す
-export async function loadMapLibre(): Promise<typeof import("maplibre-gl")> {
-  const maplibre = await import("maplibre-gl");
-  maplibre.setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).href);
-  return maplibre;
+// 路線データと並べて読み始められるよう、何度呼んでも読み込みは 1 度だけにする
+let mapLibreLoading: Promise<typeof import("maplibre-gl")> | null = null;
+
+export function loadMapLibre(): Promise<typeof import("maplibre-gl")> {
+  mapLibreLoading ??= import("maplibre-gl").then((maplibre) => {
+    maplibre.setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).href);
+    return maplibre;
+  });
+  mapLibreLoading.catch(() => {
+    mapLibreLoading = null;
+  });
+  return mapLibreLoading;
+}
+
+// 路線データを待たずに地図の部品を読み始める。失敗は地図を作るときに扱う
+export function preloadMapLibre(): void {
+  loadMapLibre().catch(() => {});
 }
 
 const emptyCollection = { type: "FeatureCollection" as const, features: [] };
@@ -608,6 +621,7 @@ export function MapPanel(props: MapPanelProps) {
 
   useEffect(() => {
     let cancelled = false;
+    preloadMapLibre();
     loadMapGeoData()
       .then((data) => {
         if (!cancelled) setGeo(data);

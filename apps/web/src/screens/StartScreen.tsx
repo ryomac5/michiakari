@@ -109,7 +109,7 @@ import { listMapStations } from "@/features/entry/visible-stations";
 import { type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { testIds } from "@/features/judgment/testids";
 import { loadMapGeoData, type MapGeoData } from "@/features/map/geo-data";
-import type { MapInsets } from "@/features/map/MapPanel";
+import { type MapInsets, preloadMapLibre } from "@/features/map/MapPanel";
 import { findFocusArea } from "@/features/map/station-guide";
 import {
   type CauseAnswer,
@@ -176,6 +176,7 @@ function useEntryData(): { geo: MapGeoData | null; data: EntryData | null } {
   const [geo, setGeo] = useState<MapGeoData | null>(null);
   useEffect(() => {
     let cancelled = false;
+    preloadMapLibre();
     loadMapGeoData()
       .then((loaded) => {
         if (!cancelled) setGeo(loaded);
