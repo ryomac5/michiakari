@@ -291,6 +291,14 @@ export function StartScreen() {
     }
   }, [entry.stage, restored, setOrigin, setOriginLine, setTrainPosition]);
 
+  // 共有の路線を、いま答えている路線とそろえる。戻ったあとに別の路線で進んでも、判断は画面と同じ路線を見る
+  useEffect(() => {
+    if (!restored || !entry.line) return;
+    if (originLine?.key === entry.line.key && originLine.stationName === entry.line.stationName)
+      return;
+    setOriginLine(entry.line);
+  }, [restored, entry.line, originLine, setOriginLine]);
+
   const selectPlace = useCallback(
     (area: NonNullable<typeof entry.area>, place: EntryPlace) => {
       if (!["position", "kansai", "area"].includes(entry.stage)) return;
@@ -919,10 +927,12 @@ export function StartScreen() {
       : null;
 
   // 地図の線を押したとき。押した点に近い通称の路線か、駅の間を選ぶ
-  function selectMapLine(lineId: string, point: Position) {
+  function selectMapLine(lineId: string, point: Position, reachMeters: number) {
     if (!data) return;
     if (entry.stage === "trainPosition") {
-      const segment = findNearestSegment(segmentPicks, point);
+      // 出ている駅の間から押せる範囲の外なら、同じ路線の線でも決めない
+      const segment =
+        lineId === entry.line?.lineId ? findNearestSegment(segmentPicks, point, reachMeters) : null;
       if (segment) chooseBetween(segment.from, segment.to);
       return;
     }

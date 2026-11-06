@@ -23,8 +23,9 @@ function expectStage(page: Page, stage: string) {
   return expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", stage);
 }
 
-async function openOsaka(page: Page): Promise<void> {
-  await page.goto("/?mock=1");
+// mock は判断の途中経過を固定の架空データで返す。判断の画面が入口の路線を使うかを見るときは外す
+async function openOsaka(page: Page, mock = true): Promise<void> {
+  await page.goto(mock ? "/?mock=1" : "/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
   });
@@ -166,6 +167,40 @@ test.describe("地図と一覧の同期", () => {
     await expectStage(page, "direction");
     await page.goBack();
     await expectStage(page, "destination");
+  });
+
+  test("別の路線の行き先を選んでから戻り、先に選んだ路線の駅を選ぶと、判断もその路線で出る", async ({
+    page,
+  }) => {
+    await openOsaka(page, false);
+    await page.getByTestId(testIds.start.routeLine(loopLine)).click();
+    await page
+      .locator(`[data-testid^='start-direction-${loopLine}>'][data-testid$='.天王寺']`)
+      .click();
+    await expectStage(page, "destination");
+    // 環状線の方面の外の三ノ宮を検索で選ぶと、神戸線と推定する
+    await page.getByTestId(testIds.start.destinationSearch).fill("三ノ宮");
+    await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+    await expectStage(page, "cause");
+    await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("JR神戸線");
+    // 戻って環状線の福島を選ぶと、画面も判断も環状線になる
+    await page.getByTestId(testIds.start.back).click();
+    await expectStage(page, "destination");
+    await page.getByTestId(testIds.start.destinationCandidate("福島")).click();
+    await expectStage(page, "cause");
+    await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("JR環状線");
+    await page.getByTestId(testIds.start.cause("unknown")).click();
+    await page.getByTestId(testIds.start.elapsed("unknown")).click();
+    await page.getByTestId(testIds.start.resume("unknown")).click();
+    await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+    await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("環状線", {
+      timeout: 30_000,
+    });
+    await expect(page.getByTestId(testIds.judgment.statusChip)).not.toContainText("神戸線");
+    // 判断の地図は、入口で選んだ環状線の方面を止まっている区間として描く
+    const map = page.getByTestId(testIds.judgment.map);
+    await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+    await expect(map).toHaveAttribute("data-blocked", "true");
   });
 
   test("車内の駅の間は、一覧の選択が地図の点線に出て、地図の線の丸を押して選べる", async ({
