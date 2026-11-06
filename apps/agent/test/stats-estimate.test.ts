@@ -173,20 +173,23 @@ describe("claude モードの統計値の見込み", () => {
     return buildMessage([{ type: "tool_use", id: `toolu_stats_${seq}`, name, input }], "tool_use");
   }
 
-  it("決定論モードと同じ見込みを使い、原因を Claude に渡す", async () => {
+  const holdDecision = {
+    action: "hold",
+    headline: "いまは待ち、動かなければ切り替え",
+    reason: "境目を過ぎると代わりの手段のほうが早く着きます。",
+    breakEvenExplanation: "境目までに再開しなければ代わりの手段のほうが早く着きます",
+    recommendedOptionId: null,
+    evidence: [{ kind: "computation", id: "remaining", description: "再開の見込み" }],
+  };
+
+  // Claude が estimate_phase_and_remaining に eventType を渡す台本で判断する
+  async function judgeWithClaude(request: JudgeRequest, eventType: string | null) {
     const calls: MessageCreateParamsNonStreaming[] = [];
     const script = [
-      replyWithTool("estimate_phase_and_remaining", { eventType: null }),
+      replyWithTool("estimate_phase_and_remaining", { eventType }),
       replyWithTool("find_alternatives", {}),
       replyWithTool("compute_break_even", {}),
-      replyWithTool("emit_judgment", {
-        action: "hold",
-        headline: "いまは待ち、動かなければ切り替え",
-        reason: "境目を過ぎると代わりの手段のほうが早く着きます。",
-        breakEvenExplanation: "境目までに再開しなければ代わりの手段のほうが早く着きます",
-        recommendedOptionId: null,
-        evidence: [{ kind: "computation", id: "remaining", description: "再開の見込み" }],
-      }),
+      replyWithTool("emit_judgment", holdDecision),
     ];
     const llm: LlmClient = {
       async createMessage(params) {
@@ -197,15 +200,49 @@ describe("claude モードの統計値の見込み", () => {
       },
     };
     const deps = createTestDeps({ mode: "claude", llm });
-    const request = buildRequest({ cause: signaling });
-    const claude = findJudgment(await postJudge(createTestApp(deps), request));
-    const deterministic = findJudgment(await postJudge(app, request));
+    const judgment = findJudgment(await postJudge(createTestApp(deps), request));
     // 決定論への切り替えでなく、Claude の判断が確定している
-    expect(claude.headline).toBe("いまは待ち、動かなければ切り替え");
+    expect(judgment.headline).toBe(holdDecision.headline);
     expect(script).toHaveLength(0);
+    return { judgment, calls };
+  }
+
+  it("決定論モードと同じ見込みを使い、原因を Claude に渡す", async () => {
+    const request = buildRequest({ cause: signaling });
+    const { judgment: claude, calls } = await judgeWithClaude(request, null);
+    const deterministic = findJudgment(await postJudge(app, request));
     expect(claude.estimate).toEqual(deterministic.estimate);
     expect(claude.estimate.source).toBe("statistics");
     const firstUser = JSON.stringify(calls[0]?.messages[0]?.content ?? "");
     expect(firstUser).toContain("signaling");
+  });
+
+  it("観測に無い知見を Claude が指定しても、コードが決めた事象で統計値の見込みを出す", async () => {
+    const request = buildRequest({ cause: signaling });
+    const { judgment: claude } = await judgeWithClaude(request, "person_accident");
+    const deterministic = findJudgment(await postJudge(app, request));
+    expect(claude.estimate.eventType).toBeNull();
+    expect(claude.estimate.source).toBe("statistics");
+    expect(claude.estimate).toEqual(deterministic.estimate);
+  });
+
+  it("観測で決まった知見を Claude が null にしても、その知見で見込みを出す", async () => {
+    const request = buildRequest({
+      eventType: "person_accident",
+      cause: { group: "passenger", type: "person_collision" },
+    });
+    const { judgment: claude } = await judgeWithClaude(request, null);
+    const deterministic = findJudgment(await postJudge(app, request));
+    expect(claude.estimate.eventType).toBe("person_accident");
+    expect(claude.estimate.source).toBe("knowledge");
+    expect(claude.estimate).toEqual(deterministic.estimate);
+  });
+
+  it("観測と違う知見を Claude が指定しても、観測で決まった知見を使う", async () => {
+    const request = buildRequest({ eventType: "person_accident" });
+    const { judgment: claude } = await judgeWithClaude(request, "vehicle_failure");
+    const deterministic = findJudgment(await postJudge(app, request));
+    expect(claude.estimate.eventType).toBe("person_accident");
+    expect(claude.estimate).toEqual(deterministic.estimate);
   });
 });

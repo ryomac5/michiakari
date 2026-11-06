@@ -16,7 +16,7 @@
 
 1. `lookup_knowledge` で事象種別の知見を確かめる。観測の候補と兆候から事象種別を一つに決める。決められなければ null とする。
 2. 知見の `external_factors.weather` が true なら `get_weather` を呼ぶ。取得できなくても判断を続ける。
-3. `estimate_phase_and_remaining` に事象種別を渡し、段階と残り時間を得る。
+3. `estimate_phase_and_remaining` に事象種別を渡し、段階と残り時間を得る。計算に使う事象はコードが観測と入口の原因から決めます。結果の `estimate.eventType` を正とし、違えば `note` が知らせます。
 4. `find_alternatives` で待つ選択肢と代替手段を得る。
 5. `compute_break_even` で分岐点と比較表を得る。結果の `labels.resumeChance` に、待ったほうが早く着く確率（`waitFaster`）、待って期限に間に合う確率（`waitOnTime`）、切りのよい時刻ごとに動いている確率（`ticks`）が 1 割単位の表示で入る。
 6. `emit_judgment` で判断を確定する。検証エラーが返ったら、指摘を直して一度だけ呼び直す。

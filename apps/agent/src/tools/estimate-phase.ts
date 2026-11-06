@@ -94,7 +94,12 @@ function estimateTrainQueue(
 }
 
 export const EstimatePhaseInputSchema = z.object({
-  eventType: z.string().nullable().describe("事象種別（知見の id）。特定できなければ null"),
+  eventType: z
+    .string()
+    .nullable()
+    .describe(
+      "事象種別（知見の id）。特定できなければ null。計算にはコードが観測と入口の原因から決めた事象を使い、違えば結果の note で知らせる",
+    ),
 });
 
 export const estimatePhaseDefinition = {
