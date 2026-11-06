@@ -1,4 +1,4 @@
-import { diffMinutes } from "@repo/core";
+import { diffMinutes, selectObservedEventType } from "@repo/core";
 import type { Confidence, Knowledge, Observation, PredictabilityLevel } from "@repo/schema";
 import { confidenceParams } from "../config.ts";
 
@@ -6,29 +6,12 @@ import { confidenceParams } from "../config.ts";
 
 const CONFIDENCE_SCORE: Record<Confidence, number> = { high: 3, medium: 2, low: 1 };
 
-// 観測の候補を確信度で重みづけして事象種別を選ぶ。同点なら新しい観測を優先する
+// 観測の候補から事象種別を選ぶ。選び方は core の 1 か所にあり、画面も同じ関数を使う
 export function selectEventType(
   observations: readonly Observation[],
   knowledge: ReadonlyMap<string, Knowledge>,
 ): string | null {
-  const scores = new Map<string, { score: number; lastIndex: number }>();
-  observations.forEach((o, index) => {
-    for (const c of o.eventTypeCandidates) {
-      if (!knowledge.has(c.eventType)) continue;
-      const prev = scores.get(c.eventType) ?? { score: 0, lastIndex: -1 };
-      scores.set(c.eventType, {
-        score: prev.score + CONFIDENCE_SCORE[c.confidence],
-        lastIndex: index,
-      });
-    }
-  });
-  let best: { eventType: string; score: number; lastIndex: number } | null = null;
-  for (const [eventType, s] of scores) {
-    if (!best || s.score > best.score || (s.score === best.score && s.lastIndex > best.lastIndex)) {
-      best = { eventType, ...s };
-    }
-  }
-  return best?.eventType ?? null;
+  return selectObservedEventType(observations, (id) => knowledge.has(id));
 }
 
 export type PhaseDetection = {

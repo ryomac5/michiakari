@@ -1,4 +1,4 @@
-import { resolveStopScope, type StopScope } from "@repo/core";
+import { resolveObservedStopScope, type StopScope } from "@repo/core";
 import type {
   BreakEven,
   Evidence,
@@ -502,10 +502,11 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
   }
 
   function resolveSessionStopScope(): StopScope {
-    return resolveStopScope({
-      eventType: state.estimate?.estimate.eventType ?? inferredEventType,
+    return resolveObservedStopScope({
+      estimatedEventType: state.estimate?.estimate.eventType ?? null,
+      observations: ctx.observations,
+      isKnownEvent: (id) => ctx.content.knowledge.has(id),
       cause: ctx.request.cause ?? null,
-      sectionAnnounced: findAnnouncedSection(ctx.observations) !== null,
     });
   }
 
