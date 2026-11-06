@@ -105,5 +105,5 @@ test("位置情報を拒否すると理由を 1 行出し、手で選ぶ流れ�
   // 手で選ぶ札はそのまま使える
   await expectStage(page, "position");
   await page.getByTestId(testIds.start.positionTrain).click();
-  await expectStage(page, "station");
+  await expectStage(page, "between");
 });

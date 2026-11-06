@@ -21,6 +21,7 @@ import {
   pickSpreadStops,
 } from "@/features/entry/directions";
 import {
+  BetweenStep,
   LocationStep,
   TrainLineStep,
   TrainPositionStep,
@@ -79,6 +80,7 @@ import {
   listGpsChoices,
   listLineTapChoices,
   listSegmentTravels,
+  listStationPairChoices,
   resolveSegmentTravel,
   type SegmentTravel,
 } from "@/features/entry/gps-candidates";
@@ -335,7 +337,7 @@ export function StartScreen() {
   useEffect(() => {
     if (!restored) return;
     if (entry.stage !== "resume") setPendingResume(null);
-    if (entry.stage === "position" || entry.stage === "kansai" || entry.stage === "area") {
+    if (["position", "between", "kansai", "area"].includes(entry.stage)) {
       setOrigin(null);
       setOriginLine(null);
       setTrainPosition(null);
@@ -410,8 +412,13 @@ export function StartScreen() {
     [gps.status, data, geo],
   );
 
-  // 最初の地図で線を押したときの駅の間の候補。現在地の読み取りと同じ部品で確かめる
+  // 最初の段と駅の間の段で線を押したときの駅の間の候補。現在地の読み取りと同じ部品で確かめる
   const [mapPick, setMapPick] = useState<{ point: Position; choices: GpsChoice[] } | null>(null);
+  // 前に確定した駅の間の中ほど。駅の間の段へ戻ったら、地図をここへ寄せる
+  const [lastBetween, setLastBetween] = useState<Position | null>(null);
+  const nearestStation = nearest[0]?.station;
+  const betweenFocus: Position | null =
+    lastBetween ?? (nearestStation ? [nearestStation.lon, nearestStation.lat] : null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: 段が変わったら候補を閉じる
   useEffect(() => {
     setMapPick(null);
@@ -440,8 +447,9 @@ export function StartScreen() {
       };
 
   function confirmGpsChoice(choice: GpsChoice) {
-    if (!data || entry.stage !== "position") return;
+    if (!data || (entry.stage !== "position" && entry.stage !== "between")) return;
     if (choice.kind === "station") {
+      if (entry.stage !== "position") return;
       const opened = openStationChoice(data, choice.choice);
       const line = opened?.place.lines[0];
       if (!opened || !line) return;
@@ -453,6 +461,9 @@ export function StartScreen() {
     }
     rememberStationName(choice.from.name, choice.from.nameEn);
     rememberStationName(choice.to.name, choice.to.nameEn);
+    setLastBetween(
+      computeMidpoint([choice.from.lon, choice.from.lat], [choice.to.lon, choice.to.lat]),
+    );
     setOrigin({ kind: "station", name: choice.from.name });
     setOriginNearest(null);
     setOriginLine(choice.line);
@@ -493,9 +504,9 @@ export function StartScreen() {
     }
   }
 
-  // 最初の段で線を押したら、その駅の間の車内にいるか確かめる。駅の間が無ければ、そのあたりへ寄る
+  // 最初の段と駅の間の段で線を押したら、その駅の間の車内にいるか確かめる。駅の間が無ければ、そのあたりへ寄る
   function handleRailTap(lineIds: string[], point: Position, reachMeters: number) {
-    if (!data || !geo || entry.stage !== "position") return;
+    if (!data || !geo || (entry.stage !== "position" && entry.stage !== "between")) return;
     const choices = listLineTapChoices(
       data,
       geo.nodes,
@@ -1150,6 +1161,7 @@ export function StartScreen() {
         stations={mapStations}
         // 最初の段も関西の地図として描き、エリアと駅を押せるようにする
         stage={entry.stage === "position" ? "kansai" : entry.stage}
+        betweenFocus={betweenFocus}
         hubs={hubs}
         area={entry.area}
         place={mapPlace}
@@ -1191,7 +1203,9 @@ export function StartScreen() {
           if (area) selectPlace(area, place);
         }}
         onTap={handleTap}
-        onSelectRails={entry.stage === "position" ? handleRailTap : undefined}
+        onSelectRails={
+          entry.stage === "position" || entry.stage === "between" ? handleRailTap : undefined
+        }
         onApproachRails={(point, reachMeters) => {
           // 段は最初のまま、エリアや何も無い所を押したときと同じ寄せ方で、そのあたりへ寄せる
           if (data) mapApi.current?.approach(findAreaAt(data, point, reachMeters), point);
@@ -1247,7 +1261,12 @@ export function StartScreen() {
             stageKey={`${entry.stage}:${entry.area?.id}:${entry.place?.key}:${onTrain}`}
             onBack={handleBack}
             onHeightChange={setSheetHeight}
-            compact={linePickable || entry.stage === "direction" || routeStops.length > 0}
+            compact={
+              linePickable ||
+              entry.stage === "direction" ||
+              entry.stage === "between" ||
+              routeStops.length > 0
+            }
             // 様子を聞く段は地図を使わないので、地図を覆って選択肢を詰めて並べる
             fill={situationStages.has(entry.stage)}
             progress={progressIndex >= 0 ? <EntryProgress index={progressIndex} /> : null}
@@ -1265,6 +1284,17 @@ export function StartScreen() {
               >
                 <LocationSearch onSelect={openPlace} />
               </LocationStep>
+            )}
+            {entry.stage === "between" && (
+              <BetweenStep
+                mapChoices={mapPick?.choices ?? null}
+                onDismissMap={() => setMapPick(null)}
+                listPairChoices={(first, second) =>
+                  data && geo ? listStationPairChoices(data, geo.nodes, first, second) : []
+                }
+                onSearch={() => setMapPick(null)}
+                onConfirm={confirmGpsChoice}
+              />
             )}
             {entry.stage === "station" && onTrain && (
               <TrainLineStep lines={trainLines} onSelect={chooseLine} />

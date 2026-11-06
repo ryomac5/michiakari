@@ -586,7 +586,6 @@
     "positionBetweenTrip": "Between stations, start from the next one",
     "locationQuestion": "Choose where you are now",
     "locationStation": "At a station",
-    "locationTrain": "On a train",
     "gpsLocate": "Read from my location",
     "gpsLocating": "Reading your location",
     "gpsStationQuestion": "Are you at {station} Station?",
@@ -610,7 +609,14 @@
     "routeLinesHint": "You can also tap a line or its tag on the map.",
     "mapLineHint": "You can also tap the line on the map.",
     "segmentLabel": "Between {from} and {to}",
-    "locationMap": "Find a station on the map"
+    "locationBetween": "Stopped between stations",
+    "betweenQuestion": "Tap the line where you are stopped",
+    "betweenPairLabel": "Choose by the stations on each side",
+    "betweenFirstStation": "First station",
+    "betweenSecondStation": "Second station",
+    "betweenChangeStation": "Change {station}",
+    "betweenPairNone": "No line runs through both stations. Search with other station names.",
+    "betweenPickQuestion": "Choose the stations you are between"
   },
   "status": {
     "notFound": {
