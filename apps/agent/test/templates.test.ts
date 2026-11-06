@@ -104,6 +104,83 @@ describe("buildDecisionText", () => {
     });
   }
 
+  it("経路の路線名が分からなくても「おすすめの経路」とは書かず、乗る駅か手段の種類で言い切る", () => {
+    const base = {
+      reason: "resume_after_break_even" as const,
+      breakEvenMinutesFromNow: 13,
+      ...OUTLOOK,
+    };
+    const nameless = { ...HANKYU_RIDE, line: undefined };
+    const cases = [
+      // 路線名の無い区間でも、乗る駅が分かれば駅の名前で言い切る
+      {
+        bestOption: {
+          kind: "transfer" as const,
+          label: LONG_LABEL,
+          isTransferService: false,
+          legs: [HANKYU_WALK, nameless],
+        },
+        ja: "大阪梅田まで歩いて乗り換える",
+        en: "Walk to 大阪梅田 and change trains.",
+        fallbackJa: "動かなければ大阪梅田へ",
+      },
+      {
+        bestOption: {
+          kind: "transfer" as const,
+          label: LONG_LABEL,
+          isTransferService: false,
+          legs: [nameless],
+        },
+        ja: "大阪梅田で乗り換える",
+        en: "Change trains at 大阪梅田.",
+        fallbackJa: "動かなければ大阪梅田へ",
+      },
+      // 区間が無ければ、振替輸送か電車の乗り換えかの種類で言い切る
+      {
+        bestOption: { kind: "transfer" as const, label: LONG_LABEL, isTransferService: true },
+        ja: "振替輸送で向かう",
+        en: "Use the transfer service.",
+        fallbackJa: "動かなければ振替輸送へ",
+      },
+      {
+        bestOption: { kind: "transfer" as const, label: LONG_LABEL, isTransferService: false },
+        ja: "電車を乗り換える",
+        en: "Change trains.",
+        fallbackJa: "動かなければ電車を乗り換える",
+      },
+      {
+        bestOption: { kind: "taxi" as const, label: "タクシー", isTransferService: false },
+        ja: "タクシーに乗る",
+        en: "Take a taxi.",
+        fallbackJa: "動かなければタクシーへ",
+      },
+      {
+        bestOption: { kind: "walk" as const, label: "徒歩", isTransferService: false },
+        ja: "歩いて向かう",
+        en: "Walk there.",
+        fallbackJa: "動かなければ歩いて向かう",
+      },
+    ];
+    for (const { bestOption, ja, en, fallbackJa } of cases) {
+      const switching = buildDecisionText({ ...base, bestOption, language: "ja" });
+      expect(switching.headline).toBe(ja);
+      expect(switching.reason).not.toContain("おすすめの経路");
+      expect(buildDecisionText({ ...base, bestOption, language: "en" }).headline).toBe(en);
+      const waiting = buildDecisionText({
+        ...base,
+        reason: "unknown_event",
+        bestOption,
+        language: "ja",
+      });
+      expect(waiting.headline).toBe(`23時23分まで待つ。${fallbackJa}`);
+      expect(waiting.reason).not.toContain("おすすめの経路");
+    }
+    // 代わりの手段が分からないときも、手段で向かうと言い切る
+    const none = buildDecisionText({ ...base, bestOption: null, language: "ja" });
+    expect(none.headline).toBe("代わりの手段で向かう");
+    expect(none.reason).not.toContain("おすすめの経路");
+  });
+
   it("保留の見出しは、境目まで待ち動かなければ乗る路線を添える形にする", () => {
     const input = {
       reason: "unknown_event" as const,
@@ -112,12 +189,13 @@ describe("buildDecisionText", () => {
       ...OUTLOOK,
     };
     const ja = buildDecisionText({ ...input, language: "ja" });
-    // 路線が分からなくても、何をすればよいか分かる言い方にする
-    expect(ja.headline).toBe("23時23分まで待つ。動かなければおすすめの経路へ");
+    // 路線も駅も分からなくても、代わりの手段の種類で何をすればよいか言い切る
+    expect(ja.headline).toBe("23時23分まで待つ。動かなければ電車を乗り換える");
     expect(ja.headline).not.toContain("切り替える");
-    expect(ja.reason).toBe("23時23分を過ぎるとおすすめの経路のほうが早く着きます。");
+    expect(ja.headline).not.toContain("おすすめの経路");
+    expect(ja.reason).toBe("23時23分を過ぎると乗り換えのほうが早く着きます。");
     expect(buildDecisionText({ ...input, language: "en" }).headline).toBe(
-      "Wait until 23:23. If still stopped, take the suggested route.",
+      "Wait until 23:23. If still stopped, change trains.",
     );
     // 乗る路線が分かれば、次の手にその路線を書く
     const withLegs = buildDecisionText({
@@ -265,8 +343,7 @@ describe("buildDecisionText", () => {
         keyTick: null,
       },
     };
-    const comparison =
-      "待つよりおすすめの経路のほうが早く着きます。再開は23時40分ごろの見込みです。";
+    const comparison = "待つより代わりの手段のほうが早く着きます。再開は23時40分ごろの見込みです。";
     const chance = "23時23分までに動く見込みは1割未満です。";
     const text = buildDecisionText(input);
     expect(text.reason).toBe(`${comparison}${chance}`);

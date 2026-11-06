@@ -255,7 +255,8 @@
         "current": "いまは{phase}の段階です。",
         "entered": "{phase}の段階に入ったと読めます。",
         "unknown": "段階はまだ絞れていません。"
-      }
+      },
+      "next": "「{phrase}」と聞こえたら、再開が近づきます。"
     },
     "addInfo": {
       "title": "情報を追加する",
@@ -421,6 +422,7 @@
     "statusSuspended": "見合わせ中",
     "statusRunning": "運転中",
     "recommended": "おすすめ",
+    "fallback": "動かなければ",
     "walk": "徒歩{minutes}分",
     "minutesShort": "{minutes}分",
     "transferService": "振替輸送",

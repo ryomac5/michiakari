@@ -158,12 +158,17 @@ export const testIds = {
     map: "judgment-map",
     options: "judgment-options",
     option: (id: string) => `judgment-option-${id}`,
+    // 選択肢の行の、乗る路線の並びと、徒歩と運賃
+    optionLines: "judgment-option-lines",
+    optionFacts: "judgment-option-facts",
     evidence: "judgment-evidence",
     evidenceToggle: "judgment-evidence-toggle",
     // 根拠の項目。id は兆候か事象の id。data-phase-id と data-current を出す
     evidenceItem: (id: string) => `judgment-evidence-item-${id}`,
     evidenceHeard: "judgment-evidence-heard",
     evidenceReading: "judgment-evidence-reading",
+    // 根拠の欄の、次に聞こえたら判断が変わる放送の言い回し
+    evidenceNext: "judgment-evidence-next",
     // 判断に使った雨量の推移。data-trend と data-reading-count（欠測を含む観測の数）を出す
     weather: "judgment-weather",
     weatherChart: "judgment-weather-chart",

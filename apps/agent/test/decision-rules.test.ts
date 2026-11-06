@@ -248,7 +248,7 @@ describe("発表の再開見込みで比べたときの文言", () => {
       reason: "stated_resume_before_break_even",
       marginP50Minutes: 21,
     });
-    expect(text.headline).toBe("22時41分まで待つ。動かなければおすすめの経路へ");
+    expect(text.headline).toBe("22時41分まで待つ。動かなければ電車を乗り換える");
     expect(text.reason).toBe("発表どおり22時20分に再開すれば、待つほうが早く着きます。");
     expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });
@@ -261,11 +261,9 @@ describe("発表の再開見込みで比べたときの文言", () => {
       resumeP80: "2026-11-05T23:00:00+09:00",
       marginP50Minutes: -9,
     });
-    expect(text.headline).toBe("おすすめの経路に乗り換える");
+    expect(text.headline).toBe("電車を乗り換える");
     // 発表の時刻でも待つより遅いことを、どちらが早く着くかの比較で書く
-    expect(text.reason).toBe(
-      "発表どおり22時50分に再開しても、おすすめの経路のほうが早く着きます。",
-    );
+    expect(text.reason).toBe("発表どおり22時50分に再開しても、乗り換えのほうが早く着きます。");
     expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });
 
@@ -282,7 +280,7 @@ describe("発表の再開見込みで比べたときの文言", () => {
       },
     });
     expect(text.reason).toBe(
-      "発表どおり22時50分に再開しても、おすすめの経路のほうが早く着きます。22時41分までに動く見込みは2割です。",
+      "発表どおり22時50分に再開しても、乗り換えのほうが早く着きます。22時41分までに動く見込みは2割です。",
     );
     expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });
@@ -301,9 +299,9 @@ describe("大半が後のときの文言", () => {
       deadline: null,
       bestOption: { kind: "transfer", label: "Osaka Metro 四つ橋線", isTransferService: false },
     });
-    expect(text.headline).toBe("おすすめの経路に乗り換える");
+    expect(text.headline).toBe("電車を乗り換える");
     expect(text.reason).toBe(
-      "待つよりおすすめの経路のほうが早く着く見込みです。再開の見込みは22時35分〜23時15分ごろです。",
+      "待つより乗り換えのほうが早く着く見込みです。再開の見込みは22時35分〜23時15分ごろです。",
     );
     expect([...text.reason].length).toBeLessThanOrEqual(reasonLimits.ja.max);
   });

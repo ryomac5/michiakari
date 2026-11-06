@@ -5,15 +5,16 @@ import type { Estimate, EstimateSource, TypicalFlow } from "@repo/schema";
 import { Eye, Info, RotateCcw } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { SheetSection } from "@/components/SheetSection";
-import { findCatalogEvent, type KnowledgeCatalog } from "@/features/knowledge/catalog";
+import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import { type CauseChoiceId, toCauseChoiceId } from "@/features/situation/cause-categories";
 import { describePlace } from "@/features/stations/describe";
+import { listNextSignalPhrases } from "../evidence-text";
 import { type TripContext, useJudgmentSession } from "../session";
 import { selectJudgmentDisplay } from "../state";
 import { testIds } from "../testids";
 
 // 入口で方面だけ・電車の中・分からないで進んだときの前提と、次に確かめること
-// 確信度が高くないときだけ、次に確かめることを出す。兆候の文言は知見の抜粋から引く
+// 確信度が高くないときだけ、次に確かめることを出す。兆候は放送の言い回しの例で示す
 // 短く終わる事象では、再開見込みの放送を待たないので、発車の放送を確かめるよう示す
 
 // 次に確かめることの数の上限。兆候と定型の項目を合わせて数える
@@ -83,24 +84,6 @@ function describeCausePremise(
   return { key: choice ? "causeNoPattern" : "causeUnknown", choice };
 }
 
-// 今の段階の次の段階に出る兆候。知見の説明の文は出さず、放送で聞こえる言い回しの例で示す
-// 例は日本語だけなので、英語の画面では出さない
-function listNextSignals(
-  catalog: KnowledgeCatalog,
-  estimate: Estimate,
-  locale: string,
-  limit: number,
-): string[] {
-  if (locale === "en") return [];
-  const event = findCatalogEvent(catalog, estimate.eventType);
-  if (!event) return [];
-  const index = event.phases.findIndex((p) => p.id === estimate.phaseId);
-  const next = event.phases[index + 1];
-  return (next?.signals ?? [])
-    .flatMap((s) => (s.example_phrases[0] ? [`「${s.example_phrases[0]}」`] : []))
-    .slice(0, Math.max(0, limit));
-}
-
 export function PremiseSection() {
   const t = useTranslations("judgment.premise");
   const premises = usePremises();
@@ -139,7 +122,10 @@ export function NextCheckSection({
     short ? t("departSoon") : t("resume"),
     ...(estimate.eventType === null ? [t("transfer")] : []),
   ].slice(0, checkLimit);
-  const signals = listNextSignals(catalog, estimate, locale, checkLimit - items.length);
+  // 先頭の言い回しは根拠の欄に出すので、ここでは 2 つ目から並べる
+  const signals = listNextSignalPhrases(catalog, estimate, locale)
+    .slice(1, 1 + Math.max(0, checkLimit - items.length))
+    .map((phrase) => `「${phrase}」`);
   return (
     <SheetSection testId={testIds.judgment.nextCheck} title={t("title")}>
       <ul className="flex flex-col gap-2">

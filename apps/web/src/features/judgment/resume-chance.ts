@@ -42,6 +42,8 @@ export type ChanceChartInput = {
   breakEvenTime: string | null;
   // 画面上の現在。リプレイではシナリオ内の時刻
   nowMs: number | null;
+  // 結論が切り替えか。切り替えでは期限の印を置かず、境目の印だけを残す。待てそうに読めるため
+  switching?: boolean;
 };
 
 function placeOnAxis(startMs: number, spanMs: number, timeMs: number) {
@@ -78,7 +80,7 @@ export function buildChanceChart(input: ChanceChartInput): ChanceChart {
     },
     {
       kind: "resumeBy",
-      time: deadlineIsBreakEven ? null : chance.resumeByForDeadline,
+      time: deadlineIsBreakEven || input.switching ? null : chance.resumeByForDeadline,
       tenths: chance.waitOnTime,
     },
   ];

@@ -4,7 +4,12 @@ import { describe, expect, it } from "vitest";
 import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import en from "../../../messages/en.json";
 import ja from "../../../messages/ja.json";
-import { buildEvidenceLines, evidenceLimit, selectEvidenceEntries } from "./evidence-text";
+import {
+  buildEvidenceLines,
+  evidenceLimit,
+  listNextSignalPhrases,
+  selectEvidenceEntries,
+} from "./evidence-text";
 
 const catalog: KnowledgeCatalog = [
   {
@@ -23,7 +28,19 @@ const catalog: KnowledgeCatalog = [
       {
         id: "on_site",
         name: { ja: "現場の確認", en: "On-site check" },
-        signals: [{ id: "police_on_scene", description: "知見の兆候の説明C", example_phrases: [] }],
+        signals: [
+          {
+            id: "police_on_scene",
+            description: "知見の兆候の説明C",
+            example_phrases: ["警察が到着しました", "現場を確認しています"],
+          },
+          {
+            id: "rescue_done",
+            description: "知見の兆候の説明F",
+            example_phrases: ["救護が終わりました"],
+          },
+          { id: "no_phrase", description: "知見の兆候の説明G", example_phrases: [] },
+        ],
       },
       {
         id: "resume_estimate",
@@ -105,15 +122,41 @@ describe("selectEvidenceEntries", () => {
     expect(entries.map((e) => e.current)).toEqual([true, false, false]);
   });
 
-  it("同じ段階の言葉は新しい順に並べ、同じ引用は 1 つにまとめる", () => {
+  it("同じ段階の言葉は新しい引用 1 つにまとめ、同じ引用も 1 つにまとめる", () => {
     const sameStage = selectEvidenceEntries({
       catalog,
       estimate: estimate("initial"),
       signals: signals.slice(0, 2),
       locale: "ja",
     });
-    expect(sameStage.map((e) => e.id)).toEqual(["pa_held", "pa_occurred"]);
-    expect(sameStage.every((e) => e.phaseName === "発生直後" && e.current)).toBe(true);
+    // 引用は新しい言葉にし、まとめた兆候の id を残す
+    expect(sameStage.map((e) => e.id)).toEqual(["pa_held"]);
+    expect(sameStage[0]?.heard).toBe("列車は駅で止まっています。");
+    expect(sameStage[0]?.signalIds).toEqual(["pa_held", "pa_occurred"]);
+    expect(sameStage[0]?.phaseName).toBe("発生直後");
+    expect(sameStage[0]?.current).toBe(true);
+
+    // 前の段階の言葉も、段階ごとに 1 つにする
+    const earlier = selectEvidenceEntries({
+      catalog,
+      estimate: estimate("on_site"),
+      signals: signals.slice(0, 3),
+      locale: "ja",
+    });
+    expect(earlier.map((e) => e.phaseId)).toEqual(["on_site", "initial"]);
+    expect(new Set(earlier.map((e) => e.phaseId)).size).toBe(earlier.length);
+
+    // 段階の分からない言葉も 1 つにまとめる
+    const unknown = selectEvidenceEntries({
+      catalog,
+      estimate: estimate(null),
+      signals: [
+        signal("other_a", "列車が止まりました。"),
+        signal("other_b", "しばらくお待ちください。"),
+      ],
+      locale: "ja",
+    });
+    expect(unknown.map((e) => e.heard)).toEqual(["しばらくお待ちください。"]);
 
     const sameQuote = selectEvidenceEntries({
       catalog,
@@ -125,6 +168,23 @@ describe("selectEvidenceEntries", () => {
       locale: "ja",
     });
     expect(sameQuote.map((e) => e.id)).toEqual(["pa_held"]);
+    // 引用をまとめても、その引用に入っていた兆候の id はすべて残す
+    expect(sameQuote[0]?.signalIds).toEqual(["pa_held", "pa_occurred"]);
+
+    // 段階の違う兆候が同じ引用に入っていても、どの兆候の id も落とさない
+    const acrossPhases = selectEvidenceEntries({
+      catalog,
+      estimate: estimate("on_site"),
+      signals: [
+        signal("pa_occurred", "人身事故のため、運転を見合わせています。"),
+        signal("pa_held", "警察による現場の確認を行っています。"),
+        signal("police_on_scene", "警察による現場の確認を行っています。"),
+      ],
+      locale: "ja",
+    });
+    const ids = acrossPhases.flatMap((e) => e.signalIds ?? []);
+    expect([...ids].sort()).toEqual(["pa_held", "pa_occurred", "police_on_scene"]);
+    expect(new Set(acrossPhases.map((e) => e.heard)).size).toBe(acrossPhases.length);
   });
 
   it("いまの段階の言葉が無ければ、最も新しい言葉からいまの段階を読む", () => {
@@ -137,6 +197,7 @@ describe("selectEvidenceEntries", () => {
     expect(entries).toEqual([
       {
         id: "pa_occurred",
+        signalIds: ["pa_occurred"],
         heard: "人身事故のため、運転を見合わせています。",
         phaseId: "on_site",
         phaseName: "現場の確認",
@@ -156,6 +217,7 @@ describe("selectEvidenceEntries", () => {
     expect(entries).toEqual([
       {
         id: "person_accident",
+        signalIds: [],
         heard: "人身事故",
         phaseId: "initial",
         phaseName: "発生直後",
@@ -192,6 +254,7 @@ describe("buildEvidenceLines", () => {
     expect(renderLines("ja", entries)).toEqual([
       {
         id: "police_on_scene",
+        signalIds: ["police_on_scene"],
         phaseId: "on_site",
         current: true,
         heard: "「警察による現場の確認を行っています。」",
@@ -199,16 +262,10 @@ describe("buildEvidenceLines", () => {
       },
       {
         id: "pa_held",
+        signalIds: ["pa_held", "pa_occurred"],
         phaseId: "initial",
         current: false,
         heard: "「列車は駅で止まっています。」",
-        reading: "発生直後の段階に入ったと読めます。",
-      },
-      {
-        id: "pa_occurred",
-        phaseId: "initial",
-        current: false,
-        heard: "「人身事故のため、運転を見合わせています。」",
         reading: "発生直後の段階に入ったと読めます。",
       },
     ]);
@@ -224,6 +281,7 @@ describe("buildEvidenceLines", () => {
     expect(renderLines("en", entries)).toEqual([
       {
         id: "police_on_scene",
+        signalIds: ["police_on_scene"],
         phaseId: "on_site",
         current: true,
         heard: "“警察による現場の確認を行っています。”",
@@ -264,5 +322,27 @@ describe("buildEvidenceLines", () => {
       { id: "x", heard: "人身事故", phaseId: null, phaseName: null, current: false },
     ]);
     expect(line?.reading).toBe("段階はまだ絞れていません。");
+  });
+});
+
+describe("listNextSignalPhrases", () => {
+  it("次の段階の兆候を、放送の言い回しの例で返す", () => {
+    const phrases = listNextSignalPhrases(catalog, estimate("initial"), "ja");
+    expect(phrases).toEqual(["警察が到着しました", "救護が終わりました"]);
+    for (const phrase of phrases) expect(phrase).not.toMatch(/知見の兆候の説明/);
+  });
+
+  it("最後の段階、英語の画面、事象の分からないときは空にする", () => {
+    expect(listNextSignalPhrases(catalog, estimate("preparing"), "ja")).toEqual([]);
+    expect(listNextSignalPhrases(catalog, estimate("initial"), "en")).toEqual([]);
+    expect(listNextSignalPhrases(catalog, estimate(null, null), "ja")).toEqual([]);
+    expect(listNextSignalPhrases(catalog, null, "ja")).toEqual([]);
+  });
+
+  it("根拠の欄の 1 行は放送の言い回しを引き、再開が近づくと言う", () => {
+    const [phrase] = listNextSignalPhrases(catalog, estimate("initial"), "ja");
+    const line = translators.ja("next", { phrase: phrase ?? "" });
+    expect(line).toBe("「警察が到着しました」と聞こえたら、再開が近づきます。");
+    expect(line).not.toMatch(/[0-9０-９]+(時間|分)ほど/);
   });
 });

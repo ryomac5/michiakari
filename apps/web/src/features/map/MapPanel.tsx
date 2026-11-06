@@ -59,6 +59,7 @@ import {
 } from "./scene";
 import {
   buildStationGuide,
+  checkFeaturedStation,
   findFocusArea,
   findPointAtDistance,
   findRingLabelPoint,
@@ -79,6 +80,8 @@ export type MapPanelProps = {
   recommendedOptionId: string | null;
   // 選択肢の一覧で押した選択肢。地図はこの経路と乗る駅を描く。省略時は推奨
   selectedOptionId?: string | null;
+  // 待つ判断で、動かなかったときに乗る選択肢。乗る駅に「動かなければ」の吹き出しを出す
+  fallbackOptionId?: string | null;
   // 止まっている区間。発表の観測から分かったものだけを渡す
   blockedSection: Section | null;
   // 止まっている路線の名前（観測の line）。無ければ「待つ」経路の路線から推し量る
@@ -285,7 +288,7 @@ function buildGuidePadding(
   const margins = guide.areaId.startsWith("auto:") ? autoFocusMargin : focusMargin;
   const margin = narrow ? margins.narrow : margins.wide;
   const tallTop = guide.stations.some(
-    (s) => s.recommended && s.placement[narrow ? "narrow" : "wide"] === "top",
+    (s) => checkFeaturedStation(s) && s.placement[narrow ? "narrow" : "wide"] === "top",
   );
   const canvas = map.getCanvas();
   // 駅間の車内の人には吹き出しが無い。現在地と降りる駅の印が「全体を見る」のボタンの下に入らないよう、印の半径も足して下を空ける
@@ -315,13 +318,14 @@ function estimateBubbleSize(
   narrow: boolean,
   compactRecommended = false,
 ): { w: number; h: number } {
-  if (station.recommended && !compactRecommended) return { w: narrow ? 196 : 220, h: 150 };
-  if (!narrow) return { w: 200, h: 64 };
+  if (checkFeaturedStation(station) && !compactRecommended)
+    return { w: narrow ? 196 : 220, h: 150 };
+  if (!narrow) return { w: 200, h: station.fallback ? 80 : 64 };
   // 路線色の印と分数のぶんを足す。おすすめの小さな札は、星の分だけ広い
   return {
     w: estimateTextWidth(station.shortName, 12) + 100 + (station.starred ? 16 : 0),
-    // 上下の配置では 44px のタップ領域を基準にアンカーが付く。
-    h: 44,
+    // 上下の配置では 44px のタップ領域を基準にアンカーが付く。「動かなければ」の札は 1 段ぶん高い
+    h: station.fallback ? 60 : 44,
   };
 }
 
@@ -428,7 +432,7 @@ function layoutAutoPlacements(
         key: s.key,
         point: toScreen(s.position),
         size: measureSize(
-          `${s.key}:${s.recommended && !compactRecommended ? "full" : narrow ? "compact" : "medium"}`,
+          `${s.key}:${checkFeaturedStation(s) && !compactRecommended ? "full" : narrow ? "compact" : "medium"}`,
           estimateBubbleSize(s, narrow, compactRecommended),
         ),
         gap: 12,
@@ -575,6 +579,7 @@ export function MapPanel(props: MapPanelProps) {
     blockedDirection,
     trainPosition,
     trainOnly = false,
+    fallbackOptionId = null,
   } = props;
   // 駅間の車内の人は降りられないので、乗り換え候補の駅と徒歩の範囲を出さない
   const inCar = trainPosition?.kind === "between_stations";
@@ -753,6 +758,7 @@ export function MapPanel(props: MapPanelProps) {
             options,
             recommendedOptionId: focusOptionId,
             starOptionId: recommendedOptionId,
+            fallbackOptionId,
             blockedLineIds: scene.blockedLineIds,
             trackLineIds: scene.trackLineIds,
             hideStations: inCar,
@@ -771,6 +777,7 @@ export function MapPanel(props: MapPanelProps) {
       options,
       focusOptionId,
       recommendedOptionId,
+      fallbackOptionId,
       blockedLine,
       locale,
       labels,
@@ -1260,6 +1267,7 @@ export function MapPanel(props: MapPanelProps) {
   const dockedRows = autoPlacements?.docked
     ? listDockedStationRows(guide?.stations ?? [], autoPlacements.docked, {
         recommended: t("recommended"),
+        fallback: t("fallback"),
         shown: shownStationKey ? labels.selectedRoute : null,
         walk: labels.walkLabel,
       })
@@ -1340,7 +1348,7 @@ export function MapPanel(props: MapPanelProps) {
             placement={placeStation(station)}
             slide={autoPlacements?.slides[station.key] ?? 0}
             variant={
-              station.recommended && !autoPlacements?.compactRecommended
+              checkFeaturedStation(station) && !autoPlacements?.compactRecommended
                 ? "full"
                 : narrow
                   ? "compact"

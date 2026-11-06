@@ -168,6 +168,23 @@ async function expectInCarWait(page: Page): Promise<void> {
   await openSheet(page, "collapsed");
 }
 
+// 閉じたシートでは結論の見出しが先頭に見え、前提のチップは見出しと理由と注意書きより下にある
+async function expectConclusionFirst(page: Page): Promise<void> {
+  await expect(page.getByTestId(testIds.judgment.sheet)).toHaveAttribute("data-snap", "collapsed");
+  const headline = page.getByTestId(testIds.judgment.conclusionHeadline);
+  await expect(headline).toBeInViewport();
+  const top = async (testId: string) => (await page.getByTestId(testId).boundingBox())?.y ?? 0;
+  const disclaimer = await page.getByTestId(testIds.judgment.disclaimer).boundingBox();
+  const chips = await page.getByTestId(testIds.judgment.trainPosition).boundingBox();
+  if (!disclaimer || !chips) throw new Error("注意書きか前提のチップが見つかりません");
+  expect(await top(testIds.judgment.conclusionHeadline)).toBeLessThan(
+    await top(testIds.judgment.conclusionReason),
+  );
+  expect(chips.y).toBeGreaterThanOrEqual(disclaimer.y + disclaimer.height);
+  // 閉じたシートの中で、見出しより上に前提の札は無い
+  await expect(page.getByTestId(testIds.judgment.trainPositionChip("ahead"))).not.toBeInViewport();
+}
+
 for (const theme of ["light", "dark"] as const) {
   test.describe(`駅と駅の間 ${theme}`, () => {
     test.beforeEach(async ({ context, baseURL }) => {
@@ -193,6 +210,9 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByTestId(testIds.judgment.conclusionReason)).toHaveText(
         /^塚本には\d+時\d+分ごろに着く見込みです。$/,
       );
+
+      // 閉じたシートは結論から始まり、前提のチップは見出しと理由と注意書きの下に置く
+      await expectConclusionFirst(page);
 
       // 前提のチップは既定値の見た目で、前の列車はふだんの運転から推し量った並びになる
       const next = page.getByTestId(testIds.judgment.trainPositionChip("next"));
@@ -225,9 +245,14 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByTestId(mapTestIds.alight)).toContainText("塚本");
       // 「いま」の札と「降りる駅」の札は、互いにも、駅の印にも、「全体を見る」のボタンにも重ならない
       await expect.poll(() => listMapLabelOverlaps(page), { timeout: 15_000 }).toEqual([]);
-      await capture(page, theme, "02-judgment-chips-closed");
+      await capture(page, theme, "02-judgment-closed");
 
-      // チップを押すと、その場で直せる選択が開く。閉じたシートでは下が切れるので、半分まで開く
+      // 半分まで開くと、結論の下に前提のチップが見える
+      await openSheet(page, "half");
+      await expect(ahead).toBeInViewport();
+      await capture(page, theme, "02-judgment-chips-half");
+
+      // チップを押すと、その場で直せる選択が開き、シートは半分のまま保つ
       await ahead.click();
       await expect(page.getByTestId(testIds.judgment.sheet)).toHaveAttribute("data-snap", "half");
       const editor = page.getByTestId(testIds.judgment.trainPositionEditor);
@@ -320,7 +345,8 @@ test("判断の画面で前の列車のチップを押し、快速と普通を�
   await reachPositionStep(page);
   await startBetweenStations(page);
 
-  // 近い順に快速、普通と押して並べ、この前提で判断し直す
+  // 近い順に快速、普通と押して並べ、この前提で判断し直す。チップは半分まで開くと見える
+  await openSheet(page, "half");
   await page.getByTestId(testIds.judgment.trainPositionChip("ahead")).click();
   await expect(page.getByTestId(testIds.judgment.sheet)).toHaveAttribute("data-snap", "half");
   await page.getByTestId(testIds.judgment.trainPositionAheadAdd("rapid")).click();
