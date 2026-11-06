@@ -104,7 +104,7 @@ describe("根拠の説明の検査を除く条件", () => {
   const quote = "発表の「運転を見合わせています。振替輸送を行っています」";
   const evidenceRefs = [
     { kind: "signal" as const, id: "sig_quote", description: quote },
-    { kind: "knowledge" as const, id: "in_car_response", description: "車内対応のよくある流れ" },
+    { kind: "knowledge" as const, id: "in_car_response", description: "起きていることは車内対応" },
   ];
   const judgmentWith = (evidence: { kind: string; id: string; description: string }[]) => ({
     action: "wait",

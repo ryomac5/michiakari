@@ -475,7 +475,7 @@ describe("claude モードの車内と止まり方", () => {
     return ready?.type === "judgment_ready" ? ready.judgment : null;
   }
   const evidence = (eventType: string) => [
-    { kind: "knowledge", id: eventType, description: "よくある流れ" },
+    { kind: "knowledge", id: eventType, description: "起きていること" },
   ];
 
   it("駅間の車内の人に切り替えを勧めたら検証で弾き、車内で待つ判断だけを通す", async () => {

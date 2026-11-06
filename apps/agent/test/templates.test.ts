@@ -1,6 +1,7 @@
 import type { RouteOption } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { headlineLimits, reasonLimits } from "../src/config.ts";
+import { findFlowWording } from "../src/domain/flow-wording.ts";
 import { checkDecisiveWording } from "../src/judge/assemble.ts";
 import {
   buildBreakEvenSentence,
@@ -248,18 +249,14 @@ describe("buildDecisionText", () => {
     );
   });
 
-  it("流れと確率を添えても再開見込みと境目を残し90字以内に収める", () => {
+  it("流れの区別があっても、理由は再開見込みと境目と確率だけで90字以内に収める", () => {
     const input = {
       reason: "resume_after_break_even" as const,
       language: "ja" as const,
       breakEvenMinutesFromNow: 13,
       bestOption: null,
       ...OUTLOOK,
-      flow: {
-        outlook: "long" as const,
-        sentence: "人身事故はふつう1時間ほどで再開します。",
-        inReason: true,
-      },
+      flow: { outlook: "long" as const },
       chance: {
         waitFaster: 0,
         comparisonTime: OUTLOOK.breakEvenTime,
@@ -270,19 +267,9 @@ describe("buildDecisionText", () => {
     const comparison = "再開は23時40分頃の見込みで境目より後です。";
     const chance = "境目の23時23分までに動く見込みは1割未満です。";
     const text = buildDecisionText(input);
-    expect(text.reason).toBe(`${input.flow.sentence}${comparison}${chance}`);
+    expect(text.reason).toBe(`${comparison}${chance}`);
     expect([...text.reason].length).toBeLessThanOrEqual(90);
-
-    const longerFlow = buildDecisionText({
-      ...input,
-      flow: {
-        ...input.flow,
-        sentence:
-          "人身事故は、関係機関による確認が終わるまで再開を待つため1時間ほどかかるのがふつうです。関係機関の確認には時間がかかります。",
-      },
-    });
-    expect(longerFlow.reason).toBe(`${comparison}${chance}`);
-    expect([...longerFlow.reason].length).toBeLessThanOrEqual(90);
+    expect(findFlowWording(text.reason, "ja")).toBeNull();
   });
 
   it("待つときの理由は、見込みが境目より前か、差が小さいかで書き分ける", () => {

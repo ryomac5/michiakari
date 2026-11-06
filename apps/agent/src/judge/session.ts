@@ -395,8 +395,8 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
         id: knowledge.id,
         description:
           language === "en"
-            ? `Typical flow of ${knowledge.name.en ?? knowledge.name.ja}`
-            : `${knowledge.name.ja}のよくある流れ`,
+            ? `What is happening: ${knowledge.name.en ?? knowledge.name.ja}`
+            : `起きていることは${knowledge.name.ja}`,
       });
       const phase = knowledge.phases.find((p) => p.id === state.estimate?.estimate.phaseId);
       if (phase) {
@@ -421,14 +421,13 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
       refs.push({ kind: "weather", id: "weather", description: detail });
     }
     if (state.estimate?.estimate.remaining) {
-      const r = state.estimate.estimate.remaining;
       refs.push({
         kind: "computation",
         id: "remaining",
         description:
           language === "ja"
-            ? `再開して乗れるまで p50 ${r.p50}分・p80 ${r.p80}分`
-            : `Until a boardable train: p50 ${r.p50} min, p80 ${r.p80} min`,
+            ? "再開して乗れるまでの残り時間の見込み"
+            : "Estimated time until a boardable train",
       });
     }
     // 駅間の車内の人には、選択肢の比較と境目を根拠に挙げない。切り替えを勧める説明になるため
