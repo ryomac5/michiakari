@@ -126,6 +126,8 @@ export const testIds = {
     changeBefore: "judgment-change-before",
     changeAfter: "judgment-change-after",
     changeAnnouncement: "judgment-change-announcement",
+    // 発表から読めるいまの段階。data-phase-id に段階を出す
+    changeReading: "judgment-change-reading",
     changeProbability: "judgment-change-probability",
     disclaimer: "judgment-disclaimer",
     error: "judgment-error",
@@ -200,6 +202,8 @@ export const testIds = {
     outcomeSummary: "replay-outcome-summary",
     outcomeFollowed: "replay-outcome-followed",
     outcomeCounterpart: "replay-outcome-counterpart",
+    // 結末の下で最後の判断を開き直す。aria-expanded に開閉を出す
+    lastJudgmentToggle: "replay-last-judgment-toggle",
   },
   // 見つからない頁と、思わぬエラーの画面。data-kind に notFound / error を出す
   status: {

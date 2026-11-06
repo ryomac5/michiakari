@@ -330,7 +330,6 @@
       "after": "Now",
       "announcement": "Trigger",
       "probability": "Chance waiting is faster",
-      "notCalculated": "Not calculated",
       "noAnnouncement": "No new announcement"
     }
   },
@@ -388,6 +387,8 @@
       "onTime": "Made it",
       "late": "{minutes} min late",
       "diff": "{minutes} min apart",
+      "showLastJudgment": "Show the last advice",
+      "hideLastJudgment": "Hide the last advice",
       "summary": {
         "followedEarlierMadeIt": "Following the advice got you there {minutes} min earlier than waiting. You made it by {deadline}.",
         "followedEarlier": "Following the advice got you there {minutes} min earlier than waiting.",

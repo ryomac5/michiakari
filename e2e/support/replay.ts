@@ -67,6 +67,15 @@ export async function waitForJudged(
   const judgment = page.getByTestId(testIds.replay.judgment);
   await expect(judgment).toHaveAttribute("data-observation-id", observationId, { timeout });
   await expect(judgment).toHaveAttribute("data-status", "ready");
+  await expect(page.getByTestId(testIds.replay.screen)).not.toHaveAttribute(
+    "data-state",
+    "judging",
+  );
+  // 最後まで流れて結末を出したら、畳んだ最後の判断を開き直す
+  const reopen = page.getByTestId(testIds.replay.lastJudgmentToggle);
+  if ((await reopen.count()) > 0 && (await reopen.getAttribute("aria-expanded")) === "false") {
+    await reopen.click();
+  }
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible();
 }
 

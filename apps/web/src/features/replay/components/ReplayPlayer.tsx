@@ -2,7 +2,7 @@
 
 import { resolveStopScope } from "@repo/core";
 import { type Action, type RouteOption, resolveDeadline } from "@repo/schema";
-import { ArrowLeft, History, Play } from "lucide-react";
+import { ArrowLeft, ChevronDown, History, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
@@ -23,7 +23,7 @@ import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
-import { buildJudgmentChange } from "@/features/judgment/judgment-change";
+import { buildJudgmentChange, selectChangeEvidence } from "@/features/judgment/judgment-change";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { selectSwitchStep } from "@/features/judgment/switch-step";
 import { testIds } from "@/features/judgment/testids";
@@ -114,6 +114,12 @@ export function ReplayPlayer({
   useEffect(() => {
     if (ended) setSnap("half");
   }, [ended, setSnap]);
+  // 結末を出したら最後の判断は畳む。見直したい人だけが開き直す
+  const [judgmentReopened, setJudgmentReopened] = useState(false);
+  useEffect(() => {
+    if (!ended) setJudgmentReopened(false);
+  }, [ended]);
+  const judgmentFolded = ended && !judgmentReopened;
 
   const breakEvenProps = {
     breakEven: display.breakEven,
@@ -132,6 +138,62 @@ export function ReplayPlayer({
   const mapOptionId = chosenOptionId ?? display.recommendedOptionId;
   // 凡例も地図と同じ選択中の選択肢の色にする
   const tone = selectRouteTone(options, mapOptionId);
+
+  // 判断の要点。結末を出すまではシートの要約に置き、結末の後はスクロールできる詳しい段の先頭に置く
+  // 開き直した判断が低い画面でも読めるようにするためである
+  const judgmentBlock = (
+    <div
+      data-testid={testIds.replay.judgment}
+      data-status={state.status}
+      data-observation-id={current?.observationId ?? ""}
+      data-pending-observation-id={pendingId}
+      data-action={current?.action ?? ""}
+      data-phase-id={current?.phaseId ?? ""}
+      data-evidence-ids={current?.evidenceIds.join(" ") ?? ""}
+      data-break-even-shown={current ? String(current.breakEvenShown) : ""}
+      data-changed={changed}
+      data-folded={judgmentFolded}
+      className="flex flex-col gap-3"
+    >
+      {!started && <ReadyCard scenario={scenario} onStart={player.togglePlay} />}
+      {streaming && <ReasoningProgress state={state} catalog={catalog} />}
+      {state.status === "error" && state.error && (
+        <JudgmentError
+          message={state.error.message}
+          retryable={state.error.retryable}
+          onRetry={player.retry}
+        />
+      )}
+      {state.status === "ready" && display.judgment && current && (
+        <ConclusionCard
+          judgment={display.judgment}
+          change={buildJudgmentChange(
+            state.previousJudgment,
+            display.judgment,
+            latestEntry ? pickScenarioText(latestEntry.text, locale) : null,
+            selectChangeEvidence({
+              catalog,
+              estimate: display.judgment.estimate,
+              signals: state.signals,
+              locale,
+            }),
+          )}
+          badge={
+            changed && previousAction ? (
+              <ChangeBadge from={previousAction} to={current.action} />
+            ) : undefined
+          }
+          metric={<BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />}
+        />
+      )}
+      {/* 判断が確定する前と失敗時も、境目の状態を属性で残す */}
+      {started && !streaming && !(state.status === "ready" && display.judgment && current) && (
+        <BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />
+      )}
+      {/* 推定である旨は再生を始める前から出す。結末のカードが出たら、そちらの 1 回だけにする */}
+      {!outcome && <Disclaimer />}
+    </div>
+  );
 
   return (
     <div
@@ -212,107 +274,70 @@ export function ReplayPlayer({
           summary={
             <div className="flex flex-col gap-3">
               {outcome && (
-                <div className="border-b border-border pb-3">
+                <div className="flex flex-col gap-1">
                   <ReplayOutcomeCard outcome={outcome} deadlineClock={deadlineClock} />
+                  <LastJudgmentToggle
+                    open={judgmentReopened}
+                    onToggle={() => setJudgmentReopened((open) => !open)}
+                  />
                 </div>
               )}
-              <div
-                data-testid={testIds.replay.judgment}
-                data-status={state.status}
-                data-observation-id={current?.observationId ?? ""}
-                data-pending-observation-id={pendingId}
-                data-action={current?.action ?? ""}
-                data-phase-id={current?.phaseId ?? ""}
-                data-evidence-ids={current?.evidenceIds.join(" ") ?? ""}
-                data-break-even-shown={current ? String(current.breakEvenShown) : ""}
-                data-changed={changed}
-                className="flex flex-col gap-3"
-              >
-                {!started && <ReadyCard scenario={scenario} onStart={player.togglePlay} />}
-                {streaming && <ReasoningProgress state={state} catalog={catalog} />}
-                {state.status === "error" && state.error && (
-                  <JudgmentError
-                    message={state.error.message}
-                    retryable={state.error.retryable}
-                    onRetry={player.retry}
-                  />
-                )}
-                {state.status === "ready" && display.judgment && current && (
-                  <ConclusionCard
-                    judgment={display.judgment}
-                    change={buildJudgmentChange(
-                      state.previousJudgment,
-                      display.judgment,
-                      latestEntry ? pickScenarioText(latestEntry.text, locale) : null,
-                    )}
-                    badge={
-                      changed && previousAction ? (
-                        <ChangeBadge from={previousAction} to={current.action} />
-                      ) : undefined
-                    }
-                    metric={<BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />}
-                  />
-                )}
-                {/* 判断が確定する前と失敗時も、境目の状態を属性で残す */}
-                {started &&
-                  !streaming &&
-                  !(state.status === "ready" && display.judgment && current) && (
-                    <BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />
-                  )}
-                {/* 推定である旨は再生を始める前から出す */}
-                <Disclaimer />
-              </div>
+              {!outcome && judgmentBlock}
             </div>
           }
         >
           {started && (
             <>
-              {/* 2 段目: 再開の見込みの図。閉じたシートは地図を広く残すため、引き上げたときに見せる */}
-              {state.status === "ready" && display.breakEven && (
+              {/* 結末で畳んだ判断の詳しい段は、開いた状態を保つため外さずに隠す */}
+              <div className={judgmentFolded ? "hidden" : "contents"}>
+                {outcome && <SheetSection>{judgmentBlock}</SheetSection>}
+                {/* 2 段目: 再開の見込みの図。閉じたシートは地図を広く残すため、引き上げたときに見せる */}
+                {state.status === "ready" && display.breakEven && (
+                  <SheetSection>
+                    <ResumeOutlook {...breakEvenProps} />
+                  </SheetSection>
+                )}
+                {/* 気象を使った判断のときだけ、半分の状態の先頭に雨量の推移を出す */}
+                {display.weather && (
+                  <SheetSection>
+                    <WeatherPanel weather={display.weather} stale={display.weatherStale} />
+                  </SheetSection>
+                )}
+                {display.judgment && (
+                  <SheetSection>
+                    <ConclusionDetail judgment={display.judgment} />
+                  </SheetSection>
+                )}
+                {display.breakEven && (
+                  <SheetSection>
+                    <BreakEvenDetail {...breakEvenProps} />
+                  </SheetSection>
+                )}
                 <SheetSection>
-                  <ResumeOutlook {...breakEvenProps} />
+                  <OptionList
+                    options={display.options}
+                    recommendedOptionId={display.recommendedOptionId}
+                    stale={display.optionsStale}
+                    pending={streaming}
+                    marks={guide?.optionMarks}
+                    highlightId={highlightId}
+                    selectedId={mapOptionId}
+                    onSelect={selectOption}
+                  />
                 </SheetSection>
-              )}
-              {/* 気象を使った判断のときだけ、半分の状態の先頭に雨量の推移を出す */}
-              {display.weather && (
-                <SheetSection>
-                  <WeatherPanel weather={display.weather} stale={display.weatherStale} />
+                <SheetSection className="has-[>[hidden]]:hidden">
+                  <EvidenceSection
+                    estimate={display.estimate}
+                    signals={state.signals}
+                    catalog={catalog}
+                  />
                 </SheetSection>
-              )}
-              {display.judgment && (
-                <SheetSection>
-                  <ConclusionDetail judgment={display.judgment} />
-                </SheetSection>
-              )}
-              {display.breakEven && (
-                <SheetSection>
-                  <BreakEvenDetail {...breakEvenProps} />
-                </SheetSection>
-              )}
-              <SheetSection>
-                <OptionList
-                  options={display.options}
-                  recommendedOptionId={display.recommendedOptionId}
-                  stale={display.optionsStale}
-                  pending={streaming}
-                  marks={guide?.optionMarks}
-                  highlightId={highlightId}
-                  selectedId={mapOptionId}
-                  onSelect={selectOption}
-                />
-              </SheetSection>
-              <SheetSection className="has-[>[hidden]]:hidden">
-                <EvidenceSection
-                  estimate={display.estimate}
-                  signals={state.signals}
-                  catalog={catalog}
-                />
-              </SheetSection>
-              {state.status === "ready" && (
-                <SheetSection>
-                  <ReasoningLog state={state} catalog={catalog} />
-                </SheetSection>
-              )}
+                {state.status === "ready" && (
+                  <SheetSection>
+                    <ReasoningLog state={state} catalog={catalog} />
+                  </SheetSection>
+                )}
+              </div>
               <SheetSection>
                 <MapLegend tone={tone} reachSource={reachSource} />
               </SheetSection>
@@ -381,5 +406,27 @@ function ChangeBadge({ from, to }: { from: Action; to: Action }) {
         {t("replay.changedFrom", { action: t(`judgment.action.${from}`) })}
       </span>
     </p>
+  );
+}
+
+// 結末の下で、畳んだ最後の判断を開き直す
+function LastJudgmentToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  const t = useTranslations("replay.outcome");
+
+  return (
+    <button
+      type="button"
+      data-testid={testIds.replay.lastJudgmentToggle}
+      aria-expanded={open}
+      onClick={onToggle}
+      className="group inline-flex min-h-11 w-fit items-center gap-1 rounded-xl px-1 text-[13px] font-medium text-muted transition-colors hover:text-foreground"
+    >
+      {open ? t("hideLastJudgment") : t("showLastJudgment")}
+      <ChevronDown
+        className="size-4 transition-transform duration-200 group-aria-expanded:rotate-180"
+        strokeWidth={1.75}
+        aria-hidden
+      />
+    </button>
   );
 }
