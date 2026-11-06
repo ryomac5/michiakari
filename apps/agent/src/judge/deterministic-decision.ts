@@ -154,14 +154,9 @@ export function applyDecisionRules(input: RuleInput): RuleOutcome {
   };
 }
 
-// 流れの一文は、知見から見積もっているときだけ理由に置く。発表の見込みや再開の後は発表を優先する
+// 見込みが立てやすい事象の、短く終わるか長くかかるかの区別。見出しの言い方を選ぶのに使う
 function buildFlowText(estimate: EstimateToolResult): DecisionTextInput["flow"] {
-  if (!estimate.flowOutlook || !estimate.flowSentence) return null;
-  return {
-    outlook: estimate.flowOutlook,
-    sentence: estimate.flowSentence,
-    inReason: estimate.remainingBasis === "knowledge",
-  };
+  return estimate.flowOutlook ? { outlook: estimate.flowOutlook } : null;
 }
 
 // 理由と同じ比較時点の確率を添える。期限の判断では早着より期限内到着を優先する
@@ -194,11 +189,9 @@ export function decideDeterministically(
   const language = session.ctx.request.language;
   // 駅間の車内では、結論は車内で待つだけにする。境目の比較で切り替えを勧めない。次の駅が分からなくても同じ
   if (checkInCarBetweenStations(session.ctx.request)) {
-    const flow = buildFlowText(results.estimate);
     const text = buildInCarDecisionText({
       language,
       queue: buildTrainQueueText(results.estimate),
-      flowSentence: flow?.inReason ? flow.sentence : null,
     });
     return {
       action: "wait",

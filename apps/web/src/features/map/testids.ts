@@ -15,7 +15,11 @@ export const mapTestIds = {
   here: "judgment-map-here",
   // 駅間の車内の人に出す、次に降りる駅の印
   alight: "judgment-map-alight",
+  // 発表で区間が分かったときだけ出す「見合わせ 大阪〜京都」の札
   blockedTag: "judgment-map-blocked-tag",
+  // 発表に区間が無いときの「区間は発表で確かめる」と、発表を貼る欄へ移るボタン
+  sectionNote: "judgment-map-section-note",
+  sectionNoteAction: "judgment-map-section-note-action",
   // 一覧で選んだ経路を描いているときの「表示中」の札
   selectedRoute: "judgment-map-selected-route",
   // 札が地図に収まらないときに、札を移す上端の一覧と、その駅の行

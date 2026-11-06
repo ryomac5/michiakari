@@ -9,8 +9,10 @@ import {
   type Knowledge,
   type Lang,
   type Observation,
+  type Section,
 } from "@repo/schema";
 import { headlineLimits, reasonLimits } from "../config.ts";
+import { findFlowWording, findInternalWording, findKnowledgeText } from "../domain/flow-wording.ts";
 import type { Decision } from "../tools/emit-judgment.ts";
 import type {
   AlternativesToolResult,
@@ -201,10 +203,6 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
     estimate.firstTrainWait?.p50,
     estimate.firstTrainWait?.p80,
     results.alternatives.waitRouteMinutesAfterResume,
-    // よくある流れの再開までの見込みと目安の下限。結論の文で事象の流れを伝えるのに使う
-    estimate.typicalFlow?.untilResume.p50,
-    estimate.typicalFlow?.untilResume.p80,
-    estimate.typicalFlow?.typicalFloorMinutes,
     ...results.alternatives.options.flatMap((o) => [
       o.walkMinutes,
       Math.round(diffMinutes(now, o.arrivalTime)),
@@ -318,6 +316,37 @@ const SWITCH_PATTERNS: Record<Lang, RegExp> = {
   en: /\b(change to|change trains|switch|taxi|get off|transfer|walk)/i,
 };
 
+// 事象に決まった流れがあるように語る言い方と、再開までの時間を言い切る言い方があれば指摘する
+export function checkFlowWording(field: string, text: string, language: Lang): string[] {
+  const match = findFlowWording(text, language);
+  if (!match) return [];
+  return [
+    `${field} の「${match}」は、再開までの時間を事象の決まった流れとして言い切る言い方です。再開の見込みは画面の図で幅を持たせて示すので、文には書かず、境目や待つ場合との比較で書いてください`,
+  ];
+}
+
+// 内部の名前と知見の本文を、利用者に見せる文に写していれば指摘する
+export function checkSourceWording(
+  field: string,
+  text: string,
+  knowledgeSentences: readonly string[],
+): string[] {
+  const name = findInternalWording(text);
+  const copied = findKnowledgeText(text, knowledgeSentences);
+  return [
+    ...(name
+      ? [
+          `${field} の「${name}」は内部の名前です。id、項目名、p50 や p80 は書かず、利用者が聞く言葉で書いてください`,
+        ]
+      : []),
+    ...(copied
+      ? [
+          `${field} に知見の文「${copied}」を写しています。知見の文は開発者向けの根拠です。言い換えずに外し、比較の形で書いてください`,
+        ]
+      : []),
+  ];
+}
+
 // 区間全体の運転見合わせを指す言い回し。その列車だけが止まる事象には使わない
 const SUSPENSION_PATTERNS: Record<Lang, RegExp> = {
   ja: /見合わせ/,
@@ -348,6 +377,108 @@ export function checkStopScopeWording(field: string, text: string, language: Lan
   ];
 }
 
+// 区間の検査に使う文脈。発表の区間と、駅の間の車内なら利用者のいる 2 駅
+export type SectionWordingContext = {
+  announcedSection: Section | null;
+  trainPosition: { previousStation: string | null; nextStation: string | null } | null;
+};
+
+type StationRange = { from: string; to: string; text: string; position: boolean; sentence: string };
+
+// 駅名の並び。ひらがなは助詞と見分けられないので含めない
+const JA_NAME = "[一-龥々〆ヶァ-ヴーA-Za-z0-9]+";
+const JA_RANGE_PATTERNS: readonly { pattern: RegExp; needsContext: boolean }[] = [
+  // 大阪〜京都、大阪 - 京都、大阪駅〜京都駅間
+  {
+    pattern: new RegExp(`(${JA_NAME})駅?\\s*[〜～~\\-－–—]\\s*(${JA_NAME})`, "g"),
+    needsContext: false,
+  },
+  // 大阪・京都間、大阪と京都の間
+  {
+    pattern: new RegExp(`(${JA_NAME})駅?[・と](${JA_NAME})駅?(?=の間|間)`, "g"),
+    needsContext: false,
+  },
+  // 大阪から京都まで。道順にも使う言い方なので、止まっていることを言う文に限る
+  {
+    pattern: new RegExp(`(${JA_NAME})駅?\\s*から\\s*(${JA_NAME})駅?(?=まで|の間|間)`, "g"),
+    needsContext: true,
+  },
+];
+const EN_NAME = "[A-Z][A-Za-z]*(?:[ -][A-Z][A-Za-z]*)*";
+const EN_RANGE_PATTERNS: readonly { pattern: RegExp; needsContext: boolean }[] = [
+  { pattern: new RegExp(`\\b(${EN_NAME})\\s*[–—]\\s*(${EN_NAME})`, "g"), needsContext: false },
+  { pattern: new RegExp(`\\b(${EN_NAME}) - (${EN_NAME})`, "g"), needsContext: false },
+  { pattern: new RegExp(`\\bfrom (${EN_NAME}) to (${EN_NAME})`, "g"), needsContext: true },
+];
+// 止まっている区間を言う文の手がかり
+const STOPPED_CONTEXT: Record<Lang, RegExp> = {
+  ja: /見合わせ|不通|運休|止ま|区間|動いて/,
+  en: /suspen|stopped|halt|not running|section/i,
+};
+// 区間として言う手がかり。これがあれば「の間」でも位置ではなく区間とみなす
+const SECTION_CLAIM: Record<Lang, RegExp> = {
+  ja: /見合わせ|不通|運休|区間/,
+  en: /suspen|section/i,
+};
+
+function findSentence(text: string, index: number): string {
+  const start = Math.max(...[...".。!?！？\n"].map((c) => text.lastIndexOf(c, index - 1))) + 1;
+  const ends = [...".。!?！？\n"].map((c) => text.indexOf(c, index)).filter((i) => i >= 0);
+  return text.slice(start, ends.length > 0 ? Math.min(...ends) + 1 : text.length);
+}
+
+// 文から駅名の範囲を拾う。時刻や分の幅のように数字で接するものは除く
+function listStationRanges(text: string, language: Lang): StationRange[] {
+  const patterns = language === "ja" ? JA_RANGE_PATTERNS : EN_RANGE_PATTERNS;
+  return patterns.flatMap(({ pattern, needsContext }) =>
+    [...text.matchAll(pattern)].flatMap((m): StationRange[] => {
+      const from = (m[1] ?? "").replace(/駅$/, "");
+      const to = (m[2] ?? "").replace(/駅?間$/, "").replace(/駅$/, "");
+      if (from === "" || to === "" || /\d$/.test(from) || /^\d/.test(to)) return [];
+      const index = m.index ?? 0;
+      const sentence = findSentence(text, index);
+      if (needsContext && !STOPPED_CONTEXT[language].test(sentence)) return [];
+      const after = text.slice(index + m[0].length);
+      return [{ from, to, text: m[0], position: /^(駅)?の間/.test(after), sentence }];
+    }),
+  );
+}
+
+// 拾った範囲が 2 駅の組に当たるか。左は語の終わり、右は語の始まりで比べる。向きは問わない
+function matchesPair(range: StationRange, a: string | null, b: string | null): boolean {
+  if (!a || !b) return false;
+  const hit = (x: string, y: string) => range.from.endsWith(x) && range.to.startsWith(y);
+  return hit(a, b) || hit(b, a);
+}
+
+// 発表に無い駅の範囲を、止まっている区間として書いていれば指摘する
+// 発表の区間と、駅の間の車内の人がいる 2 駅を位置として言う文だけを許す
+// 英語は駅名の表記が発表と揃わないため、発表に区間があれば検査しない
+export function checkSectionWording(
+  field: string,
+  text: string,
+  language: Lang,
+  context: SectionWordingContext,
+): string[] {
+  const section = context.announcedSection;
+  if (language === "en" && section) return [];
+  const train = context.trainPosition;
+  const found = listStationRanges(text, language).find((range) => {
+    if (section && matchesPair(range, section.fromStation, section.toStation)) return false;
+    const isPosition =
+      range.position &&
+      matchesPair(range, train?.previousStation ?? null, train?.nextStation ?? null) &&
+      !SECTION_CLAIM[language].test(range.sentence);
+    return !isPosition;
+  });
+  if (!found) return [];
+  return [
+    section
+      ? `${field} の「${found.text}」は発表の区間と違う範囲です。止まっている区間は、発表の区間だけを書いてください`
+      : `${field} の「${found.text}」は止まっている区間の言い方です。発表に区間が無いので、区間を書かないでください。区間は発表で確かめるよう画面が添えます`,
+  ];
+}
+
 export type JudgmentCheckInput = {
   judgment: unknown;
   language: Lang;
@@ -359,6 +490,10 @@ export type JudgmentCheckInput = {
   inCarAlternativeLines?: readonly string[] | null;
   // 止まり方。その列車だけが止まる事象では「見合わせ」と書かせない
   stopScope?: StopScope;
+  // 知見の本文の文。利用者に見せる文に写していれば弾く
+  knowledgeSentences?: readonly string[];
+  // 発表の区間と利用者のいる 2 駅。発表に無い駅の範囲を書かせない。省くと検査しない
+  sectionContext?: SectionWordingContext;
 };
 
 // スキーマ、ID 参照、根拠の出どころ、文中の数値を検査し、問題を文字列で返す
@@ -402,6 +537,15 @@ export function validateJudgment(input: JudgmentCheckInput): {
       copiesServerDescription(e) ? [] : [[`evidence[${i}].description`, e.description]],
     ),
   ];
+  // 利用者に見せる文の言い回しの検査。流れの言い方、内部の名前と知見の写し、発表に無い区間を順にかける
+  const sectionContext = input.sectionContext;
+  for (const [field, text] of shownTexts) {
+    errors.push(...checkFlowWording(field, text, input.language));
+    errors.push(...checkSourceWording(field, text, input.knowledgeSentences ?? []));
+    if (sectionContext) {
+      errors.push(...checkSectionWording(field, text, input.language, sectionContext));
+    }
+  }
   if (inCarLines !== null) {
     if (j.recommendedOptionId !== null) {
       errors.push("駅間の車内の人には recommendedOptionId を null にしてください");
@@ -440,5 +584,7 @@ export function validateJudgment(input: JudgmentCheckInput): {
   ];
   for (const [field, text] of texts)
     errors.push(...findUnknownNumbers(field, text, input.allowedNumbers));
-  return { judgment: errors.length === 0 ? j : null, errors };
+  // 同じ文を別の検査で拾っても、同じ指摘は 1 度だけ返す
+  const unique = [...new Set(errors)];
+  return { judgment: unique.length === 0 ? j : null, errors: unique };
 }

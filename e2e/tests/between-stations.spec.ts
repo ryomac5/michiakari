@@ -135,8 +135,7 @@ async function startBetweenStations(
   // 駅間の後に行き先を答え、様子へ進む
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("塚本");
-  await page.getByTestId(testIds.start.cause("passenger")).click();
-  await page.getByTestId(testIds.start.causeKind("person")).click();
+  await page.getByTestId(testIds.start.cause("person")).click();
   await page.getByTestId(testIds.start.elapsed("m10")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
@@ -216,9 +215,12 @@ for (const theme of ["light", "dark"] as const) {
 
       // 利用者は大阪と塚本の間にいる。上部の帯と現在地の札は駅の間にいることを出し、塚本は降りる駅として目立たせる
       await expect(page.getByTestId(testIds.judgment.tripSummary)).toContainText("大阪〜塚本");
-      // 人身事故は区間を止めるので、見合わせの札と止まった区間の線を出す
+      // 人身事故は区間を止めるので、上部の札は見合わせにする
+      // 発表に区間が無いので、駅の間の位置から区間を作って描かず、区間は発表で確かめると添える
       await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("見合わせ");
-      await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "true");
+      await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "false");
+      await expect(page.getByTestId(mapTestIds.blockedTag)).toHaveCount(0);
+      await expect(page.getByTestId(mapTestIds.sectionNote)).toContainText("区間は発表で確かめる");
       await expect(page.getByTestId(mapTestIds.here)).toContainText("大阪〜塚本の間");
       await expect(page.getByTestId(mapTestIds.alight)).toContainText("塚本");
       // 「いま」の札と「降りる駅」の札は、互いにも、駅の印にも、「全体を見る」のボタンにも重ならない
@@ -249,8 +251,7 @@ test("福島〜大阪の車内で急病人により止まり、行き先が大�
   await page.getByTestId(testIds.start.destinationSearch).fill("大阪");
   await page.getByTestId(testIds.start.destinationOption("大阪")).click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
-  await page.getByTestId(testIds.start.cause("passenger")).click();
-  await page.getByTestId(testIds.start.causeKind("inCar")).click();
+  await page.getByTestId(testIds.start.cause("inCar")).click();
   await page.getByTestId(testIds.start.elapsed("now")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
@@ -269,6 +270,7 @@ test("福島〜大阪の車内で急病人により止まり、行き先が大�
   await expect(status).toHaveAttribute("data-scope", "train");
   await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "false");
   await expect(page.getByTestId(mapTestIds.blockedTag)).toHaveCount(0);
+  await expect(page.getByTestId(mapTestIds.sectionNote)).toHaveCount(0);
   await expect(page.getByTestId(mapTestIds.here)).toContainText("福島〜大阪の間");
   await expect(page.getByTestId(testIds.judgment.screen)).not.toContainText("見合わせ");
   // シートを閉じた操作の枠を外してから撮る
@@ -302,9 +304,13 @@ test("人身事故で長く止まっても、乗ったままで三ノ宮に着�
   await expectInCarWait(page);
   await expect(page.getByTestId(testIds.judgment.inCarAfterAlight)).toHaveCount(0);
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).not.toContainText("タクシー");
+  // 理由は次の駅に着く見込みで始め、再開までの時間を事象の流れとして言い切らない
+  await expect(page.getByTestId(testIds.judgment.conclusionReason)).toHaveText(
+    /^塚本には\d{1,2}時\d{2}分ごろに着く見込みです。$/,
+  );
   await openSheet(page, "half");
-  await expect(page.getByTestId(testIds.judgment.conclusionReasonDetail)).toContainText(
-    "人身事故はふつう1時間ほどで再開します",
+  await expect(page.getByTestId(testIds.judgment.sheet)).not.toContainText(
+    /よくある流れ|ふつう|\d+(時間|分)ほどで再開/,
   );
 });
 

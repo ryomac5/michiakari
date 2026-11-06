@@ -6,7 +6,7 @@ import { Eye, Info, RotateCcw } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { SheetSection } from "@/components/SheetSection";
 import { findCatalogEvent, type KnowledgeCatalog } from "@/features/knowledge/catalog";
-import type { CauseCategoryId } from "@/features/situation/cause-categories";
+import { type CauseChoiceId, toCauseChoiceId } from "@/features/situation/cause-categories";
 import { describePlace } from "@/features/stations/describe";
 import { type TripContext, useJudgmentSession } from "../session";
 import { testIds } from "../testids";
@@ -61,7 +61,7 @@ function usePremises(): string[] {
   const cause = describeCausePremise(tripContext);
   if (cause)
     items.push(
-      cause.category ? t(cause.key, { cause: tEntry(`causes.${cause.category}`) }) : t(cause.key),
+      cause.choice ? t(cause.key, { cause: tEntry(`causes.${cause.choice}`) }) : t(cause.key),
     );
   return items;
 }
@@ -69,11 +69,12 @@ function usePremises(): string[] {
 // 入口で答えた原因の前提。大分類を選んだら呼び名を出し、知見が無ければ境目の時刻を目安にすると添える
 function describeCausePremise(
   tripContext: TripContext,
-): { key: "cause" | "causeNoPattern" | "causeUnknown"; category: CauseCategoryId | null } | null {
+): { key: "cause" | "causeNoPattern" | "causeUnknown"; choice: CauseChoiceId | null } | null {
   if (tripContext.causeUnknown === undefined) return null;
-  const category = tripContext.entryAnswers?.cause?.category ?? null;
-  if (!tripContext.causeUnknown) return category ? { key: "cause", category } : null;
-  return { key: category ? "causeNoPattern" : "causeUnknown", category };
+  const answer = tripContext.entryAnswers?.cause;
+  const choice = answer ? toCauseChoiceId(answer) : null;
+  if (!tripContext.causeUnknown) return choice ? { key: "cause", choice } : null;
+  return { key: choice ? "causeNoPattern" : "causeUnknown", choice };
 }
 
 // 今の段階の次の段階に出る兆候。知見の説明の文は出さず、放送で聞こえる言い回しの例で示す

@@ -159,6 +159,14 @@ export function listEntryDirections(data: EntryData, line: DirectionLine): Entry
   return [...directions.filter(hasPreferred), ...directions.filter((d) => !hasPreferred(d))];
 }
 
+// 選んだ駅が環状の区間にあるか。環状線では両方向の方面が反対側でつながる
+export function isLoopAt(data: EntryData, line: DirectionLine): boolean {
+  const node = findLineNode(data, line);
+  const info = data.index.getLine(line.lineId);
+  if (!node || !info) return false;
+  return info.segments.some((s) => s.loop && s.stationIds.includes(node.stationId));
+}
+
 const compareStops = (a: DirectionStop, b: DirectionStop) =>
   Number(b.sameOperator) - Number(a.sameOperator) || b.passengers - a.passengers;
 

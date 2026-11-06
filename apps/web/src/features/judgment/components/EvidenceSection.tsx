@@ -1,79 +1,37 @@
 "use client";
 
-import type { DetectedSignal, Estimate, Evidence, TypicalFlow } from "@repo/schema";
-import {
-  BookOpen,
-  Calculator,
-  ChevronDown,
-  CloudRain,
-  type LucideIcon,
-  MapPin,
-  Radio,
-  TriangleAlert,
-} from "lucide-react";
+import type { DetectedSignal, Estimate } from "@repo/schema";
+import { ChevronDown } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import type { ReactNode } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import {
-  findCatalogEvent,
-  type KnowledgeCatalog,
-  pickLocalized,
-} from "@/features/knowledge/catalog";
-import { cn } from "@/lib/utils";
-import { selectEvidenceText } from "../evidence-text";
-import { buildSignalNote } from "../signal-text";
+import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
+import { buildEvidenceLines, selectEvidenceEntries } from "../evidence-text";
 import { testIds } from "../testids";
-import { buildUsualText } from "./TypicalFlow";
-
-const evidenceIcons: Record<Evidence["kind"], LucideIcon> = {
-  signal: Radio,
-  knowledge: BookOpen,
-  weather: CloudRain,
-  computation: Calculator,
-};
 
 // 根拠は見たい人だけが開ける。既定は閉
+// 中身は最大 3 つの項目で、聞いたことと、そこから読めるいまの段階の 2 行にする
 export function EvidenceSection({
   estimate,
   signals,
-  evidence,
   catalog,
-  disclaimer = null,
-  showPhases = true,
-  flow = null,
+  heardCause = null,
 }: {
   estimate: Estimate | null;
-  signals: DetectedSignal[];
-  evidence: Evidence[];
+  signals: readonly DetectedSignal[];
   catalog: KnowledgeCatalog;
-  // 判断が添えた注意書き
-  disclaimer?: string | null;
-  // よくある流れの欄が段階を示すときは、ここでは段階を出さない
-  showPhases?: boolean;
-  // よくある流れ。知見の項目に「ふつう1時間ほどで再開」を添える
-  flow?: TypicalFlow | null;
+  // 入口で選んだ原因の呼び名。発表の引用が無いときに聞いた言葉として出す
+  heardCause?: string | null;
 }) {
   const t = useTranslations("judgment.evidence");
-  const tFlow = useTranslations("judgment.flow");
   const locale = useLocale();
-  // 知見の本文は出さず、発表の引用と事象・段階の名前から項目の文を組み立てる
-  const describe = (item: Evidence): string => {
-    const text = selectEvidenceText(item, {
-      catalog,
-      eventType: estimate?.eventType ?? null,
-      signals,
-      locale,
-    });
-    if (text.key === "raw") return text.text;
-    const base = t(`describe.${text.key}`, text.values);
-    return text.key === "event" && flow?.eventType === item.id
-      ? `${base} · ${buildUsualText(tFlow, flow)}`
-      : base;
-  };
+  const entries = selectEvidenceEntries({ catalog, estimate, signals, locale, heardCause });
+  const lines = buildEvidenceLines(entries, (key, values) => t(key as never, values as never));
 
   return (
     <Collapsible
       data-testid={testIds.judgment.evidence}
+      // 項目が無い間は隠す。更新中に消しても開いた状態を保つため、外さずに隠す
+      hidden={lines.length === 0}
       className="group rounded-2xl bg-foreground/[0.03]"
     >
       <CollapsibleTrigger
@@ -87,185 +45,28 @@ export function EvidenceSection({
           aria-hidden
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-5 px-4 pb-4">
-        {showPhases && <PhaseTimeline estimate={estimate} catalog={catalog} />}
-        <SignalList signals={signals} catalog={catalog} />
-        {evidence.length > 0 && (
-          <div className="flex flex-col gap-2">
-            <h3 className="text-[13px] font-medium text-muted">{t("items")}</h3>
-            <ul className="flex flex-col gap-2">
-              {evidence.map((item) => {
-                const Icon = evidenceIcons[item.kind];
-                return (
-                  <li
-                    key={`${item.kind}-${item.id}`}
-                    data-testid={testIds.judgment.evidenceItem(item.id)}
-                  >
-                    <EvidenceCard>
-                      <Icon
-                        className="mt-0.5 size-4 shrink-0 text-muted"
-                        strokeWidth={1.75}
-                        aria-hidden
-                      />
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <p className="text-[12px] text-muted">
-                          {t(`kinds.${item.kind}`)} ·{" "}
-                          <code className="font-mono break-all">{item.id}</code>
-                        </p>
-                        <p className="text-[14px]">{describe(item)}</p>
-                      </div>
-                    </EvidenceCard>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-        {disclaimer && (
-          <p className="flex items-start gap-2 text-[12px] text-muted">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-            {disclaimer}
-          </p>
-        )}
+      <CollapsibleContent className="px-4 pb-4">
+        <ul className="flex flex-col gap-2">
+          {lines.map((line) => (
+            <li
+              key={line.id}
+              data-testid={testIds.judgment.evidenceItem(line.id)}
+              data-phase-id={line.phaseId ?? ""}
+              data-current={line.current}
+              className="rounded-xl bg-surface px-3 py-2.5"
+            >
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[14px] leading-snug">
+                <dt className="pt-px text-[12px] text-muted">{t("heard")}</dt>
+                <dd data-testid={testIds.judgment.evidenceHeard} className="font-medium">
+                  {line.heard}
+                </dd>
+                <dt className="pt-px text-[12px] text-muted">{t("reading.label")}</dt>
+                <dd data-testid={testIds.judgment.evidenceReading}>{line.reading}</dd>
+              </dl>
+            </li>
+          ))}
+        </ul>
       </CollapsibleContent>
     </Collapsible>
   );
-}
-
-function PhaseTimeline({
-  estimate,
-  catalog,
-}: {
-  estimate: Estimate | null;
-  catalog: KnowledgeCatalog;
-}) {
-  const t = useTranslations("judgment.evidence");
-  const locale = useLocale();
-  const event = findCatalogEvent(catalog, estimate?.eventType ?? null);
-  const phases = event?.phases ?? [];
-  const currentIndex = phases.findIndex((p) => p.id === estimate?.phaseId);
-
-  return (
-    <div className="flex flex-col gap-3">
-      <h3 className="text-[13px] font-medium text-muted">
-        {t("phases")}
-        {event && <span className="ml-2">{pickLocalized(event.name, locale)}</span>}
-      </h3>
-      {estimate?.phaseId == null && <p className="text-[14px] text-muted">{t("unknownPhase")}</p>}
-      {estimate?.phaseId != null && phases.length === 0 && (
-        <p className="font-bold">
-          <code className="font-mono">{estimate.phaseId}</code>
-        </p>
-      )}
-      {phases.length > 0 && (
-        <ol data-testid={testIds.judgment.phaseTimeline} className="flex flex-col">
-          {phases.map((phase, i) => {
-            const position = i < currentIndex ? "past" : i === currentIndex ? "current" : "future";
-            return (
-              <li
-                key={phase.id}
-                data-testid={testIds.judgment.phase(phase.id)}
-                data-position={position}
-                aria-current={position === "current" ? "step" : undefined}
-                className="relative flex gap-3 pb-3 last:pb-0"
-              >
-                <span className="flex flex-col items-center">
-                  <span
-                    className={cn(
-                      "mt-1 flex size-3 shrink-0 rounded-full border-2",
-                      position === "past" && "border-muted bg-muted",
-                      position === "current" && "size-4 border-foreground bg-foreground",
-                      position === "future" && "border-foreground/20 border-dashed",
-                    )}
-                  />
-                  {i < phases.length - 1 && (
-                    <span
-                      className={cn(
-                        "mt-1 w-0.5 flex-1",
-                        position === "past"
-                          ? "bg-muted"
-                          : "border-l border-dashed border-foreground/20",
-                      )}
-                    />
-                  )}
-                </span>
-                <div className="flex flex-col gap-0.5">
-                  <p
-                    className={cn(
-                      "flex flex-wrap items-center gap-2",
-                      position === "current"
-                        ? "text-[15px] font-semibold"
-                        : "text-[14px] text-muted",
-                    )}
-                  >
-                    {pickLocalized(phase.name, locale)}
-                    {position === "current" && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-foreground px-2 py-0.5 text-[11px] font-semibold text-background">
-                        <MapPin className="size-3.5" aria-hidden />
-                        {t("here")}
-                      </span>
-                    )}
-                  </p>
-                  {position === "current" && estimate?.elapsedMinutes != null && (
-                    <p className="text-[12px] text-muted">
-                      {t("elapsed", { minutes: estimate.elapsedMinutes })}
-                    </p>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      )}
-    </div>
-  );
-}
-
-function SignalList({
-  signals,
-  catalog,
-}: {
-  signals: DetectedSignal[];
-  catalog: KnowledgeCatalog;
-}) {
-  const t = useTranslations("judgment.evidence");
-  const locale = useLocale();
-
-  return (
-    <div className="flex flex-col gap-2">
-      <h3 className="text-[13px] font-medium text-muted">{t("signals")}</h3>
-      {signals.length === 0 && <p className="text-[14px] text-muted">{t("noSignals")}</p>}
-      <ul className="flex flex-col gap-2">
-        {signals.map((signal) => {
-          const note = buildSignalNote(catalog, signal.eventType, signal.signalId, locale);
-          return (
-            <li
-              key={`${signal.eventType}-${signal.signalId}`}
-              data-testid={testIds.judgment.signal(signal.signalId)}
-            >
-              <EvidenceCard>
-                <Radio
-                  className="mt-0.5 size-4 shrink-0 text-muted"
-                  strokeWidth={1.75}
-                  aria-hidden
-                />
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <p className="text-[14px] font-medium">「{signal.quote}」</p>
-                  {note && <p className="text-[13px]">{note}</p>}
-                  <code className="font-mono text-[11px] break-all text-muted">
-                    {signal.signalId}
-                  </code>
-                </div>
-              </EvidenceCard>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
-// 根拠の 1 項目
-function EvidenceCard({ children }: { children: ReactNode }) {
-  return <div className="flex items-start gap-3 rounded-xl bg-surface p-3">{children}</div>;
 }

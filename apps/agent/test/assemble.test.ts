@@ -5,7 +5,9 @@ import {
   checkDecisiveWording,
   checkHeadlineLength,
   checkReasonLength,
+  checkSectionWording,
   extractTextNumbers,
+  type SectionWordingContext,
 } from "../src/judge/assemble.ts";
 import { createEventSink } from "../src/judge/event-sink.ts";
 import { createJudgeSession } from "../src/judge/session.ts";
@@ -158,8 +160,9 @@ describe("validateJudgment", () => {
       expect(joined).toContain(raw);
     }
     expect(joined).not.toContain(`${fare.toLocaleString("ja-JP")}円`);
-    expect(errors.filter((e) => e.startsWith("evidence[0].description"))).toHaveLength(1);
-    expect(errors.filter((e) => e.startsWith("reason"))).toHaveLength(1);
+    // 数値の指摘は 1 件ずつ。再開の時間を言い切る言い方の指摘は別に数える
+    expect(errors.filter((e) => e.startsWith("evidence[0].description の数値"))).toHaveLength(1);
+    expect(errors.filter((e) => e.startsWith("reason の数値"))).toHaveLength(1);
   });
 
   it("ツールの結果の残り時間・徒歩・運賃の数値なら通る", async () => {
@@ -177,7 +180,7 @@ describe("validateJudgment", () => {
         reason: `振替なら徒歩${option.walkMinutes}分で済むためです。`,
         breakEvenExplanation: `振替は徒歩${option.walkMinutes}分、タクシーは ¥${fare}`,
         recommendedOptionId: null,
-        evidence: [{ kind: "signal", id: signalId, description: `p50 ${remaining.p50} min` }],
+        evidence: [{ kind: "signal", id: signalId, description: `about ${remaining.p50} min` }],
       },
       "ja",
     );
@@ -297,6 +300,101 @@ describe("checkDecisiveWording", () => {
     const { judgment: valid, errors } = session.checkJudgment(judgment, results);
     expect(valid).toBeNull();
     expect(errors.some((e) => e.includes("判断しない旨"))).toBe(true);
+  });
+});
+
+describe("checkSectionWording", () => {
+  const none = { announcedSection: null, trainPosition: null };
+  const between = {
+    announcedSection: null,
+    trainPosition: { previousStation: "大阪", nextStation: "塚本" },
+  };
+  const announced = {
+    announcedSection: { fromStation: "大阪", toStation: "三ノ宮" },
+    trainPosition: null,
+  };
+  const check = (text: string, context: SectionWordingContext, language: "ja" | "en" = "ja") =>
+    checkSectionWording("reason", text, language, context);
+
+  it("発表に無い駅の範囲を、記号でも言葉でも空白入りでも指摘する", () => {
+    for (const text of [
+      "大阪〜京都で見合わせています。",
+      "大阪駅〜三ノ宮駅間は止まっています。",
+      "大阪 〜 京都で見合わせています。",
+      "大阪－京都は止まっています。",
+      "大阪から京都まで運転を見合わせています。",
+      "大阪から京都の間は不通です。",
+      "大阪・京都間で見合わせています。",
+      "大阪と京都の間で運転を見合わせています。",
+    ]) {
+      expect(check(text, none), text).toHaveLength(1);
+    }
+  });
+
+  it("「の間」でも、利用者のいる 2 駅の位置を言う文でなければ指摘する", () => {
+    // 駅の間にいない人
+    expect(check("大阪〜京都の間で運転見合わせです。", none)).toHaveLength(1);
+    // 別の駅の間
+    expect(check("大阪〜京都の間で止まっています。", between)).toHaveLength(1);
+    // 利用者のいる 2 駅でも、見合わせの区間として言えば指摘する
+    expect(check("大阪〜塚本の間で運転を見合わせています。", between)).toHaveLength(1);
+    // 利用者のいる 2 駅の位置を言う文は通す。向きが逆でも通す
+    expect(check("大阪〜塚本の間で止まっています。", between)).toEqual([]);
+    expect(check("塚本と大阪の間で列車が止まっています。", between)).toEqual([]);
+  });
+
+  it("発表の区間は通し、発表と違う範囲は指摘する", () => {
+    expect(check("大阪〜三ノ宮で見合わせています。", announced)).toEqual([]);
+    expect(check("大阪から三ノ宮まで運転を見合わせています。", announced)).toEqual([]);
+    expect(check("大阪〜京都で見合わせています。", announced)).toHaveLength(1);
+  });
+
+  it("時刻や分の幅と、経路の道順は区間とみなさない", () => {
+    for (const text of [
+      "再開見込みは21時40分〜22時10分ごろです。",
+      "多くの場合5〜10分で終わります。",
+      "大阪から歩いて大阪梅田へ向かいます。",
+      "大阪梅田から神戸三宮まで阪急神戸線で行けます。",
+    ]) {
+      expect(check(text, none), text).toEqual([]);
+    }
+  });
+
+  it("英語でも、発表に区間が無ければ駅の範囲を指摘する", () => {
+    expect(check("Osaka–Kyoto is suspended.", none, "en")).toHaveLength(1);
+    expect(check("Service is suspended from Osaka to Kyoto.", none, "en")).toHaveLength(1);
+    expect(check("Restart is likely 21:40–22:10.", none, "en")).toEqual([]);
+    expect(check("Walk from Osaka to Osaka-umeda.", none, "en")).toEqual([]);
+  });
+});
+
+describe("利用者に見せる文の言い回しの検査", () => {
+  it("流れの言い方と発表に無い区間を、同じ文の集まりに順にかけ、同じ指摘は 1 度だけ返す", async () => {
+    const { session, results, signalId } = await prepareSession();
+    const evidence = { kind: "signal" as const, id: signalId, description: "大阪〜京都で見合わせ" };
+    const judgment = assembleJudgment(
+      results,
+      {
+        action: "hold",
+        headline: "待つ",
+        reason: "よくある流れです。大阪〜京都で見合わせています。",
+        breakEvenExplanation: "説明",
+        recommendedOptionId: null,
+        evidence: [evidence, evidence, { kind: "signal", id: "unknown_signal", description: "x" }],
+      },
+      "ja",
+    );
+    // 存在しない根拠を 2 度並べ、同じ指摘が重なる場面を作る
+    const doubled = {
+      ...judgment,
+      evidence: [...judgment.evidence, judgment.evidence.at(-1)],
+    };
+    const { judgment: valid, errors } = session.checkJudgment(doubled, results);
+    expect(valid).toBeNull();
+    expect(errors.some((e) => e.startsWith("reason の「よくある流れ」"))).toBe(true);
+    expect(errors.some((e) => e.includes("reason の「大阪〜京都」は止まっている区間"))).toBe(true);
+    expect(errors.some((e) => e.includes("evidence[0].description の「大阪〜京都」"))).toBe(true);
+    expect(new Set(errors).size).toBe(errors.length);
   });
 });
 

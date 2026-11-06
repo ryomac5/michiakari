@@ -26,7 +26,7 @@ import {
   findOnsetTime,
   type StatedResume,
 } from "../domain/phase.ts";
-import { buildFlowSentence, classifyFlowOutlook } from "../domain/typical-flow.ts";
+import { classifyFlowOutlook } from "../domain/typical-flow.ts";
 import type { EstimateToolResult, ToolContext, TrainQueueToolResult } from "./types.ts";
 
 // 先の駅を何駅まで追うか。詰める動きで前の列車が進める範囲
@@ -99,7 +99,7 @@ export const EstimatePhaseInputSchema = z.object({
 export const estimatePhaseDefinition = {
   name: "estimate_phase_and_remaining",
   description:
-    "観測された兆候と知見の exit_signals から現在の段階と段階の経過時間を決め、再開して乗れるまでの残り時間（p50, p80 分）をコードで計算する。発表された再開見込み時刻があれば優先する。事象が null でも発表の時刻があれば、その時刻どおりを p50、延びる余地を p80 とした残り時間を返す（remainingBasis は stated）。事象のよくある流れ（typicalFlow）、見込みの立てやすさから見た短い・長いの区別（flowOutlook）、結論の理由に使える一文（flowSentence）も返す。止まり方（stopScope）は、その列車だけが止まる train か、区間を止める section。駅間の車内なら、降りられる駅に着く見込みと自分の列車が動き出す見込み（trainQueue）も返す。",
+    "観測された兆候と知見の exit_signals から現在の段階と段階の経過時間を決め、再開して乗れるまでの残り時間（p50, p80 分）をコードで計算する。発表された再開見込み時刻があれば優先する。事象が null でも発表の時刻があれば、その時刻どおりを p50、延びる余地を p80 とした残り時間を返す（remainingBasis は stated）。事象の段階と再開までの見込み（typicalFlow）と、見込みの立てやすさから見た短い・長いの区別（flowOutlook）も返す。止まり方（stopScope）は、その列車だけが止まる train か、区間を止める section。駅間の車内なら、降りられる駅に着く見込みと自分の列車が動き出す見込み（trainQueue）も返す。",
   inputSchema: EstimatePhaseInputSchema,
 } as const;
 
@@ -136,7 +136,6 @@ function buildUnknownEstimate(
     boardableP80: remaining ? addMinutesToIso(now, remaining.p80) : null,
     typicalFlow: null,
     flowOutlook: null,
-    flowSentence: null,
     remainingSamples: remaining ? sampleDurationDist(remaining) : null,
     onsetTime,
   };
@@ -191,7 +190,6 @@ export function runEstimatePhase(
   const language = ctx.request.language;
   const typicalFlow = describeTypicalFlow(knowledge);
   const flowOutlook = classifyFlowOutlook(typicalFlow);
-  const eventName = knowledge.name[language] ?? knowledge.name.ja;
 
   return {
     estimate: {
@@ -220,9 +218,6 @@ export function runEstimatePhase(
     boardableP80: addMinutesToIso(now, remaining.p80),
     typicalFlow,
     flowOutlook,
-    flowSentence: flowOutlook
-      ? buildFlowSentence(typicalFlow, eventName, flowOutlook, language)
-      : null,
     remainingSamples: sampleRemainingByBasis({
       basis,
       remaining,

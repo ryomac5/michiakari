@@ -1,18 +1,15 @@
 import { SHORT_FLOW_MAX_MINUTES } from "@repo/core";
 import type { JudgeRequest, Judgment, JudgmentEvent, Lang, TypicalFlow } from "@repo/schema";
 import { describe, expect, it } from "vitest";
+import { findFlowWording } from "../src/domain/flow-wording.ts";
 import { decideEstimateConfidence, type PhaseDetection } from "../src/domain/phase.ts";
-import {
-  buildFlowSentence,
-  classifyFlowOutlook,
-  formatDuration,
-} from "../src/domain/typical-flow.ts";
+import { classifyFlowOutlook } from "../src/domain/typical-flow.ts";
 import { assembleJudgment } from "../src/judge/assemble.ts";
 import { createEventSink } from "../src/judge/event-sink.ts";
 import { createJudgeSession } from "../src/judge/session.ts";
 import { createTestApp, createTestDeps, postJudge, replayScenario } from "./helpers.ts";
 
-// 判断に載るよくある流れと、それを使った結論の言葉。決定論モードとダミーの知見で確かめる
+// 判断に載る事象の段階と見込み。結論の文は再開までの時間を言い切らない。決定論モードとダミーの知見で確かめる
 
 const deps = createTestDeps();
 const app = createTestApp(deps);
@@ -36,8 +33,15 @@ function buildSelectionRequest(eventType: string | null, language: Lang = "ja"):
   };
 }
 
-describe("判断のよくある流れ", () => {
-  it("人身事故の判断に、知見から求めたよくある流れが入る", async () => {
+// 結論の見出しと理由に、事象の決まった流れや再開までの時間を言い切る言い方が無いことを確かめる
+function expectNoFlowWording(judgment: Judgment, language: Lang = "ja"): void {
+  for (const text of [judgment.headline, judgment.reason ?? ""]) {
+    expect(findFlowWording(text, language), text).toBeNull();
+  }
+}
+
+describe("判断に載る事象の段階", () => {
+  it("人身事故の判断に、知見から求めた段階と見込みが入り、理由は再開の時間を言い切らない", async () => {
     const scenario = deps.content.scenarios.get("person_accident_last_train");
     if (!scenario) throw new Error("ダミーのシナリオがありません");
     const [first] = await replayScenario(app, {
@@ -56,11 +60,12 @@ describe("判断のよくある流れ", () => {
       "resume_estimate",
       "preparing_resume",
     ]);
-    // 見込みが立てやすい事象なので、理由の頭で流れを伝える
-    expect(judgment.reason).toMatch(/^人身事故はふつう1時間ほどで再開します。/);
+    // 理由は境目との比較で書き、再開までの時間を事象の流れとして言い切らない
+    expect(judgment.reason).toMatch(/^再開は\d{1,2}時\d{2}分頃の見込みで境目より後です。/);
+    expectNoFlowWording(judgment);
   });
 
-  it("原因が分からない判断には、よくある流れを入れない", async () => {
+  it("原因が分からない判断には、事象の段階を入れない", async () => {
     const judgment = findJudgment(await postJudge(app, buildSelectionRequest(null)));
     expect(judgment.estimate.eventType).toBeNull();
     expect(judgment.typicalFlow).toBeUndefined();
@@ -72,7 +77,8 @@ describe("判断のよくある流れ", () => {
     expect(judgment.estimate.confidence).toBe("medium");
     expect(judgment.action).toBe("wait");
     expect(judgment.headline).toBe("このまま待つ");
-    expect(judgment.reason).toMatch(/^車内対応はふつう5〜10分で終わります。/);
+    expect(judgment.reason).toMatch(/^再開は\d{1,2}時\d{2}分頃の見込みで境目より前です。/);
+    expectNoFlowWording(judgment);
     expect(judgment.typicalFlow?.untilResume).toEqual({ p50: 5, p80: 10 });
   });
 
@@ -82,7 +88,8 @@ describe("判断のよくある流れ", () => {
     );
     expect(judgment.action).toBe("wait");
     expect(judgment.headline).toBe("Stay and wait.");
-    expect(judgment.reason).toContain("Onboard assistance: usually over in about 5–10 min.");
+    expect(judgment.reason).toMatch(/^Restart is expected around \d{2}:\d{2}, before the cutoff\./);
+    expectNoFlowWording(judgment, "en");
   });
 });
 
@@ -98,7 +105,8 @@ describe("見込みの立てやすい事象の言い切りと確信度", () => {
     const judgment = findJudgment(steps.find((s) => s.entry.id === "obs_1")?.events ?? []);
     expect(judgment.action).toBe("switch");
     expect(judgment.headline).toMatch(/^.+まで歩いて.+へ$|^.+に乗り換える$/);
-    expect(judgment.reason).toMatch(/^人身事故はふつう1時間ほどで再開します。/);
+    expect(judgment.reason).toMatch(/^再開は\d{1,2}時\d{2}分頃の見込みで境目より後です。/);
+    expectNoFlowWording(judgment);
     expect(judgment.estimate.confidence).toBe("medium");
   });
 
@@ -203,14 +211,23 @@ describe("claude モードの数値の検査", () => {
     };
   }
 
-  it("ツールが返した流れの一文は通り、知見に無い時間は指摘する", async () => {
+  it("境目との比較の文は通り、事象の流れで再開の時間を言い切る文と知見に無い時間は指摘する", async () => {
     const { session, results } = await prepareSession();
     expect(results.estimate.flowOutlook).toBe("long");
-    const sentence = results.estimate.flowSentence ?? "";
-    expect(sentence).toBe("人身事故はふつう1時間ほどで再開します。");
-    const ok = assembleJudgment(results, buildDecision(sentence), "ja");
+    const ok = assembleJudgment(results, buildDecision("このまま待つほうが早く着きます。"), "ja");
     expect(session.checkJudgment(ok, results).errors).toEqual([]);
     expect(ok.typicalFlow?.eventType).toBe("person_accident");
+
+    for (const reason of [
+      "人身事故はふつう1時間ほどで再開します。",
+      "人身事故のよくある流れでは、まもなく再開します。",
+      "人身事故は1時間ほどで再開します。",
+    ]) {
+      const flowWording = assembleJudgment(results, buildDecision(reason), "ja");
+      expect(session.checkJudgment(flowWording, results).errors.join("\n"), reason).toContain(
+        "言い切る言い方",
+      );
+    }
 
     const made = assembleJudgment(
       results,
@@ -221,7 +238,7 @@ describe("claude モードの数値の検査", () => {
   });
 });
 
-describe("よくある流れの言葉", () => {
+describe("短く終わるか長くかかるかの区別", () => {
   const base: Omit<TypicalFlow, "untilResume" | "predictability"> = {
     eventType: "x",
     phases: [{ id: "a", name: { ja: "a" }, duration: { p50: 1, p80: 2 } }],
@@ -254,23 +271,5 @@ describe("よくある流れの言葉", () => {
       }),
     ).toBeNull();
     expect(classifyFlowOutlook(null)).toBeNull();
-  });
-
-  it("目安の分を時間と分で書く", () => {
-    expect(formatDuration(60, "ja")).toBe("1時間");
-    expect(formatDuration(90, "ja")).toBe("1時間30分");
-    expect(formatDuration(45, "ja")).toBe("45分");
-    expect(formatDuration(120, "en")).toBe("2 hours");
-    expect(formatDuration(90, "en")).toBe("90 min");
-  });
-
-  it("長くかかる事象は下限を、無ければ再開までの p50 を使う", () => {
-    const flow = { ...base, untilResume: { p50: 70, p80: 110 }, predictability: high };
-    expect(buildFlowSentence({ ...flow, typicalFloorMinutes: 60 }, "人身事故", "long", "ja")).toBe(
-      "人身事故はふつう1時間ほどで再開します。",
-    );
-    expect(buildFlowSentence(flow, "人身事故", "long", "ja")).toBe(
-      "人身事故はふつう1時間10分ほどで再開します。",
-    );
   });
 });

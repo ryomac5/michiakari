@@ -21,8 +21,7 @@ async function startOnLoopLine(page: Page, kind: "inCar" | "person"): Promise<vo
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
-  await page.getByTestId(testIds.start.cause("passenger")).click();
-  await page.getByTestId(testIds.start.causeKind(kind)).click();
+  await page.getByTestId(testIds.start.cause(kind)).click();
   await page.getByTestId(testIds.start.elapsed("now")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
@@ -43,16 +42,20 @@ test("車内の急病人・非常ボタンでは、上部の札を停車中に�
   await expect(status).toHaveText("大阪〜天満で停車中");
   await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "false");
   await expect(page.getByTestId(mapTestIds.blockedTag)).toHaveCount(0);
+  await expect(page.getByTestId(mapTestIds.sectionNote)).toHaveCount(0);
   // 判断の文にも地図の札にも、見合わせは出ない
   await expect(page.getByTestId(testIds.judgment.screen)).not.toContainText("見合わせ");
 });
 
-test("人身事故では、上部の札と地図に運転見合わせを出す", async ({ page }) => {
+test("人身事故では、上部の札に運転見合わせを出し、発表に区間が無ければ区間は発表で確かめると添える", async ({
+  page,
+}) => {
   await startOnLoopLine(page, "person");
   const status = page.getByTestId(testIds.judgment.statusChip);
   await expect(status).toHaveAttribute("data-scope", "section");
   await expect(status).toContainText("見合わせ");
-  await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "true");
+  await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "false");
+  await expect(page.getByTestId(mapTestIds.sectionNote)).toContainText("区間は発表で確かめる");
 });
 
 test("駅で待つ人には、車内の急病人・非常ボタンを後続の遅れとして伝え、見合わせと言わない", async ({
@@ -67,8 +70,7 @@ test("駅で待つ人には、車内の急病人・非常ボタンを後続の�
   await page.getByTestId(testIds.start.originOption("京橋")).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
-  await page.getByTestId(testIds.start.cause("passenger")).click();
-  await page.getByTestId(testIds.start.causeKind("inCar")).click();
+  await page.getByTestId(testIds.start.cause("inCar")).click();
   await page.getByTestId(testIds.start.elapsed("now")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });

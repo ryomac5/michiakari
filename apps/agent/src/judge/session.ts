@@ -8,10 +8,20 @@ import type {
   ResumeChance,
 } from "@repo/schema";
 import type { z } from "zod";
+import {
+  collectKnowledgeSentences,
+  findFlowWording,
+  findInternalWording,
+  findKnowledgeText,
+} from "../domain/flow-wording.ts";
 import { selectEventType } from "../domain/phase.ts";
 import { ComputeBreakEvenInputSchema, runComputeBreakEven } from "../tools/compute-break-even.ts";
 import { EstimatePhaseInputSchema, runEstimatePhase } from "../tools/estimate-phase.ts";
-import { FindAlternativesInputSchema, runFindAlternatives } from "../tools/find-alternatives.ts";
+import {
+  FindAlternativesInputSchema,
+  findAnnouncedSection,
+  runFindAlternatives,
+} from "../tools/find-alternatives.ts";
 import { GetWeatherInputSchema, runGetWeather } from "../tools/get-weather.ts";
 import { LookupKnowledgeInputSchema, runLookupKnowledge } from "../tools/lookup-knowledge.ts";
 import {
@@ -53,6 +63,8 @@ export type JudgeSession = {
     judgment: unknown,
     results: JudgmentToolResults,
   ): ReturnType<typeof validateJudgment>;
+  // Claude の進み具合の文を画面に流してよいか。内部の名前、知見の文、決まった流れの言い方を含めば流さない
+  checkProgressNote(note: string): boolean;
   // 途中経過を送る。段階を渡すと定型文を使う
   emitProgress(stage: ProgressStage | undefined, message?: string): Promise<void>;
   // 兆候のイベントで使う事象種別（観測の候補から決める）
@@ -245,6 +257,7 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
   const state = createToolState();
   const language = ctx.request.language;
   const inferredEventType = selectEventType(ctx.observations, ctx.content.knowledge);
+  const knowledgeSentences = collectKnowledgeSentences(ctx.content.knowledge.values());
   // 駅間の車内の人には、選択肢の一覧と境目を画面へ送らない
   const inCar = checkInCarBetweenStations(ctx.request);
 
@@ -395,8 +408,8 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
         id: knowledge.id,
         description:
           language === "en"
-            ? `Typical flow of ${knowledge.name.en ?? knowledge.name.ja}`
-            : `${knowledge.name.ja}のよくある流れ`,
+            ? `What is happening: ${knowledge.name.en ?? knowledge.name.ja}`
+            : `起きていることは${knowledge.name.ja}`,
       });
       const phase = knowledge.phases.find((p) => p.id === state.estimate?.estimate.phaseId);
       if (phase) {
@@ -421,14 +434,13 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
       refs.push({ kind: "weather", id: "weather", description: detail });
     }
     if (state.estimate?.estimate.remaining) {
-      const r = state.estimate.estimate.remaining;
       refs.push({
         kind: "computation",
         id: "remaining",
         description:
           language === "ja"
-            ? `再開して乗れるまで p50 ${r.p50}分・p80 ${r.p80}分`
-            : `Until a boardable train: p50 ${r.p50} min, p80 ${r.p80} min`,
+            ? "再開して乗れるまでの残り時間の見込み"
+            : "Estimated time until a boardable train",
       });
     }
     // 駅間の車内の人には、選択肢の比較と境目を根拠に挙げない。切り替えを勧める説明になるため
@@ -467,6 +479,12 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
         r.kind === "future" || r.kind === "passed" ? r.bestAlternativeId : null,
       inCarAlternativeLines: inCar ? listAlternativeLines(results) : null,
       stopScope: resolveSessionStopScope(),
+      knowledgeSentences,
+      sectionContext: {
+        announcedSection: findAnnouncedSection(ctx.observations),
+        trainPosition:
+          ctx.request.trainPosition?.kind === "between_stations" ? ctx.request.trainPosition : null,
+      },
     });
   }
 
@@ -480,6 +498,10 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     executeTool,
     collectEvidenceRefs,
     checkJudgment,
+    checkProgressNote: (note) =>
+      findFlowWording(note, language) === null &&
+      findInternalWording(note) === null &&
+      findKnowledgeText(note, knowledgeSentences) === null,
     emitProgress,
     inferredEventType,
     buildInCarGuide: (results) => buildInCarGuide(ctx.request, results),
