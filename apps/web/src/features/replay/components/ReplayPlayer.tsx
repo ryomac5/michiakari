@@ -87,7 +87,11 @@ export function ReplayPlayer({
   const lastWithSection = observations.findLast((o) => o.section !== null);
   const blockedLine = observations.findLast((o) => o.line !== null)?.line ?? scenario.line;
   // 止まり方はシナリオの事象から引く。その列車だけが止まる事象では見合わせの札と区間の線を出さない
-  const stopScope = resolveStopScope(scenario.event_type);
+  // その列車から止まる故障は、発表に区間が出たら区間の見合わせとする
+  const stopScope = resolveStopScope({
+    eventType: scenario.event_type,
+    sectionAnnounced: started && lastWithSection !== undefined,
+  });
   const options = display.options ?? noOptions;
   // 近くのバス停の確認候補。判断画面と同じく、確定した判断に載ったものだけを出す。車内の判断では出さない
   const settledJudgment = display.settled?.judgment;

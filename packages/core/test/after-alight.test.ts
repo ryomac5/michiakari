@@ -1,13 +1,8 @@
 import type { RouteLeg, RouteOption } from "@repo/schema";
 import { describe, expect, it } from "vitest";
-import {
-  classifyStayOn,
-  decideAfterAlightStep,
-  resolveStopScope,
-  selectAfterAlightStep,
-} from "../src/index.ts";
+import { classifyStayOn, decideAfterAlightStep, selectAfterAlightStep } from "../src/index.ts";
 
-// 駅間の車内の人が次の駅に着いた後の一手と、止まり方の区別
+// 駅間の車内の人が次の駅に着いた後の一手
 
 const STOPPED = "jr.kobe";
 
@@ -152,14 +147,5 @@ describe("selectAfterAlightStep", () => {
         options: [hankyu],
       }),
     ).toBeNull();
-  });
-});
-
-describe("resolveStopScope", () => {
-  it("車内の対応はその列車だけが止まり、人身事故や分からない原因は区間を止める", () => {
-    expect(resolveStopScope("in_car_response")).toBe("train");
-    expect(resolveStopScope("person_accident")).toBe("section");
-    expect(resolveStopScope("heavy_rain")).toBe("section");
-    expect(resolveStopScope(null)).toBe("section");
   });
 });

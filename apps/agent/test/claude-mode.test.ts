@@ -606,6 +606,28 @@ describe("claude モードの車内と止まり方", () => {
     expect(trainFeedback).toContain("evidence[0].description の「見合わせ」");
   });
 
+  it("車両の故障はその列車から止まる。発表に区間が無ければ止まり方を train にし、見合わせを弾く", async () => {
+    const base = {
+      action: "wait",
+      headline: "運転再開を待つ",
+      breakEvenExplanation: "説明",
+      recommendedOptionId: null,
+      evidence: evidence("vehicle_failure"),
+    };
+    const script = createScriptedLlm({
+      judgment: [
+        ...buildSequence("vehicle_failure"),
+        replyWithTool("emit_judgment", { ...base, reason: "車両の故障で運転を見合わせています。" }),
+        replyWithTool("emit_judgment", { ...base, reason: "後続の列車に遅れが出ています。" }),
+      ],
+    });
+    await runRequest(script, buildSelectionRequest("vehicle_failure", false));
+    const messages = JSON.stringify(script.calls.at(-1)?.messages);
+    expect(messages).toMatch(/stopScope\W+train/);
+    const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
+    expect(feedback).toContain("reason の「見合わせ」");
+  });
+
   it("発表に区間が無いのに止まっている区間を書いたら検証で弾き、利用者のいる駅の間は通す", async () => {
     const base = {
       action: "wait",

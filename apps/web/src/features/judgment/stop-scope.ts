@@ -1,15 +1,20 @@
 import { resolveStopScope, type StopScope } from "@repo/core";
-import type { Observation, TrainPosition } from "@repo/schema";
+import type { IncidentCause, Observation, TrainPosition } from "@repo/schema";
 
 // 止まり方を画面で引く。区別の表は packages/core の 1 か所にあり、agent と同じものを使う
-// 判断の推定が事象を決めていればそれを、無ければ新しい観測の第一候補を使う
+// 判断の推定が事象を決めていればそれを、無ければ新しい観測の第一候補を使う。どちらも無ければ入口の原因で決める
+// その列車から止まる故障は、発表に区間が出たら区間の見合わせとする
 export function selectStopScope(
   estimatedEventType: string | null | undefined,
   observations: readonly Observation[],
+  cause: IncidentCause | null = null,
 ): StopScope {
-  if (estimatedEventType) return resolveStopScope(estimatedEventType);
   const latest = observations.findLast((o) => o.eventTypeCandidates.length > 0);
-  return resolveStopScope(latest?.eventTypeCandidates[0]?.eventType ?? null);
+  return resolveStopScope({
+    eventType: estimatedEventType || (latest?.eventTypeCandidates[0]?.eventType ?? null),
+    cause,
+    sectionAnnounced: observations.some((o) => o.section !== null),
+  });
 }
 
 // その列車だけが止まるときの、上部の帯の止まった場所。駅間なら「大阪〜塚本」、駅に止まった車内なら駅名
