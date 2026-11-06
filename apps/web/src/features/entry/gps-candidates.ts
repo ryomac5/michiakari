@@ -4,9 +4,11 @@ import {
   type LonLat,
   POSITION_THRESHOLDS,
   type PositionCandidate,
+  removeDuplicatedStubs,
   type StationNode,
 } from "@repo/geo";
 import type { OriginLine } from "@/features/judgment/session";
+import { sliceTrackBetween, type TrackParts } from "@/features/map/track-shape";
 import type { StationChoice, StationGroup } from "@/features/stations/catalog";
 import {
   type EntryDirection,
@@ -15,6 +17,7 @@ import {
   pickFallbackStop,
 } from "./directions";
 import { type EntryData, type EntryLine, listGroupLines } from "./entry-places";
+import { measurePathDistance } from "./map-pick";
 
 // 現在地から読み取った候補を、入口で 1 回押せば確定できる形にする。位置は端末の外へ出さない
 
@@ -77,27 +80,44 @@ const TRACK_GAP_METERS = 800;
 
 // 最初の地図で線を押したときの候補。駅は印が受け持つので、押した線の駅の間だけを近い順に返す
 // lineIds は指の下に描かれていた路線で、描いた線が近い順。reachMeters は押せる大きさ 44px を地図の距離に直した値
-// 路線ごとに一番近い駅の間を 1 つ出す
+// 駅の間は、その路線で隣り合う 2 駅に限る。描いた線路の形があれば、2 駅の間で切り出した線が押した点を通る駅の間だけを残す
+// 近くの路線の最寄りの駅の間を拾わないためである。路線ごとに、切り出した線が一番近い駅の間を 1 つ出す
 export function listLineTapChoices(
   data: EntryData,
   nodes: readonly StationNode[],
   point: { lat: number; lon: number },
   reachMeters: number,
   lineIds: readonly string[],
+  trackShapes?: ReadonlyMap<string, TrackParts>,
   limit = GPS_CHOICE_LIMIT,
 ): GpsChoice[] {
   const lines = data.index.listLines().filter((l) => lineIds.includes(l.lineId));
+  const lonLat: LonLat = [point.lon, point.lat];
   const accuracy = Math.min(
     Math.max(reachMeters, TRACK_GAP_METERS),
     POSITION_THRESHOLDS.maxAccuracyMeters,
   );
   const between = findPositionCandidates(
     { nodes, lines },
-    { lonLat: [point.lon, point.lat], accuracyMeters: accuracy },
+    { lonLat, accuracyMeters: accuracy },
   ).filter((c): c is BetweenPositionCandidate => c.kind === "between");
+  // 描いた線路の形で、押した点から 2 駅の間の線までの距離を測る。形が無ければ駅を結ぶ直線の距離を使う
+  const measured = between.flatMap((c) => {
+    const parts = trackShapes?.get(c.line.lineId);
+    const sliced = parts ? sliceTrackBetween(parts, [...c.from.lonLat], [...c.to.lonLat]) : null;
+    if (!sliced) return [{ candidate: c, meters: c.distanceMeters }];
+    const meters = measurePathDistance([point.lon, point.lat], sliced);
+    // 線を押したとみなす幅は、押せる大きさの半分。地図で線を拾う幅にそろえる
+    return meters <= reachMeters / 2 ? [{ candidate: c, meters }] : [];
+  });
+  measured.sort((a, b) => a.meters - b.meters);
   // 並べる順は、描いた線が押した点に近い順。駅を結ぶ直線は描いた線から離れるので、順には使わない
-  const nearestPerLine = between
-    .filter((c, i) => between.findIndex((o) => o.line.lineId === c.line.lineId) === i)
+  const nearestPerLine = measured
+    .filter(
+      (m, i) =>
+        measured.findIndex((o) => o.candidate.line.lineId === m.candidate.line.lineId) === i,
+    )
+    .map((m) => m.candidate)
     .sort((a, b) => lineIds.indexOf(a.line.lineId) - lineIds.indexOf(b.line.lineId));
   return convertCandidates(data, nearestPerLine).slice(0, limit);
 }
@@ -142,7 +162,7 @@ export function listStationPairChoices(
   if (first.id === second.id) return [];
   const nodeById = new Map(nodes.map((n) => [n.stationId, n]));
   const groupOf = (id: string) => data.catalog.groupIdByStationId.get(id);
-  const paths = data.index.listLines().flatMap((line) => {
+  const paths = removeDuplicatedStubs(data.index.listLines(), nodes).flatMap((line) => {
     const found = line.segments
       .map((segment) =>
         traceStationPath(segment.stationIds, segment.loop, groupOf, first.id, second.id),

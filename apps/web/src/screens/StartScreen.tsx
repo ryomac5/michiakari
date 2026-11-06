@@ -513,6 +513,7 @@ export function StartScreen() {
       { lon: point[0], lat: point[1] },
       reachMeters,
       lineIds,
+      geo.trackShapes,
     );
     if (choices.length === 0) {
       handleTap(point, reachMeters);

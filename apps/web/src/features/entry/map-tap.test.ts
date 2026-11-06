@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { projectToWorld, type ScreenPoint } from "@/features/map/bubble-layout";
 import { createMapGeo, type LinesGeoJson } from "@/features/map/geo-data";
 import { createEntryData, findStationChoice, type Position } from "./entry-places";
-import { listLineTapChoices } from "./gps-candidates";
+import { listGpsChoices, listLineTapChoices } from "./gps-candidates";
 import {
   buildSegmentPath,
   computePathMidpoint,
@@ -98,6 +98,7 @@ function buildScene(center: Position, zoom: number) {
       { lon: position[0], lat: position[1] },
       44 * metersPerPx,
       lineIds,
+      geo.trackShapes,
     );
   };
   return { project, visible, tap, placeOf, listChoicesAt };
@@ -215,5 +216,42 @@ describe("selectMapTapTarget", () => {
         labelKey: null,
       }),
     ).toEqual({ kind: "none" });
+  });
+});
+
+describe("listLineTapChoices の駅の間", () => {
+  const describeChoice = (c: ReturnType<typeof listLineTapChoices>[number]) =>
+    c.kind === "between" ? `${c.line.lineId}:${[c.from.name, c.to.name].sort().join("-")}` : "";
+
+  it("大阪〜福島の環状線を押すと、大阪と福島の組は環状線の駅の間だけにする", () => {
+    const middle = findTrackMidpoint(loop, "大阪", "福島");
+    const scene = buildScene(middle, 13.5);
+    const target = scene.tap(middle);
+    if (target.kind !== "rail") throw new Error("駅の間になりません");
+    const choices = scene.listChoicesAt(middle, target.lineIds).map(describeChoice);
+    // 環状線を先頭に出す。東海道線の大阪〜福島の 2 駅だけの区間は旅客の駅の間ではないので出さない
+    expect(choices[0]).toBe(`${loop}:大阪-福島`);
+    expect(choices.filter((c) => c.endsWith(":大阪-福島"))).toEqual([`${loop}:大阪-福島`]);
+    // 大阪を出た JR神戸線は、福島の手前まで環状線に沿って描かれている。出すなら、実在する大阪〜塚本にする
+    expect(choices.filter((c) => c.startsWith(`${kobe}:`))).toEqual(
+      choices.some((c) => c.startsWith(`${kobe}:`)) ? [`${kobe}:塚本-大阪`] : [],
+    );
+  });
+
+  it("現在地から読み取るときも、大阪と福島の組は環状線の駅の間だけにする", () => {
+    const [lon, lat] = findTrackMidpoint(loop, "大阪", "福島");
+    const pairs = listGpsChoices(data, geo.nodes, { lon, lat, accuracy: 20 })
+      .map(describeChoice)
+      .filter((c) => c.endsWith(":大阪-福島"));
+    expect(pairs).toEqual([`${loop}:大阪-福島`]);
+  });
+
+  it("どちらの駅の間も実在する路線が並ぶ所では、両方を出す", () => {
+    // 阪神本線の福島〜大阪梅田は、環状線の福島〜大阪の南に沿って描かれている。両方の線の間を押す
+    const loopMiddle = findTrackMidpoint(loop, "大阪", "福島");
+    const hanshin = "hanshin.本線";
+    const scene = buildScene(loopMiddle, 12.5);
+    const choices = scene.listChoicesAt(loopMiddle, [loop, hanshin]).map(describeChoice);
+    expect(choices).toEqual([`${loop}:大阪-福島`, `${hanshin}:大阪梅田-福島`]);
   });
 });

@@ -17,8 +17,8 @@ import { expect, test } from "../support/test.ts";
 const screenshotDir = fileURLToPath(new URL("../screenshots/osaka-line-tap/", import.meta.url));
 // 描いた大阪環状線を大阪と福島で切り出した線の、長さの半分の点
 const loopMiddle: [number, number] = [135.491197, 34.699714];
-// 大阪〜福島では、梅田の地下を通る線（JR神戸線の名の線路）が環状線に沿って描かれている
-// 並走する路線なので近い順に並べ、押した環状線を先頭に出す
+// 大阪を出た JR神戸線は、福島の手前まで環状線に沿って描かれている。並ぶ路線は近い順に並べ、押した環状線を先頭に出す
+// 梅田の地下を通る線の「JR神戸線の大阪〜福島」は実在しない駅の間なので出さない
 const osakaPosition: [number, number] = [135.49588, 34.70216];
 const loopChoice = "between:jr-west.大阪環状線:";
 const loopLabel = "JR環状線の福島〜大阪の間";
@@ -69,6 +69,7 @@ async function expectLoopChoices(page: import("@playwright/test").Page) {
   await expect(choices.first()).toHaveText(loopLabel);
   await expect(choices.first()).toHaveAttribute("data-testid", new RegExp(`${loopChoice}`));
   expect(await choices.count()).toBeLessThanOrEqual(3);
+  await expect(choices.filter({ hasText: "JR神戸線の大阪〜福島" })).toHaveCount(0);
 }
 
 for (const viewport of [
