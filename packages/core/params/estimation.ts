@@ -26,3 +26,11 @@ export const SHORT_FLOW_MAX_MINUTES = 15;
 // 放送の見込みは 10 分刻みの切りのよい時刻で言われることが多く、原因が分からないと延びる余地を知見から見積もれないので、その 1 刻み分を余地とする
 // 出典: 開発者の推定（仮）
 export const STATED_RESUME_SLACK_MINUTES = 10;
+
+// 統計値の時間帯の境。平日にこの時台で止まったら通勤時間帯の値を使う。各組は [始まりの時, 終わりの時) で、終わりの時台は含まない
+// 統計値のファイルは境を定数で持たないので、生成元の COMMUTE_HOURS と同じ値をここに置き、単体テストで一致を確かめる
+// 出典: docs/research/rail-suspensions/build_incident_durations.py の COMMUTE_HOURS（仮の値）
+export const COMMUTE_HOUR_RANGES: readonly (readonly [number, number])[] = [
+  [7, 10],
+  [17, 20],
+];

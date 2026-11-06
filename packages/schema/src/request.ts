@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { IsoDateTimeSchema, LangSchema, TrainTypeSchema } from "./common.ts";
+import { IdSchema, IsoDateTimeSchema, LangSchema, TrainTypeSchema } from "./common.ts";
 import { MAX_INPUT_TEXT_LENGTH, ObservationSchema, RawInputSchema } from "./observation.ts";
 
 // POST /judge の入力
@@ -44,6 +44,14 @@ export const TrainPositionSchema = z.object({
 });
 export type TrainPosition = z.infer<typeof TrainPositionSchema>;
 
+// 入口で利用者が答えた原因。統計値の大分類と種類の id で持つ。種類を聞かない大分類では type は null
+// 知見の無い原因でも、この原因の統計値から再開の見込みを出す。id の照合は packages/core が行う
+export const IncidentCauseSchema = z.object({
+  group: IdSchema,
+  type: IdSchema.nullable(),
+});
+export type IncidentCause = z.infer<typeof IncidentCauseSchema>;
+
 export const JudgeRequestSchema = z.object({
   // これまでに解釈済みの観測
   observations: z.array(ObservationSchema),
@@ -57,5 +65,7 @@ export const JudgeRequestSchema = z.object({
   now: IsoDateTimeSchema,
   // 車内の位置。省略すれば駅にいるとみなす
   trainPosition: TrainPositionSchema.optional(),
+  // 入口で答えた原因。分からないと答えたときやリプレイでは省く
+  cause: IncidentCauseSchema.optional(),
 });
 export type JudgeRequest = z.infer<typeof JudgeRequestSchema>;
