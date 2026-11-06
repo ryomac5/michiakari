@@ -16,6 +16,7 @@ import {
   useState,
 } from "react";
 import { testIds } from "@/features/judgment/testids";
+import { computeHeaderShift, useSafeArea } from "@/lib/use-safe-area";
 import { cn } from "@/lib/utils";
 
 // 地図の上に重ねるシート。スマートフォンでは下から 3 段階で開き、PC 幅では右に浮かせたパネルになる
@@ -26,8 +27,9 @@ const snaps: SheetSnap[] = ["collapsed", "half", "full"];
 
 // 上部の帯（56px）と余白のぶん。全部開いてもこの高さだけ地図を残す
 export const sheetTopInset = 76;
-// 閉じた状態の高さの範囲。上限は画面の高さに応じて広げ、結論・再開の見込み・分岐点・注意書きが切れないようにする
-const collapsedRange = { min: 180, max: 300, maxShare: 0.6, maxPx: 520 } as const;
+// 閉じた状態の高さの範囲。中身は結論・数字・注意書きだけなので、多くの場合は地図が画面の半分以上残る
+// 上限は、駅間の前提のチップが並んでも注意書きが切れない高さにする
+const collapsedRange = { min: 160, max: 300, maxShare: 0.55, maxPx: 520 } as const;
 
 function computeCollapsedMax(viewport: number): number {
   return clamp(
@@ -47,7 +49,7 @@ function computeSnapHeight(snap: SheetSnap, layout: Layout): number {
   const full = layout.viewport - layout.top;
   if (snap === "full") return full;
   if (snap === "half") {
-    return Math.min(full, Math.max(layout.collapsed + 200, layout.viewport * 0.56));
+    return Math.min(full, Math.max(layout.collapsed + 200, layout.viewport * 0.5));
   }
   return layout.collapsed;
 }
@@ -99,6 +101,10 @@ export function MapSheet({
   const suppressClickRef = useRef(false);
   const [layout, setLayout] = useState<Layout | null>(null);
   const [dragOffset, setDragOffset] = useState<number | null>(null);
+  // 端末の上下の余白。上部の帯が下がるぶんシートの上端も下げ、閉じた状態は下の余白のぶん高くする
+  const safe = useSafeArea();
+  const top = topInset + computeHeaderShift(safe);
+  const safeBottom = safe.bottom;
 
   // 画面の高さと、要点の高さから閉じた状態の高さを測る
   useLayoutEffect(() => {
@@ -106,18 +112,16 @@ export function MapSheet({
     if (!summaryEl) return;
     function measure() {
       if (!summaryEl) return;
-      // 取っ手の 20px と下端の余白を足す
+      // 取っ手の 20px と端末の下の余白を足す。要点の下の余白は要点の中に含む
       const collapsed = clamp(
-        Math.ceil(summaryEl.offsetHeight + 20 + 12),
+        Math.ceil(summaryEl.offsetHeight + 20 + safeBottom),
         collapsedRange.min,
         computeCollapsedMax(window.innerHeight),
       );
       setLayout((prev) =>
-        prev?.viewport === window.innerHeight &&
-        prev.collapsed === collapsed &&
-        prev.top === topInset
+        prev?.viewport === window.innerHeight && prev.collapsed === collapsed && prev.top === top
           ? prev
-          : { viewport: window.innerHeight, collapsed, top: topInset },
+          : { viewport: window.innerHeight, collapsed, top },
       );
     }
     measure();
@@ -128,7 +132,7 @@ export function MapSheet({
       observer.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [topInset]);
+  }, [top, safeBottom]);
 
   useEffect(() => {
     if (layout) onCollapsedHeightChange?.(layout.collapsed);
@@ -234,11 +238,9 @@ export function MapSheet({
   }
 
   const style = {
-    "--sheet-h": full !== null ? `${full}px` : `calc(100dvh - ${topInset}px)`,
+    "--sheet-h": full !== null ? `${full}px` : `calc(100dvh - ${top}px)`,
     "--sheet-offset":
-      offset !== null
-        ? `${offset}px`
-        : `calc(100dvh - ${topInset}px - ${collapsedRange.min + 20}px)`,
+      offset !== null ? `${offset}px` : `calc(100dvh - ${top}px - ${collapsedRange.min + 20}px)`,
   } as CSSProperties;
 
   return (
@@ -283,15 +285,18 @@ export function MapSheet({
               onSnapChange(snap === "full" ? "collapsed" : snap === "half" ? "full" : "half");
             }}
             onKeyDown={handleKeyDown}
-            className="absolute top-0 z-10 flex h-11 w-24 items-start justify-center rounded-full pt-2"
+            // 押せる範囲は広いまま、キーボードで操作したときだけ棒のまわりに細い枠を出す
+            className="group absolute top-0 z-10 flex h-11 w-24 items-start justify-center pt-1.5 outline-none focus-visible:outline-none"
           >
-            <span className="h-[5px] w-9 rounded-full bg-foreground/20" />
+            <span className="flex h-3 w-12 items-center justify-center rounded-full group-focus-visible:outline-2 group-focus-visible:outline-focus group-focus-visible:outline-solid">
+              <span className="h-[5px] w-9 rounded-full bg-foreground/20" />
+            </span>
           </button>
           <span id={hintId} className="sr-only">
             {t(`state.${snap}`)} {t("hint")}
           </span>
         </div>
-        <div ref={summaryRef} className="px-4 pb-3 lg:px-5 lg:pt-5">
+        <div ref={summaryRef} className="px-4 pb-4 lg:px-5 lg:pt-5">
           {summary}
         </div>
       </div>

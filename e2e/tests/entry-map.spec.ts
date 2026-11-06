@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import { chooseTrainDirection } from "../support/entry.ts";
-import { waitForFiniteAnimations } from "../support/replay.ts";
+import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
 const screenshotDir = fileURLToPath(new URL("../screenshots/", import.meta.url));
@@ -166,7 +166,8 @@ test("全部「分からない」で進めても判断が出て、前提と次�
     await expect(part).not.toContainText(nonDecisive);
   }
 
-  // 次に確かめることから、様子の入れ直しへ移れる
+  // 次に確かめることから、様子の入れ直しへ移れる。閉じたシートは結論だけなので、開いてから押す
+  await openSheet(page, "full");
   await page.getByTestId(testIds.judgment.nextCheckAction).click();
   await expect(page.getByTestId(testIds.judgment.addInfo)).toBeInViewport();
 });

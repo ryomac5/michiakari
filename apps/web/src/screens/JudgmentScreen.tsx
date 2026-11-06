@@ -244,11 +244,15 @@ export function JudgmentScreen() {
               )}
               {state.status === "ready" && inCarGuide && <InCarGuide guide={inCarGuide} />}
               <Disclaimer />
-              {/* 2 段目: 再開の見込みの図 */}
-              {state.status === "ready" && <ResumeOutlook {...breakEvenProps} />}
             </div>
           }
         >
+          {/* 2 段目: 再開の見込みの図。閉じたシートは地図を広く残すため、引き上げたときに見せる */}
+          {state.status === "ready" && display.breakEven && (
+            <SheetSection>
+              <ResumeOutlook {...breakEvenProps} />
+            </SheetSection>
+          )}
           {/* 気象を使った判断のときだけ、半分の状態の先頭に雨量の推移を出す */}
           {display.weather && (
             <SheetSection>
