@@ -21,8 +21,7 @@ async function startOnLoopLine(page: Page, kind: "inCar" | "person"): Promise<vo
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
-  await page.getByTestId(testIds.start.cause("passenger")).click();
-  await page.getByTestId(testIds.start.causeKind(kind)).click();
+  await page.getByTestId(testIds.start.cause(kind)).click();
   await page.getByTestId(testIds.start.elapsed("now")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
@@ -67,8 +66,7 @@ test("駅で待つ人には、車内の急病人・非常ボタンを後続の�
   await page.getByTestId(testIds.start.originOption("京橋")).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
-  await page.getByTestId(testIds.start.cause("passenger")).click();
-  await page.getByTestId(testIds.start.causeKind("inCar")).click();
+  await page.getByTestId(testIds.start.cause("inCar")).click();
   await page.getByTestId(testIds.start.elapsed("now")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });

@@ -104,7 +104,12 @@ import { testIds } from "@/features/judgment/testids";
 import { loadMapGeoData, type MapGeoData } from "@/features/map/geo-data";
 import type { MapInsets } from "@/features/map/MapPanel";
 import { findFocusArea } from "@/features/map/station-guide";
-import { type CauseAnswer, resolveCauseEventType } from "@/features/situation/cause-categories";
+import {
+  type CauseAnswer,
+  isAskedKind,
+  resolveCauseEventType,
+  toCauseChoiceId,
+} from "@/features/situation/cause-categories";
 import { findElapsedOption, listResumeTimeOptions } from "@/features/situation/plain-questions";
 import {
   findNearestChoices,
@@ -801,8 +806,9 @@ export function StartScreen() {
   // ここまでに答えた原因と時間のチップ。押すとその問いまで引いて選び直す
   // 種類まで答えたらその種類、そうでなければ大分類の呼び名
   function nameCause(cause: CauseAnswer): string {
-    if (cause.kind && cause.kind !== "other") return t(`entry.causeKinds.${cause.kind}`);
-    return t(`entry.causes.${cause.category ?? "unknown"}`);
+    if (isAskedKind(cause.kind) && cause.kind !== "other")
+      return t(`entry.causeKinds.${cause.kind}`);
+    return t(`entry.causes.${toCauseChoiceId(cause) ?? "unknown"}`);
   }
   const answered: AnsweredItem[] = [
     ...(entry.cause
@@ -1172,9 +1178,7 @@ export function StartScreen() {
             )}
             {entry.stage === "cause" && (
               <CauseStep
-                onSelect={(category) =>
-                  dispatch({ type: "chooseCause", cause: { category, kind: null } })
-                }
+                onSelect={(cause) => dispatch({ type: "chooseCause", cause })}
                 onMethod={(method) => dispatch({ type: "chooseMethod", method })}
               />
             )}

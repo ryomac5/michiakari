@@ -25,7 +25,6 @@ import {
   Timer,
   TrafficCone,
   TreePine,
-  Users,
   Wind,
   Wrench,
 } from "lucide-react";
@@ -35,10 +34,14 @@ import type { OriginLine } from "@/features/judgment/session";
 import { testIds } from "@/features/judgment/testids";
 import { formatClockTime } from "@/features/judgment/time";
 import {
+  type AskedKindId,
+  type CauseAnswer,
   type CauseCategoryId,
+  type CauseChoiceId,
   type CauseKindId,
-  causeCategoryIds,
+  causeChoiceIds,
   listCauseKinds,
+  toCauseAnswer,
 } from "@/features/situation/cause-categories";
 import {
   type ElapsedOption,
@@ -646,8 +649,9 @@ function QuestionEyebrow({ trip, answers }: { trip: ReactNode; answers: Answered
   );
 }
 
-const causeIcons: Record<CauseCategoryId, LucideIcon> = {
-  passenger: Users,
+const causeIcons: Record<CauseChoiceId, LucideIcon> = {
+  person: Siren,
+  inCar: BellRing,
   vehicle: Wrench,
   signaling: TrafficCone,
   power: PlugZap,
@@ -719,12 +723,12 @@ function AnswerCard({
   );
 }
 
-// 1 問目。放送で聞いた原因の大分類。8 大分類と、聞き取れなかったを同じ重さで並べる
+// 1 問目。放送で聞いた原因の選択肢。人身事故と車内の急病人を分け、聞き取れなかったを同じ重さで並べる
 export function CauseStep({
   onSelect,
   onMethod,
 }: {
-  onSelect: (category: CauseCategoryId | null) => void;
+  onSelect: (answer: CauseAnswer) => void;
   onMethod: (method: EntryMethod) => void;
 }) {
   const t = useTranslations("entry");
@@ -732,7 +736,7 @@ export function CauseStep({
     <>
       <SheetTitle title={t("causeQuestion")} />
       <div className="grid grid-cols-2 gap-2">
-        {causeCategoryIds.map((id) => {
+        {causeChoiceIds.map((id) => {
           const Icon = causeIcons[id];
           return (
             <AnswerCard
@@ -740,7 +744,7 @@ export function CauseStep({
               testId={testIds.start.cause(id)}
               icon={<Icon className="size-5" strokeWidth={1.75} />}
               label={t(`causes.${id}`)}
-              onClick={() => onSelect(id)}
+              onClick={() => onSelect(toCauseAnswer(id))}
             />
           );
         })}
@@ -749,8 +753,8 @@ export function CauseStep({
           icon={<HelpCircle className="size-5" strokeWidth={1.75} />}
           label={t("causes.unknown")}
           tone="dashed"
-          span={causeCategoryIds.length % 2 === 0}
-          onClick={() => onSelect(null)}
+          span={causeChoiceIds.length % 2 === 0}
+          onClick={() => onSelect({ category: null, kind: null })}
         />
       </div>
       <MethodLinks onSelect={onMethod} />
@@ -768,7 +772,7 @@ export function CauseKindStep({
   trip: ReactNode;
   answers: AnsweredItem[];
   category: CauseCategoryId;
-  onSelect: (kind: CauseKindId) => void;
+  onSelect: (kind: AskedKindId) => void;
 }) {
   const t = useTranslations("entry");
   const kinds = listCauseKinds(category);

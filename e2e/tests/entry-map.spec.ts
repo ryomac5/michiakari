@@ -273,8 +273,7 @@ test("判断の画面の戻るを押すと、様子の 3 問目に答えを残�
   await page.getByTestId(testIds.start.hub("umeda")).click();
   await page.getByTestId(testIds.start.place("osaka")).click();
   await page.getByTestId(testIds.start.destinationCandidate("三ノ宮")).click();
-  await page.getByTestId(testIds.start.cause("passenger")).click();
-  await page.getByTestId(testIds.start.causeKind("person")).click();
+  await page.getByTestId(testIds.start.cause("person")).click();
   await page.getByTestId(testIds.start.elapsed("m10")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });

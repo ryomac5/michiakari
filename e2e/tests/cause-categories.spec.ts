@@ -3,14 +3,15 @@ import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { openSheet } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
-// 入口の原因は 8 大分類と分からないで聞く。知見のある大分類はその事象で、無い大分類は分からないと同じ流れで判断する
+// 入口の原因は、人身事故と車内の急病人を分けた選択肢と分からないで聞く。知見のある大分類はその事象で、無い大分類は分からないと同じ流れで判断する
 // 決定論モードの agent とダミーの知見で確かめる
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
 
 const categories = [
-  "passenger",
+  "person",
+  "inCar",
   "vehicle",
   "signaling",
   "power",
@@ -60,14 +61,57 @@ async function judgeWithCategory(page: Page, category: string, kind?: string): P
   return request;
 }
 
-test("原因の問いは 8 大分類と分からないの 9 つを出す", async ({ page }) => {
+test("原因の問いは人身事故を先頭に、車内の急病人をその次に置いた 10 の選択肢を出す", async ({
+  page,
+}) => {
   await openCauseStage(page);
   const cards = page.locator("[data-testid^='start-cause-']");
   await expect(cards).toHaveCount(categories.length);
   for (const id of categories) {
     await expect(page.getByTestId(testIds.start.cause(id))).toBeVisible();
   }
+  await expect(cards.nth(0)).toHaveAttribute("data-testid", "start-cause-person");
+  await expect(cards.nth(1)).toHaveAttribute("data-testid", "start-cause-inCar");
+  await expect(page.getByTestId(testIds.start.cause("person"))).toHaveText("人身事故");
+  await expect(page.getByTestId(testIds.start.cause("inCar"))).toHaveText(
+    "車内の急病人・非常ボタン",
+  );
   await expect(page.getByTestId(testIds.start.cause("signaling"))).toHaveText("信号・ポイント");
+});
+
+test("人身事故を選ぶと、続けての問いなしに人身事故の事象で判断する", async ({ page }) => {
+  await openCauseStage(page);
+  await page.getByTestId(testIds.start.cause("person")).click();
+  await expectStage(page, "elapsed");
+  await expectDepth(page, 5);
+  await page.getByTestId(testIds.start.back).click();
+  await expectStage(page, "cause");
+  await expectDepth(page, 4);
+
+  const request = await judgeWithCategory(page, "person");
+  expect((await request).postDataJSON().newInput).toEqual({
+    type: "selection",
+    eventType: "person_accident",
+    signalIds: [],
+  });
+  await openSheet(page, "full");
+  await expect(page.getByTestId(testIds.judgment.premise)).toContainText(
+    "原因は放送で聞いた人身事故と仮定する",
+  );
+});
+
+test("車内の急病人を選ぶと、続けての問いなしに車内対応の事象で判断する", async ({ page }) => {
+  await openCauseStage(page);
+  const request = await judgeWithCategory(page, "inCar");
+  expect((await request).postDataJSON().newInput).toEqual({
+    type: "selection",
+    eventType: "in_car_response",
+    signalIds: [],
+  });
+  await openSheet(page, "full");
+  await expect(page.getByTestId(testIds.judgment.premise)).toContainText(
+    "原因は放送で聞いた車内の急病人・非常ボタンと仮定する",
+  );
 });
 
 test("知見のある車両の大分類を選ぶと、車両故障の事象で判断し、前提に呼び名を出す", async ({
