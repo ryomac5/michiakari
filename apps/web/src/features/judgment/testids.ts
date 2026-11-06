@@ -25,6 +25,7 @@ export const testIds = {
     routeSummary: "start-route-summary",
     trainLineSearch: "start-train-line-search",
     trainSegment: "start-train-segment",
+    introClose: "start-intro-close",
     introAudience: "start-intro-audience",
     introProblem: "start-intro-problem",
     introSolution: "start-intro-solution",

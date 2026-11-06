@@ -1,5 +1,7 @@
 "use client";
 
+import { Play } from "lucide-react";
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -139,6 +141,7 @@ export function LocationStep({
   children?: ReactNode;
 }) {
   const t = useTranslations("entry");
+  const tStart = useTranslations("start");
   return (
     <>
       <SheetTitle title={t("question")} />
@@ -161,6 +164,14 @@ export function LocationStep({
         >
           {t("locationTrain")}
         </button>
+        <Link
+          href="/replay"
+          data-testid={testIds.start.replayLink}
+          className={cn(chipClass, "gap-1.5 bg-brand/10 text-brand hover:bg-brand/15")}
+        >
+          <Play className="size-3.5 fill-current" aria-hidden />
+          {tStart("replayLink")}
+        </Link>
       </div>
     </>
   );

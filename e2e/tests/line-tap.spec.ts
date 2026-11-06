@@ -126,6 +126,8 @@ for (const viewport of [
         timeout: 30_000,
       });
       await expectStage(page, "position");
+      // 価値の 3 行は地図の上端を覆うので、線を押す前に閉じる
+      await page.getByTestId(testIds.start.introClose).click();
       await waitForMapStill(page);
       // 引いた地図で塚本と尼崎のあたりの線を押すと、段はそのままで、駅の印が出る倍率まで寄る
       await page.locator(".maplibregl-canvas").focus();

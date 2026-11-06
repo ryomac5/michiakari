@@ -31,7 +31,7 @@ import {
   type MapSegment,
   type MapStop,
 } from "@/features/entry/EntryMap";
-import { DemoDock, LocationSearch, PromptCard } from "@/features/entry/EntryOverlays";
+import { DemoDock, LocationSearch, PromptCard, StartIntro } from "@/features/entry/EntryOverlays";
 import { EntrySheet } from "@/features/entry/EntrySheet";
 import {
   type AnsweredItem,
@@ -145,6 +145,8 @@ const lineGapMeters = 700;
 const lineStopMargin = { x: 72, y: 36 };
 
 // 高さを測って地図の余白に使う
+const introDismissedKey = "michiakari:intro-dismissed";
+
 function useElementHeight<T extends HTMLElement>() {
   const [height, setHeight] = useState(0);
   const observerRef = useRef<ResizeObserver | null>(null);
@@ -228,6 +230,15 @@ export function StartScreen() {
   const [promptRef, promptHeight] = useElementHeight<HTMLDivElement>();
   const [dockRef, dockHeight] = useElementHeight<HTMLDivElement>();
   const [sheetHeight, setSheetHeight] = useState(0);
+  // 価値の 3 行。閉じたらこの端末では次から出さない。読み込むまでは出さない
+  const [introOpen, setIntroOpen] = useState(false);
+  useEffect(() => {
+    setIntroOpen(window.localStorage.getItem(introDismissedKey) !== "1");
+  }, []);
+  const closeIntro = useCallback(() => {
+    window.localStorage.setItem(introDismissedKey, "1");
+    setIntroOpen(false);
+  }, []);
   const depth = stageDepth(entry);
   const getDepth = (stage: Parameters<typeof stageDepth>[1]) => stageDepth(entry, stage);
   const [restored, setRestored] = useState(false);
@@ -745,6 +756,7 @@ export function StartScreen() {
   }
 
   const showSheet = entry.stage !== "kansai";
+  const introShownOnSheet = entry.stage === "position" && introOpen;
   // 端末の上の余白で帯が下がるぶん、地図の上の余白も広げる
   const mapTop = sheetTopInset + headerShift;
   const insets: MapInsets = desktop
@@ -755,7 +767,7 @@ export function StartScreen() {
         left: showSheet ? 0 : leftColumnInset,
       }
     : {
-        top: showSheet ? mapTop : mapTop + promptHeight + 8,
+        top: !showSheet || introShownOnSheet ? mapTop + promptHeight + 8 : mapTop,
         right: 0,
         bottom: showSheet ? sheetHeight : dockHeight,
         left: 0,
@@ -1191,18 +1203,7 @@ export function StartScreen() {
           entry.stage === "kansai" ? (
             <>
               <div ref={promptRef} className="flex flex-col gap-2">
-                <div
-                  data-testid={testIds.start.intro}
-                  className="glass-strong rounded-[20px] px-4 py-3 text-[14px] leading-snug"
-                >
-                  <p data-testid={testIds.start.introAudience}>{t("start.introAudience")}</p>
-                  <p data-testid={testIds.start.introProblem} className="mt-1 text-muted">
-                    {t("start.introProblem")}
-                  </p>
-                  <p data-testid={testIds.start.introSolution} className="mt-1 font-semibold">
-                    {t("start.introSolution")}
-                  </p>
-                </div>
+                {introOpen && <StartIntro onClose={closeIntro} />}
                 <PromptCard
                   locateStatus={locateStatus}
                   message={locateMessage}
@@ -1218,6 +1219,10 @@ export function StartScreen() {
               </div>
               {desktop && <DemoDock inline />}
             </>
+          ) : entry.stage === "position" && introOpen ? (
+            <div ref={promptRef}>
+              <StartIntro onClose={closeIntro} />
+            </div>
           ) : undefined
         }
       />
