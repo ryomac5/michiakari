@@ -13,7 +13,8 @@ import {
 import { addMinutesToIso } from "./time.ts";
 
 // 駅間に止まった列車が、ホームに着ける駅に着く時刻の見込み
-// 詰める事業者では、止まっている間に前の列車から順に前の駅へ進める動きを追う
+// 詰める事業者では、線路の安全が確かめられた後に、前の列車から順に前の駅へ進める動きを追う
+// 駅の間では信号機と信号機の間に 1 本ずつ列車が詰まる。前の列車は 1 本ずつ信号の区間を空けて進む
 // 前の列車は順番を追い越せず、その種別が着けるホームのある駅にしか入れない
 // 前の列車は、利用者が押した並びなら目の前に詰まっているとみなし、
 // 運転パターンから推し量った並びなら、ふだんの間隔をあけて先を走っていたとみなす
@@ -42,6 +43,8 @@ export type TrainQueueInput = {
   trainsAheadHeadwayMinutes: number | null;
   stationsAhead: readonly StationAhead[];
   params: TrainQueueParams;
+  // 線路の安全が確かめられたか。再開に向けた放送か、再開の見込みの時刻が出たら true。false なら詰める動きを使わない
+  closeUpCleared: boolean;
 };
 
 // 遅れる理由
@@ -65,7 +68,7 @@ export type TrainQueueOutcome = {
   trainsAheadCount: number;
   // 自分の行く手にいて、先に発車するのを待つ前の列車の本数
   blockingCount: number;
-  // その本数ぶんの遅れ（分）。乗ったまま待つ場合の到着にも足す
+  // その本数ぶんの遅れ（分）の中央。乗ったまま待つ場合の到着にも足す
   departureDelayMinutes: number;
   // 前の列車をふだんの間隔で先を走っていたとみなしたか
   spacedByHeadway: boolean;
@@ -325,30 +328,36 @@ export function estimateTrainQueueArrival(input: TrainQueueInput): TrainQueueOut
   );
   // 自分の行く手にいて、先に発車するのを待つ列車。降りる駅かその手前にいる列車を数える
   const blockingCount = queue.filter((t) => t.minIndex <= alightIndex).length;
-  const departureDelayMinutes = blockingCount * params.minutesPerTrainAhead;
+  const perTrain = params.minutesPerTrainAhead;
+  const departureDelayMinutes = blockingCount * perTrain.p50;
 
   // 再開を待つ経路。行く手の列車が順に発車したあとに、降りられる駅まで走る
   const resumePath = input.untilResume
     ? {
-        p50: input.untilResume.p50 + departureDelayMinutes + sumRideMinutes(stations, alightIndex),
-        p80: input.untilResume.p80 + departureDelayMinutes + sumRideMinutes(stations, alightIndex),
+        p50:
+          input.untilResume.p50 +
+          blockingCount * perTrain.p50 +
+          sumRideMinutes(stations, alightIndex),
+        p80:
+          input.untilResume.p80 +
+          blockingCount * perTrain.p80 +
+          sumRideMinutes(stations, alightIndex),
       }
     : null;
 
-  // 詰める経路。目の前に詰まっていた列車が前の駅へ進んだあとに、自分も進む
-  const closeUp = params.closesUp ? simulateCloseUp(stations, queue, ownType, alightIndex) : null;
+  // 詰める経路。安全が確かめられたいまから、目の前に詰まっていた列車が前の駅へ進んだあとに、自分も進む
+  const closeUp =
+    params.closesUp && input.closeUpCleared
+      ? simulateCloseUp(stations, queue, ownType, alightIndex)
+      : null;
   const closeUpPath =
     closeUp && closeUp.ownIndex !== null
       ? {
           index: closeUp.ownIndex,
           p50:
-            params.closeUpLeadMinutes.p50 +
-            closeUp.movedBlockingCount * params.minutesPerTrainAhead +
-            sumRideMinutes(stations, closeUp.ownIndex),
+            closeUp.movedBlockingCount * perTrain.p50 + sumRideMinutes(stations, closeUp.ownIndex),
           p80:
-            params.closeUpLeadMinutes.p80 +
-            closeUp.movedBlockingCount * params.minutesPerTrainAhead +
-            sumRideMinutes(stations, closeUp.ownIndex),
+            closeUp.movedBlockingCount * perTrain.p80 + sumRideMinutes(stations, closeUp.ownIndex),
         }
       : null;
   if (closeUp) delays.push(...closeUp.delays);

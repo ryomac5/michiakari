@@ -16,7 +16,7 @@ import {
   type StationAhead,
   sampleDurationDist,
 } from "@repo/core";
-import type { DurationDist, Estimate, EstimateSource } from "@repo/schema";
+import type { DurationDist, Estimate, EstimateSource, Knowledge } from "@repo/schema";
 import { z } from "zod";
 import { confidenceParams } from "../config.ts";
 import {
@@ -43,10 +43,12 @@ function findOperator(ctx: ToolContext): string | null {
 
 // 駅間の車内にいる利用者が、ホームに着ける駅に着く見込み。駅間でなければ null
 // 再開までの残りは、乗れるまでの残りから初列車待ちを引いた分とする。車内の人は列車を待たないため
+// closeUpCleared は線路の安全が確かめられた兆候があるか。無ければ詰める動きを使わない
 function estimateTrainQueue(
   ctx: ToolContext,
   remaining: DurationDist | null,
   firstTrainWait: DurationDist | null,
+  closeUpCleared: boolean,
 ): TrainQueueToolResult | null {
   const position = ctx.request.trainPosition;
   if (position?.kind !== "between_stations" || !position.nextStation) return null;
@@ -83,6 +85,7 @@ function estimateTrainQueue(
     trainsAheadHeadwayMinutes: position.trainsAheadHeadwayMinutes ?? null,
     stationsAhead,
     params: resolveTrainQueueParams(findOperator(ctx)),
+    closeUpCleared,
   });
   return {
     ...outcome,
@@ -162,7 +165,8 @@ function buildUnknownEstimate(
   };
   return {
     estimate,
-    trainQueue: estimateTrainQueue(ctx, remaining, null),
+    // 知見が無ければ段階が分からないので、再開の見込みの時刻が出たことだけを安全が確かめられた兆候とする
+    trainQueue: estimateTrainQueue(ctx, remaining, null, stated !== null),
     phaseName: null,
     phaseGuidance: null,
     phaseStartedAt: null,
@@ -194,6 +198,16 @@ function sampleRemainingByBasis(input: {
     input.firstTrainWait,
     Math.max(0, input.remaining.p50 - input.firstTrainWait.p50),
   );
+}
+
+// 線路の安全が確かめられた兆候。再開の見込みの時刻が出たか、知見の最後の段階である再開に向けた段階に入ったか
+function checkCloseUpCleared(
+  knowledge: Knowledge,
+  phaseIndex: number,
+  stated: StatedResume | null,
+): boolean {
+  const last = knowledge.phases.length - 1;
+  return stated !== null || (last > 0 && phaseIndex >= last);
 }
 
 export function runEstimatePhase(
@@ -245,7 +259,12 @@ export function runEstimatePhase(
       }),
       source: "knowledge",
     },
-    trainQueue: estimateTrainQueue(ctx, remaining, firstTrainWait),
+    trainQueue: estimateTrainQueue(
+      ctx,
+      remaining,
+      firstTrainWait,
+      checkCloseUpCleared(knowledge, detection.phaseIndex, stated),
+    ),
     phaseName: phase ? (phase.name[language] ?? phase.name.ja) : null,
     phaseGuidance: phase ? (phase.guidance[language] ?? phase.guidance.ja) : null,
     phaseStartedAt: detection.phaseStartedAt,
