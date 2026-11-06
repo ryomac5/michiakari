@@ -130,11 +130,12 @@ export function JudgmentScreen() {
   const inCar = trainPosition?.kind === "between_stations";
   const inCarGuide = display.judgment?.inCar ?? null;
   // 止まり方。その列車だけが止まる事象では、見合わせの札と止まった区間の線を出さない
-  const stopScope = selectStopScope(
-    display.estimate?.eventType,
-    known,
-    selectHeardIncidentCause(tripContext),
-  );
+  const stopScope = selectStopScope({
+    estimatedEventType: display.estimate?.eventType,
+    observations: known,
+    isKnownEvent: (id) => catalog.some((e) => e.id === id),
+    cause: selectHeardIncidentCause(tripContext),
+  });
   const stoppedPlace = selectStoppedPlace(
     trainPosition,
     origin.kind === "station" ? origin.name : null,

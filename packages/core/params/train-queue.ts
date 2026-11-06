@@ -21,10 +21,15 @@ export const DEFAULT_TRAIN_QUEUE_PARAMS: TrainQueueParams = {
   minutesPerTrainAhead: { p50: 4, p80: 5 },
 };
 
-// 事業者名は観測の operator と同じ日本語の呼び名で引く
+// キーは路線 ID の先頭と同じ事業者キー
 // 詰める動きは、まず JR西日本だけを対象にする
 export const TRAIN_QUEUE_PARAMS_BY_OPERATOR: Readonly<Record<string, Partial<TrainQueueParams>>> = {
-  JR西日本: { closesUp: true },
+  "jr-west": { closesUp: true },
+};
+
+// 観測の事業者名の表記の揺れ。空白、ハイフン、大文字小文字を除いてから比べる
+export const OPERATOR_KEY_ALIASES: Readonly<Record<string, readonly string[]>> = {
+  "jr-west": ["jr-west", "JR西日本", "JR西", "JR West", "西日本旅客鉄道"],
 };
 
 // 次の駅までの走行時間を路線データから引けないときの代わりの分。関西の都市部の駅間を控えめに丸めた値

@@ -1,6 +1,12 @@
+import type { Observation } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { INCIDENT_TYPE_IDS } from "../params/incident-durations.ts";
-import { resolveStopKind, resolveStopScope } from "../src/index.ts";
+import {
+  resolveObservedStopScope,
+  resolveStopKind,
+  resolveStopScope,
+  selectObservedEventType,
+} from "../src/index.ts";
 
 describe("resolveStopKind", () => {
   it("車内の対応はその列車だけが止まる", () => {
@@ -86,5 +92,36 @@ describe("resolveStopScope", () => {
     expect(resolveStopScope({ eventType: "person_accident" })).toBe("section");
     expect(resolveStopScope({ cause: { group: "weather", type: "strong_wind" } })).toBe("section");
     expect(resolveStopScope({})).toBe("section");
+  });
+});
+
+describe("resolveObservedStopScope", () => {
+  const observe = (eventType: string, confidence: "high" | "low"): Observation => ({
+    id: eventType,
+    observedAt: "2026-11-05T22:00:00+09:00",
+    source: "text",
+    eventTypeCandidates: [{ eventType, confidence }],
+    operator: null,
+    line: null,
+    section: null,
+    statedResumeTime: null,
+    transferServiceActive: null,
+    detectedSignals: [],
+  });
+
+  it("知見の無い候補は数えず、入口の原因で決める", () => {
+    expect(
+      resolveObservedStopScope({
+        observations: [observe("in_car_response", "high")],
+        isKnownEvent: () => false,
+        cause: { group: "passenger", type: "person_collision" },
+      }),
+    ).toBe("section");
+  });
+
+  it("候補は確信度で重みづけして選ぶ", () => {
+    const observations = [observe("person_accident", "high"), observe("in_car_response", "low")];
+    expect(selectObservedEventType(observations, () => true)).toBe("person_accident");
+    expect(resolveObservedStopScope({ observations, isKnownEvent: () => true })).toBe("section");
   });
 });

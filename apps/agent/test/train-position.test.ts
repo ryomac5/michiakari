@@ -50,6 +50,7 @@ type RequestInput = {
   line?: string;
   // 再開の見込みの時刻が出ているか。既定は出ている
   cleared?: boolean;
+  signalIds?: string[];
 };
 
 function buildRequest(input: RequestInput): JudgeRequest {
@@ -61,7 +62,7 @@ function buildRequest(input: RequestInput): JudgeRequest {
     newInput: {
       type: "selection",
       eventType: input.eventType ?? "person_accident",
-      signalIds: [],
+      signalIds: input.signalIds ?? [],
     },
     origin: { kind: "station", name: input.origin ?? "塚本" },
     destination: { kind: "station", name: input.destination ?? "三ノ宮" },
@@ -177,6 +178,48 @@ describe("駅間の車内にいる利用者の理由", () => {
     );
     expectInCarWait(judgment);
     expect(judgment.reason).toMatch(/^塚本には再開後の\d+時\d+分ごろに着く見込みです。/);
+  });
+
+  it("大雨で線路の点検が始まっただけでは、安全が確かめられたとみなさず、詰める動きを使わない", async () => {
+    const judgment = findJudgment(
+      await postJudge(
+        app,
+        buildRequest({
+          trainPosition: observed([]),
+          eventType: "heavy_rain",
+          signalIds: ["hr_inspection_announced"],
+          cleared: false,
+        }),
+      ),
+    );
+    expect(judgment.estimate.phaseId).toBe("track_inspection");
+    expect(judgment.reason).toMatch(/^塚本には再開後の/);
+  });
+
+  it("まもなく運転を再開する放送があれば、見込みの時刻が無くても詰める動きを使う", async () => {
+    const judgment = findJudgment(
+      await postJudge(
+        app,
+        buildRequest({
+          trainPosition: observed([]),
+          signalIds: ["pa_preparing_resume"],
+          cleared: false,
+        }),
+      ),
+    );
+    expect(judgment.reason).toMatch(/^塚本には\d+時\d+分ごろに着く見込みです。/);
+  });
+
+  it("別の路線の発表や英語の表記でも、乗っている路線が JR西日本なら詰める動きを使う", async () => {
+    const request = buildRequest({ trainPosition: observed([]) });
+    request.observations.push({
+      ...buildEntryObservation("阪急神戸線", addMinutesToIso(now, 60)),
+      id: "other-line",
+      observedAt: addMinutesToIso(now, -1),
+      operator: "阪急",
+    });
+    const viaOtherLine = findJudgment(await postJudge(app, request));
+    expect(viaOtherLine.reason).toMatch(/^塚本には\d+時\d+分ごろに着く見込みです。/);
   });
 
   it("既定値では、理由の頭に着く見込みを置き、間隔の仮定は前提のチップに任せる", async () => {

@@ -144,11 +144,14 @@ export {
   selectKeyTick,
 } from "./resume-chance.ts";
 export {
+  type ObservedStopScopeInput,
+  resolveObservedStopScope,
   resolveStopKind,
   resolveStopScope,
   type StopKind,
   type StopScope,
   type StopScopeInput,
+  selectObservedEventType,
 } from "./stop-scope.ts";
 export {
   checkNightSurcharge,
@@ -169,9 +172,11 @@ export {
   computeTrackHeadwayMinutes,
   countTrainsAhead,
   estimateTrainQueueArrival,
+  findLineOperatorKey,
   findOperationPattern,
   inferDefaultOwnTrainType,
   inferTrainsAheadFromPattern,
+  normalizeOperatorKey,
   normalizeTrainType,
   resolveStationPlatform,
   resolveTrainQueueParams,
