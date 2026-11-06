@@ -26,7 +26,7 @@ import {
 import type { EntryArea, EntryHub, EntryPlace, Position } from "./entry-places";
 import { pickLocalized, pickPlaceName } from "./entry-places";
 import type { EntryStage } from "./flow";
-import { computeSegmentHitRadii, findNearestLineId } from "./map-pick";
+import { computeSegmentHitRadii, findNearestLineId, measurePathDistance } from "./map-pick";
 import {
   buildEdgeHubRect,
   type EdgeHub,
@@ -100,6 +100,9 @@ type EntryMapProps = {
   linePickable: boolean;
   // reachMeters は押せる範囲の幅を地図の距離にしたもの
   onSelectLine: (lineId: string, point: Position, reachMeters: number) => void;
+  // 最初の段で、駅の印が見える倍率のとき、指の下に描いた路線を知らせる。近い順に並べる
+  // reachMeters は押せる大きさ 44px を地図の距離にしたもの
+  onSelectRails?: (lineIds: string[], point: Position, reachMeters: number) => void;
   segments: MapSegment[];
   onSelectSegment: (key: string) => void;
   // 選んだ駅の名前の札の向き。地図に出す札を避ける向きにする。null なら設定の向き
@@ -269,10 +272,14 @@ function buildAreaReach(center: Position): Position[] {
   ];
 }
 
-// 押した点のまわりの線から、いちばん近い路線を探す。押せる線が無ければ null
-function findTappedLine(map: MapLibreMap, x: number, y: number, focus: LineFocus): string | null {
-  const layer = focus.mode === "all" ? "entry-rail" : "entry-line-focus";
-  if (!map.getLayer(layer)) return null;
+// 押した点のまわり 44px の四角に描かれた線を、路線ごとの折れ線にする
+function queryTappedLines(
+  map: MapLibreMap,
+  x: number,
+  y: number,
+  layer: string,
+): { lineId: string; paths: Position[][] }[] {
+  if (!map.getLayer(layer)) return [];
   const features = map.queryRenderedFeatures(
     [
       [x - linePickPx, y - linePickPx],
@@ -280,22 +287,37 @@ function findTappedLine(map: MapLibreMap, x: number, y: number, focus: LineFocus
     ],
     { layers: [layer] },
   );
+  return features.flatMap((f) => {
+    const lineId = f.properties?.lineId;
+    if (typeof lineId !== "string") return [];
+    const geometry = f.geometry;
+    const paths =
+      geometry.type === "LineString"
+        ? [geometry.coordinates as Position[]]
+        : geometry.type === "MultiLineString"
+          ? (geometry.coordinates as Position[][])
+          : [];
+    return [{ lineId, paths }];
+  });
+}
+
+// 押した点のまわりの線から、いちばん近い路線を探す。押せる線が無ければ null
+function findTappedLine(map: MapLibreMap, x: number, y: number, focus: LineFocus): string | null {
+  const layer = focus.mode === "all" ? "entry-rail" : "entry-line-focus";
   const point = map.unproject([x, y]);
-  return findNearestLineId(
-    features.flatMap((f) => {
-      const lineId = f.properties?.lineId;
-      if (typeof lineId !== "string") return [];
-      const geometry = f.geometry;
-      const paths =
-        geometry.type === "LineString"
-          ? [geometry.coordinates as Position[]]
-          : geometry.type === "MultiLineString"
-            ? (geometry.coordinates as Position[][])
-            : [];
-      return [{ lineId, paths }];
-    }),
-    [point.lng, point.lat],
-  );
+  return findNearestLineId(queryTappedLines(map, x, y, layer), [point.lng, point.lat]);
+}
+
+// 押した点のまわりに描かれた全部の路線を、押した点に近い順に返す
+function listTappedRails(map: MapLibreMap, x: number, y: number): string[] {
+  const point = map.unproject([x, y]);
+  const lonLat: Position = [point.lng, point.lat];
+  const nearest = new Map<string, number>();
+  for (const { lineId, paths } of queryTappedLines(map, x, y, "entry-rail")) {
+    const meters = Math.min(...paths.map((path) => measurePathDistance(lonLat, path)));
+    nearest.set(lineId, Math.min(meters, nearest.get(lineId) ?? Number.POSITIVE_INFINITY));
+  }
+  return [...nearest.entries()].sort((a, b) => a[1] - b[1]).map(([lineId]) => lineId);
 }
 
 // 重なる部品を除いた範囲の中心に寄せるための、画面の中心からのずれ（px）
@@ -381,6 +403,8 @@ export function EntryMap(props: EntryMapProps) {
   const [segmentRadii, setSegmentRadii] = useState<{ key: string; radius: number }[]>([]);
   const hereLabel = t("here");
   const [zoom, setZoom] = useState(0);
+  // 地図の中心。倍率と合わせて、e2e が緯度経度から画面の点を求めるのに使う
+  const [center, setCenter] = useState<Position>(kansaiCenter);
   const [markerClass, setMarkerClass] = useState<typeof Marker | null>(null);
 
   useEffect(() => {
@@ -411,6 +435,10 @@ export function EntryMap(props: EntryMapProps) {
           addLayers(loaded, geo, paletteRef.current);
           setMap(loaded);
         });
+        // 指やキーで地図を動かしたか。動かした後は、シートの高さが変わっただけでは寄せ直さない
+        loaded.on("movestart", (e) => {
+          if (e.originalEvent) userMovedRef.current = true;
+        });
         // 印の上の操作は印が受け持つ。何もない所を触ったときだけ知らせる
         loaded.on("click", (e) => {
           const target = e.originalEvent.target as HTMLElement | null;
@@ -432,7 +460,17 @@ export function EntryMap(props: EntryMapProps) {
             return;
           }
           const edge = loaded.unproject([e.point.x + tapReachPx, e.point.y]);
-          callbacksRef.current.onTap(point, computeDistanceMeters(point, [edge.lng, edge.lat]));
+          const reach = computeDistanceMeters(point, [edge.lng, edge.lat]);
+          // 最初の段は、駅の印が見える倍率のときだけ線を押せる。引いた地図では線が込み合う
+          const { onSelectRails } = callbacksRef.current;
+          if (onSelectRails && loaded.getZoom() >= STATION_LABEL_MIN_ZOOM) {
+            const rails = listTappedRails(loaded, e.point.x, e.point.y);
+            if (rails.length > 0) {
+              onSelectRails(rails, point, reach);
+              return;
+            }
+          }
+          callbacksRef.current.onTap(point, reach);
         });
       })
       .catch(() => {});
@@ -493,7 +531,8 @@ export function EntryMap(props: EntryMapProps) {
   // 段が変わるたびに視点を寄せる
   const { top, right, bottom, left } = insets;
   const stopKey = [...stops.map((s) => s.key), ...focus.map((p) => p.join(":"))].join(",");
-  const cameraKey = JSON.stringify([
+  // 段と札が同じで、余白だけが変わったかを見分ける
+  const sceneKey = JSON.stringify([
     situationStages.has(stage) ? "situation" : stage,
     area?.id,
     area?.center,
@@ -501,15 +540,18 @@ export function EntryMap(props: EntryMapProps) {
     origin,
     stopKey,
     showTrip ? destinationPosition : null,
-    top,
-    right,
-    bottom,
-    left,
   ]);
+  const cameraKey = JSON.stringify([sceneKey, top, right, bottom, left]);
   const firstFitRef = useRef(true);
+  const userMovedRef = useRef(false);
+  const lastSceneRef = useRef<string | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: 視点は cameraKey が変わったときだけ動かす
   useEffect(() => {
     if (!map) return;
+    // 利用者が地図を動かした後に余白だけが変わったときは、見ている所を保つ
+    if (userMovedRef.current && lastSceneRef.current === sceneKey) return;
+    lastSceneRef.current = sceneKey;
+    userMovedRef.current = false;
     const duration = firstFitRef.current || prefersReducedMotion() ? 0 : durationMs;
     firstFitRef.current = false;
     const current = { top, right, bottom, left };
@@ -648,6 +690,8 @@ export function EntryMap(props: EntryMapProps) {
     const update = () => {
       const currentZoom = map.getZoom();
       setZoom(currentZoom);
+      const { lng, lat } = map.getCenter();
+      setCenter((prev) => (prev[0] === lng && prev[1] === lat ? prev : [lng, lat]));
       const canvas = map.getCanvas();
       setVisiblePlaces(
         selectVisibleStations({
@@ -866,6 +910,7 @@ export function EntryMap(props: EntryMapProps) {
       data-ready={map !== null}
       data-detail={zoom >= STATION_LABEL_MIN_ZOOM ? "stations" : "areas"}
       data-zoom={zoom.toFixed(2)}
+      data-center={center.map((v) => v.toFixed(6)).join(",")}
       data-moving={moving}
       aria-label={t("mapLabel")}
       className="fixed inset-0 z-0 bg-background"

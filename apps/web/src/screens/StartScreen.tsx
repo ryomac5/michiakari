@@ -75,6 +75,7 @@ import {
   type GpsChoice,
   inferSegmentTravel,
   listGpsChoices,
+  listLineTapChoices,
   listSegmentTravels,
   resolveSegmentTravel,
   type SegmentTravel,
@@ -376,6 +377,35 @@ export function StartScreen() {
     [gps.status, data, geo],
   );
 
+  // 最初の地図で線を押したときの駅の間の候補。現在地の読み取りと同じ部品で確かめる
+  const [mapPick, setMapPick] = useState<{ point: Position; choices: GpsChoice[] } | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 段が変わったら候補を閉じる
+  useEffect(() => {
+    setMapPick(null);
+  }, [entry.stage]);
+  function locateGps() {
+    setMapPick(null);
+    gps.locate();
+  }
+  const positionGps = mapPick
+    ? {
+        status: {
+          kind: "located" as const,
+          point: { lon: mapPick.point[0], lat: mapPick.point[1], accuracy: 0 },
+        },
+        choices: mapPick.choices,
+        onLocate: locateGps,
+        onConfirm: confirmGpsChoice,
+        onDismiss: () => setMapPick(null),
+      }
+    : {
+        status: gps.status,
+        choices: gpsChoices,
+        onLocate: locateGps,
+        onConfirm: confirmGpsChoice,
+        onDismiss: gps.reset,
+      };
+
   function confirmGpsChoice(choice: GpsChoice) {
     if (!data || entry.stage !== "position") return;
     if (choice.kind === "station") {
@@ -436,6 +466,24 @@ export function StartScreen() {
       const mapDepth = Math.max(getDepth("area"), getDepth("kansai"));
       if (mapDepth >= 0) goToDepth(mapDepth);
     }
+  }
+
+  // 最初の段で線を押したら、その駅の間の車内にいるか確かめる。駅の間が無ければ、そのあたりへ寄る
+  function handleRailTap(lineIds: string[], point: Position, reachMeters: number) {
+    if (!data || !geo || entry.stage !== "position") return;
+    const choices = listLineTapChoices(
+      data,
+      geo.nodes,
+      { lon: point[0], lat: point[1] },
+      reachMeters,
+      lineIds,
+    );
+    if (choices.length === 0) {
+      handleTap(point, reachMeters);
+      return;
+    }
+    gps.reset();
+    setMapPick({ point, choices });
   }
 
   // 方面が 1 つしか無い路線（起点の駅など）は、方面を聞かずに決める
@@ -1077,6 +1125,7 @@ export function StartScreen() {
           if (area) selectPlace(area, place);
         }}
         onTap={handleTap}
+        onSelectRails={entry.stage === "position" ? handleRailTap : undefined}
       />
       <AppHeader
         variant="map"
@@ -1147,13 +1196,7 @@ export function StartScreen() {
             {entry.stage === "position" && (
               <LocationStep
                 onSelect={(location) => dispatch({ type: "chooseLocation", location })}
-                gps={{
-                  status: gps.status,
-                  choices: gpsChoices,
-                  onLocate: gps.locate,
-                  onConfirm: confirmGpsChoice,
-                  onDismiss: gps.reset,
-                }}
+                gps={positionGps}
               >
                 <LocationSearch onSelect={openPlace} />
               </LocationStep>
