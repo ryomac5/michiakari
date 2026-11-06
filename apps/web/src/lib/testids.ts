@@ -200,6 +200,8 @@ export const testIds = {
     outcomeSummary: "replay-outcome-summary",
     outcomeFollowed: "replay-outcome-followed",
     outcomeCounterpart: "replay-outcome-counterpart",
+    // 結末の下で最後の判断を開き直す。aria-expanded に開閉を出す
+    lastJudgmentToggle: "replay-last-judgment-toggle",
   },
   // 見つからない頁と、思わぬエラーの画面。data-kind に notFound / error を出す
   status: {

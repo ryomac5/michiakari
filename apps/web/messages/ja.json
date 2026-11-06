@@ -387,6 +387,8 @@
       "onTime": "間に合った",
       "late": "{minutes}分遅れ",
       "diff": "差 {minutes}分",
+      "showLastJudgment": "最後の判断を見る",
+      "hideLastJudgment": "最後の判断を閉じる",
       "summary": {
         "followedEarlierMadeIt": "判断に従うと、待ち続けた人より{minutes}分早く着きました。{deadline}の期限にも間に合いました。",
         "followedEarlier": "判断に従うと、待ち続けた人より{minutes}分早く着きました。",

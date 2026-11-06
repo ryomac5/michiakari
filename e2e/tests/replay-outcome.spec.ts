@@ -246,6 +246,20 @@ for (const scenario of scenarios) {
         locale === "ja" ? "推定であり、公式発表を優先してください" : "Estimate only",
       );
 
+      // 結末を出すと最後の判断は畳まれ、推定の注意書きは結末のカードの 1 回だけになる
+      const judgment = page.getByTestId(testIds.replay.judgment);
+      const toggle = page.getByTestId(testIds.replay.lastJudgmentToggle);
+      await expect(judgment).toHaveAttribute("data-folded", "true");
+      await expect(page.getByTestId(testIds.judgment.conclusion)).toBeHidden();
+      await expect(toggle).toHaveAttribute("aria-expanded", "false");
+      await expect(page.getByTestId(testIds.judgment.disclaimer)).toHaveCount(1);
+      await expect(card.getByTestId(testIds.judgment.disclaimer)).toBeVisible();
+      const disclaimerText =
+        locale === "ja" ? "推定であり、公式発表を優先してください" : "Estimate only";
+      await expect(page.getByTestId(testIds.judgment.sheet).getByText(disclaimerText)).toHaveCount(
+        1,
+      );
+
       // 終わるとシートが半分まで開き、390x844 の画面に結末のカードが収まる
       await expect(page.getByTestId(testIds.judgment.sheet)).toHaveAttribute("data-snap", "half");
       await waitForFiniteAnimations(page);
@@ -264,6 +278,15 @@ for (const scenario of scenarios) {
       await page.screenshot({
         path: `${screenshotDir}replay-outcome-${scenario.id}-${locale}-390x844.png`,
       });
+
+      // 開き直すと最後の判断が結末の下に出る。注意書きは増えない
+      await toggle.click();
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      await expect(judgment).toHaveAttribute("data-folded", "false");
+      await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible();
+      await expect(page.getByTestId(testIds.judgment.disclaimer)).toHaveCount(1);
+      await toggle.click();
+      await expect(page.getByTestId(testIds.judgment.conclusion)).toBeHidden();
 
       // PC 幅でも横にはみ出さない
       await page.setViewportSize({ width: 1280, height: 900 });

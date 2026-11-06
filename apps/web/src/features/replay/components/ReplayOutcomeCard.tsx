@@ -1,9 +1,10 @@
 "use client";
 
 import type { ReplayOutcome } from "@repo/core";
-import { CircleCheck, CircleX, Flag, TriangleAlert } from "lucide-react";
+import { CircleCheck, CircleX, Flag } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { actionStyles } from "@/features/judgment/action-style";
+import { Disclaimer } from "@/features/judgment/components/Disclaimer";
 import { testIds } from "@/features/judgment/testids";
 import {
   formatClockInSentence,
@@ -117,10 +118,8 @@ export function ReplayOutcomeCard({
       )}
 
       <div className="flex flex-col gap-0.5 text-[11px] leading-snug text-muted">
-        <p className="flex items-center gap-1.5">
-          <TriangleAlert className="size-3 shrink-0" aria-hidden />
-          {t("disclaimer.short")}
-        </p>
+        {/* 推定である旨は、結末を出している間はここの 1 回だけにする */}
+        <Disclaimer className="text-[11px]" />
         <p>{t("replay.fictional")}</p>
       </div>
     </section>
