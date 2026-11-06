@@ -471,7 +471,11 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
         r.kind === "future" || r.kind === "passed" ? r.bestAlternativeId : null,
       inCarAlternativeLines: inCar ? listAlternativeLines(results) : null,
       stopScope: resolveSessionStopScope(),
-      sectionAnnounced: findAnnouncedSection(ctx.observations) !== null,
+      sectionContext: {
+        announcedSection: findAnnouncedSection(ctx.observations),
+        trainPosition:
+          ctx.request.trainPosition?.kind === "between_stations" ? ctx.request.trainPosition : null,
+      },
     });
   }
 

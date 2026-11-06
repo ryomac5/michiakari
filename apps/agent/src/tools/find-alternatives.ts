@@ -11,7 +11,7 @@ export const FindAlternativesInputSchema = z.object({
     .describe("止まっている路線名。省略すると観測から決める"),
   blockedSection: SectionSchema.nullable()
     .optional()
-    .describe("止まっている区間。省略すると観測から決める"),
+    .describe("止まっている区間。発表の区間と同じときだけ使う。省略すると観測から決める"),
 });
 
 export const findAlternativesDefinition = {
@@ -34,6 +34,14 @@ function findLatest<T>(
     if (value !== null) return value;
   }
   return null;
+}
+
+// 2 つの区間が同じ 2 駅か。向きは問わない
+function isSameSection(a: Section, b: Section): boolean {
+  return (
+    (a.fromStation === b.fromStation && a.toStation === b.toStation) ||
+    (a.fromStation === b.toStation && a.toStation === b.fromStation)
+  );
 }
 
 // 発表で分かった止まっている区間。新しい観測を優先する
@@ -59,7 +67,12 @@ export async function runFindAlternatives(
   input: z.infer<typeof FindAlternativesInputSchema>,
 ): Promise<AlternativesToolResult> {
   const blockedLine = input.blockedLine ?? findLatest(ctx.observations, (o) => o.line);
-  const observedSection = input.blockedSection ?? findAnnouncedSection(ctx.observations);
+  // 区間は観測から取る。引数の区間は発表と同じときだけ使い、発表に無い区間で代わりの経路を外させない
+  const announced = findAnnouncedSection(ctx.observations);
+  const observedSection =
+    announced && input.blockedSection && isSameSection(input.blockedSection, announced)
+      ? input.blockedSection
+      : announced;
   const trainSection = observedSection ? null : buildAssumedTrainSection(ctx);
   const blockedSection: Section | null = observedSection ?? trainSection;
   const result = await ctx.provider.findAlternatives({

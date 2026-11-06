@@ -5,8 +5,9 @@ import {
   checkDecisiveWording,
   checkHeadlineLength,
   checkReasonLength,
-  checkUnannouncedSectionWording,
+  checkSectionWording,
   extractTextNumbers,
+  type SectionWordingContext,
 } from "../src/judge/assemble.ts";
 import { createEventSink } from "../src/judge/event-sink.ts";
 import { createJudgeSession } from "../src/judge/session.ts";
@@ -301,28 +302,68 @@ describe("checkDecisiveWording", () => {
   });
 });
 
-describe("checkUnannouncedSectionWording", () => {
-  it("駅名の範囲で書いた区間を指摘し、利用者のいる駅の間と時刻や分の幅は通す", () => {
+describe("checkSectionWording", () => {
+  const none = { announcedSection: null, trainPosition: null };
+  const between = {
+    announcedSection: null,
+    trainPosition: { previousStation: "大阪", nextStation: "塚本" },
+  };
+  const announced = {
+    announcedSection: { fromStation: "大阪", toStation: "三ノ宮" },
+    trainPosition: null,
+  };
+  const check = (text: string, context: SectionWordingContext, language: "ja" | "en" = "ja") =>
+    checkSectionWording("reason", text, language, context);
+
+  it("発表に無い駅の範囲を、記号でも言葉でも空白入りでも指摘する", () => {
     for (const text of [
       "大阪〜京都で見合わせています。",
       "大阪駅〜三ノ宮駅間は止まっています。",
-      "塚本〜三ノ宮が止まっています。",
+      "大阪 〜 京都で見合わせています。",
+      "大阪－京都は止まっています。",
+      "大阪から京都まで運転を見合わせています。",
+      "大阪から京都の間は不通です。",
+      "大阪・京都間で見合わせています。",
+      "大阪と京都の間で運転を見合わせています。",
     ]) {
-      expect(checkUnannouncedSectionWording("reason", text, "ja")).toHaveLength(1);
+      expect(check(text, none), text).toHaveLength(1);
     }
+  });
+
+  it("「の間」でも、利用者のいる 2 駅の位置を言う文でなければ指摘する", () => {
+    // 駅の間にいない人
+    expect(check("大阪〜京都の間で運転見合わせです。", none)).toHaveLength(1);
+    // 別の駅の間
+    expect(check("大阪〜京都の間で止まっています。", between)).toHaveLength(1);
+    // 利用者のいる 2 駅でも、見合わせの区間として言えば指摘する
+    expect(check("大阪〜塚本の間で運転を見合わせています。", between)).toHaveLength(1);
+    // 利用者のいる 2 駅の位置を言う文は通す。向きが逆でも通す
+    expect(check("大阪〜塚本の間で止まっています。", between)).toEqual([]);
+    expect(check("塚本と大阪の間で列車が止まっています。", between)).toEqual([]);
+  });
+
+  it("発表の区間は通し、発表と違う範囲は指摘する", () => {
+    expect(check("大阪〜三ノ宮で見合わせています。", announced)).toEqual([]);
+    expect(check("大阪から三ノ宮まで運転を見合わせています。", announced)).toEqual([]);
+    expect(check("大阪〜京都で見合わせています。", announced)).toHaveLength(1);
+  });
+
+  it("時刻や分の幅と、経路の道順は区間とみなさない", () => {
     for (const text of [
-      "大阪〜塚本の間で止まっています。",
       "再開見込みは21時40分〜22時10分ごろです。",
       "多くの場合5〜10分で終わります。",
+      "大阪から歩いて大阪梅田へ向かいます。",
+      "大阪梅田から神戸三宮まで阪急神戸線で行けます。",
     ]) {
-      expect(checkUnannouncedSectionWording("reason", text, "ja")).toEqual([]);
+      expect(check(text, none), text).toEqual([]);
     }
-    expect(
-      checkUnannouncedSectionWording("reason", "Osaka–Kyoto is suspended.", "en"),
-    ).toHaveLength(1);
-    expect(
-      checkUnannouncedSectionWording("reason", "Restart is likely 21:40–22:10.", "en"),
-    ).toEqual([]);
+  });
+
+  it("英語でも、発表に区間が無ければ駅の範囲を指摘する", () => {
+    expect(check("Osaka–Kyoto is suspended.", none, "en")).toHaveLength(1);
+    expect(check("Service is suspended from Osaka to Kyoto.", none, "en")).toHaveLength(1);
+    expect(check("Restart is likely 21:40–22:10.", none, "en")).toEqual([]);
+    expect(check("Walk from Osaka to Osaka-umeda.", none, "en")).toEqual([]);
   });
 });
 
