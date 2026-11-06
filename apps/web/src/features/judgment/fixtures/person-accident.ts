@@ -8,7 +8,7 @@ import type {
 } from "@repo/schema";
 import { entryLineObservationId } from "@/features/entry/seed";
 import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
-import { formatClockTime, formatIsoWithOffset } from "../time";
+import { formatClockInSentence, formatIsoWithOffset } from "../time";
 
 // 開発用の架空シナリオ「人身事故・終電間際」。実在の事故記録や発表文ではない
 // 時刻はすべて要求の now からの相対で作る。数値は画面確認用の仮の値で、計算の結果ではない
@@ -164,20 +164,18 @@ function buildOptions(now: Date, isFollowUp: boolean, en: boolean): RouteOption[
 function buildFirstJudgment(request: JudgeRequest, now: Date): Judgment {
   const en = request.language === "en";
   const breakEvenTime = addMinutes(now, 14);
-  const clock = formatClockTime(breakEvenTime.toISOString(), request.language);
+  const clock = formatClockInSentence(breakEvenTime.toISOString(), request.language);
   return {
     action: "wait",
     headline: en
       ? `Wait until ${clock}. If still stopped, take the Hankyu Kobe Line.`
       : `${clock}まで待つ。動かなければ阪急神戸線へ`,
-    reason: en
-      ? "Restart is expected before the cutoff. On-site checks are under way."
-      : "再開は境目より前の見込みです。現場の確認が続いています。",
+    reason: en ? "Waiting should get you there sooner." : "待つほうが早く着く見込みです。",
     breakEven: {
       time: formatIsoWithOffset(breakEvenTime),
       explanation: en
-        ? `If service resumes by ${clock}, waiting gets you there sooner.`
-        : `${clock}までに再開すれば待つほうが早く着きます`,
+        ? `If service restarts by ${clock}, waiting gets you there sooner.`
+        : `${clock}までに再開すれば待つほうが早く着きます。`,
     },
     estimate: {
       eventType,
@@ -193,26 +191,24 @@ function buildFirstJudgment(request: JudgeRequest, now: Date): Judgment {
         kind: "signal",
         id: "site_check_announced",
         description: en
-          ? "Announcement that on-site checks continue"
-          : "現場の確認が続いている案内",
+          ? "The announcement says on-site checks continue."
+          : "現場の確認が続いていると発表がありました。",
       },
       {
         kind: "knowledge",
         id: `${eventType}.on_site`,
-        description: en
-          ? "In this phase, resumption often follows within a short time"
-          : "この段階では、比較的短い時間で再開に向かうことが多い",
+        description: en ? "Service is at the on-site check stage." : "いまは現場の確認の段階です。",
       },
       {
         kind: "computation",
         id: "compute_break_even",
         description: en
-          ? "Compared arrival times of waiting and the Hankyu transfer"
-          : "待つ場合と阪急神戸線の振替の到着時刻を比較",
+          ? "We compared arrival times for waiting and the Hankyu Kobe Line."
+          : "待つ場合と阪急神戸線の振替の到着時刻を比べました。",
       },
     ],
     disclaimer: en
-      ? "This is an estimate. Always follow official announcements."
+      ? "Estimate only. Follow official notices."
       : "推定であり、公式発表を優先してください。",
   };
 }
@@ -220,20 +216,20 @@ function buildFirstJudgment(request: JudgeRequest, now: Date): Judgment {
 function buildFollowUpJudgment(request: JudgeRequest, now: Date): Judgment {
   const en = request.language === "en";
   const breakEvenTime = addMinutes(now, -3);
-  const clock = formatClockTime(breakEvenTime.toISOString(), request.language);
+  const clock = formatClockInSentence(breakEvenTime.toISOString(), request.language);
   return {
     action: "switch",
     headline: en
       ? "Walk to Osaka-umeda for the Hankyu Kobe Line."
       : "大阪梅田まで歩いて阪急神戸線へ",
     reason: en
-      ? "Even a restart now is slower than the Hankyu Kobe Line. The cutoff has passed."
-      : "いま動いても阪急神戸線が早く着きます。境目を過ぎています。",
+      ? "Even a restart now is slower than the Hankyu Kobe Line."
+      : "いま動いても阪急神戸線のほうが早く着きます。",
     breakEven: {
       time: formatIsoWithOffset(breakEvenTime),
       explanation: en
-        ? `Service did not resume by ${clock}. The Hankyu transfer is now faster.`
-        : `${clock}までに再開しなかったため、阪急神戸線の振替のほうが早く着きます`,
+        ? `Service did not restart by ${clock}. The Hankyu Kobe Line is now faster.`
+        : `${clock}までに再開しませんでした。阪急神戸線の振替のほうが早く着きます。`,
     },
     estimate: {
       eventType,
@@ -248,23 +244,23 @@ function buildFollowUpJudgment(request: JudgeRequest, now: Date): Judgment {
       {
         kind: "signal",
         id: "transfer_started",
-        description: en ? "Transfer service has started" : "振替輸送の実施が案内された",
+        description: en
+          ? "The announcement says transfer service has started."
+          : "振替輸送を行っていると発表がありました。",
       },
       {
         kind: "knowledge",
         id: `${eventType}.on_site`,
-        description: en
-          ? "When on-site checks keep going, resumption tends to slip"
-          : "現場の確認が長引くと、再開は後ろにずれやすい",
+        description: en ? "On-site checks are still going on." : "現場の確認が長引いています。",
       },
       {
         kind: "computation",
         id: "compute_break_even",
-        description: en ? "The break-even time has passed" : "分岐点の時刻を過ぎた",
+        description: en ? "The cutoff time has passed." : "境目の時刻を過ぎました。",
       },
     ],
     disclaimer: en
-      ? "This is an estimate. Always follow official announcements."
+      ? "Estimate only. Follow official notices."
       : "推定であり、公式発表を優先してください。",
   };
 }

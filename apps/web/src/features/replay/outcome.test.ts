@@ -351,7 +351,7 @@ describe("結末の要約とカードの 2 列の一致", () => {
         expect(template).toContain("待ち続け");
         expect(ja.replay.outcome.waited).toBe("待ち続けた人");
       } else {
-        expect(template).toContain(`{time} に${ja.replay.outcome.switched}`);
+        expect(template).toContain(`{time}に${ja.replay.outcome.switched}`);
         expect(summary.counterpartSwitchedAt).toBe(outcome.counterpart.switchedAt);
       }
     });

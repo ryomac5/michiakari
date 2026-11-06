@@ -44,23 +44,23 @@ describe("画像から読んだ列車の前提", () => {
       photo,
       { ...photo, id: "text", source: "text", trainsAhead: undefined },
     ];
-    expect(renderPremises()).toContain("走行位置の画像から前の列車を 快速・普通 と読みました");
+    expect(renderPremises()).toContain("走行位置の画像から、前の列車を快速・普通と読みました。");
     expect(renderPremises("en")).toContain(
-      "We read the trains ahead as rapid · local from your train location image",
+      "We read the trains ahead as rapid · local from your train location image.",
     );
   });
 
   it("最新の画像の不明を推測せずに表示する", () => {
     session.observations = [photo, { ...photo, id: "new-photo", trainsAhead: ["unknown"] }];
     const markup = renderPremises();
-    expect(markup).toContain("走行位置の画像から前の列車を 種別は分からない と読みました");
+    expect(markup).toContain("走行位置の画像から、前の列車を種別の分からない列車と読みました。");
     expect(markup).not.toContain("快速・普通");
   });
 
   it("前に列車がいないと読んだ画像を表示する", () => {
     session.observations = [{ ...photo, trainsAhead: [] }];
-    expect(renderPremises()).toContain("走行位置の画像から前に列車はいないと読みました");
-    expect(renderPremises("en")).toContain("showing no trains ahead");
+    expect(renderPremises()).toContain("走行位置の画像から、前に列車はいないと読みました。");
+    expect(renderPremises("en")).toContain("We read no trains ahead");
   });
 
   it("画像で並びを読んでいなければ前提を足さない", () => {
