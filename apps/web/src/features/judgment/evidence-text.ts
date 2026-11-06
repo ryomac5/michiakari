@@ -41,7 +41,7 @@ function shortenQuote(quote: string): string {
 }
 
 // 聞いた言葉から根拠の項目を選ぶ。いまの段階の言葉を先に、新しい言葉を先に並べる
-// 同じ引用は 1 つにまとめ、最大 3 つにする
+// 同じ引用と同じ段階は、新しい言葉 1 つにまとめ、最大 3 つにする
 export function selectEvidenceEntries(context: {
   catalog: KnowledgeCatalog;
   estimate: Estimate | null;
@@ -70,9 +70,11 @@ export function selectEvidenceEntries(context: {
     .reverse();
 
   const seenQuotes = new Set<string>();
+  const seenPhases = new Set<string | null>();
   const unique = quoted.filter((s) => {
-    if (seenQuotes.has(s.heard)) return false;
+    if (seenQuotes.has(s.heard) || seenPhases.has(s.phaseId)) return false;
     seenQuotes.add(s.heard);
+    seenPhases.add(s.phaseId);
     return true;
   });
   const ordered = [
@@ -108,6 +110,21 @@ export function selectEvidenceEntries(context: {
       current: currentPhaseId !== null,
     },
   ];
+}
+
+// 次の段階の兆候を、放送で聞こえる言い回しの例で返す。知見の説明の文は使わない
+// 例は日本語だけなので、英語の画面では空にする。根拠の欄と次に確かめることの欄が同じ並びを引く
+export function listNextSignalPhrases(
+  catalog: KnowledgeCatalog,
+  estimate: Estimate | null,
+  locale: string,
+): string[] {
+  if (locale === "en" || !estimate) return [];
+  const event = findCatalogEvent(catalog, estimate.eventType);
+  if (!event) return [];
+  const index = event.phases.findIndex((p) => p.id === estimate.phaseId);
+  const next = event.phases[index + 1];
+  return (next?.signals ?? []).flatMap((s) => (s.example_phrases[0] ? [s.example_phrases[0]] : []));
 }
 
 // 項目を画面の 2 行の文にする。t は judgment.evidence の訳を引く

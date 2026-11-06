@@ -162,6 +162,8 @@ export const testIds = {
     evidenceItem: (id: string) => `judgment-evidence-item-${id}`,
     evidenceHeard: "judgment-evidence-heard",
     evidenceReading: "judgment-evidence-reading",
+    // 根拠の欄の、次に聞こえたら判断が変わる放送の言い回し
+    evidenceNext: "judgment-evidence-next",
     // 判断に使った雨量の推移。data-trend と data-reading-count（欠測を含む観測の数）を出す
     weather: "judgment-weather",
     weatherChart: "judgment-weather-chart",

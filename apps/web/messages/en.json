@@ -254,7 +254,8 @@
         "current": "Service is now at the “{phase}” stage.",
         "entered": "Service had reached the “{phase}” stage.",
         "unknown": "The stage is not clear yet."
-      }
+      },
+      "next": "If you hear “{phrase}”, the restart is getting closer."
     },
     "addInfo": {
       "title": "Add information",

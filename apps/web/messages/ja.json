@@ -254,7 +254,8 @@
         "current": "いまは{phase}の段階です。",
         "entered": "{phase}の段階に入ったと読めます。",
         "unknown": "段階はまだ絞れていません。"
-      }
+      },
+      "next": "「{phrase}」と聞こえたら、再開が近づきます。"
     },
     "addInfo": {
       "title": "情報を追加する",
