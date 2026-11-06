@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Info, LoaderCircle, LocateFixed, Play } from "lucide-react";
+import { ChevronRight, Info, LoaderCircle, LocateFixed, Play, X } from "lucide-react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { forwardRef } from "react";
@@ -13,6 +13,34 @@ import { cn } from "@/lib/utils";
 import { type EntryHub, pickLocalized } from "./entry-places";
 
 // 関西の段で地図の上に重ねる部品。上に問いかけと検索、下にデモへの札
+
+// 最初の画面の価値の 3 行。閉じられる
+export function StartIntro({ onClose }: { onClose: () => void }) {
+  const t = useTranslations("start");
+  return (
+    <div
+      data-testid={testIds.start.intro}
+      className="glass-strong pointer-events-auto relative rounded-[20px] py-3 pr-12 pl-4 text-[14px] leading-snug"
+    >
+      <p data-testid={testIds.start.introAudience}>{t("introAudience")}</p>
+      <p data-testid={testIds.start.introProblem} className="mt-1 text-muted">
+        {t("introProblem")}
+      </p>
+      <p data-testid={testIds.start.introSolution} className="mt-1 font-semibold">
+        {t("introSolution")}
+      </p>
+      <button
+        type="button"
+        data-testid={testIds.start.introClose}
+        aria-label={t("introClose")}
+        onClick={onClose}
+        className="absolute top-0 right-0 flex size-11 items-center justify-center rounded-full text-muted transition-colors hover:text-foreground active:scale-[0.95]"
+      >
+        <X className="size-5" aria-hidden />
+      </button>
+    </div>
+  );
+}
 
 // 駅名の検索。関西の段の問いかけと、最初の段のシートの両方に置く
 export function LocationSearch({ onSelect }: { onSelect: (station: StationChoice) => void }) {
