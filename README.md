@@ -12,6 +12,7 @@ Built with Claude: Japan 2026 ハッカソンの提出作品です。
 - [開発者の背景](#開発者の背景)
 - [主な機能](#主な機能)
 - [Claude の使い方](#claude-の使い方)
+- [Claude Code での開発](#claude-code-での開発)
 - [構成](#構成)
 - [動かし方](#動かし方)
 - [知見ナレッジとシナリオ](#知見ナレッジとシナリオ)
@@ -95,6 +96,17 @@ Built with Claude: Japan 2026 ハッカソンの提出作品です。
 
 ファイル操作やコマンド実行のツールは公開サービスに不要です。
 イベントの粒度も細かく制御したいので、ループを自前で書いています。
+
+## Claude Code での開発
+
+開発は Claude Code を中心に進めました。詳しくは [docs/guides/claude-code-usage.html](docs/guides/claude-code-usage.html) にあります。
+
+- `.claude/hooks/protect-paths.mjs` が、`knowledge/` と `scenarios/` への書き込みを遮断します。
+- `pnpm guard` が、この 2 つを承認記録と照合します。`scripts/guard.mjs` が実行します。
+- 根のエージェントが計画し、Claude の子エージェントに実装を振ります。別系統の Codex がレビューします。
+- 利用者向けの文は `docs/agents/wording.md` の決まりで書き、`docs/agents/wording-audit.md` で監査しました。
+- 画面は e2e でスクリーンショットを撮り、目で確かめました。
+- コミットは 376 件、e2e は 153 件です。最新の作業記録 `docs/progress.md` から取りました。
 
 ## 構成
 
