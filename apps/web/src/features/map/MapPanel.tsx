@@ -130,6 +130,8 @@ const labelSlides = [
 ] as const;
 // 「全体を見る」のボタンの置き場所とおおよその大きさ（px）。札がボタンの下に入らないよう、置き場所の計算で避ける
 const viewToggleBox = { right: 12, bottom: 40, w: 140, h: 44, margin: 6 } as const;
+// 現在地と降りる駅の印の半径に余白を足したもの（px）
+const markRadius = 20;
 // 「表示中」の札の高さと上下の余白。駅の吹き出しで選んだ経路を示せないときだけ地図の上端に出す
 const selectedRouteTagSpace = 44;
 // 「区間は発表で確かめる」の札の高さと上下の余白。案内の文があれば 1 行ぶん足す
@@ -285,9 +287,14 @@ function buildGuidePadding(
     (s) => s.recommended && s.placement[narrow ? "narrow" : "wide"] === "top",
   );
   const canvas = map.getCanvas();
+  // 駅間の車内の人には吹き出しが無い。現在地と降りる駅の印が「全体を見る」のボタンの下に入らないよう、印の半径も足して下を空ける
+  const bottom = guide.alight
+    ? Math.max(margin.bottom, viewToggleBox.bottom + viewToggleBox.h + markRadius)
+    : margin.bottom;
   return constrainFitPadding({ w: canvas.clientWidth, h: canvas.clientHeight }, insets, {
     ...margin,
     top: margin.top + (tallTop ? recommendedBubbleHeight : 0),
+    bottom,
   });
 }
 

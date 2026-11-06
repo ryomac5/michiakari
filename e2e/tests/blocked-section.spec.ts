@@ -63,6 +63,20 @@ test("発表に区間が無い駅の間の車内では区間を描かず、区�
   await expect(page.getByTestId(testIds.judgment.disclaimer)).toContainText(
     "推定であり、公式発表を優先してください",
   );
+  // 線路の上の現在地の印は、「全体を見る」のボタンの下に入らない
+  await expect
+    .poll(async () => {
+      const dot = await page.getByTestId(mapTestIds.here).boundingBox();
+      const toggle = await page.getByTestId(mapTestIds.viewToggle).boundingBox();
+      if (!dot || !toggle) return "印かボタンが見つからない";
+      const overlaps =
+        dot.x < toggle.x + toggle.width &&
+        toggle.x < dot.x + dot.width &&
+        dot.y < toggle.y + toggle.height &&
+        toggle.y < dot.y + dot.height;
+      return overlaps ? "重なっている" : "";
+    })
+    .toBe("");
   await capture(page, "no-announcement");
 
   // 案内の文を押すと、シートを開いて発表を貼る欄へ移る
