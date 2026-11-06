@@ -239,17 +239,17 @@ function measurePathProgress(
   return best;
 }
 
-// 押した点のいちばん近くの駅。出発の駅がいちばん近ければ null
+// 押した点のいちばん近くの、地図に印を出している駅。出発の駅がいちばん近ければ "origin"
 function findTappedStop(
   origin: Position,
-  directions: readonly EntryDirection[],
+  stops: readonly DirectionStop[],
   point: Position,
   reachMeters: number,
 ): DirectionStop | null | "origin" {
   let best: { stop: DirectionStop | "origin"; meters: number } | null = null;
   const originMeters = measureSegmentDistance(point, origin, origin);
   if (originMeters <= reachMeters) best = { stop: "origin", meters: originMeters };
-  for (const stop of directions.flatMap((d) => d.stops)) {
+  for (const stop of stops) {
     const meters = measureSegmentDistance(point, stop.position, stop.position);
     if (meters <= reachMeters && (!best || meters < best.meters)) best = { stop, meters };
   }
@@ -273,34 +273,41 @@ export function selectStopDirection(
 }
 
 // 路線を選んだあとに地図を押したとき、押した点に向かう方面と、近くの駅を決める
-// 近くに駅があれば、その駅を行き先にし、駅の数の少ない方面を選ぶ
-// 駅が無ければ、線から reachMeters の内側を押したときだけ、押した点まで駅の数の少ない方面を選ぶ
-// 同じ数なら directions の先の方面にする。出発の駅の近くや線から離れた所は null
+// 近くに印を出している駅があれば、その駅を行き先にし、駅の数の少ない方面を選ぶ
+// 駅が無ければ、描いた線を押したとき（onLine）だけ、押した点まで駅の数の少ない方面を選ぶ
+// 描いた線は駅を結ぶ直線から離れるので、直線までの距離では線の上かを決めない。直線は向きを決めるだけに使う
+// 同じ数なら directions の先の方面にする。出発の駅の近くや、線を押していないときは null
 export function pickLineTap(input: {
   origin: Position;
   directions: readonly EntryDirection[];
+  // 地図に印を出している駅
+  stops: readonly DirectionStop[];
   loop: boolean;
   point: Position;
   reachMeters: number;
+  onLine: boolean;
 }): LineTap | null {
-  const { origin, directions, loop, point, reachMeters } = input;
-  const stop = findTappedStop(origin, directions, point, reachMeters);
+  const { origin, directions, stops, loop, point, reachMeters, onLine } = input;
+  const stop = findTappedStop(origin, stops, point, reachMeters);
   if (stop === "origin") return null;
   if (stop) {
     const direction = selectStopDirection(directions, stop.choice.id);
     return direction ? { direction, stop } : null;
   }
+  if (!onLine) return null;
   const closingOf = (direction: EntryDirection) =>
     loop ? directions.find((d) => d !== direction)?.stops.at(-1) : undefined;
-  const reached = directions
-    .map((direction, order) => ({
-      direction,
-      order,
-      ...measurePathProgress(point, buildDirectionPath(origin, direction, closingOf(direction))),
-    }))
-    .filter((c) => c.meters <= reachMeters)
+  const measured = directions.map((direction, order) => ({
+    direction,
+    order,
+    ...measurePathProgress(point, buildDirectionPath(origin, direction, closingOf(direction))),
+  }));
+  // 押した点にいちばん近い駅の間を通る方面を選ぶ。環状線の反対側のように両方が通れば、駅の数で決める
+  const nearest = Math.min(...measured.map((c) => c.meters));
+  const chosen = measured
+    .filter((c) => c.meters <= nearest + 1)
     .sort((a, b) => a.progress - b.progress || a.order - b.order)[0];
-  return reached ? { direction: reached.direction, stop: null } : null;
+  return chosen ? { direction: chosen.direction, stop: null } : null;
 }
 
 // 路線を選んだ直後に地図へ出す駅。出発の駅から両方向とも、近い順に limit 駅まで出す

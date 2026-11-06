@@ -246,7 +246,14 @@ describe("pickLineTap", () => {
     "west",
     [1, 2, 3].map((i) => buildStop(`w${i}`, [135 - i * 0.01, 34])),
   );
-  const straight = { origin, directions: [east, west], loop: false, reachMeters: 200 };
+  const straight = {
+    origin,
+    directions: [east, west],
+    stops: [...east.stops, ...west.stops],
+    loop: false,
+    reachMeters: 200,
+    onLine: true,
+  };
 
   it("端のある路線では、押した点のある側の方面を選ぶ", () => {
     expect(pickLineTap({ ...straight, point: [135.015, 34.0005] })).toMatchObject({
@@ -265,9 +272,28 @@ describe("pickLineTap", () => {
     expect(tap?.stop?.choice.id).toBe("w2");
   });
 
-  it("路線から離れた所や、出発の駅の近くを押しても決めない", () => {
-    expect(pickLineTap({ ...straight, point: [135.015, 34.01] })).toBeNull();
+  it("描いた線を押していなければ、駅を結ぶ直線の上でも決めない。出発の駅の近くも決めない", () => {
+    expect(pickLineTap({ ...straight, point: [135.015, 34], onLine: false })).toBeNull();
     expect(pickLineTap({ ...straight, point: [135.0005, 34.0005] })).toBeNull();
+  });
+
+  it("描いた線が駅を結ぶ直線から 650m ほど離れていても、線を押せば方面を選ぶ", () => {
+    // 直線から北へ約 670m。塚本〜尼崎のように描いた線が曲がっている所
+    expect(pickLineTap({ ...straight, point: [135.015, 34.006] })).toMatchObject({
+      direction: { key: "east" },
+      stop: null,
+    });
+  });
+
+  it("近くの駅を行き先にするのは、地図に印を出している駅だけにする", () => {
+    // w3 は印を出していない。近くを押しても行き先にしない
+    const marked = { ...straight, stops: [...east.stops, ...west.stops.slice(0, 2)] };
+    const nearW3: Position = [134.9701, 34.0005];
+    expect(pickLineTap({ ...marked, point: nearW3, onLine: false })).toBeNull();
+    expect(pickLineTap({ ...marked, point: nearW3 })).toMatchObject({
+      direction: { key: "west" },
+      stop: null,
+    });
   });
 
   // 8 駅の環状線。出発の駅から左回りと右回りに 4 駅ずつで、反対側の駅は両方に入る
@@ -281,8 +307,10 @@ describe("pickLineTap", () => {
   const loop = {
     origin: ring[0] as Position,
     directions: [left, right],
+    stops: listLineStops([left, right]),
     loop: true,
     reachMeters: 200,
+    onLine: true,
   };
   const between = (a: number, b: number, t = 0.5): Position => {
     const p = ring[a] as Position;
@@ -315,9 +343,11 @@ describe("pickLineTap", () => {
     const tap = pickLineTap({
       origin: osaka.position,
       directions,
+      stops: listLineStops(directions),
       loop: true,
       point: [temma.position[0] + 0.001, temma.position[1] + 0.0005],
       reachMeters: 300,
+      onLine: false,
     });
     expect(tap?.stop?.choice.name).toBe("天満");
     expect(tap?.direction.stops[0]?.choice.name).toBe("天満");

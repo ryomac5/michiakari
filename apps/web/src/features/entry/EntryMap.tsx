@@ -105,8 +105,13 @@ type EntryMapProps = {
   lineFocus: LineFocus | null;
   // 線を押して路線を選べるか。押せるのは強く描いた線か、all なら全部の線
   linePickable: boolean;
-  // reachMeters は押せる範囲の幅を地図の距離にしたもの
-  onSelectLine: (lineId: string, point: Position, reachMeters: number) => void;
+  // reachMeters は線を押したとみなす幅、tapReachMeters は押せる大きさ 44px を地図の距離にしたもの
+  onSelectLine: (
+    lineId: string,
+    point: Position,
+    reachMeters: number,
+    tapReachMeters: number,
+  ) => void;
   // 最初の段で、駅の間を決められる倍率のとき、指の下に描いた路線を知らせる。近い順に並べる
   // reachMeters は押せる大きさ 44px を地図の距離にしたもの
   onSelectRails?: (lineIds: string[], point: Position, reachMeters: number) => void;
@@ -481,17 +486,18 @@ export function EntryMap(props: EntryMapProps) {
             linePickable && focusNow
               ? findTappedLine(loaded, e.point.x, e.point.y, focusNow)
               : null;
+          const edge = loaded.unproject([e.point.x + tapReachPx, e.point.y]);
+          const reach = computeDistanceMeters(point, [edge.lng, edge.lat]);
           if (lineId) {
-            const edge = loaded.unproject([e.point.x + linePickPx, e.point.y]);
+            const lineEdge = loaded.unproject([e.point.x + linePickPx, e.point.y]);
             callbacksRef.current.onSelectLine(
               lineId,
               point,
-              computeDistanceMeters(point, [edge.lng, edge.lat]),
+              computeDistanceMeters(point, [lineEdge.lng, lineEdge.lat]),
+              reach,
             );
             return;
           }
-          const edge = loaded.unproject([e.point.x + tapReachPx, e.point.y]);
-          const reach = computeDistanceMeters(point, [edge.lng, edge.lat]);
           // 最初の段は、駅の印が出る倍率のときだけ線を押して駅の間を決める
           // 引いた地図では線が細く駅が込み合うので、線のあたりを押したら、まずそこへ寄せる
           const { onSelectRails, onApproachRails } = callbacksRef.current;

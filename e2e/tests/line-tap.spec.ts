@@ -155,6 +155,14 @@ for (const viewport of [
         "JR神戸線の塚本〜尼崎の間ですか",
       );
       await expectStage(page, "position");
+      // 端末の位置を使っていないので、位置の扱いの説明は出さない
+      await expect(page.getByText("位置は端末の中で候補を出すだけに使い、送らない。")).toHaveCount(
+        0,
+      );
+      // はいは主のボタンの塗りにし、違うと見分けられるようにする
+      const fill = (testId: string) =>
+        page.getByTestId(testId).evaluate((el) => getComputedStyle(el).backgroundColor);
+      expect(await fill(testIds.start.gpsConfirm)).not.toBe(await fill(testIds.start.gpsDismiss));
       await waitForMapStill(page);
       // 地図を動かした後は、問いが出てシートの高さが変わっても、見ている所を保つ
       expect(await readZoom(page)).toBeGreaterThanOrEqual(15);

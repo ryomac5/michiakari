@@ -394,6 +394,7 @@ export function StartScreen() {
           point: { lon: mapPick.point[0], lat: mapPick.point[1], accuracy: 0 },
         },
         choices: mapPick.choices,
+        fromMap: true,
         onLocate: locateGps,
         onConfirm: confirmGpsChoice,
         onDismiss: () => setMapPick(null),
@@ -445,17 +446,9 @@ export function StartScreen() {
 
   function handleTap(point: Position, reachMeters: number) {
     if (!data) return;
-    if (lineStopMode && entry.place && entry.line) {
-      // 路線の上か駅の近くを押したら、押した点に向かう方面か、その駅を行き先にする
-      const tap = pickLineTap({
-        origin: entry.place.position,
-        directions,
-        loop: isLoopAt(data, entry.line),
-        point,
-        reachMeters,
-      });
-      if (tap?.stop) chooseLineStop(tap.stop);
-      else if (tap) chooseDirection(tap.direction);
+    if (lineStopMode) {
+      // 線の外は、印を出した駅の近くを押したときだけ、その駅を行き先にする
+      tapLine(point, reachMeters, false);
       return;
     }
     if (entry.stage === "position" || entry.stage === "kansai") {
@@ -527,6 +520,23 @@ export function StartScreen() {
       line,
       autoDirection: lineDirections.length === 1 ? (lineDirections[0]?.key ?? null) : null,
     });
+  }
+
+  // 路線を選んだ直後の地図を押したとき。印を出した駅の近くならその駅を行き先にし、
+  // 描いた線の上なら押した点に向かう方面を選ぶ
+  function tapLine(point: Position, reachMeters: number, onLine: boolean) {
+    if (!data || !entry.place || !entry.line) return;
+    const tap = pickLineTap({
+      origin: entry.place.position,
+      directions,
+      stops: routeLineStops,
+      loop: isLoopAt(data, entry.line),
+      point,
+      reachMeters,
+      onLine,
+    });
+    if (tap?.stop) chooseLineStop(tap.stop);
+    else if (tap) chooseDirection(tap.direction);
   }
 
   // 先に選んだ路線の駅を行き先にする。方面は出発の駅からの駅の数が少ない向きにする
@@ -847,6 +857,7 @@ export function StartScreen() {
     return { lineIds: ids.split(","), mode };
   }, [lineFocusKey]);
   const linePickable =
+    lineStopMode ||
     pickLines.length > 0 ||
     (entry.stage === "station" && onTrain) ||
     entry.stage === "trainPosition";
@@ -1026,8 +1037,18 @@ export function StartScreen() {
       : null;
 
   // 地図の線を押したとき。押した点に近い通称の路線か、駅の間を選ぶ
-  function selectMapLine(lineId: string, point: Position, reachMeters: number) {
+  function selectMapLine(
+    lineId: string,
+    point: Position,
+    reachMeters: number,
+    tapReachMeters: number,
+  ) {
     if (!data) return;
+    // 路線を選んだ直後は、描いた線を押したことを手がかりに方面か行き先を決める
+    if (lineStopMode) {
+      if (lineId === entry.line?.lineId) tapLine(point, tapReachMeters, true);
+      return;
+    }
     if (entry.stage === "trainPosition") {
       // 出ている駅の間から押せる範囲の外なら、同じ路線の線でも決めない
       const segment =
