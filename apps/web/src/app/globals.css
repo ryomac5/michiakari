@@ -105,6 +105,19 @@
   --animate-bar-grow: bar-grow 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   /* 現在地の丸の脈打ち */
   --animate-here-pulse: here-pulse 2s ease-out infinite;
+  /* 地図の線を押した点の波紋 */
+  --animate-tap-ripple: tap-ripple 600ms ease-out both;
+}
+
+@keyframes tap-ripple {
+  from {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
 }
 
 @keyframes here-pulse {

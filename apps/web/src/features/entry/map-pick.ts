@@ -3,6 +3,7 @@ import { sliceTrackBetween, type TrackParts } from "@/features/map/track-shape";
 import type { LabelSide } from "./areas";
 import type { DirectionStop, EntryDirection } from "./directions";
 import type { EntryLine, Position } from "./entry-places";
+import type { GpsChoice } from "./gps-candidates";
 import { STATION_LABEL_MIN_ZOOM } from "./visible-stations";
 
 // 入口の地図で、路線・方面・行き先・駅の間を押して選ぶための純粋な計算
@@ -523,4 +524,49 @@ export function selectRailTapOutcome<T>(
 ): { kind: "ask" } | { kind: "station"; place: T } | { kind: "tap" } {
   if (choiceCount > 0) return { kind: "ask" };
   return label ? { kind: "station", place: label } : { kind: "tap" };
+}
+
+// 線を押して出した駅の間の候補を、地図で光らせる強さ。注目している候補がいちばん強い
+export const SECTION_FOCUS_STRENGTH = 1;
+export const SECTION_REST_STRENGTH = 0.4;
+
+// 地図で光らせる駅の間。駅の間で切った線路の形に、路線色と強さを添える
+export type SectionGlow = {
+  type: "FeatureCollection";
+  features: {
+    type: "Feature";
+    geometry: { type: "LineString"; coordinates: Position[] };
+    properties: { key: string; color: string; strength: number };
+  }[];
+};
+
+// 候補の駅の間を光らせる形と強さを決める。注目が無いか候補に無ければ先頭の候補を注目にする
+// 注目している候補は最後に置き、ほかの候補の上に描く
+export function buildSectionGlow(
+  choices: readonly GpsChoice[],
+  focusKey: string | null,
+  trackShapes?: ReadonlyMap<string, TrackParts>,
+): SectionGlow {
+  const sections = choices.filter(
+    (c): c is Extract<GpsChoice, { kind: "between" }> => c.kind === "between",
+  );
+  const focused = sections.some((c) => c.key === focusKey) ? focusKey : (sections[0]?.key ?? null);
+  const features = sections.map((c) => ({
+    type: "Feature" as const,
+    geometry: {
+      type: "LineString" as const,
+      coordinates: buildSegmentPath(
+        trackShapes?.get(c.line.lineId),
+        [c.from.lon, c.from.lat],
+        [c.to.lon, c.to.lat],
+      ),
+    },
+    properties: {
+      key: c.key,
+      color: c.line.color,
+      strength: c.key === focused ? SECTION_FOCUS_STRENGTH : SECTION_REST_STRENGTH,
+    },
+  }));
+  features.sort((a, b) => a.properties.strength - b.properties.strength);
+  return { type: "FeatureCollection", features };
 }
