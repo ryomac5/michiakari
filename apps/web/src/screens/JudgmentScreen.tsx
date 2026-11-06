@@ -62,10 +62,9 @@ function selectHeardCauseChoice(tripContext: TripContext | null) {
   return toCauseChoiceId(answer);
 }
 
-// 入口で答えた原因を統計値の大分類と種類にする。分からないと答えたときは null
+// 入口で答えた原因を統計値の大分類と種類にする。知見の無い原因も含める。分からないと答えたときは null
 function selectHeardIncidentCause(tripContext: TripContext | null) {
-  if (tripContext?.causeUnknown !== false) return null;
-  return resolveIncidentCause(tripContext.entryAnswers?.cause ?? null);
+  return resolveIncidentCause(tripContext?.entryAnswers?.cause ?? null);
 }
 
 export function JudgmentScreen() {

@@ -11,10 +11,7 @@ import { expect, test } from "../support/test.ts";
 test.use({ viewport: { width: 390, height: 844 } });
 
 // 大阪から環状線で京橋・鶴橋方面へ向かう途中、大阪と天満の間で止まった。原因の種類を選んで判断を始める
-async function startOnLoopLine(
-  page: Page,
-  kind: "inCar" | "person" | "vehicle",
-): Promise<void> {
+async function startOnLoopLine(page: Page, kind: "inCar" | "person" | "vehicle"): Promise<void> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
