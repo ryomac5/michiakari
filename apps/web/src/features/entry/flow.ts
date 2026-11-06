@@ -9,7 +9,8 @@ import type { EntryArea, EntryPlace } from "./entry-places";
 import type { GpsSegment } from "./gps-candidates";
 
 // 入口の段。駅にいる人は いまどこ → 関西 → エリア → 駅 → 行き先 → 原因 → 経過 → 再開見込み の順に進む
-// 車内の人は いまどこ → 路線 → 方面 → 駅間 → 行き先 → 原因 → 経過 → 再開見込み の順に進む
+// 駅と駅の間の人は いまどこ → 駅の間 → 行き先 → 原因 → 経過 → 再開見込み の順に進む。進む向きは行き先から決める
+// 車内の人が乗る電車を選び直すときは 路線 → 方面 → 駅間 → 行き先 の順に聞く
 // 原因で人・旅客対応か気象・自然を選んだ人だけ、続けて種類を 1 問聞く
 // 現在地から駅を読み取った人は いまどこ → 行き先 へ進む
 // 駅の間を読み取った人は いまどこ → 行き先 へ進み、進む向きは行き先から決める。決まらなければ方面を聞く
@@ -18,6 +19,7 @@ import type { GpsSegment } from "./gps-candidates";
 // history は実際に通った段の答えだけを積む。自動で決めた路線や方面は積まず、戻ると直前の段に戻る
 export type EntryStage =
   | "position"
+  | "between"
   | "kansai"
   | "area"
   | "station"
@@ -154,7 +156,7 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
       return state.stage === "position"
         ? advance(state, {
             location: action.location,
-            stage: action.location === "station" ? "kansai" : "station",
+            stage: action.location === "station" ? "kansai" : "between",
           })
         : state;
     case "locateStation":
@@ -169,8 +171,9 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
             direction: null,
           })
         : state;
+    // 最初の段の地図と現在地のほか、駅の間の段の地図と駅名の検索からも駅の間を確定する
     case "locateBetween":
-      return state.stage === "position"
+      return state.stage === "position" || state.stage === "between"
         ? advance(state, {
             stage: "destination",
             location: "train",
