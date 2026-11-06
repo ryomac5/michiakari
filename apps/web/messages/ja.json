@@ -586,7 +586,6 @@
     "positionBetweenTrip": "駅と駅の間・次に着く駅を出発にする",
     "locationQuestion": "いまいる場所を選ぶ",
     "locationStation": "駅にいる",
-    "locationTrain": "電車の中にいる",
     "gpsLocate": "現在地から読み取る",
     "gpsLocating": "現在地を読み取っています",
     "gpsStationQuestion": "{station}駅にいますか",
@@ -610,7 +609,14 @@
     "routeLinesHint": "地図の線や路線の札を押しても選べます。",
     "mapLineHint": "地図の線を押しても選べます。",
     "segmentLabel": "{from}と{to}の間",
-    "locationMap": "地図で駅を探す"
+    "locationBetween": "駅と駅の間で止まっている",
+    "betweenQuestion": "止まっている所の線を押す",
+    "betweenPairLabel": "両側の駅名で選ぶ",
+    "betweenFirstStation": "1つ目の駅",
+    "betweenSecondStation": "2つ目の駅",
+    "betweenChangeStation": "{station}を選び直す",
+    "betweenPairNone": "2つの駅を通る路線が見つかりませんでした。別の駅名で探してください。",
+    "betweenPickQuestion": "止まっている駅の間を選ぶ"
   },
   "status": {
     "notFound": {
