@@ -2,6 +2,7 @@ import type { ScreenPoint } from "@/features/map/bubble-layout";
 import type { LabelSide } from "./areas";
 import type { DirectionStop, EntryDirection } from "./directions";
 import type { EntryLine, Position } from "./entry-places";
+import { STATION_LABEL_MIN_ZOOM } from "./visible-stations";
 
 // 入口の地図で、路線・方面・行き先・駅の間を押して選ぶための純粋な計算
 
@@ -326,4 +327,13 @@ export function placeDirectionTag(
     last.position[0] + (last.position[0] - before[0]) * 0.5,
     last.position[1] + (last.position[1] - before[1]) * 0.5,
   ];
+}
+
+// 最初の段で、線を押して駅の間を決める倍率。駅の印が出る倍率にそろえる
+export const BETWEEN_PICK_MIN_ZOOM = STATION_LABEL_MIN_ZOOM;
+
+// 最初の段で地図を押したときの動き。線が無ければ今どおり、引いた地図の線はまず寄せ、寄った地図の線は駅の間を尋ねる
+export function selectRailTapAction(zoom: number, railCount: number): "none" | "approach" | "pick" {
+  if (railCount === 0) return "none";
+  return zoom >= BETWEEN_PICK_MIN_ZOOM ? "pick" : "approach";
 }

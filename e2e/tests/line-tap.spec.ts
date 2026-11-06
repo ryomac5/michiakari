@@ -6,6 +6,7 @@ import { waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
 // 最初の地図で駅と駅の間の線を押すと、その駅の間の車内にいるか確かめ、はいで行き先の段へ進む
+// 引いた地図で線を押したときは、駅の間を決めずに、まずそのあたりへ寄る
 
 const screenshotDir = fileURLToPath(new URL("../screenshots/line-tap/", import.meta.url));
 // 描いた JR神戸線の上で、塚本と尼崎の間にあり、ほかの路線の線から約700m 離れた点。lines.geojson から求めた
@@ -89,6 +90,26 @@ async function zoomOn(page: Page, position: [number, number], target: number): P
   expect(await readZoom(page)).toBeGreaterThanOrEqual(target);
 }
 
+// 点のまわり 10px の内で、印や札に掛からない地図の点を探す。線は 44px の四角で拾うので、少しずれても押せる
+async function findCanvasPointNear(
+  page: Page,
+  point: { x: number; y: number },
+): Promise<{ x: number; y: number }> {
+  const open = await page.evaluate(({ x, y }) => {
+    for (const distance of [0, 4, 7, 10]) {
+      for (let step = 0; step < 12; step++) {
+        const angle = (step / 12) * Math.PI * 2;
+        const px = x + Math.cos(angle) * distance;
+        const py = y + Math.sin(angle) * distance;
+        if (document.elementFromPoint(px, py)?.tagName === "CANVAS") return { x: px, y: py };
+      }
+    }
+    return null;
+  }, point);
+  if (!open) throw new Error("印に掛からない点がありません");
+  return open;
+}
+
 for (const viewport of [
   { width: 375, height: 667 },
   { width: 390, height: 844 },
@@ -97,7 +118,7 @@ for (const viewport of [
   test.describe(size, () => {
     test.use({ viewport });
 
-    test("最初の地図で塚本と尼崎の間の線を押すと、その駅の間か尋ね、はいで行き先へ進む", async ({
+    test("引いた地図で線を押すと寄り、寄った地図で塚本と尼崎の間の線を押すと尋ね、はいで行き先へ進む", async ({
       page,
     }) => {
       await page.goto("/");
@@ -106,8 +127,22 @@ for (const viewport of [
       });
       await expectStage(page, "position");
       await waitForMapStill(page);
-      // 塚本と尼崎の中ほどへ大きく寄せ、シートに隠れない地図の上の方へ動かす
+      // 引いた地図で塚本と尼崎のあたりの線を押すと、段はそのままで、駅の印が出る倍率まで寄る
       await page.locator(".maplibregl-canvas").focus();
+      const far = await panTo(page, betweenTsukamotoAmagasaki, {
+        x: viewport.width / 2,
+        y: viewport.height * 0.22,
+      });
+      expect(await readZoom(page)).toBeLessThan(12.5);
+      const open = await findCanvasPointNear(page, far);
+      await page.mouse.click(open.x, open.y);
+      await waitForMapStill(page);
+      await expectStage(page, "position");
+      expect(await readZoom(page)).toBeGreaterThanOrEqual(12.5);
+      await expect(page.getByTestId(testIds.start.gpsQuestion)).toHaveCount(0);
+      await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-detail", "stations");
+
+      // 寄った地図で塚本と尼崎の間の線を押す。押しやすいよう、さらに寄せて地図の上の方へ動かす
       await zoomOn(page, betweenTsukamotoAmagasaki, 15);
       const middle = await panTo(page, betweenTsukamotoAmagasaki, {
         x: viewport.width / 2,

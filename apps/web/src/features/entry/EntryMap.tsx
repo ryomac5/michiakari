@@ -26,7 +26,12 @@ import {
 import type { EntryArea, EntryHub, EntryPlace, Position } from "./entry-places";
 import { pickLocalized, pickPlaceName } from "./entry-places";
 import type { EntryStage } from "./flow";
-import { computeSegmentHitRadii, findNearestLineId, measurePathDistance } from "./map-pick";
+import {
+  computeSegmentHitRadii,
+  findNearestLineId,
+  measurePathDistance,
+  selectRailTapAction,
+} from "./map-pick";
 import {
   buildEdgeHubRect,
   type EdgeHub,
@@ -52,6 +57,8 @@ import {
 // 段ごとに出す印を絞り、地図そのものは淡く沈める
 
 export type EntryMapApi = {
+  // 最初の段のまま、エリアに寄せる。エリアが無ければ押した点へ駅の印が出る倍率まで寄せる
+  approach: (area: EntryArea | null, point: Position) => void;
   // 判断へ移る直前に、出発の駅へ寄せる。判断の画面の最初の視点に近づける
   zoomToOrigin: (zoom: number) => Promise<void>;
 };
@@ -100,9 +107,11 @@ type EntryMapProps = {
   linePickable: boolean;
   // reachMeters は押せる範囲の幅を地図の距離にしたもの
   onSelectLine: (lineId: string, point: Position, reachMeters: number) => void;
-  // 最初の段で、駅の印が見える倍率のとき、指の下に描いた路線を知らせる。近い順に並べる
+  // 最初の段で、駅の間を決められる倍率のとき、指の下に描いた路線を知らせる。近い順に並べる
   // reachMeters は押せる大きさ 44px を地図の距離にしたもの
   onSelectRails?: (lineIds: string[], point: Position, reachMeters: number) => void;
+  // 最初の段で、引いた地図の線のあたりを押したとき。駅の間は決めず、まずそのあたりへ寄せる
+  onApproachRails?: (point: Position, reachMeters: number) => void;
   segments: MapSegment[];
   onSelectSegment: (key: string) => void;
   // 選んだ駅の名前の札の向き。地図に出す札を避ける向きにする。null なら設定の向き
@@ -363,6 +372,28 @@ function buildPadding(
   return padding;
 }
 
+// エリアに寄せる。エリアの丸や何も無い所を押したときと、引いた地図で線を押したときに使う
+function flyToArea(map: MapLibreMap, area: EntryArea, insets: MapInsets, duration: number): void {
+  const bounds = computeBounds([
+    ...buildAreaReach(area.center),
+    ...area.places.map((p) => p.position),
+  ]);
+  if (!bounds) return;
+  const camera = map.cameraForBounds(bounds, {
+    padding: buildPadding(map, insets, areaMargin),
+    maxZoom: maximumAreaZoom,
+  });
+  // 倍率を幅に収めると範囲がはみ出すので、中心は範囲の中央に置き、帯とシートの分だけずらす
+  const [[west, south], [east, north]] = bounds;
+  if (camera)
+    map.flyTo({
+      center: [(west + east) / 2, (south + north) / 2],
+      zoom: Math.max(minimumAreaZoom, camera.zoom ?? minimumAreaZoom),
+      offset: buildOffset(insets),
+      duration,
+    });
+}
+
 export function EntryMap(props: EntryMapProps) {
   const t = useTranslations("entry");
   const locale = useLocale();
@@ -461,14 +492,20 @@ export function EntryMap(props: EntryMapProps) {
           }
           const edge = loaded.unproject([e.point.x + tapReachPx, e.point.y]);
           const reach = computeDistanceMeters(point, [edge.lng, edge.lat]);
-          // 最初の段は、駅の印が見える倍率のときだけ線を押せる。引いた地図では線が込み合う
-          const { onSelectRails } = callbacksRef.current;
-          if (onSelectRails && loaded.getZoom() >= STATION_LABEL_MIN_ZOOM) {
-            const rails = listTappedRails(loaded, e.point.x, e.point.y);
-            if (rails.length > 0) {
-              onSelectRails(rails, point, reach);
-              return;
-            }
+          // 最初の段は、駅の印が出る倍率のときだけ線を押して駅の間を決める
+          // 引いた地図では線が細く駅が込み合うので、線のあたりを押したら、まずそこへ寄せる
+          const { onSelectRails, onApproachRails } = callbacksRef.current;
+          const rails = onSelectRails ? listTappedRails(loaded, e.point.x, e.point.y) : [];
+          const action = onSelectRails
+            ? selectRailTapAction(loaded.getZoom(), rails.length)
+            : "none";
+          if (action === "pick") {
+            onSelectRails?.(rails, point, reach);
+            return;
+          }
+          if (action === "approach") {
+            onApproachRails?.(point, reach);
+            return;
           }
           callbacksRef.current.onTap(point, reach);
         });
@@ -598,25 +635,7 @@ export function EntryMap(props: EntryMapProps) {
       return;
     }
     if (stage === "area" && area) {
-      const bounds = computeBounds([
-        ...buildAreaReach(area.center),
-        ...area.places.map((p) => p.position),
-      ]);
-      if (bounds) {
-        const camera = map.cameraForBounds(bounds, {
-          padding: buildPadding(map, current, areaMargin),
-          maxZoom: maximumAreaZoom,
-        });
-        // 倍率を幅に収めると範囲がはみ出すので、中心は範囲の中央に置き、帯とシートの分だけずらす
-        const [[west, south], [east, north]] = bounds;
-        if (camera)
-          map.flyTo({
-            center: [(west + east) / 2, (south + north) / 2],
-            zoom: Math.max(minimumAreaZoom, camera.zoom ?? minimumAreaZoom),
-            offset: buildOffset(current),
-            duration,
-          });
-      }
+      flyToArea(map, area, current, duration);
       return;
     }
     // 大阪の中心の丸だけを収める。見える範囲の外の京都や三ノ宮は、画面の縁の札で示す
@@ -816,6 +835,22 @@ export function EntryMap(props: EntryMapProps) {
   }, [map]);
 
   props.apiRef.current = {
+    approach: (targetArea, point) => {
+      if (!map) return;
+      // 利用者が選んだ寄せ方として扱い、シートの高さが変わっても関西の地図へ戻さない
+      userMovedRef.current = true;
+      lastSceneRef.current = sceneKey;
+      const duration = prefersReducedMotion() ? 0 : durationMs;
+      const current = { top, right, bottom, left };
+      if (targetArea) flyToArea(map, targetArea, current, duration);
+      else
+        map.flyTo({
+          center: point,
+          zoom: Math.max(map.getZoom(), minimumAreaZoom),
+          offset: buildOffset(current),
+          duration,
+        });
+    },
     zoomToOrigin: (zoom) =>
       new Promise((resolve) => {
         if (!map || !origin || prefersReducedMotion()) {

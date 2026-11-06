@@ -16,6 +16,7 @@ import {
 } from "./entry-places";
 import { listTrainLines } from "./infer-route";
 import {
+  BETWEEN_PICK_MIN_ZOOM,
   computeSegmentHitRadii,
   findNearestLineId,
   findNearestSegment,
@@ -30,7 +31,9 @@ import {
   pickLineTap,
   placeDirectionTag,
   selectAwaySide,
+  selectRailTapAction,
 } from "./map-pick";
+import { STATION_LABEL_MIN_ZOOM } from "./visible-stations";
 
 // 実データで、大阪駅から地図で路線・方面・行き先を選べるか確かめる
 const geo = createMapGeo(networkJson as unknown as NetworkData);
@@ -345,5 +348,14 @@ describe("listLineStops", () => {
     const tag = placeDirectionTag([135, 34], direction, 2);
     expect(tag?.[0]).toBeCloseTo(135.025);
     expect(tag?.[1]).toBeCloseTo(34);
+  });
+});
+
+describe("selectRailTapAction", () => {
+  it("引いた地図の線はまず寄せ、駅の印が出る倍率から駅の間を尋ねる", () => {
+    expect(BETWEEN_PICK_MIN_ZOOM).toBe(STATION_LABEL_MIN_ZOOM);
+    expect(selectRailTapAction(10.4, 2)).toBe("approach");
+    expect(selectRailTapAction(BETWEEN_PICK_MIN_ZOOM, 1)).toBe("pick");
+    expect(selectRailTapAction(15, 0)).toBe("none");
   });
 });

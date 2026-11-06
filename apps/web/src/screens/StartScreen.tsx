@@ -1126,6 +1126,10 @@ export function StartScreen() {
         }}
         onTap={handleTap}
         onSelectRails={entry.stage === "position" ? handleRailTap : undefined}
+        onApproachRails={(point, reachMeters) => {
+          // 段は最初のまま、エリアや何も無い所を押したときと同じ寄せ方で、そのあたりへ寄せる
+          if (data) mapApi.current?.approach(findAreaAt(data, point, reachMeters), point);
+        }}
       />
       <AppHeader
         variant="map"
