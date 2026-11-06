@@ -2,7 +2,7 @@ import type { TimelineEntry } from "@repo/schema";
 
 // 再生の時間軸。シナリオ開始からの経過分（小数）で持つ。1x はシナリオの 1 分を実時間 1 秒で進める
 
-export const speedChoices = [1, 2, 4] as const;
+export const speedChoices = [1, 2, 4, 8] as const;
 export const defaultSpeed = 1;
 // テストと録画のためにクエリで上げられる上限
 export const maxSpeed = 600;

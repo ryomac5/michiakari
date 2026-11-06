@@ -24,14 +24,14 @@ import {
 
 // デモ動画の台本（docs/demo-script.md）の場面 1〜10 を順に自動操作して録画する
 //   1 開始画面 → 2 入口: 現在地、地図で駅と路線、駅と駅の間 → 3 起きていることの 10 の選択肢
-//   4 リプレイの最初の判断 → 5 2 倍速で判断が変わる → 6 地図とバスの欄 → 7 駅と駅の間の車内の判断
+//   4 リプレイの最初の判断 → 5 速度を上げて判断が変わる → 6 地図とバスの欄 → 7 駅と駅の間の車内の判断
 //   8 結末のカード → 9 対比のシナリオ → 10 対比の結末のカード
 // 各場面の始まりに目印を付け、台本の秒数まで画面を止めて待つ。収まらない場面はそのまま延びる
 // 主役は RECORD_SCENARIO、対比は RECORD_CONTRAST で指定する
 // 無ければ、主役は期待値に「切り替える」を含む最初のシナリオ、対比は期待値がすべて「待つ」の最初のシナリオ
 
-// 場面 5 の速度。2 倍では台本の 25 秒に収まらないので 4 倍で流す
-const playbackSpeed = Number(process.env.RECORD_SPEED ?? 4);
+// 場面 5 の速度。台本の 25 秒に近づけるため、速度のボタンの最大の 8 倍で流す
+const playbackSpeed = Number(process.env.RECORD_SPEED ?? 8);
 // 場面 8 と 9 は台本の秒数に収めるため、推論の過程を間を空けずに出す速度で流す。5 以上で間が空かない
 const fastSpeed = 8;
 // 駅と駅の間の丸を押す前に寄せる倍率。引いた地図では丸が駅の印に重なり、押すと駅を選んでしまう
@@ -317,8 +317,21 @@ async function showActionChanges(page: Page, scenario: Scenario): Promise<void> 
   }
 }
 
-// 場面 6 の後半: 大阪駅で止まった人の判断画面を開き、バスを確かめる欄まで見せる
-// リプレイの判断画面にはバスの欄が無いので、入口から判断を出す
+// 場面 6 の後半: リプレイの判断のシートを開き、バスを確かめる欄まで見せる
+// 判断にバス停の確認候補が載らないシナリオでは、大阪駅で止まった人の判断を入口から出して見せる
+async function showReplayBusChecks(page: Page): Promise<void> {
+  const section = page.getByTestId(testIds.judgment.busChecks);
+  if ((await section.count()) === 0) {
+    await showBusChecks(page);
+    return;
+  }
+  await openSheet(page, "full");
+  await section.scrollIntoViewIfNeeded();
+  await expect(section).toBeVisible();
+  await waitForFiniteAnimations(page);
+}
+
+// 大阪駅で止まった人の判断画面を開き、バスを確かめる欄まで見せる
 async function showBusChecks(page: Page): Promise<void> {
   await openEntry(page);
   await page.getByTestId(testIds.start.originSearch).fill("大阪");
@@ -429,7 +442,7 @@ test("デモ: 台本の場面の順に入口からリプレイまでを録画す
     const map = page.getByTestId(testIds.judgment.map);
     await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
     await showSheet(page, "collapsed", 9000);
-    await showBusChecks(page);
+    await showReplayBusChecks(page);
   });
 
   // 7. 駅と駅の間の車内の判断
