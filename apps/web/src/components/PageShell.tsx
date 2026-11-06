@@ -26,7 +26,7 @@ export function PageShell({
         data-testid={testId}
         data-state={state}
         className={cn(
-          "relative z-10 mx-auto flex min-h-dvh flex-col gap-4 px-3 pt-[88px] pb-16 sm:px-4 lg:pt-[96px]",
+          "relative z-10 mx-auto flex min-h-dvh flex-col gap-4 px-3 pt-[calc(max(12px,env(safe-area-inset-top))+76px)] pb-[calc(4rem+env(safe-area-inset-bottom))] sm:px-4 lg:pt-[96px]",
           wide ? "max-w-6xl" : "max-w-4xl",
         )}
       >
