@@ -35,6 +35,7 @@ function MarkerButton({
   testId,
   dim = false,
   pressed,
+  hitRadius,
   dot,
   children,
 }: {
@@ -45,6 +46,8 @@ function MarkerButton({
   testId: string;
   dim?: boolean;
   pressed?: boolean;
+  // 押せる丸の半径（px）。指定すると四角い入れ物は押せず、この丸と札だけが押せる
+  hitRadius?: number;
   dot: ReactNode;
   children: ReactNode;
 }) {
@@ -56,15 +59,24 @@ function MarkerButton({
       aria-pressed={pressed}
       onClick={stop(onClick)}
       className={cn(
-        "group pointer-events-auto relative flex size-12 animate-fade-in items-center justify-center rounded-full transition-opacity duration-200",
+        "group relative flex size-12 animate-fade-in items-center justify-center rounded-full transition-opacity duration-200",
+        hitRadius === undefined ? "pointer-events-auto" : "pointer-events-none",
         dim && "opacity-45 hover:opacity-100",
       )}
     >
+      {hitRadius !== undefined && (
+        // 札の面と見分けるため aria-hidden を付けない。中身の無い押せる範囲
+        <span
+          data-hit-area
+          className="pointer-events-auto absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+          style={{ width: hitRadius * 2, height: hitRadius * 2 }}
+        />
+      )}
       {dot}
       <span
         aria-hidden
         className={cn(
-          "absolute flex items-center gap-1.5 whitespace-nowrap rounded-full bg-surface text-foreground shadow-[0_2px_10px_rgb(0_0_0/0.16)] ring-1 ring-[var(--glass-border)] transition-transform duration-150 group-hover:scale-[1.04] group-active:scale-95",
+          "pointer-events-auto absolute flex items-center gap-1.5 whitespace-nowrap rounded-full bg-surface text-foreground shadow-[0_2px_10px_rgb(0_0_0/0.16)] ring-1 ring-[var(--glass-border)] transition-transform duration-150 group-hover:scale-[1.04] group-active:scale-95",
           labelSideClass[side],
         )}
         style={buildSlideStyle(side, slide)}
@@ -280,6 +292,8 @@ export function StopMarker({
   side,
   color,
   angle,
+  line = false,
+  hitRadius,
   onSelect,
 }: {
   stopKey: string;
@@ -288,16 +302,25 @@ export function StopMarker({
   color: string;
   // 方面の札だけが持つ矢印の向き（度）
   angle: number | null;
+  // 路線の札。丸を路線色で塗り、札に路線色の印を添える
+  line?: boolean;
+  hitRadius?: number;
   onSelect: () => void;
 }) {
   return (
     <MarkerButton
       label={label}
       side={side}
+      hitRadius={hitRadius}
       onClick={onSelect}
       testId={testIds.start.mapStop(stopKey)}
       dot={
-        angle === null ? (
+        line ? (
+          <span
+            className="size-[15px] rounded-full border-[3px] border-white shadow-[0_1px_4px_rgb(0_0_0/0.3)] transition-transform duration-150 group-hover:scale-110 group-active:scale-90"
+            style={{ backgroundColor: color }}
+          />
+        ) : angle === null ? (
           <span
             className="size-[13px] rounded-full border-[3px] bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.25)] transition-transform duration-150 group-hover:scale-110 group-active:scale-90"
             style={{ borderColor: color }}
@@ -328,12 +351,63 @@ export function StopMarker({
     >
       <span
         className={cn(
-          "px-2.5 py-1.5 leading-none",
-          angle === null ? "text-[13px] font-semibold" : "text-[14px] font-bold",
+          "flex items-center gap-1.5 px-2.5 py-1.5 leading-none",
+          angle === null && !line ? "text-[13px] font-semibold" : "text-[14px] font-bold",
         )}
       >
+        {line && (
+          <span aria-hidden className="h-3 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+        )}
         {label}
       </span>
     </MarkerButton>
+  );
+}
+
+// 車内の駅の間の丸。線の中ほどに置き、押すとその駅の間を選ぶ
+// 押せる丸は、駅の印と札の丸に届かない大きさにする。取れなければ印だけを出し、線を押して選ぶ
+export function SegmentMarker({
+  segmentKey,
+  label,
+  color,
+  selected,
+  hitRadius,
+  onSelect,
+}: {
+  segmentKey: string;
+  label: string;
+  color: string;
+  selected: boolean;
+  hitRadius: number;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testIds.start.mapSegment(segmentKey)}
+      data-selected={selected}
+      aria-label={label}
+      aria-pressed={selected}
+      onClick={stop(onSelect)}
+      className="group pointer-events-none relative flex size-11 animate-fade-in items-center justify-center rounded-full"
+    >
+      {hitRadius > 0 && (
+        <span
+          aria-hidden
+          data-hit-area
+          className="pointer-events-auto absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+          style={{ width: hitRadius * 2, height: hitRadius * 2 }}
+        />
+      )}
+      <span
+        aria-hidden
+        data-segment-dot
+        className={cn(
+          "rounded-full border-2 border-white shadow-[0_1px_4px_rgb(0_0_0/0.3)] transition-transform duration-150 group-hover:scale-125 group-active:scale-90",
+          selected ? "size-4 bg-focus" : "size-[11px]",
+        )}
+        style={selected ? undefined : { backgroundColor: color }}
+      />
+    </button>
   );
 }

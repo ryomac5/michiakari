@@ -29,6 +29,10 @@ export const testIds = {
     introProblem: "start-intro-problem",
     introSolution: "start-intro-solution",
     nearbyStation: (id: string) => `start-nearby-station-${id}`,
+    // 行き先の段で、先に路線を選ぶ一覧のチップ
+    routeLine: (key: string) => `start-route-line-${key}`,
+    // 地図の上の、車内の駅の間の丸。key は「前の駅~次の駅」。data-selected に選んでいるかを出す
+    mapSegment: (key: string) => `start-map-segment-${key}`,
     // 現在地から読み取る。data-status に読み取りの状態を出す
     gps: "start-gps",
     gpsLocate: "start-gps-locate",
