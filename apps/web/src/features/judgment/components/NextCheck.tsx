@@ -1,7 +1,7 @@
 "use client";
 
 import { classifyFlowOutlook } from "@repo/core";
-import type { Estimate, TypicalFlow } from "@repo/schema";
+import type { Estimate, EstimateSource, TypicalFlow } from "@repo/schema";
 import { Eye, Info, RotateCcw } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { SheetSection } from "@/components/SheetSection";
@@ -9,6 +9,7 @@ import { findCatalogEvent, type KnowledgeCatalog } from "@/features/knowledge/ca
 import { type CauseChoiceId, toCauseChoiceId } from "@/features/situation/cause-categories";
 import { describePlace } from "@/features/stations/describe";
 import { type TripContext, useJudgmentSession } from "../session";
+import { selectJudgmentDisplay } from "../state";
 import { testIds } from "../testids";
 
 // 入口で方面だけ・電車の中・分からないで進んだときの前提と、次に確かめること
@@ -24,7 +25,8 @@ function usePremises(): string[] {
   const tType = useTranslations("judgment.trainTypes");
   const tEntry = useTranslations("entry");
   const locale = useLocale();
-  const { tripContext, origin, destination, stationNames, observations } = useJudgmentSession();
+  const { tripContext, origin, destination, stationNames, observations, state } =
+    useJudgmentSession();
   const items: string[] = [];
   const photo = observations.findLast(
     (observation) =>
@@ -58,7 +60,7 @@ function usePremises(): string[] {
     items.push(t("onTrain", { station: label(origin) }));
   }
   if (tripContext.elapsedMinutes === null) items.push(t("elapsedUnknown"));
-  const cause = describeCausePremise(tripContext);
+  const cause = describeCausePremise(tripContext, selectJudgmentDisplay(state).estimate?.source);
   if (cause)
     items.push(
       cause.choice ? t(cause.key, { cause: tEntry(`causes.${cause.choice}`) }) : t(cause.key),
@@ -66,14 +68,18 @@ function usePremises(): string[] {
   return items;
 }
 
-// 入口で答えた原因の前提。大分類を選んだら呼び名を出し、知見が無ければ境目の時刻を目安にすると添える
+// 入口で答えた原因の前提。大分類を選んだら呼び名を出し、見込みが無ければ境目の時刻を目安にすると添える
+// 知見が無くても統計値から見込みが出ていれば、呼び名だけを出す。見込みの出どころは説明しない
 function describeCausePremise(
   tripContext: TripContext,
+  source: EstimateSource | undefined,
 ): { key: "cause" | "causeNoPattern" | "causeUnknown"; choice: CauseChoiceId | null } | null {
   if (tripContext.causeUnknown === undefined) return null;
   const answer = tripContext.entryAnswers?.cause;
   const choice = answer ? toCauseChoiceId(answer) : null;
-  if (!tripContext.causeUnknown) return choice ? { key: "cause", choice } : null;
+  if (!tripContext.causeUnknown || source === "statistics") {
+    return choice ? { key: "cause", choice } : null;
+  }
   return { key: choice ? "causeNoPattern" : "causeUnknown", choice };
 }
 
