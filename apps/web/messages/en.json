@@ -329,7 +329,6 @@
       "after": "Now",
       "announcement": "Trigger",
       "probability": "Chance waiting is faster",
-      "notCalculated": "Not calculated",
       "noAnnouncement": "No new announcement"
     }
   },

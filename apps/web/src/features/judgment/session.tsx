@@ -19,7 +19,7 @@ import { applyTrainMovement } from "@/features/situation/train-movement";
 import type { NearestStationLabel, StationNames } from "@/features/stations/describe";
 import { JudgmentChangeContext } from "./components/JudgmentChangeCard";
 import { personAccidentCatalog } from "./fixtures/person-accident";
-import { buildJudgmentChange } from "./judgment-change";
+import { buildJudgmentChange, selectChangeEvidence } from "./judgment-change";
 import { isMockRequested, streamMockJudgment } from "./mock";
 import { buildJudgeRequest } from "./request";
 import {
@@ -328,10 +328,17 @@ export function JudgmentSessionProvider({
     ],
   );
 
+  const currentJudgment = state.status === "ready" ? state.judgment : null;
   const change = buildJudgmentChange(
     state.previousJudgment,
-    state.status === "ready" ? state.judgment : null,
+    currentJudgment,
     state.observations.at(-1)?.rawText ?? null,
+    selectChangeEvidence({
+      catalog: effectiveCatalog,
+      estimate: currentJudgment?.estimate ?? null,
+      signals: state.signals,
+      locale,
+    }),
   );
 
   return (

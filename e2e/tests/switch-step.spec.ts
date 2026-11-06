@@ -87,7 +87,12 @@ test.describe("通常画面の判断の変化", () => {
       ja.judgment.action.switch,
     );
     await expect(change).toContainText("振替輸送を実施しています。");
-    await expect(change).toContainText("未算出 → 未算出");
+    // 確率が無ければ行ごと出さず、「未算出」は出さない
+    await expect(change).not.toContainText("未算出");
+    await expect(page.getByTestId(testIds.judgment.changeProbability)).toHaveCount(0);
+    await expect(page.getByTestId(testIds.judgment.changeReading)).toContainText(
+      ja.judgment.evidence.reading.label,
+    );
     expect(
       await conclusion.evaluate((element) =>
         element.nextElementSibling?.getAttribute("data-testid"),

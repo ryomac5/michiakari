@@ -23,7 +23,7 @@ import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
-import { buildJudgmentChange } from "@/features/judgment/judgment-change";
+import { buildJudgmentChange, selectChangeEvidence } from "@/features/judgment/judgment-change";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { selectSwitchStep } from "@/features/judgment/switch-step";
 import { testIds } from "@/features/judgment/testids";
@@ -255,6 +255,12 @@ export function ReplayPlayer({
                       state.previousJudgment,
                       display.judgment,
                       latestEntry ? pickScenarioText(latestEntry.text, locale) : null,
+                      selectChangeEvidence({
+                        catalog,
+                        estimate: display.judgment.estimate,
+                        signals: state.signals,
+                        locale,
+                      }),
                     )}
                     badge={
                       changed && previousAction ? (

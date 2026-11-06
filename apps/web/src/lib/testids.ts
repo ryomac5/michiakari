@@ -126,6 +126,8 @@ export const testIds = {
     changeBefore: "judgment-change-before",
     changeAfter: "judgment-change-after",
     changeAnnouncement: "judgment-change-announcement",
+    // 発表から読めるいまの段階。data-phase-id に段階を出す
+    changeReading: "judgment-change-reading",
     changeProbability: "judgment-change-probability",
     disclaimer: "judgment-disclaimer",
     error: "judgment-error",
