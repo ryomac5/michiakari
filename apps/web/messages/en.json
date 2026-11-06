@@ -35,7 +35,6 @@
     "noResults": "Try another spelling",
     "replayLink": "Watch the demo",
     "nearestFailed": "Search by name. Retry nearby stations later.",
-    "locationNote": "Location is sent only to find nearby stations. It is not stored.",
     "resultCount": "{count, plural, one {# station found} other {# stations found}}",
     "searchFailed": "Check your connection and search again."
   },
@@ -135,7 +134,6 @@
     },
     "breakEven": {
       "title": "Cutoff",
-      "meaning": "If service restarts by the cutoff, waiting is faster.",
       "passed": "Cutoff passed",
       "soon": "The cutoff is close. Get ready to switch",
       "none": "Wait for service to resume",
@@ -443,8 +441,7 @@
         "neither": "Neither made it by {deadline}.",
         "sameOnTime": "You made it by {deadline}.",
         "sameLate": "You did not make it by {deadline}."
-      },
-      "method": "Arrival times are rough figures from the estimated travel times in each piece of advice and the time service actually resumed in the scenario."
+      }
     },
     "announcements": "Announcements",
     "scenario": "Scenario",
@@ -517,7 +514,6 @@
     }
   },
   "entry": {
-    "locationNote": "Location finds nearby stations on this device. It is not stored.",
     "nearbyStations": "Stations near you",
     "nearbyDistance": "About {distance}",
     "nearestEmpty": "No nearby station found. Use the map or search.",
@@ -624,7 +620,6 @@
     "locationTrain": "On a train",
     "gpsLocate": "Read from my location",
     "gpsLocating": "Reading your location",
-    "gpsNote": "Location is used on this device only to find candidates. It is not sent.",
     "gpsStationQuestion": "Are you at {station} Station?",
     "gpsBetweenQuestion": "Between {from} and {to} on the {line}?",
     "gpsYes": "Yes",

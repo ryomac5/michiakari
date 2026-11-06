@@ -399,7 +399,6 @@ export function StartScreen() {
           point: { lon: mapPick.point[0], lat: mapPick.point[1], accuracy: 0 },
         },
         choices: mapPick.choices,
-        fromMap: true,
         onLocate: locateGps,
         onConfirm: confirmGpsChoice,
         onDismiss: () => setMapPick(null),
@@ -440,7 +439,7 @@ export function StartScreen() {
 
   const locateMessage =
     locateStatus === "locating"
-      ? `${t("start.locating")} ${t("entry.locationNote")}`
+      ? t("start.locating")
       : locateStatus === "failed"
         ? t("start.locateFailed")
         : locateStatus === "unsupported"

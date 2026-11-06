@@ -155,7 +155,7 @@ for (const viewport of [
         "JR神戸線の塚本〜尼崎の間ですか",
       );
       await expectStage(page, "position");
-      // 端末の位置を使っていないので、位置の扱いの説明は出さない
+      // 位置の扱いの説明は、どの経路でも出さない
       await expect(page.getByText("位置は端末の中で候補を出すだけに使い、送らない。")).toHaveCount(
         0,
       );
