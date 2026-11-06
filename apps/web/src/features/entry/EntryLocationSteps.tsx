@@ -3,7 +3,7 @@
 import { Play, X } from "lucide-react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { testIds } from "@/features/judgment/testids";
 import type { StationChoice } from "@/features/stations/catalog";
@@ -14,6 +14,7 @@ import type { DirectionStop } from "./directions";
 import { SheetTitle } from "./EntrySheet";
 import { type EntryLine, pickLocalized } from "./entry-places";
 import type { GpsChoice } from "./gps-candidates";
+import { selectAttendedChoiceKey } from "./map-pick";
 import type { GpsStatus } from "./use-gps-position";
 
 const buttonClass = "min-h-12 rounded-2xl bg-foreground/[0.05] px-4 py-3 text-left font-semibold";
@@ -72,6 +73,13 @@ function PlaceConfirm({
 }) {
   const t = useTranslations("entry");
   const label = useGpsLabel();
+  // 指を置いている候補とフォーカスしている候補を分けて持ち、指が離れてもフォーカスの候補を残す
+  const [pointerKey, setPointerKey] = useState<string | null>(null);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const attended = selectAttendedChoiceKey(pointerKey, focusKey);
+  useEffect(() => {
+    onFocusChoice?.(attended);
+  }, [attended, onFocusChoice]);
   const [only] = choices;
   if (only && choices.length === 1)
     return (
@@ -109,11 +117,11 @@ function PlaceConfirm({
           className={buttonClass}
           data-testid={testIds.start.gpsChoice(choice.key)}
           onClick={() => onConfirm(choice)}
-          onPointerEnter={() => onFocusChoice?.(choice.key)}
-          onPointerDown={() => onFocusChoice?.(choice.key)}
-          onPointerLeave={() => onFocusChoice?.(null)}
-          onFocus={() => onFocusChoice?.(choice.key)}
-          onBlur={() => onFocusChoice?.(null)}
+          onPointerEnter={() => setPointerKey(choice.key)}
+          onPointerDown={() => setPointerKey(choice.key)}
+          onPointerLeave={() => setPointerKey(null)}
+          onFocus={() => setFocusKey(choice.key)}
+          onBlur={() => setFocusKey(null)}
         >
           {label(choice, "choice")}
         </button>

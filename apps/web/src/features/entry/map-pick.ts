@@ -1,4 +1,5 @@
 import type { ScreenPoint } from "@/features/map/bubble-layout";
+import type { FeatureCollection, LineStringGeometry } from "@/features/map/scene";
 import { sliceTrackBetween, type TrackParts } from "@/features/map/track-shape";
 import type { LabelSide } from "./areas";
 import type { DirectionStop, EntryDirection } from "./directions";
@@ -531,14 +532,18 @@ export const SECTION_FOCUS_STRENGTH = 1;
 export const SECTION_REST_STRENGTH = 0.4;
 
 // 地図で光らせる駅の間。駅の間で切った線路の形に、路線色と強さを添える
-export type SectionGlow = {
-  type: "FeatureCollection";
-  features: {
-    type: "Feature";
-    geometry: { type: "LineString"; coordinates: Position[] };
-    properties: { key: string; color: string; strength: number };
-  }[];
-};
+export type SectionGlow = FeatureCollection<
+  LineStringGeometry,
+  { key: string; color: string; strength: number }
+>;
+
+// 一覧で注目している候補。指を置いている候補を先にし、指が離れたらフォーカスしている候補に戻す
+export function selectAttendedChoiceKey(
+  pointerKey: string | null,
+  focusKey: string | null,
+): string | null {
+  return pointerKey ?? focusKey;
+}
 
 // 候補の駅の間を光らせる形と強さを決める。注目が無いか候補に無ければ先頭の候補を注目にする
 // 注目している候補は最後に置き、ほかの候補の上に描く

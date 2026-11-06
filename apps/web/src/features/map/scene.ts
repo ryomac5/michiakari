@@ -33,7 +33,7 @@ export type Bounds = [Position, Position];
 
 type Feature<G, P> = { type: "Feature"; geometry: G; properties: P };
 export type FeatureCollection<G, P> = { type: "FeatureCollection"; features: Feature<G, P>[] };
-type LineStringGeometry = { type: "LineString"; coordinates: Position[] };
+export type LineStringGeometry = { type: "LineString"; coordinates: Position[] };
 type PointGeometry = { type: "Point"; coordinates: Position };
 
 export type RouteMode = "ride" | "walk" | "taxi";

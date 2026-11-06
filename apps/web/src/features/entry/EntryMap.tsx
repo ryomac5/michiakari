@@ -482,6 +482,26 @@ function flyToArea(map: MapLibreMap, area: EntryArea, insets: MapInsets, duratio
     });
 }
 
+// 点が上部の帯やシートに隠れていれば、倍率を変えずに見える所の中ほどへ動かす。隠れていなければ動かさない
+function keepPointVisible(
+  map: MapLibreMap,
+  position: Position,
+  insets: MapInsets,
+  duration: number,
+): void {
+  const padding = buildPadding(map, insets, { x: 24, y: 24 });
+  const canvas = map.getCanvas();
+  const point = map.project(position);
+  const right = canvas.clientWidth - padding.right;
+  const bottom = canvas.clientHeight - padding.bottom;
+  const goal = {
+    x: point.x < padding.left || point.x > right ? (padding.left + right) / 2 : point.x,
+    y: point.y < padding.top || point.y > bottom ? (padding.top + bottom) / 2 : point.y,
+  };
+  if (goal.x === point.x && goal.y === point.y) return;
+  map.panBy([point.x - goal.x, point.y - goal.y], { duration });
+}
+
 // 地図を押した点の答えを決めて知らせる。札を押したときは label にその駅を渡す
 // 駅の印の中心の近くは駅、描いた線の上は駅の間、どちらでもなければ何もない所を押したとみなす
 function handleTapAt(
@@ -640,7 +660,9 @@ export function EntryMap(props: EntryMapProps) {
         });
         // 指やキーで地図を動かしたか。動かした後は、シートの高さが変わっただけでは寄せ直さない
         loaded.on("movestart", (e) => {
-          if (e.originalEvent) userMovedRef.current = true;
+          if (!e.originalEvent) return;
+          userMovedRef.current = true;
+          tapMovedRef.current = true;
         });
         // 印の上の操作は印が受け持つ。何もない所を触ったときだけ知らせる
         loaded.on("click", (e) => {
@@ -687,36 +709,13 @@ export function EntryMap(props: EntryMapProps) {
     };
   }, [map, sections]);
 
-  // 押した点が伸びたシートや上部の帯に隠れたら、光らせた区間が見えるよう、押した点を見える所の中ほどへ動かす
-  // 動かすのは押した直後とシートの高さが変わったときだけにする。倍率は変えず、隠れていなければ動かさない
-  const { top: insetTop, right: insetRight, bottom: insetBottom, left: insetLeft } = insets;
-  useEffect(() => {
-    if (!map || !tapPoint) return;
-    const padding = buildPadding(
-      map,
-      { top: insetTop, right: insetRight, bottom: insetBottom, left: insetLeft },
-      { x: 24, y: 24 },
-    );
-    const canvas = map.getCanvas();
-    const point = map.project(tapPoint);
-    const right = canvas.clientWidth - padding.right;
-    const bottom = canvas.clientHeight - padding.bottom;
-    const goal = {
-      x: point.x < padding.left || point.x > right ? (padding.left + right) / 2 : point.x,
-      y: point.y < padding.top || point.y > bottom ? (padding.top + bottom) / 2 : point.y,
-    };
-    if (goal.x === point.x && goal.y === point.y) return;
-    map.panBy([point.x - goal.x, point.y - goal.y], {
-      duration: prefersReducedMotion() ? 0 : durationMs,
-    });
-  }, [map, tapPoint, insetTop, insetRight, insetBottom, insetLeft]);
-
   // 線を押した点に、波紋の印を一瞬だけ出す。動きを減らす設定では動かさずに出して消す
-  const [ripple, setRipple] = useState<{ x: number; y: number; id: string } | null>(null);
+  // 印は押した点の緯度経度に結び付け、地図が動くたびに画面の位置を直す
+  const [ripple, setRipple] = useState<{ position: Position; id: string } | null>(null);
+  const rippleRef = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     if (!map || !tapPoint) return;
-    const { x, y } = map.project(tapPoint);
-    setRipple({ x, y, id: tapPoint.join(",") });
+    setRipple({ position: tapPoint, id: tapPoint.join(",") });
     const timer = window.setTimeout(() => setRipple(null), tapRippleMs);
     // 消える前に候補を閉じても、印を残さない
     return () => {
@@ -724,6 +723,21 @@ export function EntryMap(props: EntryMapProps) {
       setRipple(null);
     };
   }, [map, tapPoint]);
+  useEffect(() => {
+    if (!map || !ripple) return;
+    const place = () => {
+      const element = rippleRef.current;
+      if (!element) return;
+      const { x, y } = map.project(ripple.position);
+      element.style.left = `${x - 10}px`;
+      element.style.top = `${y - 10}px`;
+    };
+    place();
+    map.on("move", place);
+    return () => {
+      map.off("move", place);
+    };
+  }, [map, ripple]);
 
   // 地図か一覧で選んでいる駅の間を、点線で描く
   const selectedSegment = segments.find((s) => s.selected) ?? null;
@@ -782,16 +796,32 @@ export function EntryMap(props: EntryMapProps) {
     showTrip ? destinationPosition : null,
     stage === "between" ? betweenFocus : null,
   ]);
-  const cameraKey = JSON.stringify([sceneKey, top, right, bottom, left]);
+  const tapKey = tapPoint?.join(",") ?? "";
+  const cameraKey = JSON.stringify([sceneKey, top, right, bottom, left, tapKey]);
   const firstFitRef = useRef(true);
   const userMovedRef = useRef(false);
   const lastSceneRef = useRef<string | null>(null);
+  // 線を押して候補を出してから、利用者が地図を動かしたか。押すたびに戻す
+  const lastTapRef = useRef("");
+  const tapMovedRef = useRef(false);
   // biome-ignore lint/correctness/useExhaustiveDependencies: 視点は cameraKey が変わったときだけ動かす
   useEffect(() => {
     if (!map) return;
-    // 利用者が地図を動かした後に余白だけが変わったときは、見ている所を保つ
-    if (userMovedRef.current && lastSceneRef.current === sceneKey) return;
     const sameScene = lastSceneRef.current === sceneKey;
+    // 線を押して候補を出している間は、段の寄せ方をせず、倍率を保ったまま押した点を見える所に置くだけにする
+    // 候補を出した後に利用者が地図を動かしていれば、シートの高さが変わっても動かさない
+    if (tapPoint && sameScene) {
+      if (lastTapRef.current !== tapKey) tapMovedRef.current = false;
+      lastTapRef.current = tapKey;
+      if (!tapMovedRef.current) {
+        const duration = prefersReducedMotion() ? 0 : durationMs;
+        keepPointVisible(map, tapPoint, { top, right, bottom, left }, duration);
+      }
+      return;
+    }
+    lastTapRef.current = tapKey;
+    // 利用者が地図を動かした後に余白だけが変わったときは、見ている所を保つ
+    if (userMovedRef.current && sameScene) return;
     lastSceneRef.current = sceneKey;
     userMovedRef.current = false;
     const duration = firstFitRef.current || prefersReducedMotion() ? 0 : durationMs;
@@ -1229,9 +1259,9 @@ export function EntryMap(props: EntryMapProps) {
       {ripple && (
         <span
           key={ripple.id}
+          ref={rippleRef}
           aria-hidden
           data-testid={testIds.start.tapRipple}
-          style={{ left: ripple.x - 10, top: ripple.y - 10 }}
           className="pointer-events-none absolute z-[4] size-5 rounded-full border-2 border-foreground/70 bg-foreground/15 motion-safe:animate-tap-ripple"
         />
       )}

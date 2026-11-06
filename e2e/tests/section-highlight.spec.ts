@@ -4,6 +4,7 @@ import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
   expectStage,
+  findCanvasPointNear,
   panTo,
   projectOnPage,
   readZoom,
@@ -112,6 +113,11 @@ for (const theme of ["light", "dark"] as const) {
         await expectSections(page, 2, second);
         await waitForMapStill(page);
         await page.screenshot({ path: `${dir}${size}-focus-second.png` });
+        // フォーカスしたまま 1 件目に指を置くと 1 件目が強くなり、指が離れるとフォーカスの 2 件目に戻る
+        await page.locator(choiceLocator).nth(0).hover();
+        await expectSections(page, 2, first);
+        await page.mouse.move(viewport.width / 2, 20);
+        await expectSections(page, 2, second);
         await page.locator(choiceLocator).nth(1).blur();
         await expectSections(page, 2, first);
         await page.locator(choiceLocator).nth(1).hover();
@@ -120,6 +126,57 @@ for (const theme of ["light", "dark"] as const) {
     });
   }
 }
+
+test.describe("手で動かさない地図", () => {
+  test.use({ viewport: { width: 375, height: 667 } });
+  test.beforeEach(async ({ context, baseURL }) => {
+    await context.addCookies([{ name: "NEXT_LOCALE", value: "ja", url: baseURL ?? "" }]);
+  });
+
+  test("引いた地図の線を押して寄せた後、手で動かさずに線を押しても、倍率を保ち押した点が見える所に残る", async ({
+    page,
+  }) => {
+    await openMap(page);
+    // 引いた地図で大阪〜福島のあたりの線を押すと、段はそのままで寄る。キーや指では地図を動かさない
+    expect(await readZoom(page)).toBeLessThan(12.5);
+    const far = await findCanvasPointNear(page, await projectOnPage(page, loopMiddle));
+    await page.mouse.click(far.x, far.y);
+    await waitForMapStill(page);
+    await expectStage(page, "position");
+    await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-detail", "stations");
+    await expectSections(page, 0, "");
+
+    const zoom = await readZoom(page);
+    await tapLoopMiddle(page);
+    await waitForMapStill(page);
+    await expectSections(page, 2, await readChoiceKey(page, 0));
+    // 候補が出てシートが伸びても、段の寄せ方で倍率を変えず、押した点をシートの上に残す
+    expect(await readZoom(page)).toBeCloseTo(zoom, 1);
+    await expectAboveSheet(page);
+  });
+});
+
+test.describe("手で動かさない駅の間の段", () => {
+  test.use({ viewport: { width: 375, height: 667 } });
+  test.beforeEach(async ({ context, baseURL }) => {
+    await context.addCookies([{ name: "NEXT_LOCALE", value: "ja", url: baseURL ?? "" }]);
+  });
+
+  test("駅の間の段で寄せたままの地図の線を押しても、倍率を保ち押した点が見える所に残る", async ({
+    page,
+  }) => {
+    await openMap(page);
+    await page.getByTestId(testIds.start.positionTrain).click();
+    await expectStage(page, "between");
+    await expect.poll(() => readZoom(page), { timeout: 15_000 }).toBeGreaterThanOrEqual(12.5);
+    await waitForMapStill(page);
+    const zoom = await readZoom(page);
+    await tapLoopMiddle(page);
+    await waitForMapStill(page);
+    expect(await readZoom(page)).toBeCloseTo(zoom, 1);
+    await expectAboveSheet(page);
+  });
+});
 
 test.describe("確定と戻る", () => {
   test.use({ viewport: { width: 390, height: 844 } });

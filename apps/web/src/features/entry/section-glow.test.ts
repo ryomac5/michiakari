@@ -13,6 +13,7 @@ import {
   measurePathDistance,
   SECTION_FOCUS_STRENGTH,
   SECTION_REST_STRENGTH,
+  selectAttendedChoiceKey,
 } from "./map-pick";
 
 // 線を押して出した駅の間の候補を、地図で光らせる形と強さを、実際の駅と線路の形で確かめる
@@ -122,5 +123,19 @@ describe("buildSectionGlow", () => {
     };
     expect(buildSectionGlow([stationChoice], null, geo.trackShapes).features).toHaveLength(0);
     expect(buildSectionGlow([], null).features).toHaveLength(0);
+  });
+});
+
+describe("selectAttendedChoiceKey", () => {
+  it("指を置いている候補を、フォーカスしている候補より先にする", () => {
+    expect(selectAttendedChoiceKey("first", "second")).toBe("first");
+  });
+
+  it("フォーカスしたまま指が離れたら、フォーカスしている候補を残す", () => {
+    expect(selectAttendedChoiceKey(null, "second")).toBe("second");
+  });
+
+  it("どちらも無ければ注目は無い", () => {
+    expect(selectAttendedChoiceKey(null, null)).toBeNull();
   });
 });
