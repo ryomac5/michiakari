@@ -11,6 +11,7 @@ import { sheetTopInset } from "@/components/MapSheet";
 import {
   type DirectionStop,
   type EntryDirection,
+  isLoopAt,
   listDirectionCandidates,
   listEntryDirections,
   listNearbyStops,
@@ -84,11 +85,15 @@ import {
   findNearestSegment,
   isOnRoute,
   listLinePicks,
+  listLineStops,
   listRouteStops,
   listSegmentWindow,
   mergeRouteCandidates,
   pickLineAt,
+  pickLineTap,
+  placeDirectionTag,
   selectAwaySide,
+  selectStopDirection,
 } from "@/features/entry/map-pick";
 import { buildLineObservation } from "@/features/entry/seed";
 import {
@@ -127,6 +132,8 @@ const lineViewMeters = 4000;
 const linePathStops = 4;
 // 路線の札から、行き先の札を出さない範囲（m）
 const lineGapMeters = 700;
+// 路線の駅を両方向とも出す段で、駅を収める余白（px）
+const lineStopMargin = { x: 72, y: 36 };
 
 // 高さを測って地図の余白に使う
 function useElementHeight<T extends HTMLElement>() {
@@ -252,6 +259,17 @@ export function StartScreen() {
         ? listNearbyStops(data, entry.line, directions, direction)
         : [],
     [data, entry.line, directions, direction],
+  );
+  // 駅にいる人が先に路線を選んだ方面の段。路線の駅を両方向とも地図に出し、押せば行き先にする
+  const lineStopMode =
+    entry.stage === "direction" &&
+    entry.routeFirst &&
+    entry.location === "station" &&
+    !entry.segment &&
+    entry.line !== null;
+  const routeLineStops = useMemo(
+    () => (lineStopMode ? listLineStops(directions) : []),
+    [lineStopMode, directions],
   );
   // 再開見込みの時刻の候補。問いに入った時刻から並べる
   const resumeTimes = useMemo(
@@ -397,6 +415,19 @@ export function StartScreen() {
 
   function handleTap(point: Position, reachMeters: number) {
     if (!data) return;
+    if (lineStopMode && entry.place && entry.line) {
+      // 路線の上か駅の近くを押したら、押した点に向かう方面か、その駅を行き先にする
+      const tap = pickLineTap({
+        origin: entry.place.position,
+        directions,
+        loop: isLoopAt(data, entry.line),
+        point,
+        reachMeters,
+      });
+      if (tap?.stop) chooseLineStop(tap.stop);
+      else if (tap) chooseDirection(tap.direction);
+      return;
+    }
     if (entry.stage === "position" || entry.stage === "kansai") {
       const area = findAreaAt(data, point, reachMeters);
       if (area) dispatch({ type: "openArea", area });
@@ -448,6 +479,16 @@ export function StartScreen() {
       line,
       autoDirection: lineDirections.length === 1 ? (lineDirections[0]?.key ?? null) : null,
     });
+  }
+
+  // 先に選んだ路線の駅を行き先にする。方面は出発の駅からの駅の数が少ない向きにする
+  function chooseLineStop(stop: DirectionStop) {
+    const chosen = selectStopDirection(directions, stop.choice.id);
+    if (!chosen) return;
+    rememberStationName(stop.choice.name, stop.choice.nameEn);
+    setDestination({ kind: "station", name: stop.choice.name });
+    setDestinationBasis("chosen");
+    dispatch({ type: "chooseLineStop", direction: chosen.key });
   }
 
   // 読み取った駅の間の向きを決められなければ、先へ進めず手で選ぶ流れに戻す
@@ -861,18 +902,28 @@ export function StartScreen() {
       side: sideOf(stop.position),
     });
     if (entry.stage === "direction") {
-      return stepDirections.flatMap((d, i) => {
+      // 路線の駅を出すときは、方面の札を出した駅の先に置き、駅の印と重ねない
+      const tags = stepDirections.flatMap((d, i) => {
         const stop = d.stops[Math.min(2, d.stops.length - 1)];
-        if (!stop) return [];
+        const position = lineStopMode ? placeDirectionTag(from, d) : stop?.position;
+        if (!stop || !position) return [];
         return [
           {
             ...toStop(`direction-${i}`, stop),
+            position,
             label: nameDirection(d),
             angle: angles[d.key] ?? 0,
-            side: sideOf(stop.position, true),
+            side: sideOf(position, true),
           },
         ];
       });
+      return [
+        ...tags,
+        ...routeLineStops.map((stop) => ({
+          ...toStop(`pick-${stop.choice.id}`, stop),
+          keep: true,
+        })),
+      ];
     }
     // 路線の段は、駅の路線の札だけを出す
     if (entry.stage === "station" && !onTrain) return lineStops;
@@ -966,6 +1017,9 @@ export function StartScreen() {
     } else if (kind === "direction") {
       const chosen = stepDirections[Number(id)];
       if (chosen) chooseDirection(chosen);
+    } else if (kind === "pick") {
+      const stop = routeLineStops.find((c) => c.choice.id === id);
+      if (stop) chooseLineStop(stop);
     } else if (kind === "destination") {
       const stop = candidates.find((c) => c.choice.id === id);
       if (stop) chooseDestination(stop.choice);
@@ -999,6 +1053,8 @@ export function StartScreen() {
             : []
         }
         onSelectStop={selectMapStop}
+        // 路線の駅を両方向とも出す段は、名前を隠せるので余白を狭くして大きく寄せる
+        stopMargin={lineStopMode ? lineStopMargin : undefined}
         insets={insets}
         narrow={narrow}
         apiRef={mapApi}
@@ -1114,7 +1170,9 @@ export function StartScreen() {
                 line={entry.line}
                 directions={stepDirections}
                 angles={angles}
+                stops={routeLineStops}
                 onSelect={chooseDirection}
+                onSelectStop={chooseLineStop}
               />
             )}
             {entry.stage === "destination" && (

@@ -67,6 +67,9 @@ export type MapStop = {
   side: LabelSide;
   // 路線の札。路線色の太い印を添える
   kind?: "line";
+  // 名前が収まらなくても印を残す駅
+  keep?: boolean;
+  labelHidden?: boolean;
 };
 
 // 車内の駅の間。中ほどの丸を押すと、その駅の間を選ぶ
@@ -105,6 +108,8 @@ type EntryMapProps = {
   stops: MapStop[];
   // 札は出さずに視点だけに含める点。いまどこの段で前後の駅まで収める
   focus: Position[];
+  // 札を収めるときの余白（px）。名前を隠せる駅を多く出す段は狭くして大きく寄せる
+  stopMargin?: { x: number; y: number };
   onSelectStop: (key: string) => void;
   insets: MapInsets;
   narrow: boolean;
@@ -524,7 +529,11 @@ export function EntryMap(props: EntryMapProps) {
       const bounds = computeBounds([origin, ...focus, ...stops.map((s) => s.position)]);
       if (bounds) {
         map.fitBounds(bounds, {
-          padding: buildPadding(map, current, { x: labelMargin.x + 24, y: labelMargin.y + 12 }),
+          padding: buildPadding(
+            map,
+            current,
+            props.stopMargin ?? { x: labelMargin.x + 24, y: labelMargin.y + 12 },
+          ),
           maxZoom: 15,
           duration,
         });
@@ -674,6 +683,12 @@ export function EntryMap(props: EntryMapProps) {
         stops,
         project: (position) => map.project(position),
         blockers,
+        view: {
+          left: left + 8,
+          top: top + 8,
+          right: canvas.clientWidth - right - 8,
+          bottom: canvas.clientHeight - bottom - mapAttributionHeight - 8,
+        },
       });
       // 出す札が同じなら配列を差し替えず、印を作り直さない
       setVisibleStops((prev) => keepStopsIfSame(prev, next));
@@ -923,6 +938,7 @@ export function EntryMap(props: EntryMapProps) {
               angle={target.angle}
               line={target.kind === "line"}
               hitRadius={stopRadii[target.key]}
+              labelHidden={target.labelHidden}
               onSelect={() => props.onSelectStop(target.key)}
             />,
             element,

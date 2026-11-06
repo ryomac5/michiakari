@@ -5,7 +5,7 @@ import { estimateTextWidth } from "./visible-stations";
 
 // 方面・行き先・近い駅の札を、画面の上で互いに重ならないように置く
 // 候補は優先順に並んでいる。先の札と重なるなら丸の別の側へ回し、どの側にも収まらない後の札は落とす
-// 方面の札は 2 つしか無いので落とさない
+// 方面の札は 2 つしか無いので落とさない。keep の駅は印を残し、収まらない名前だけを隠す
 
 export type StopLabel = {
   key: string;
@@ -15,6 +15,10 @@ export type StopLabel = {
   angle: number | null;
   // 路線の札は文字が大きく、路線色の印のぶん幅が広い
   kind?: "line";
+  // 名前が収まらなくても印を残す駅。路線を選んだ直後の路線の駅に使う
+  keep?: boolean;
+  // 名前を隠した印
+  labelHidden?: boolean;
 };
 
 // 路線の札の路線色の印と隙間の幅（px）
@@ -75,20 +79,41 @@ export function selectVisibleStops<T extends StopLabel>(input: {
   project: (position: Position) => ScreenPoint;
   // 先に置いてある札。選んだ駅の名前など
   blockers: readonly Rect[];
+  // 地図の見える範囲。keep の駅の名前は、この外にはみ出す側に置かない
+  view?: Rect;
 }): T[] {
-  const taken: Rect[] = [...input.blockers];
-  return input.stops.flatMap((stop) => {
+  // keep の駅の印は全部残すので、名前より先に印の場所を押さえ、名前が後の印に掛からないようにする
+  const keptDots = input.stops
+    .filter((stop) => stop.keep)
+    .map((stop) => buildDotRect(input.project(stop.position), stopDotRadius));
+  const taken: Rect[] = [...input.blockers, ...keptDots];
+  const { view } = input;
+  const isInside = (rect: Rect) =>
+    !view ||
+    (rect.left >= view.left &&
+      rect.right <= view.right &&
+      rect.top >= view.top &&
+      rect.bottom <= view.bottom);
+  return input.stops.flatMap((stop): T[] => {
     const point = input.project(stop.position);
     const isDirection = stop.angle !== null;
     const dot = buildDotRect(point, isDirection ? directionDotRadius : stopDotRadius);
     const sides = [stop.side, ...sideOrder.filter((side) => side !== stop.side)];
     const rectOf = (side: LabelSide) =>
       expandRect(buildStopLabelRect(point, stop.label, side, stop.kind === "line"), margin);
-    const side = sides.find((s) => taken.every((rect) => overlapArea(rectOf(s), rect) === 0));
+    const side = sides.find(
+      (s) =>
+        (!stop.keep || isInside(rectOf(s))) &&
+        taken.every((rect) => overlapArea(rectOf(s), rect) === 0),
+    );
+    if (!side && stop.keep) {
+      taken.push(dot);
+      return [{ ...stop, labelHidden: true }];
+    }
     if (!side && !isDirection) return [];
     const chosen = side ?? stop.side;
     taken.push(rectOf(chosen), dot);
-    return [{ ...stop, side: chosen }];
+    return [{ ...stop, side: chosen, labelHidden: false }];
   });
 }
 
@@ -113,7 +138,13 @@ export function keepStopsIfSame<T extends StopLabel>(prev: T[], next: T[]): T[] 
     prev.length === next.length &&
     prev.every((s, i) => {
       const n = next[i];
-      return n !== undefined && s.key === n.key && s.side === n.side && s.label === n.label;
+      return (
+        n !== undefined &&
+        s.key === n.key &&
+        s.side === n.side &&
+        s.label === n.label &&
+        s.labelHidden === n.labelHidden
+      );
     });
   return same ? prev : next;
 }
