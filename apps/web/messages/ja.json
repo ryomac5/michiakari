@@ -631,7 +631,6 @@
     "gpsUnavailable": "現在地を取れなかった。下から選んでください。",
     "gpsUnsupported": "この端末では現在地を取れない。下から選んでください。",
     "gpsNone": "近くに駅も路線も見つからない。下から選んでください。",
-    "gpsUndergroundNote": "地下鉄の地下区間では取れないことが多い。",
     "trainLineQuestion": "乗っている路線を選んでください",
     "trainLineSearch": "路線名で探す",
     "trainSegmentQuestion": "いまいる駅の間を選んでください",

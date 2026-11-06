@@ -109,7 +109,7 @@ function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss }: GpsProps
       )}
       {failure ? (
         <p className="text-sm text-muted" data-testid={testIds.start.gpsStatus} role="status">
-          {failure} {t("gpsUndergroundNote")}
+          {failure}
         </p>
       ) : null}
     </div>

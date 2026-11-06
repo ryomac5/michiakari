@@ -631,7 +631,6 @@
     "gpsUnavailable": "Could not get your location. Choose below.",
     "gpsUnsupported": "This device cannot share its location. Choose below.",
     "gpsNone": "No station or line found nearby. Choose below.",
-    "gpsUndergroundNote": "Underground subway sections often block location.",
     "trainLineQuestion": "Choose the line you are riding",
     "trainLineSearch": "Search for a line",
     "trainSegmentQuestion": "Choose the stations you are between",
