@@ -35,12 +35,14 @@ export function buildRuleOutlook(r: EstimateToolResult): {
   protection: boolean;
   unaffectedTrack?: NonNullable<EstimateToolResult["unaffectedTrack"]>;
   resumeQueue?: NonNullable<EstimateToolResult["resumeQueue"]>;
+  stopReasons?: NonNullable<EstimateToolResult["stopReasons"]>;
 } {
   return {
     cues: r.cues,
     protection: r.protection,
     ...(r.unaffectedTrack ? { unaffectedTrack: r.unaffectedTrack } : {}),
     ...(r.resumeQueue ? { resumeQueue: r.resumeQueue } : {}),
+    ...(r.stopReasons ? { stopReasons: r.stopReasons } : {}),
   };
 }
 
@@ -183,6 +185,14 @@ function toWrittenTenths(tenths: number): number {
   return tenths <= 0 ? 1 : tenths >= 10 ? 9 : tenths;
 }
 
+// 止まった理由ごとの割合を、文に書かれる 1 割単位の数にする
+function listStopReasonTenths(stopReasons: EstimateToolResult["stopReasons"]): number[] {
+  if (!stopReasons) return [];
+  return Object.values(stopReasons.shares)
+    .filter((share) => share > 0)
+    .map((share) => toWrittenTenths(Math.round(share * 10)));
+}
+
 export type AllowedNumbersInput = {
   results: JudgmentToolResults;
   observations: readonly Observation[];
@@ -267,11 +277,16 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
     yen: new Set(
       results.alternatives.options.flatMap((o) => (o.fareYen === null ? [] : [o.fareYen])),
     ),
-    shares: new Set(
-      (chance ? [chance.waitFaster, chance.waitOnTime, ...chance.ticks.map((t) => t.tenths)] : [])
+    shares: new Set([
+      ...(chance
+        ? [chance.waitFaster, chance.waitOnTime, ...chance.ticks.map((t) => t.tenths)]
+        : []
+      )
         .filter((v): v is number => v !== null)
         .map(toWrittenTenths),
-    ),
+      // 止まった理由ごとの割合。1 割単位に丸めて許す
+      ...listStopReasonTenths(estimate.stopReasons),
+    ]),
     counts: new Set(
       [estimate.resumeQueue?.trainsInQueue, estimate.trainQueue?.trainsAheadCount].filter(
         (v): v is number => typeof v === "number",

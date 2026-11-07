@@ -20,6 +20,8 @@ export const testIds = {
     busCheck: (id: string) => `judgment-bus-check-${id}`,
     // 防護無線の事象の 1 行の読み。見出しの下に出す
     protection: "judgment-protection",
+    // 電車の中の判断で、止まった理由の 1 行。data-reason に理由を出す
+    stopReason: "judgment-stop-reason",
     // 規則から出した見込みの欄。支障の無い線路と再開後の詰まり
     ruleOutlook: "judgment-rule-outlook",
     // 支障の無い線路の行。side は opposite か affected

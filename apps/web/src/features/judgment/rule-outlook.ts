@@ -1,4 +1,4 @@
-import type { Judgment, ResumeQueue, RouteOption, UnaffectedTrack } from "@repo/schema";
+import type { Judgment, ResumeQueue, RouteOption, StopReason, UnaffectedTrack } from "@repo/schema";
 
 // 規則から出した見込みを、画面の短い行にする。文は訳の鍵で選び、数字の幅だけを渡す
 // 乗り換え先の並びは agent が決める。画面では並べ替えない
@@ -33,6 +33,15 @@ export function buildMinuteRange(min: number, max: number): MinuteRange {
 // 防護無線の事象のときだけ、1 行の読みを出す
 export function checkProtectionReading(judgment: Pick<Judgment, "protection">): boolean {
   return judgment.protection === true;
+}
+
+// 電車の中の判断で出す、止まった理由の 1 行。防護無線の読みが出ていれば、同じ意味の行を重ねない
+export function selectStopReasonLine(
+  judgment: Pick<Judgment, "protection" | "stopReasons">,
+): StopReason | null {
+  const reason = judgment.stopReasons?.mostLikely ?? null;
+  if (reason === "protection_received" && checkProtectionReading(judgment)) return null;
+  return reason;
 }
 
 // 支障の無い線路の行。利用者の側が分からなければ両方を並べ、分かればその側の 1 行だけにする

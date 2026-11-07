@@ -512,3 +512,121 @@ describe("本数と駅の数の検査", () => {
     expect(n.minutes).toEqual([]);
   });
 });
+
+describe("止まった理由の見込み", () => {
+  const position: TrainPosition = {
+    kind: "between_stations",
+    nextStation: "塚本",
+    previousStation: "大阪",
+    trainsAhead: [],
+    trainsAheadCount: null,
+    ownTrainType: "local",
+    trainsAheadHeadwayMinutes: null,
+  };
+  const personLongAgo = buildObservation({
+    id: "entry-cause",
+    minutesAgo: 20,
+    eventType: "person_collision",
+  });
+
+  it("電車の中の人身事故では、割合といちばん可能性の高い理由を判断と phase_estimated に載せる", async () => {
+    const { judgment, events } = await judge(
+      buildRequest([personLongAgo], { trainPosition: position, origin: "塚本" }),
+    );
+    const reasons = judgment.stopReasons;
+    expect(reasons?.trainCounts.own_incident).toBe(1);
+    expect(reasons?.mostLikely).toBe("queued_behind");
+    expect(reasons?.shares.own_incident).toBeLessThan(0.4);
+    const estimated = events.find((e) => e.type === "phase_estimated");
+    expect(estimated).toMatchObject({ stopReasons: reasons });
+  });
+
+  it("電車の中で大雨なら、指令の指示がいちばん高く、当該は 0", async () => {
+    const rain = buildObservation({ id: "entry-cause", minutesAgo: 10, eventType: "heavy_rain" });
+    const { judgment } = await judge(
+      buildRequest([rain], { trainPosition: position, origin: "塚本" }),
+    );
+    expect(judgment.stopReasons?.mostLikely).toBe("dispatcher_order");
+    expect(judgment.stopReasons?.shares.own_incident).toBe(0);
+  });
+
+  it("受信の放送が聞こえれば、防護無線に確定する", async () => {
+    const { judgment } = await judge(
+      buildRequest([protectionHeard], { trainPosition: position, origin: "塚本" }),
+    );
+    expect(judgment.stopReasons?.mostLikely).toBe("protection_received");
+    expect(judgment.stopReasons?.shares.protection_received).toBe(1);
+  });
+
+  it("駅で待つ人には載せない", async () => {
+    const { judgment } = await judge(buildRequest([personLongAgo]));
+    expect(judgment.stopReasons).toBeUndefined();
+  });
+
+  it("理由ごとの割合は 1 割単位で文に書いてよく、無い割合は検証エラーになる", async () => {
+    const request = buildRequest([personLongAgo], { trainPosition: position, origin: "塚本" });
+    const session = createJudgeSession(
+      {
+        request,
+        observations: [personLongAgo],
+        content: deps.content,
+        provider: deps.provider,
+        scenario: null,
+        fetchRain: deps.fetchRain,
+      },
+      createEventSink(
+        async () => {},
+        () => now,
+      ),
+    );
+    await session.executeTool("estimate_remaining", { eventType: "person_collision" });
+    await session.executeTool("find_alternatives", {});
+    await session.executeTool("compute_break_even", {});
+    const { estimate, alternatives, breakEven } = session.state;
+    if (!estimate?.stopReasons || !alternatives || !breakEven)
+      throw new Error("ツールの結果がそろいません");
+    const results = { estimate, alternatives, breakEven };
+    const written = Object.values(estimate.stopReasons.shares)
+      .filter((s) => s > 0)
+      .map((s) => Math.round(s * 10));
+    // 確率の目盛りの割合も許されるので、どちらにも無い数を選ぶ
+    const chance = breakEven.resumeChance;
+    const chanceTenths = chance
+      ? [chance.waitFaster, chance.waitOnTime, ...chance.ticks.map((t) => t.tenths)].map((t) =>
+          t === null ? -1 : Math.min(9, Math.max(1, t)),
+        )
+      : [];
+    const missing = [1, 2, 3, 4, 5, 6, 7, 8, 9].find(
+      (t) => !written.includes(t) && !chanceTenths.includes(t),
+    );
+    const decide = (reason: string) =>
+      assembleJudgment(
+        results,
+        {
+          action: "wait",
+          headline: "車内で待つ",
+          reason,
+          breakEvenExplanation: "説明",
+          recommendedOptionId: null,
+          evidence: [],
+        },
+        "ja",
+      );
+    expect(
+      session
+        .checkJudgment(
+          decide(`前の列車がつかえて止まっている見込みが${written[0]}割ほどです。`),
+          results,
+        )
+        .errors.filter((e) => e.includes("割")),
+    ).toEqual([]);
+    expect(
+      session
+        .checkJudgment(
+          decide(`前の列車がつかえて止まっている見込みが${missing}割ほどです。`),
+          results,
+        )
+        .errors.some((e) => e.includes(`${missing}割`)),
+    ).toBe(true);
+  });
+});

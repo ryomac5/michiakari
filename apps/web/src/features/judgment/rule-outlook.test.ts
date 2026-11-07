@@ -1,4 +1,10 @@
-import type { ResumeQueue, RouteOption, UnaffectedTrack } from "@repo/schema";
+import type {
+  ResumeQueue,
+  RouteOption,
+  StopReason,
+  StopReasons,
+  UnaffectedTrack,
+} from "@repo/schema";
 import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
 import en from "../../../messages/en.json";
@@ -11,6 +17,7 @@ import {
   type RuleTranslate,
   selectAlightOptionId,
   selectQueueLines,
+  selectStopReasonLine,
   selectTrackLines,
 } from "./rule-outlook";
 
@@ -184,5 +191,49 @@ describe("訳の文", () => {
     const texts = JSON.stringify(ja.judgment.rules);
     expect(texts).not.toMatch(/[（(]/);
     expect(texts).not.toMatch(/段階/);
+  });
+});
+
+function buildStopReasons(mostLikely: StopReason): StopReasons {
+  const zero = { own_incident: 0, protection_received: 0, dispatcher_order: 0, queued_behind: 0 };
+  return {
+    shares: { ...zero, [mostLikely]: 1 },
+    mostLikely,
+    trainCounts: { ...zero, [mostLikely]: 1 },
+  };
+}
+
+describe("selectStopReasonLine", () => {
+  it("いちばん可能性の高い理由を 1 つ返し、見込みが無ければ出さない", () => {
+    expect(selectStopReasonLine({ stopReasons: buildStopReasons("queued_behind") })).toBe(
+      "queued_behind",
+    );
+    expect(selectStopReasonLine({ stopReasons: buildStopReasons("dispatcher_order") })).toBe(
+      "dispatcher_order",
+    );
+    expect(selectStopReasonLine({})).toBeNull();
+  });
+
+  it("防護無線の読みが出ているときは、同じ意味の行を重ねない", () => {
+    const stopReasons = buildStopReasons("protection_received");
+    expect(selectStopReasonLine({ protection: true, stopReasons })).toBeNull();
+    expect(selectStopReasonLine({ protection: false, stopReasons })).toBe("protection_received");
+    // 別の理由なら、防護無線の読みと並べて出す
+    expect(
+      selectStopReasonLine({ protection: true, stopReasons: buildStopReasons("queued_behind") }),
+    ).toBe("queued_behind");
+  });
+
+  it("文は短い 1 文で、括弧も段階の言い方も無い", () => {
+    const lines = {
+      protection_received: "近くの非常停止を受けて止まった可能性が高いです",
+      dispatcher_order: "区間ごと止められている可能性が高いです",
+      queued_behind: "前の列車がつかえて止まっている可能性が高いです",
+      own_incident: "この列車で何か起きた可能性があります",
+    };
+    for (const [reason, text] of Object.entries(lines)) {
+      expect(tJa(`stopReason.${reason}`)).toBe(text);
+      expect(createRuleTranslate("en")(`stopReason.${reason}`)).not.toMatch(/[()（）]/);
+    }
   });
 });

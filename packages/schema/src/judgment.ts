@@ -216,8 +216,45 @@ export const ResumeQueueSchema = z.object({
 });
 export type ResumeQueue = z.infer<typeof ResumeQueueSchema>;
 
+// 電車の中で止まった利用者の列車が、なぜ止まったか。packages/core の estimateStopReasons が決める
+// own_incident は当該列車、protection_received は防護無線の受信、dispatcher_order は指令の指示、queued_behind は前の列車の詰まり
+export const STOP_REASONS = [
+  "own_incident",
+  "protection_received",
+  "dispatcher_order",
+  "queued_behind",
+] as const;
+export const StopReasonSchema = z.enum(STOP_REASONS);
+export type StopReason = z.infer<typeof StopReasonSchema>;
+
+const ShareSchema = z.number().min(0).max(1);
+const TrainCountSchema = z.number().nonnegative();
+
+// 止まった理由ごとの割合。止まる列車の本数の比から求める。値は開発者の推定
+export const StopReasonsSchema = z.object({
+  // 理由ごとの割合。手がかりで確定させた後の値で、足すと 1 になる
+  shares: z.object({
+    own_incident: ShareSchema,
+    protection_received: ShareSchema,
+    dispatcher_order: ShareSchema,
+    queued_behind: ShareSchema,
+  }),
+  // いちばん可能性の高い理由
+  mostLikely: StopReasonSchema,
+  // 理由ごとに止まる列車の本数の見積もり。手がかりで確定させる前の値
+  trainCounts: z.object({
+    own_incident: TrainCountSchema,
+    protection_received: TrainCountSchema,
+    dispatcher_order: TrainCountSchema,
+    queued_behind: TrainCountSchema,
+  }),
+});
+export type StopReasons = z.infer<typeof StopReasonsSchema>;
+
 // 規則から出した見込みの欄。判断の結果と phase_estimated イベントが同じ欄を持つ。どれも任意
 export const RuleOutlookShape = {
+  // 自分の列車が止まった理由の見込み。電車の中にいる利用者のときだけ付く
+  stopReasons: StopReasonsSchema.optional(),
   // 観測から拾った手がかりの id
   cues: z.array(AnnouncementCueIdSchema).optional(),
   // 防護無線の事象か。周りの同じ会社の列車も一斉に止まる
