@@ -31,6 +31,12 @@ export const testIds = {
     queueWait: "judgment-queue-wait",
     // 次の駅で降りて乗り換える行。data-option-id に乗り換え先の選択肢を出す
     queueAlight: "judgment-queue-alight",
+    // 閉じたシートの時刻の 1 行。「大阪に20時02分ごろ着く見込み」
+    timeLine: "judgment-time-line",
+    // 地図に重ねる再開の見込みの帯
+    resumeBand: "judgment-resume-band",
+    // 開いたシートの先頭の、行動の札と数字と理由の段
+    conclusionLead: "judgment-conclusion-lead",
   },
   start: {
     ...sharedTestIds.start,

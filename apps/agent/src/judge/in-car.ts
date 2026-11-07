@@ -61,6 +61,7 @@ export function buildInCarGuide(
       alightStation: null,
       alightArrival: null,
       departure: null,
+      departureP80: null,
       afterAlight: null,
     };
   }
@@ -76,6 +77,7 @@ export function buildInCarGuide(
     alightStation: queue.alightStation,
     alightArrival: queue.arrival?.p50 ?? null,
     departure: queue.departure?.p50 ?? null,
+    departureP80: queue.departure?.p80 ?? null,
     afterAlight: step ? buildAfterAlightStep(queue.alightStation, step, language) : null,
   };
 }

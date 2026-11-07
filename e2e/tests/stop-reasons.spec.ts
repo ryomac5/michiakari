@@ -67,7 +67,8 @@ test("電車の中の判断に、止まった理由のいちばん高い見込�
   const line = page.getByTestId(testIds.judgment.stopReason);
   await expect(line).toHaveAttribute("data-reason", "queued_behind");
   await expect(line).toHaveText("前の列車がつかえて止まっている可能性が高いです");
-  await expect(page.getByTestId(testIds.judgment.conclusion)).toContainText(
+  // 止まった理由は開いたシートの先頭の段に出す
+  await expect(page.getByTestId(testIds.judgment.conclusionLead)).toContainText(
     "前の列車がつかえて止まっている可能性が高いです",
   );
   await capture(page, "01-incar-queued");

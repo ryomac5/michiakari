@@ -168,6 +168,9 @@ export const InCarGuideSchema = z.object({
   alightArrival: IsoDateTimeSchema.nullable(),
   // 自分の列車が動き出す見込み。見込みが無ければ null
   departure: IsoDateTimeSchema.nullable(),
+  // 動き出す見込みの遅い側。departure と同じ見込みの 8 割の点で、画面は幅として示す
+  // 省略は以前の記録との互換のため。agent は常に詰める
+  departureP80: IsoDateTimeSchema.nullable().optional(),
   afterAlight: AfterAlightStepSchema.nullable(),
 });
 export type InCarGuide = z.infer<typeof InCarGuideSchema>;
