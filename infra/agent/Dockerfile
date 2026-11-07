@@ -32,11 +32,8 @@ COPY packages/core/src packages/core/src
 COPY packages/core/params packages/core/params
 COPY packages/geo/src packages/geo/src
 COPY packages/geo/data packages/geo/data
-# 知見とシナリオ。CONTENT_DIR が無ければ /app 直下を読む
-COPY knowledge knowledge
+# シナリオ。CONTENT_DIR が無ければ /app 直下を読む
 COPY scenarios scenarios
-# 開発用のダミー内容。CONTENT_DIR=packages/schema/test/fixtures/dev-content で使う
-COPY packages/schema/test/fixtures/dev-content packages/schema/test/fixtures/dev-content
 
 # ファイルは root の所有のまま読み取り専用で使い、非 root の node ユーザーで動かす
 USER node

@@ -15,6 +15,8 @@ import { afterEach, beforeEach, describe, test } from "node:test";
 import {
   checkApproval,
   checkBranchDiff,
+  checkKnowledgeUntracked,
+  checkPrivateNotes,
   computeManifest,
   diffManifests,
   findSymlinks,
@@ -34,11 +36,11 @@ const writeFile = (rootDir, rel, content) => {
   writeFileSync(path, content);
 };
 
-// knowledge/ と scenarios/ の模型を作る
+// scenarios/ の模型を作る
 const createModel = () => {
   const rootDir = mkdtempSync(join(tmpdir(), "guard-core-"));
-  writeFile(rootDir, "knowledge/a.yaml", "id: a\n");
-  writeFile(rootDir, "knowledge/nested/b.yaml", "id: b\n");
+  writeFile(rootDir, "scenarios/a.yaml", "id: a\n");
+  writeFile(rootDir, "scenarios/nested/b.yaml", "id: b\n");
   writeFile(rootDir, "scenarios/s1.yaml", "id: s1\n");
   return rootDir;
 };
@@ -64,19 +66,11 @@ describe("承認記録の照合", () => {
 
   test("記録が無ければ失敗する", () => {
     const results = checkApproval(rootDir);
-    assert.equal(results.length, 2);
+    assert.equal(results.length, 1);
     for (const result of results) {
       assert.equal(result.ok, false);
       assert.equal(result.reason, "missing");
     }
-  });
-
-  test("片方だけ記録が無くても失敗する", () => {
-    const dir = join(rootDir, "knowledge");
-    writeManifest(dir, computeManifest(dir));
-    assert.equal(findResult(rootDir, "knowledge").ok, true);
-    assert.equal(findResult(rootDir, "scenarios").reason, "missing");
-    assert.equal(isAllOk(rootDir), false);
   });
 
   test("内容が一致すれば合格する", () => {
@@ -86,8 +80,8 @@ describe("承認記録の照合", () => {
 
   test("追加を検出する", () => {
     approveAll(rootDir);
-    writeFile(rootDir, "knowledge/nested/deep/c.yaml", "id: c\n");
-    const result = findResult(rootDir, "knowledge");
+    writeFile(rootDir, "scenarios/nested/deep/c.yaml", "id: c\n");
+    const result = findResult(rootDir, "scenarios");
     assert.equal(result.ok, false);
     assert.deepEqual(result.diff.added, ["nested/deep/c.yaml"]);
   });
@@ -102,8 +96,8 @@ describe("承認記録の照合", () => {
 
   test("内容の変更を検出する", () => {
     approveAll(rootDir);
-    writeFile(rootDir, "knowledge/nested/b.yaml", "id: b2\n");
-    const result = findResult(rootDir, "knowledge");
+    writeFile(rootDir, "scenarios/nested/b.yaml", "id: b2\n");
+    const result = findResult(rootDir, "scenarios");
     assert.equal(result.ok, false);
     assert.deepEqual(result.diff.changed, ["nested/b.yaml"]);
     assert.deepEqual(result.diff.added, []);
@@ -111,20 +105,20 @@ describe("承認記録の照合", () => {
   });
 
   test(".DS_Store と記録ファイル自身は無視する", () => {
-    writeFile(rootDir, "knowledge/.DS_Store", "x");
-    writeFile(rootDir, "knowledge/nested/.DS_Store", "x");
+    writeFile(rootDir, "scenarios/.DS_Store", "x");
+    writeFile(rootDir, "scenarios/nested/.DS_Store", "x");
     approveAll(rootDir);
-    const manifest = computeManifest(join(rootDir, "knowledge"));
-    assert.deepEqual([...manifest.keys()], ["a.yaml", "nested/b.yaml"]);
-    writeFile(rootDir, "knowledge/.DS_Store", "changed");
+    const manifest = computeManifest(join(rootDir, "scenarios"));
+    assert.deepEqual([...manifest.keys()], ["a.yaml", "nested/b.yaml", "s1.yaml"]);
+    writeFile(rootDir, "scenarios/.DS_Store", "changed");
     writeFile(rootDir, "scenarios/.DS_Store", "new");
     assert.equal(isAllOk(rootDir), true);
   });
 
   test("記録ファイルの改ざんを検出する", () => {
     approveAll(rootDir);
-    writeFile(rootDir, `knowledge/${RECORD_FILE}`, "not a valid line\n");
-    const result = findResult(rootDir, "knowledge");
+    writeFile(rootDir, `scenarios/${RECORD_FILE}`, "not a valid line\n");
+    const result = findResult(rootDir, "scenarios");
     assert.equal(result.ok, false);
     assert.deepEqual(result.invalidLines, ["not a valid line"]);
   });
@@ -140,20 +134,20 @@ describe("記録の形式", () => {
   });
 
   test("パスでソートされた '<sha256>  <相対パス>' の行になる", () => {
-    const dir = join(rootDir, "knowledge");
-    writeFile(rootDir, "knowledge/0first.yaml", "z\n");
+    const dir = join(rootDir, "scenarios");
+    writeFile(rootDir, "scenarios/0first.yaml", "z\n");
     const text = formatManifest(computeManifest(dir));
     const lines = text.trimEnd().split("\n");
     assert.deepEqual(
       lines.map((line) => line.slice(66)),
-      ["0first.yaml", "a.yaml", "nested/b.yaml"],
+      ["0first.yaml", "a.yaml", "nested/b.yaml", "s1.yaml"],
     );
     assert.equal(lines[1], `${hashFile(join(dir, "a.yaml"))}  a.yaml`);
     assert.ok(text.endsWith("\n"));
   });
 
   test("書いた記録を読み戻すと同じ内容になる", () => {
-    const dir = join(rootDir, "knowledge");
+    const dir = join(rootDir, "scenarios");
     const manifest = computeManifest(dir);
     writeManifest(dir, manifest);
     const record = readManifest(dir);
@@ -163,7 +157,7 @@ describe("記録の形式", () => {
   });
 
   test("記録が無いときは null を返す", () => {
-    assert.equal(readManifest(join(rootDir, "knowledge")), null);
+    assert.equal(readManifest(join(rootDir, "scenarios")), null);
   });
 
   test("shasum -a 256 -c で検証できる", () => {
@@ -213,10 +207,13 @@ describe("シンボリックリンクの検出", () => {
     const outside = join(rootDir, "outside");
     mkdirSync(outside);
     writeFileSync(join(outside, "x.yaml"), "x\n");
-    symlinkSync(join(outside, "x.yaml"), join(rootDir, "knowledge/nested/link.yaml"));
+    symlinkSync(join(outside, "x.yaml"), join(rootDir, "scenarios/nested/link.yaml"));
     symlinkSync(outside, join(rootDir, "scenarios/linkdir"));
-    assert.deepEqual(findSymlinks(rootDir), ["knowledge/nested/link.yaml", "scenarios/linkdir"]);
-    assert.deepEqual([...computeManifest(join(rootDir, "scenarios")).keys()], ["s1.yaml"]);
+    assert.deepEqual(findSymlinks(rootDir), ["scenarios/linkdir", "scenarios/nested/link.yaml"]);
+    assert.deepEqual(
+      [...computeManifest(join(rootDir, "scenarios")).keys()],
+      ["a.yaml", "nested/b.yaml", "s1.yaml"],
+    );
   });
 });
 
@@ -268,7 +265,7 @@ describe("ブランチ差分", () => {
 
   test("main 上では検査を飛ばす", () => {
     initRepo("main");
-    writeFile(rootDir, "knowledge/a.yaml", "changed\n");
+    writeFile(rootDir, "scenarios/a.yaml", "changed\n");
     assert.equal(checkBranchDiff(rootDir).status, "skip");
   });
 
@@ -285,11 +282,11 @@ describe("ブランチ差分", () => {
   test("ブランチのコミットに含まれる変更を検出する", () => {
     initRepo("main");
     git("checkout", "-q", "-b", "feature");
-    writeFile(rootDir, "knowledge/a.yaml", "changed\n");
-    git("commit", "-q", "-am", "edit knowledge");
+    writeFile(rootDir, "scenarios/a.yaml", "changed\n");
+    git("commit", "-q", "-am", "edit scenarios");
     const result = checkBranchDiff(rootDir);
     assert.equal(result.status, "fail");
-    assert.deepEqual(result.files, ["knowledge/a.yaml"]);
+    assert.deepEqual(result.files, ["scenarios/a.yaml"]);
   });
 
   test("未コミットの作業ツリーの変更を検出する", () => {
@@ -315,8 +312,8 @@ describe("ブランチ差分", () => {
     initRepo("main");
     git("checkout", "-q", "-b", "feature");
     git("checkout", "-q", "main");
-    writeFile(rootDir, "knowledge/a.yaml", "main edit\n");
-    git("commit", "-q", "-am", "main edits knowledge");
+    writeFile(rootDir, "scenarios/a.yaml", "main edit\n");
+    git("commit", "-q", "-am", "main edits scenarios");
     git("checkout", "-q", "feature");
     assert.equal(checkBranchDiff(rootDir).status, "pass");
   });
@@ -345,5 +342,82 @@ describe("validate の起動", () => {
     const env = { ...process.env, CONTENT_DIR: "dummy/dir", KEEP: "yes" };
     assert.equal(runValidate(rootDir, { stdio: "ignore", env }), 0);
     assert.deepEqual(JSON.parse(readFileSync(join(rootDir, "seen.txt"), "utf8")), [null, "yes"]);
+  });
+});
+
+describe("知見の非追跡と非公開の材料", () => {
+  let rootDir;
+  let notesDir;
+  const git = (...args) =>
+    execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
+      cwd: rootDir,
+      stdio: ["ignore", "pipe", "pipe"],
+      encoding: "utf8",
+    });
+  const track = (rel, content) => {
+    writeFile(rootDir, rel, content);
+    git("add", rel);
+  };
+
+  beforeEach(() => {
+    rootDir = mkdtempSync(join(tmpdir(), "guard-private-"));
+    notesDir = mkdtempSync(join(tmpdir(), "guard-notes-"));
+    git("init", "-q", "-b", "main");
+    track("README.md", "readme\n");
+  });
+  afterEach(() => {
+    rmSync(rootDir, { recursive: true, force: true });
+    rmSync(notesDir, { recursive: true, force: true });
+  });
+
+  test("knowledge/ の README.md と _template.yaml だけなら通る", () => {
+    track("knowledge/README.md", "x\n");
+    track("knowledge/_template.yaml", "id: TODO\n");
+    assert.equal(checkKnowledgeUntracked(rootDir).status, "pass");
+  });
+
+  test("knowledge/ にそれ以外が追跡されていると落ちる", () => {
+    track("knowledge/README.md", "x\n");
+    track("knowledge/heavy_rain.yaml", "id: heavy_rain\n");
+    const result = checkKnowledgeUntracked(rootDir);
+    assert.equal(result.status, "fail");
+    assert.deepEqual(result.files, ["knowledge/heavy_rain.yaml"]);
+  });
+
+  test("追跡されていない knowledge/ のファイルは許す", () => {
+    writeFile(rootDir, "knowledge/local.yaml", "id: local\n");
+    assert.equal(checkKnowledgeUntracked(rootDir).status, "pass");
+  });
+
+  test("材料の文が追跡中のファイルにあると落ち、文は結果に含めない", () => {
+    writeFile(notesDir, "a.md", "# 見出し\n- 架空の材料の長い一文です。短い\n");
+    track("docs/x.md", "前置き 架空の材料の長い一文です 後書き\n");
+    const result = checkPrivateNotes(rootDir, notesDir);
+    assert.equal(result.status, "fail");
+    assert.deepEqual(result.files, ["docs/x.md"]);
+    assert.doesNotMatch(JSON.stringify(result), /架空の材料/);
+  });
+
+  test("yaml の材料も照合する", () => {
+    writeFile(notesDir, "n/b.yaml", "memo: 別の架空の材料の一文です\n");
+    track("src/y.ts", "// memo: 別の架空の材料の一文です\n");
+    assert.equal(checkPrivateNotes(rootDir, notesDir).status, "fail");
+  });
+
+  test("一致が無ければ通る。10 字未満の文は照合しない", () => {
+    writeFile(notesDir, "a.md", "短い文。まったく別の架空の材料の一文です。\n");
+    track("docs/x.md", "短い文\n関係のない内容です\n");
+    assert.equal(checkPrivateNotes(rootDir, notesDir).status, "pass");
+  });
+
+  test("追跡されていないファイルの一致は無視する", () => {
+    writeFile(notesDir, "a.md", "追跡外にだけ書かれた一文です。\n");
+    writeFile(rootDir, "local.md", "追跡外にだけ書かれた一文です。\n");
+    assert.equal(checkPrivateNotes(rootDir, notesDir).status, "pass");
+  });
+
+  test("PRIVATE_NOTES_DIR が無いか存在しなければ省く", () => {
+    assert.equal(checkPrivateNotes(rootDir, undefined).status, "skip");
+    assert.equal(checkPrivateNotes(rootDir, join(notesDir, "none")).status, "skip");
   });
 });
