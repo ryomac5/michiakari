@@ -27,13 +27,16 @@ export const findAlternativesDefinition = {
 } as const;
 
 // 新しい観測から順に、null でない値を探す
+// 観測の時刻は秒までなので、続けて貼ると同じ時刻になる。同じ時刻なら後ろに並ぶ観測を新しいとみなす
+// 要求の観測は古い順に並び、今回の入力から読み取った観測は末尾に足される
 function findLatest<T>(
   observations: readonly Observation[],
   pick: (o: Observation) => T | null,
 ): T | null {
-  const sorted = [...observations].sort(
-    (a, b) => Date.parse(b.observedAt) - Date.parse(a.observedAt),
-  );
+  const sorted = observations
+    .map((o, order) => ({ o, order, time: Date.parse(o.observedAt) }))
+    .sort((a, b) => b.time - a.time || b.order - a.order)
+    .map(({ o }) => o);
   for (const o of sorted) {
     const value = pick(o);
     if (value !== null) return value;

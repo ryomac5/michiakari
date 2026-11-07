@@ -94,3 +94,30 @@ describe("振替の費用に使う止まった路線の事業者", () => {
     expect(await findHankyuFare([buildObservation(null, null)])).toBeUndefined();
   });
 });
+
+describe("振替先の事業者を書いたいちばん新しい発表", () => {
+  // 定期券で、振替先の無い発表と、阪急と阪神を書いた発表を同じ秒に続けて貼った
+  function buildAnnouncement(id: string, operators: string[]): Observation {
+    return {
+      ...buildObservation("JR西日本", "JR神戸線"),
+      id,
+      source: "text",
+      transferServiceActive: true,
+      transferOperators: operators,
+    };
+  }
+
+  async function findPassFare(observations: Observation[]) {
+    const ctx = buildContext(observations);
+    ctx.request.ticketType = "commuter_pass";
+    const result = await runFindAlternatives(ctx, estimate, {});
+    return result.options.find((o) => o.id === "hankyu")?.transferFare;
+  }
+
+  it("同じ時刻の発表は、後ろに並ぶ発表の振替先を使う", async () => {
+    const first = buildAnnouncement("obs_3", []);
+    const second = buildAnnouncement("obs_4", ["hankyu", "hanshin"]);
+    expect(await findPassFare([first, second])).toBe("covered");
+    expect(await findPassFare([second, first])).toBe("possibly_covered");
+  });
+});
