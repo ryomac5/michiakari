@@ -85,9 +85,11 @@ export function ConclusionSummary({
           <time dateTime={timeLine.time}>
             <NoBreakText
               text={
-                timeLine.station
-                  ? t("arriveAt", { station: timeLine.station, time })
-                  : t("arrive", { time })
+                timeLine.kind === "depart"
+                  ? t("depart", { time })
+                  : timeLine.station
+                    ? t("arriveAt", { station: timeLine.station, time })
+                    : t("arrive", { time })
               }
             />
           </time>

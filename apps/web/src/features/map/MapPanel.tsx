@@ -1,7 +1,7 @@
 "use client";
 
 import "maplibre-gl/dist/maplibre-gl.css";
-import { formatStationName } from "@repo/geo";
+import { computeDistanceMeters, formatStationName } from "@repo/geo";
 import type {
   Action,
   AfterAlightStep,
@@ -16,6 +16,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { selectOptionTone } from "@/features/judgment/action-style";
+import type { InCarPlan } from "@/features/judgment/in-car-plan";
 import { testIds } from "@/features/judgment/testids";
 import { prefersReducedMotion, useDocumentTheme } from "@/lib/use-document-theme";
 import { useMediaQuery } from "@/lib/use-media-query";
@@ -69,6 +70,12 @@ import {
   fitsInView,
 } from "./reach-label";
 import { waitForOwnLayersDrawn } from "./ready";
+import {
+  checkRouteWalks,
+  chooseFocusBounds,
+  type RouteGuide,
+  selectRouteGuide,
+} from "./route-focus";
 import { AlightMarker, BlockedTag, HereMarker, StationBubble } from "./StationBubble";
 import {
   type BlockedDirection,
@@ -127,6 +134,8 @@ export type MapPanelProps = {
   afterAlight?: AfterAlightStep | null;
   // 判断が出た印。変わるたびに、車内の人の動きを 1 回再生する。判断が出る前は null
   motionKey?: string | null;
+  // 駅間の車内の人に勧める動き。次の駅で降りるときだけ「降りる駅」の印を出す
+  inCarPlan?: InCarPlan | null;
   // 止まっている区間の両端を選んでいる間だけ渡す。路線の駅を押せる印にし、ほかの札は隠す
   sectionPick?: MapSectionPick | null;
 };
@@ -138,14 +147,15 @@ const defaultCenter: [number, number] = [135.5, 34.7];
 // 重なる部品からさらに空ける余白
 const fitMargin = { x: 64, y: 36 };
 // 現在地のまわりでは、吹き出しと現在地の札のぶんを空ける。狭い画面では札を上に出す
+// 吹き出しは勧める経路の駅の 1 つだけなので、余白は今いる位置と駅の札が収まる幅にする
 const focusMargin = {
-  wide: { top: 110, right: 230, bottom: 60, left: 230 },
-  narrow: { top: 56, right: 215, bottom: 30, left: 80 },
+  wide: { top: 110, right: 200, bottom: 60, left: 200 },
+  narrow: { top: 56, right: 56, bottom: 30, left: 56 },
 };
 // 自動で選んだ駅は吹き出しが四方に出るので、左右を同じだけ空ける
 const autoFocusMargin = {
-  wide: { top: 120, right: 230, bottom: 80, left: 230 },
-  narrow: { top: 70, right: 110, bottom: 60, left: 110 },
+  wide: { top: 120, right: 200, bottom: 80, left: 200 },
+  narrow: { top: 70, right: 56, bottom: 60, left: 56 },
 };
 const fitDurationMs = 700;
 // 現在地のまわりに寄せる上限。自動で選んだ駅は近い駅だけのこともあるので、まわりの街が見える程度に抑える
@@ -388,6 +398,18 @@ function buildGuidePadding(
   });
 }
 
+// 現在地のまわりに寄せる範囲と余白と上限。今いる位置と行き先がぎりぎり入る範囲を先に試す
+// 駅の印が読めないほど引くなら、今いる位置と経路の駅だけを収め、行き先は縁の札で示す
+function selectFocusFit(map: MapLibreMap, insets: MapInsets, narrow: boolean, guide: RouteGuide) {
+  const padding = buildGuidePadding(map, insets, narrow, guide);
+  const maxZoom = guide.areaId.startsWith("auto:") ? focusMaxZoom.auto : focusMaxZoom.configured;
+  const { bounds, includesDestination } = chooseFocusBounds(
+    guide,
+    (b) => map.cameraForBounds(b, { padding, maxZoom })?.zoom,
+  );
+  return { bounds, padding, maxZoom, includesDestination };
+}
+
 // 文字列のおおよその幅（px）。全角は 1em、半角は 0.58em で数える
 function estimateTextWidth(text: string, fontPx: number): number {
   return [...text].reduce(
@@ -444,7 +466,7 @@ type AutoLayout = LabelLayout & { compactRecommended: boolean };
 
 function layoutAutoPlacements(
   map: MapLibreMap,
-  guide: StationGuide,
+  guide: RouteGuide,
   insets: MapInsets,
   narrow: boolean,
   herePreferred: BubblePlacement,
@@ -453,18 +475,15 @@ function layoutAutoPlacements(
   english: boolean,
   measuredSizes: Readonly<Record<string, BoxSize>>,
 ): AutoLayout | null {
-  if (!guide.bounds) return null;
+  const { bounds, padding, maxZoom } = selectFocusFit(map, insets, narrow, guide);
+  if (!bounds) return null;
   const canvas = map.getCanvas();
-  const padding = buildGuidePadding(map, insets, narrow, guide);
-  const camera = map.cameraForBounds(guide.bounds, {
-    padding,
-    maxZoom: guide.areaId.startsWith("auto:") ? focusMaxZoom.auto : focusMaxZoom.configured,
-  });
+  const camera = map.cameraForBounds(bounds, { padding, maxZoom });
   const zoom = camera?.zoom;
   if (zoom === undefined) return null;
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
-  const [[west, south], [east, north]] = guide.bounds;
+  const [[west, south], [east, north]] = bounds;
   const nw = projectToWorld([west, north], zoom);
   const se = projectToWorld([east, south], zoom);
   const center = { x: (nw.x + se.x) / 2, y: (nw.y + se.y) / 2 };
@@ -889,6 +908,8 @@ export function MapPanel(props: MapPanelProps) {
   }, [geo]);
 
   const reachAreas = useReachAreas(origin);
+  // 徒歩の範囲の円は、地図に描く経路が歩きを含むときだけ出す
+  const routeWalks = checkRouteWalks(options.find((o) => o.id === focusOptionId));
   const scene = useMemo(
     () =>
       geo && reachAreas
@@ -905,7 +926,7 @@ export function MapPanel(props: MapPanelProps) {
               blockedDirection,
               reachAreas,
               trainOnly,
-              hideReach: inCar,
+              hideReach: inCar || !routeWalks,
             },
             { ...labels, english: locale === "en" },
           )
@@ -923,6 +944,7 @@ export function MapPanel(props: MapPanelProps) {
       blockedDirection,
       trainOnly,
       inCar,
+      routeWalks,
       labels,
       locale,
     ],
@@ -974,7 +996,8 @@ export function MapPanel(props: MapPanelProps) {
       label: t("between", { from: nameOf(previousStation), to: nameOf(nextStation) }),
     };
   }, [trainPosition, geo, locale, t]);
-  const guide = useMemo(
+  // 現在地のまわりの案内。シートの選択肢の行の印にはこちらを使う
+  const fullGuide = useMemo(
     () =>
       geo && scene && area
         ? buildStationGuide(geo, area, {
@@ -1009,34 +1032,61 @@ export function MapPanel(props: MapPanelProps) {
       inCar,
     ],
   );
-  const view: MapView = guide ? viewChoice : "overview";
 
   // 駅間の車内の人の動き。いまの位置から次の駅まで動き、降りた後の経路を光らせる
-  const { afterAlight = null, motionKey = null } = props;
+  const { afterAlight = null, motionKey = null, inCarPlan = null } = props;
   const builtMotion = useMemo(
     () =>
-      geo && scene && guide?.alight && inCar && origin.kind === "station"
+      geo &&
+      scene &&
+      fullGuide?.alight &&
+      inCar &&
+      origin.kind === "station" &&
+      (inCarPlan === "alight" || inCarPlan === "stay")
         ? buildInCarMotion(geo, {
-            here: guide.here.position,
-            alight: guide.alight.position,
+            here: fullGuide.here.position,
+            alight: fullGuide.alight.position,
             lineId: scene.trackLineIds[0] ?? null,
             alightStation: origin.name,
             destination,
             afterAlight,
+            stay: inCarPlan === "stay",
           })
         : null,
-    [geo, scene, guide, inCar, origin, destination, afterAlight],
+    [geo, scene, fullGuide, inCar, origin, destination, afterAlight, inCarPlan],
   );
   // 地図の組み立てが繰り返されても、道筋が同じなら動きを再生し直さない
   const motionSignature = builtMotion ? JSON.stringify(builtMotion) : "";
   // biome-ignore lint/correctness/useExhaustiveDependencies: 道筋の中身が変わったときだけ作り直す
   const motion = useMemo(() => builtMotion, [motionSignature]);
+  // 地図に出す案内。勧める経路の駅と今いる位置だけにしぼり、路線色も経路と乗っている路線だけに塗る
+  const guide = useMemo(
+    () =>
+      fullGuide && scene
+        ? selectRouteGuide(
+            // 降りる駅の印は、次の駅で降りるときだけ出す。乗り続けるときは次の駅を示さない
+            inCarPlan === "alight" ? fullGuide : { ...fullGuide, alight: null },
+            [...scene.trackLineIds, ...scene.routeLineIds, ...(motion?.lineIds ?? [])],
+            scene.destination,
+            // 乗り続けるときも、進む先が見えるよう次の駅までは収める
+            inCarPlan === "stay" && fullGuide.alight ? [fullGuide.alight.position] : [],
+          )
+        : null,
+    [fullGuide, scene, motion, inCarPlan],
+  );
+  const view: MapView = guide ? viewChoice : "overview";
+  // 列車の動きが終わる点から行き先までの距離。乗り続けるときは行き先まで進むことを確かめるのに使う
+  const motionEnd = motion?.ride.at(-1) ?? null;
+  const motionEndMeters =
+    motionEnd && scene?.destination
+      ? Math.round(computeDistanceMeters(motionEnd, scene.destination))
+      : null;
   const [replayCount, setReplayCount] = useState(0);
   const playKey = motionKey === null ? null : `${motionKey}#${replayCount}`;
   const motionPhase = useInCarMotion(map, markerClass, motion, playKey, t("train"));
   const routeGlow =
     (scene?.route.features.some((f) => f.properties.mode === "ride") ?? false) ||
-    (motion !== null && motion.after.length > 0);
+    (motion !== null && (motion.after.length > 0 || inCarPlan === "stay"));
   const flowActive = routeGlow || motion !== null;
   const flowing = useRouteFlow(
     map,
@@ -1050,8 +1100,8 @@ export function MapPanel(props: MapPanelProps) {
     onReachSourceChange?.(reachSource);
   }, [reachSource, onReachSourceChange]);
   useEffect(() => {
-    onGuideChange?.(guide);
-  }, [guide, onGuideChange]);
+    onGuideChange?.(fullGuide);
+  }, [fullGuide, onGuideChange]);
 
   // 描く選択肢が乗り換えに変わったら、その乗り換え駅が見えるよう現在地のまわりへ戻す
   const focusKind = options.find((o) => o.id === focusOptionId)?.kind ?? null;
@@ -1088,15 +1138,20 @@ export function MapPanel(props: MapPanelProps) {
   const [measuredSizes, setMeasuredSizes] = useState<Record<string, BoxSize>>({});
   // 「全体を見る」のボタン。止まっている路線の札と到達範囲の札は、このボタンを避けて置く
   const viewToggleRef = useRef<HTMLButtonElement>(null);
+  // 寄せた範囲。destination は今いる位置と行き先、near は今いる位置と経路の駅、overview は全体
+  const [fitScope, setFitScope] = useState<"destination" | "near" | "overview">("overview");
   const fitView = useCallback(
     (instant: boolean) => {
       if (!map) return;
       const duration = instant || prefersReducedMotion() ? 0 : fitDurationMs;
       const insets = { top, right, bottom, left };
-      if (view === "focus" && guide?.bounds) {
-        map.fitBounds(guide.bounds, {
-          padding: buildGuidePadding(map, insets, narrow, guide),
-          maxZoom: guide.areaId.startsWith("auto:") ? focusMaxZoom.auto : focusMaxZoom.configured,
+      const focusFit =
+        view === "focus" && guide ? selectFocusFit(map, insets, narrow, guide) : null;
+      setFitScope(focusFit ? (focusFit.includesDestination ? "destination" : "near") : "overview");
+      if (focusFit?.bounds) {
+        map.fitBounds(focusFit.bounds, {
+          padding: focusFit.padding,
+          maxZoom: focusFit.maxZoom,
           duration,
         });
       } else if (scene?.bounds) {
@@ -1136,7 +1191,7 @@ export function MapPanel(props: MapPanelProps) {
     if (!map || !scene) return;
     applyMapScene(map, scene);
     applyGuide(map, guide, reachLabels, narrow);
-    const bounds = view === "focus" ? guide?.bounds : scene.bounds;
+    const bounds = view === "focus" ? [guide?.bounds, guide?.wideBounds] : scene.bounds;
     // おすすめの駅が変わると吹き出しの大きさが変わるので、寄せ直す
     const recommendedKey = guide?.stations.find((s) => s.recommended)?.key ?? "";
     const fitKey = JSON.stringify([view, bounds, recommendedKey, top, right, bottom, left, narrow]);
@@ -1300,42 +1355,6 @@ export function MapPanel(props: MapPanelProps) {
     }
   }, [map, scene, markerClass, view, destinationLabel]);
 
-  // 行き先が画面の外にあれば、見える範囲の縁に向きと駅名の札を出す
-  const [destinationEdge, setDestinationEdge] = useState<EdgeMarker | null>(null);
-  useEffect(() => {
-    const target = scene?.destination ?? null;
-    if (!map || !target) {
-      setDestinationEdge(null);
-      return;
-    }
-    const place = () => {
-      const canvas = map.getCanvas();
-      const point = map.project(target);
-      const view = {
-        left: left + 8,
-        top: top + 8,
-        right: canvas.clientWidth - right - 8,
-        bottom: canvas.clientHeight - bottom - mapAttributionHeight - 8,
-      };
-      const next = placeEdgeMarker(point, view, destinationEdgeSize);
-      setDestinationEdge((previous) => {
-        if (next === null || previous === null) return next;
-        const same =
-          Math.abs(previous.x - next.x) < 1 &&
-          Math.abs(previous.y - next.y) < 1 &&
-          Math.abs(previous.angle - next.angle) < 1;
-        return same ? previous : next;
-      });
-    };
-    place();
-    map.on("move", place);
-    map.on("resize", place);
-    return () => {
-      map.off("move", place);
-      map.off("resize", place);
-    };
-  }, [map, scene, top, right, bottom, left]);
-
   useEffect(() => {
     if (map) applyMapStyle(map, palette, tone, mode);
   }, [map, palette, tone, mode]);
@@ -1354,6 +1373,11 @@ export function MapPanel(props: MapPanelProps) {
       return;
     }
     const here = guide.here.position;
+    // 札の幅の半分に余白を足した幅。長い区間の名前でも、ほかの札に重ならないよう札の文字から見積もる
+    const margin = {
+      x: Math.max(blockedTagMargin.x, estimateTextWidth(blockedLabel, 11) / 2 + 28),
+      y: blockedTagMargin.y,
+    };
     // 地図が止まるたびに、見える範囲に入る点を選び直す。動いている間は札を出さず、吹き出しやボタンに重なって見える瞬間を作らない
     const hide = () => setBlockedTagPosition(null);
     const place = () => {
@@ -1393,19 +1417,19 @@ export function MapPanel(props: MapPanelProps) {
         if (r.width === 0 || r.height === 0) return [];
         return [
           {
-            left: r.left - origin.left - blockedTagMargin.x,
-            right: r.right - origin.left + blockedTagMargin.x,
-            top: r.top - origin.top - blockedTagMargin.y,
-            bottom: r.bottom - origin.top + blockedTagMargin.y,
+            left: r.left - origin.left - margin.x,
+            right: r.right - origin.left + margin.x,
+            top: r.top - origin.top - margin.y,
+            bottom: r.bottom - origin.top + margin.y,
           },
         ];
       });
       if (settledToggle) {
         boxes.push({
-          left: settledToggle.left - blockedTagMargin.x,
-          right: settledToggle.right + blockedTagMargin.x,
-          top: settledToggle.top - blockedTagMargin.y,
-          bottom: settledToggle.bottom + blockedTagMargin.y,
+          left: settledToggle.left - margin.x,
+          right: settledToggle.right + margin.x,
+          top: settledToggle.top - margin.y,
+          bottom: settledToggle.bottom + margin.y,
         });
       }
       const chosen = points.find((p) => {
@@ -1431,7 +1455,7 @@ export function MapPanel(props: MapPanelProps) {
       map.off("movestart", hide);
       map.off("moveend", place);
     };
-  }, [map, blockedPath, view, guide, top, right, bottom, left]);
+  }, [map, blockedPath, blockedLabel, view, guide, top, right, bottom, left]);
 
   // 手で整えた向きは好みとして保ち、重なる場合は画面サイズによらず置き直す
   // 駅間の車内の人の現在地と降りる駅の札は、手で整えた範囲でも、駅の印やボタンに重ならない置き場所を選ぶ
@@ -1451,6 +1475,70 @@ export function MapPanel(props: MapPanelProps) {
         : null,
     [map, guide, area, narrow, top, right, bottom, left, reachLabels, locale, measuredSizes],
   );
+  // 行き先が画面の外にあれば、見える範囲の縁に向きと駅名の札を出す
+  const [destinationEdge, setDestinationEdge] = useState<EdgeMarker | null>(null);
+  useEffect(() => {
+    const target = scene?.destination ?? null;
+    if (!map || !target) {
+      setDestinationEdge(null);
+      return;
+    }
+    const place = () => {
+      const canvas = map.getCanvas();
+      const point = map.project(target);
+      const view = {
+        left: left + 8,
+        top: top + 8,
+        right: canvas.clientWidth - right - 8,
+        bottom: canvas.clientHeight - bottom - mapAttributionHeight - 8,
+      };
+      // 今いる位置と降りる駅と吹き出しの札に重ねない
+      const origin = canvas.getBoundingClientRect();
+      const avoid = [
+        ...map
+          .getContainer()
+          .querySelectorAll<HTMLElement>(
+            `[data-testid^="judgment-map-station-"], [data-testid="${mapTestIds.here}"], [data-testid="${mapTestIds.here}"] > div, [data-testid="${mapTestIds.alight}"], [data-testid="${mapTestIds.alight}"] > p, [data-testid="${mapTestIds.blockedTag}"]`,
+          ),
+      ].flatMap((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) return [];
+        return [
+          {
+            left: r.left - origin.left - 6,
+            right: r.right - origin.left + 6,
+            top: r.top - origin.top - 6,
+            bottom: r.bottom - origin.top + 6,
+          },
+        ];
+      });
+      const next = placeEdgeMarker(point, view, destinationEdgeSize, avoid);
+      setDestinationEdge((previous) => {
+        if (next === null || previous === null) return next;
+        const same =
+          Math.abs(previous.x - next.x) < 1 &&
+          Math.abs(previous.y - next.y) < 1 &&
+          Math.abs(previous.angle - next.angle) < 1;
+        return same ? previous : next;
+      });
+    };
+    place();
+    // 札が描き直された後の位置でも避け直す
+    const frame = window.requestAnimationFrame(place);
+    map.on("move", place);
+    map.on("moveend", place);
+    map.on("resize", place);
+    // 止まっている路線の札は描くたびに置き直されるので、描くたびに避け直す
+    map.on("render", place);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      map.off("move", place);
+      map.off("moveend", place);
+      map.off("resize", place);
+      map.off("render", place);
+    };
+  }, [map, scene, top, right, bottom, left]);
+
   const placeStation = useCallback(
     (s: StationGuide["stations"][number]): BubblePlacement =>
       autoPlacements?.placements[s.key] ?? s.placement[narrow ? "narrow" : "wide"],
@@ -1627,6 +1715,12 @@ export function MapPanel(props: MapPanelProps) {
       data-blocked-points={blockedPath?.length ?? 0}
       data-reach-source={scene?.reachSource ?? ""}
       data-motion={motionPhase}
+      data-in-car-plan={inCarPlan ?? ""}
+      data-motion-end-meters={motionEndMeters ?? ""}
+      data-fit-scope={fitScope}
+      data-station-marks={view === "focus" ? (guide?.stations.length ?? 0) : 0}
+      data-colored-lines={mode.relevantLineIds.length}
+      data-walk-reach={scene ? scene.reach.features.length > 0 : false}
       data-route-glow={routeGlow}
       data-flow={flowing ? "flowing" : flowActive ? "arrows" : "none"}
       aria-label={t("title")}

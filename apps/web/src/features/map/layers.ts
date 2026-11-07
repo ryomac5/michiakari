@@ -582,6 +582,19 @@ function buildMotionLayers(palette: MapPalette, accent: string): LayerSpecificat
         "line-dasharray": [0, 4, 3],
       },
     },
+    // 列車が進む道筋も光らせる。乗り続けるときは、これが行き先までの経路になる
+    {
+      id: "motion-ride-glow",
+      type: "line",
+      source: sourceIds.motionRide,
+      layout,
+      paint: {
+        "line-color": accent,
+        "line-width": byZoom(12, 22),
+        "line-blur": byZoom(5, 10),
+        "line-opacity": 0.4,
+      },
+    },
     {
       id: "motion-ride-casing",
       type: "line",

@@ -28,6 +28,11 @@ describe("車内の帯", () => {
     expect(band?.arrival?.x).toBe(1);
   });
 
+  it("遅い側が早い側と同じなら、幅を点にする", () => {
+    const band = buildInCarBand({ ...guide, departureP80: guide.departure });
+    expect(band?.departure).toMatchObject({ from: 0, to: 0, late: null });
+  });
+
   it("以前の記録で遅い側が無ければ、幅を点にする", () => {
     const band = buildInCarBand({ ...guide, departureP80: undefined });
     expect(band?.departure).toMatchObject({ from: 0, to: 0, late: null });

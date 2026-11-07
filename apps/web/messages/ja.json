@@ -149,6 +149,7 @@
       "live": "結論: {action}。{headline}",
       "next": "次の手",
       "reasonTitle": "理由",
+      "depart": "{time}ごろ動く見込み",
       "arriveAt": "{station}に{time}ごろ着く見込み",
       "arrive": "{time}ごろ着く見込み"
     },

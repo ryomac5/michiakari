@@ -35,6 +35,7 @@ import { StatusChip, TripSummary } from "@/features/judgment/components/TripSumm
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { selectFallbackOptionId } from "@/features/judgment/fallback-option";
 import { buildInCarBand } from "@/features/judgment/in-car-band";
+import { selectInCarPlan } from "@/features/judgment/in-car-plan";
 import { type OriginLine, type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { selectStoppedPlace, selectStopScope } from "@/features/judgment/stop-scope";
@@ -181,8 +182,12 @@ export function JudgmentScreen() {
   // 見込みの帯は地図に重ねる。駅にいる人には再開の見込み、駅の間の車内の人には動き出す見込みを出す
   // 見込みの数字が無いときは出さない。線路に降りる案内のときは動き出す見込みが無い
   const resumeChance = ready && !inCar ? (display.breakEven?.resumeChance ?? null) : null;
+  const inCarPlan = inCarGuide ? selectInCarPlan(inCarGuide, destination) : null;
+  // 乗り続けるときは、帯に次の駅に着く時刻を出さない。そこで降りるように読めるためである
+  const inCarBandSource =
+    inCarGuide && inCarPlan !== "alight" ? { ...inCarGuide, alightArrival: null } : inCarGuide;
   const inCarBandGuide =
-    ready && inCar && inCarGuide && buildInCarBand(inCarGuide) ? inCarGuide : null;
+    ready && inCar && inCarBandSource && buildInCarBand(inCarBandSource) ? inCarBandSource : null;
   // 止まっている区間を地図で選んでいる間は、上端を選び方の案内に譲るため帯を出さない
   const showBand =
     (resumeChance !== null || inCarBandGuide !== null) &&
@@ -240,6 +245,7 @@ export function JudgmentScreen() {
         trainOnly={stopScope === "train"}
         insets={mapInsets}
         afterAlight={inCarGuide?.afterAlight ?? null}
+        inCarPlan={inCarPlan}
         motionKey={ready ? (state.judgedAt ?? null) : null}
         onReachSourceChange={setReachSource}
         onGuideChange={setGuide}

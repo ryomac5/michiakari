@@ -117,9 +117,10 @@ test("駅と行き先を選んで判断が出たあと、情報を追加する�
   await expect(map).toHaveAttribute("data-blocked", "true");
   expect(Number(await map.getAttribute("data-blocked-points"))).toBeGreaterThan(20);
   await expect(page.getByTestId(mapTestIds.sectionNote)).toHaveCount(0);
-  // 大阪には Valhalla の到達範囲があるので、円ではなく多角形で描く
-  await expect(map).toHaveAttribute("data-reach-source", "valhalla");
+  // 待つ経路は歩かないので、徒歩の範囲を描かない
   await expect(map).toHaveAttribute("data-recommended-option", "wait_resume");
+  await expect(map).toHaveAttribute("data-walk-reach", "false");
+  await expect(map).toHaveAttribute("data-reach-source", "");
   await expect(page.getByTestId(mapTestIds.legend)).toBeVisible();
   await expect(page.getByTestId(mapTestIds.attribution)).toContainText("国土地理院");
   await expect(page.getByTestId(testIds.judgment.option("transfer_hankyu"))).toBeVisible();

@@ -149,6 +149,7 @@
       "live": "Advice: {action}. {headline}",
       "next": "Next step",
       "reasonTitle": "Why",
+      "depart": "Train moves around {time}",
       "arriveAt": "Arrive at {station} around {time}",
       "arrive": "Arrive around {time}"
     },
