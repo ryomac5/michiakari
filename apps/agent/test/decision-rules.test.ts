@@ -128,7 +128,21 @@ describe("保留より先に切り替えを返す規則", () => {
     });
   });
 
-  it("分岐点までまだ時間があれば、見込みが後でも保留を保つ", () => {
+  // 期待値を変えた: 以前は p50 が分岐点より 24 分後（動く見込みは 5 割未満）でも保留していた
+  // 保留の見出しは「分岐点まで待つ」なので、動く見込みが低いのに待つと言い切っていた。窓が守るのは p50 が前の場合だけにする
+  it("分岐点までまだ時間があれば、p50 が前で幅の大半が後でも保留を保つ", () => {
+    const result = buildResult({
+      minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
+      marginP50Minutes: 5,
+      marginP80Minutes: -82,
+    });
+    for (const eventType of [null, "person_collision"]) {
+      const outcome = applyDecisionRules(buildInput({ eventType, confidence: "low", result }));
+      expect(outcome.action).toBe("hold");
+    }
+  });
+
+  it("分岐点までまだ時間があっても、p50 が分岐点より後なら保留せず切り替える", () => {
     const result = buildResult({
       minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
       marginP50Minutes: -24,
@@ -136,7 +150,11 @@ describe("保留より先に切り替えを返す規則", () => {
     });
     for (const eventType of [null, "person_collision"]) {
       const outcome = applyDecisionRules(buildInput({ eventType, confidence: "low", result }));
-      expect(outcome.action).toBe("hold");
+      expect(outcome).toEqual({
+        action: "switch",
+        reason: "resume_after_break_even",
+        recommendedOptionId: "alt_1",
+      });
     }
   });
 
@@ -284,10 +302,12 @@ describe("原因が分からず、発表の再開見込みがある規則", () =
     });
   });
 
+  // 期待値は保留のまま、入力を変えた: p50 が分岐点より後の入力は、時間の窓に関わらず切り替えるようにしたため
+  // 保留が残るのは p50 が分岐点より前の場合なので、その入力で発表の時刻が無いときの保留を確かめる
   it("発表の時刻が無ければ、分岐点まで時間があるときは従来どおり保留する", () => {
     const result = buildResult({
       minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
-      marginP50Minutes: -24,
+      marginP50Minutes: 5,
       marginP80Minutes: -82,
     });
     const outcome = applyDecisionRules(buildInput({ eventType: null, confidence: "low", result }));

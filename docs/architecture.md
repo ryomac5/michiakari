@@ -64,8 +64,11 @@
 - モード: `claude` と `deterministic` の 2 つ。環境変数 `JUDGE_MODE` で指定し、無ければ `ANTHROPIC_API_KEY` があるときだけ `claude` にする
   - `claude`: Haiku で解釈し、Opus のツール実行ループで判断する。選択式の入力は Claude を通さない
   - `deterministic`: 文字列照合で解釈し、規則で判断する。写真は読めないので error を返す
-  - 原因が分からないときと確信度が低いときは保留する。ただし分岐点までの残りが `holdDecisionWindowMinutes` 以内なら言い切る
+  - 原因が分からないときと確信度が低いときは保留する。保留の見出しは「分岐点まで待つ」になる
+  - 再開見込みの p50 が分岐点より後なら、分岐点までの残りに関わらず保留せず切り替える。分岐点までに動く確率が 5 割を切るためである
+  - p50 が前でも、分岐点までの残りが `holdDecisionWindowMinutes` 以内なら言い切る
   - その場合、再開見込みの幅のうち分岐点より後の割合が `lateShareToSwitch` 以上なら切り替える。閾値は agent の config に置く
+  - 行動と分岐点までに動く確率の向きは、原因の種類ごとの表の単体テストで確かめる。逆になるのは、待つ理由を文で示すときだけにする
   - 原因が分からなくても、発表された再開見込みの時刻があれば保留しない。その時刻を見込みとして分岐点と比べ、待つか切り替えるかを返す
   - このときの見込みは core の `estimateStatedRemainingWithoutKnowledge` で求める。p50 は発表の時刻どおり、p80 は `STATED_RESUME_SLACK_MINUTES` だけ後ろに置く
   - 確信度は `confidenceParams.whenStatedWithoutEvent` にする。結論の理由は、発表の時刻をもとにした推定だと分かる言い方にする
