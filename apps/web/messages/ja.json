@@ -332,6 +332,22 @@
       "announcement": "きっかけ",
       "probability": "待つほうが早い見込み",
       "noAnnouncement": "新しい発表はありません"
+    },
+    "rules": {
+      "protection": "近くで非常停止があったと読めます",
+      "range": "{min}〜{max}分ほど",
+      "single": "{minutes}分ほど",
+      "track": {
+        "oppositeLabel": "反対の線路や並ぶ線",
+        "affectedLabel": "当該の線路",
+        "opposite": "確かめが済めば{range}で動き出すことがあります",
+        "oppositeSoon": "確かめが済めばまもなく動き出すことがあります",
+        "affected": "長く止まる見込みです"
+      },
+      "queue": {
+        "wait": "動き出しても、前の列車が詰まり、先へ進むまで{range}かかる見込みです",
+        "alight": "次の駅で降りて乗り換える選択肢もあります"
+      }
     }
   },
   "replay": {

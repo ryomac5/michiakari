@@ -332,6 +332,22 @@
       "announcement": "Trigger",
       "probability": "Chance waiting is faster",
       "noAnnouncement": "No new announcement"
+    },
+    "rules": {
+      "protection": "An emergency stop likely happened nearby",
+      "range": "about {min}–{max} min",
+      "single": "about {minutes} min",
+      "track": {
+        "oppositeLabel": "Opposite track or parallel line",
+        "affectedLabel": "Track where it happened",
+        "opposite": "Once checks finish, it may start moving in {range}",
+        "oppositeSoon": "Once checks finish, it may start moving soon",
+        "affected": "Likely to stay stopped for a long time"
+      },
+      "queue": {
+        "wait": "Even once moving, backed-up trains ahead may take {range} to clear",
+        "alight": "You can also get off at the next station and transfer"
+      }
     }
   },
   "replay": {

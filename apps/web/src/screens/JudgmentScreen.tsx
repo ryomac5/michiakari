@@ -24,6 +24,7 @@ import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { NextCheckSection, PremiseSection } from "@/features/judgment/components/NextCheck";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
+import { RuleOutlook } from "@/features/judgment/components/RuleOutlook";
 import { TrainPositionChips } from "@/features/judgment/components/TrainPositionChips";
 import { StatusChip, TripSummary } from "@/features/judgment/components/TripSummary";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
@@ -260,6 +261,15 @@ export function JudgmentScreen() {
                 onOpenEditor={() => {
                   if (chrome.snap === "collapsed") chrome.setSnap("half");
                 }}
+              />
+            </SheetSection>
+          )}
+          {/* 支障の無い線路が先に動く見込みと、再開後の詰まり。乗り換え先はその選択肢の行へ寄せる */}
+          {state.status === "ready" && display.judgment && (
+            <SheetSection className="empty:hidden">
+              <RuleOutlook
+                judgment={display.judgment}
+                onFocusOption={inCar ? undefined : focusOption}
               />
             </SheetSection>
           )}
