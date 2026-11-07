@@ -77,19 +77,26 @@
 <body>
 <main>
 <h1>公開手順書</h1>
-<p class="lead">画面を Vercel に、判断エージェントをコンテナ環境に出す手順です。2026年11月2日時点の構成に合わせています。</p>
+<p class="lead">判断エージェントを Cloud Run に、画面を Vercel に出す手順です。2026年11月7日時点の構成に合わせています。</p>
+<p>上から順にコマンドを貼れば公開できます。コマンドはリポジトリのルートで実行します。</p>
 
 <nav>
-<ol>
-  <li><a href="#overview">全体構成</a></li>
-  <li><a href="#vercel">Vercel の設定</a></li>
-  <li><a href="#agent">エージェントのコンテナ公開</a></li>
-  <li><a href="#env">環境変数</a></li>
-  <li><a href="#secret">API キーの管理</a></li>
-  <li><a href="#cors">CORS と頻度制限</a></li>
-  <li><a href="#local">ローカルでの確認</a></li>
-  <li><a href="#checklist">公開前の確認リスト</a></li>
-</ol>
+  <ol>
+    <li><a href="#overview">全体構成</a></li>
+    <li><a href="#before">始める前に</a></li>
+    <li><a href="#step1">手順 1　キーを Secret Manager に入れる</a></li>
+    <li><a href="#step2">手順 2　Cloud Run に出す</a></li>
+    <li><a href="#step3">手順 3　生存を確かめる</a></li>
+    <li><a href="#step4">手順 4　Vercel で取り込む</a></li>
+    <li><a href="#step5">手順 5　CORS に画面の URL を入れる</a></li>
+    <li><a href="#step6">手順 6　画面で判断を確かめる</a></li>
+    <li><a href="#cloudrun">Cloud Run の設定値</a></li>
+    <li><a href="#env">環境変数</a></li>
+    <li><a href="#limits">頻度制限と使いすぎの防止</a></li>
+    <li><a href="#local">手元での確認</a></li>
+    <li><a href="#trouble">困ったとき</a></li>
+    <li><a href="#checklist">公開前の確認リスト</a></li>
+  </ol>
 </nav>
 
 <h2 id="overview">全体構成</h2>
@@ -99,166 +106,233 @@
 </div>
 <div class="diagram">
   <span class="box">利用者のブラウザ</span><span class="arrow">→ POST /judge と SSE →</span>
-  <span class="box">判断エージェント apps/agent　コンテナ</span><span class="arrow">→</span>
+  <span class="box">判断エージェント apps/agent　Cloud Run</span><span class="arrow">→</span>
   <span class="box">Claude API</span>
 </div>
 <p>ブラウザはエージェントへ直接つなぎ、判断を SSE で受け取ります。</p>
 <p>API キーを持つのはエージェントだけです。画面はキーを一切持ちません。</p>
-<p>知見とシナリオは、画面とエージェントの両方が実行時に読みます。</p>
+<p>キーは Secret Manager に置き、Cloud Run が環境変数として渡します。</p>
+<p>公開版のリプレイは、架空のダミーシナリオを画面とエージェントの両方で読みます。</p>
+<p>ダミーシナリオはリプレイにだけ使います。利用者が入れた状況の判断には使いません。</p>
 
-<h2 id="vercel">Vercel の設定</h2>
-<h3>プロジェクト設定</h3>
-<div class="table-wrap">
-<table>
-  <tr><th>項目</th><th>値</th></tr>
-  <tr><td>Root Directory</td><td><code>apps/web</code></td></tr>
-  <tr><td>Framework Preset</td><td>Next.js</td></tr>
-  <tr><td>Install Command</td><td>既定のままにします。ルートの <code>pnpm-lock.yaml</code> から pnpm を使います。</td></tr>
-  <tr><td>Build Command</td><td>既定の <code>next build</code> のままにします。</td></tr>
-  <tr><td>Node.js Version</td><td><code>24.x</code> を選びます。</td></tr>
-  <tr><td>Root Directory 外のファイル</td><td>ビルドに含める設定を有効にします。ワークスペースのパッケージと知見を読むためです。</td></tr>
-</table>
+<h2 id="before">始める前に</h2>
+<ul>
+  <li>gcloud に自分のアカウントでログインしてあること。</li>
+  <li>Cloud Run、Cloud Build、Secret Manager、Artifact Registry の API が有効なこと。</li>
+  <li>Anthropic Console で月の利用額の上限をかけてあること。</li>
+  <li>公開したいコミットが GitHub に push 済みなこと。Vercel は GitHub から取り込みます。</li>
+</ul>
+<p>最初に、以後のコマンドで使う値を端末に入れます。</p>
+<pre><code>gcloud config set project project-513d85ec-389b-42f9-b12
+export PROJECT_ID=project-513d85ec-389b-42f9-b12
+export REGION=asia-northeast1</code></pre>
+
+<h2 id="step1">手順 1　キーを Secret Manager に入れる</h2>
+<p>キーは標準入力から渡します。コマンドの文字列にキーを書かないので、履歴に残りません。</p>
+<p>1 行目を実行すると入力待ちになります。キーを貼って Enter を押します。画面には表示されません。</p>
+<pre><code>printf 'Anthropic の API キーを貼って Enter: '; read -rs ANTHROPIC_KEY_INPUT; echo
+printf '%s' "$ANTHROPIC_KEY_INPUT" | gcloud secrets create anthropic-api-key \
+  --replication-policy automatic --data-file=-
+unset ANTHROPIC_KEY_INPUT</code></pre>
+<p>Cloud Run と Cloud Build が使うサービスアカウントに、権限を渡します。</p>
+<p>どちらも既定の Compute Engine のサービスアカウントです。</p>
+<pre><code>PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format 'value(projectNumber)')
+SA="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+gcloud secrets add-iam-policy-binding anthropic-api-key \
+  --member "$SA" --role roles/secretmanager.secretAccessor
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member "$SA" --role roles/cloudbuild.builds.builder</code></pre>
+<div class="note">
+  <p>キーを差し替えるときは <code>gcloud secrets versions add anthropic-api-key --data-file=-</code> を同じ形で使います。</p>
+  <p>差し替えた後は、手順 5 のコマンドで出し直します。</p>
 </div>
 
+<h2 id="step2">手順 2　Cloud Run に出す</h2>
+<p><code>infra/deploy-agent.sh</code> が、ビルドから公開までを 1 回で行います。</p>
+<p>この時点では画面の URL が無いので、CORS には手元の画面だけを入れます。</p>
+<pre><code>CORS_ORIGINS=http://localhost:3000 bash infra/deploy-agent.sh</code></pre>
+<p>台本は次の順に動きます。</p>
+<ol>
+  <li>Artifact Registry に <code>kansai</code> の置き場所が無ければ作ります。</li>
+  <li><code>infra/cloudbuild.yaml</code> で Cloud Build を動かし、イメージを作って送ります。</li>
+  <li><code>gcloud run deploy</code> で <code>kansai-agent</code> を出します。</li>
+  <li>最後に公開 URL を表示します。</li>
+</ol>
+<p>イメージのタグは今のコミットの短い SHA です。</p>
+<p>送るファイルは <code>.gcloudignore</code> で絞っています。秘密のファイルと依存は送りません。</p>
+<div class="note">
+  <p><code>CORS_ORIGINS</code> は毎回必ず渡します。渡さないと台本は止まります。</p>
+  <p>出し直しで画面のオリジンが消えるのを防ぐためです。</p>
+</div>
+
+<h2 id="step3">手順 3　生存を確かめる</h2>
+<pre><code>AGENT_URL=$(gcloud run services describe kansai-agent --region "$REGION" --format 'value(status.url)')
+echo "$AGENT_URL"
+curl -s "$AGENT_URL/health"</code></pre>
+<p><code>{"status":"ok"}</code> が返れば成功です。</p>
+<p>起動ログで、判断モードが claude になっていることも確かめます。</p>
+<pre><code>gcloud run services logs read kansai-agent --region "$REGION" --limit 20 | grep 'agent listening'</code></pre>
+<p><code>mode: claude</code> と出ていれば、キーが渡っています。</p>
+<p><code>scenarios: 5</code> と出ていれば、リプレイのシナリオを読めています。</p>
+<p>表示した <code>AGENT_URL</code> は手順 4 で使います。</p>
+
+<h2 id="step4">手順 4　Vercel で取り込む</h2>
+<p>Vercel のダッシュボードで Add New から Project を選びます。</p>
+<p>GitHub の <code>ryomac5/built-with-claude-2026-japan</code> を取り込みます。</p>
+<h3>プロジェクトの設定</h3>
+<div class="table-wrap">
+  <table>
+    <tr><th>項目</th><th>値</th></tr>
+    <tr><td>Root Directory</td><td><code>apps/web</code></td></tr>
+    <tr><td>Framework Preset</td><td>Next.js</td></tr>
+    <tr><td>Install Command</td><td>既定のままにします。ルートの <code>pnpm-lock.yaml</code> から pnpm を使います。</td></tr>
+    <tr><td>Build Command</td><td>既定の <code>next build</code> のままにします。</td></tr>
+    <tr><td>Node.js Version</td><td><code>24.x</code> を選びます。Settings の Build and Deployment にあります。</td></tr>
+    <tr><td>Include files outside the root directory in the Build Step</td><td>有効にします。ワークスペースのパッケージとシナリオを読むためです。</td></tr>
+    <tr><td>Production Branch</td><td>公開したいブランチを選びます。</td></tr>
+  </table>
+</div>
 <h3>環境変数</h3>
 <div class="table-wrap">
-<table>
-  <tr><th>名前</th><th>値の例</th><th>説明</th></tr>
-  <tr><td><code>NEXT_PUBLIC_AGENT_URL</code></td><td><code>https://agent.example.com</code></td><td>エージェントの公開 URL です。末尾にスラッシュを付けません。</td></tr>
-  <tr><td><code>CONTENT_DIR</code></td><td>設定しない</td><td>シナリオの置き場所です。エージェントと同じ値にします。</td></tr>
-  <tr><td><code>NEXT_PUBLIC_JUDGE_MOCK</code></td><td>設定しない</td><td>本番では必ず未設定にします。設定すると固定の判断を表示します。</td></tr>
-</table>
+  <table>
+    <tr><th>名前</th><th>値</th><th>説明</th></tr>
+    <tr><td><code>NEXT_PUBLIC_AGENT_URL</code></td><td>手順 3 の <code>AGENT_URL</code></td><td>末尾にスラッシュを付けません。</td></tr>
+    <tr><td><code>ENABLE_EXPERIMENTAL_COREPACK</code></td><td><code>1</code></td><td>ルートの <code>packageManager</code> に書いた版の pnpm を使わせます。</td></tr>
+    <tr><td><code>CONTENT_DIR</code></td><td><code>packages/schema/test/fixtures/dev-content</code></td><td>リプレイのシナリオの置き場所です。エージェントと同じ値にします。</td></tr>
+    <tr><td><code>NEXT_PUBLIC_JUDGE_MOCK</code></td><td>設定しない</td><td>設定すると固定の判断を表示します。本番では必ず未設定にします。</td></tr>
+  </table>
 </div>
+<p>入れたら Deploy を押します。出た本番の URL を控えます。</p>
 <div class="note">
-<p><code>NEXT_PUBLIC_</code> で始まる値はビルド時に画面へ埋め込まれます。</p>
-<p>値を変えたら再デプロイが必要です。秘密の値には決して使いません。</p>
+  <p><code>NEXT_PUBLIC_</code> で始まる値はビルド時に画面へ埋め込まれます。</p>
+  <p>値を変えたら Redeploy が必要です。秘密の値には決して使いません。</p>
+  <p>Vercel には API キーを登録しません。</p>
 </div>
-<div class="note">
-<p><code>CONTENT_DIR</code> はシナリオだけの置き場所です。</p>
-<p>未設定ならリポジトリの <code>scenarios/</code> を読みます。</p>
-</div>
-
 <h3>同梱するファイル</h3>
-<p>画面のサーバー関数は、シナリオの YAML を fs で読みます。</p>
-<p>そのため <code>apps/web/next.config.ts</code> の <code>outputFileTracingIncludes</code> で同梱を指定しています。</p>
+<p>画面のサーバー関数は、シナリオと路線データを実行時に fs で読みます。</p>
+<p>同梱は <code>apps/web/next.config.ts</code> の <code>outputFileTracingIncludes</code> で指定済みです。</p>
 <div class="table-wrap">
-<table>
-  <tr><th>対象</th><th>理由</th></tr>
-  <tr><td><code>pnpm-workspace.yaml</code></td><td>リポジトリのルートを探す目印です。</td></tr>
-  <tr><td><code>scenarios/</code></td><td>リプレイに使います。</td></tr>
-  <tr><td><code>packages/geo/data/</code></td><td>路線と駅のデータです。</td></tr>
-</table>
+  <table>
+    <tr><th>対象</th><th>理由</th></tr>
+    <tr><td><code>pnpm-workspace.yaml</code></td><td>リポジトリのルートを探す目印です。</td></tr>
+    <tr><td><code>scenarios/</code></td><td>リプレイに使います。</td></tr>
+    <tr><td><code>packages/schema/test/fixtures/dev-content/</code></td><td>公開版のリプレイに使うダミーのシナリオです。</td></tr>
+    <tr><td><code>packages/geo/data/</code></td><td>路線と駅のデータです。</td></tr>
+  </table>
 </div>
-<p>同梱を変えたら <code>.next/server/app/page.js.nft.json</code> で中身を確かめます。</p>
+<p>同梱を変えたら、手元でビルドして <code>.next/server/app/replay/page.js.nft.json</code> の中身を確かめます。</p>
 
-<h2 id="agent">エージェントのコンテナ公開</h2>
-<h3>イメージの中身</h3>
-<p>定義は <code>infra/agent/Dockerfile</code> です。ビルドの文脈はリポジトリのルートです。</p>
-<ul>
-  <li>Node 24 の型の除去で、TypeScript をそのまま実行します。</li>
-  <li>エージェントが使うワークスペースだけを本番依存で入れます。</li>
-  <li>シナリオと路線データを同梱します。</li>
-  <li>実行ユーザーは非 root の <code>node</code> です。</li>
-  <li>待ち受けのポートは <code>PORT</code> で決まり、既定は 8787 です。</li>
-  <li><code>HEALTHCHECK</code> が <code>/health</code> を定期的に確かめます。</li>
-</ul>
+<h2 id="step5">手順 5　CORS に画面の URL を入れる</h2>
+<p>手順 4 で控えた本番の URL を入れて、エージェントを出し直します。</p>
+<pre><code>CORS_ORIGINS=https://YOUR-APP.vercel.app bash infra/deploy-agent.sh</code></pre>
+<p><code>YOUR-APP</code> は自分の値に置き換えます。<code>https://</code> から始め、末尾のスラッシュを付けません。</p>
+<p>独自ドメインも使うなら、カンマで区切って並べます。</p>
+<p>入ったかどうかは、次のコマンドで確かめます。</p>
+<pre><code>curl -s -i -X OPTIONS "$AGENT_URL/judge" \
+  -H 'Origin: https://YOUR-APP.vercel.app' \
+  -H 'Access-Control-Request-Method: POST' | grep -i access-control-allow-origin</code></pre>
+<p>画面の URL が返れば成功です。</p>
 
-<h3>Cloud Run での公開</h3>
-<p>Cloud Run を例に示します。他のコンテナ環境でも流れは同じです。</p>
-<p>以下の <code>PROJECT_ID</code> と <code>REGION</code> は自分の値に置き換えます。</p>
-<pre><code># 1. イメージの置き場所を作る
-gcloud artifacts repositories create kansai \
-  --repository-format=docker --location=REGION
+<h2 id="step6">手順 6　画面で判断を確かめる</h2>
+<ol>
+  <li>Vercel の本番 URL を開きます。</li>
+  <li>状況を入れて、判断を 1 回出します。</li>
+  <li>最後まで結論が出れば成功です。</li>
+</ol>
+<p>止まったら、ブラウザの開発者ツールで CORS のエラーが出ていないかを見ます。</p>
+<p>エージェント側の記録は次のコマンドで読みます。</p>
+<pre><code>gcloud run services logs read kansai-agent --region "$REGION" --limit 50</code></pre>
 
-# 2. ビルドして送る。Cloud Run は amd64 で動く
-docker build --platform linux/amd64 -f infra/agent/Dockerfile \
-  -t REGION-docker.pkg.dev/PROJECT_ID/kansai/agent:v1 .
-docker push REGION-docker.pkg.dev/PROJECT_ID/kansai/agent:v1
-
-# 3. API キーを Secret Manager に入れる。値は標準入力から渡す
-gcloud secrets create anthropic-api-key --data-file=-
-
-# 4. デプロイする
-gcloud run deploy kansai-agent \
-  --image REGION-docker.pkg.dev/PROJECT_ID/kansai/agent:v1 \
-  --region REGION \
-  --allow-unauthenticated \
-  --set-env-vars JUDGE_MODE=claude,CORS_ORIGINS=https://your-app.vercel.app,TRUST_PROXY=true \
-  --set-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest \
-  --max-instances 2 \
-  --timeout 300</code></pre>
-<p>Cloud Run は <code>PORT</code> を自動で渡します。指定は不要です。</p>
-<p><code>TRUST_PROXY=true</code> は必須です。外すと全利用者が同じ接続元に見え、頻度制限が合算されます。</p>
-<p>判断は SSE で数十秒続きます。タイムアウトは 300 秒あれば足ります。</p>
-<p>デプロイ後に表示される URL を、Vercel の <code>NEXT_PUBLIC_AGENT_URL</code> に入れます。</p>
+<h2 id="cloudrun">Cloud Run の設定値</h2>
+<p>値は <code>infra/deploy-agent.sh</code> に書いてあります。環境変数で上書きできます。</p>
+<div class="table-wrap">
+  <table>
+    <tr><th>項目</th><th>値</th><th>理由</th></tr>
+    <tr><td>リージョン</td><td><code>asia-northeast1</code></td><td>利用者に近い東京です。</td></tr>
+    <tr><td>サービス名</td><td><code>kansai-agent</code></td><td>上書きは <code>SERVICE</code> で行います。</td></tr>
+    <tr><td>待ち受けのポート</td><td>8080</td><td>Cloud Run が <code>PORT</code> で渡し、エージェントはそれで待ち受けます。</td></tr>
+    <tr><td>要求の上限時間</td><td>600 秒</td><td>SSE を途中で切らないためです。判断は通常 1 分前後で終わります。</td></tr>
+    <tr><td>同時に受ける数</td><td>20</td><td>判断は Claude の応答待ちが主です。1 台で並べて受けられます。</td></tr>
+    <tr><td>最小インスタンス数</td><td>0</td><td>待機中の費用をかけません。審査の期間だけ 1 にすると、最初の応答が速くなります。</td></tr>
+    <tr><td>最大インスタンス数</td><td>2</td><td>使いすぎを防ぎます。頻度制限は台数ぶん緩むので、小さく保ちます。</td></tr>
+    <tr><td>CPU とメモリ</td><td>1 と 512Mi</td><td>起動を速めるため CPU ブーストを付けます。</td></tr>
+    <tr><td>認証</td><td>認証なし</td><td>ブラウザから直接呼ぶためです。守りは CORS と頻度制限です。</td></tr>
+  </table>
+</div>
+<p>例えば審査の期間に最小インスタンス数を 1 にするには、次のように出します。</p>
+<pre><code>MIN_INSTANCES=1 CORS_ORIGINS=https://YOUR-APP.vercel.app bash infra/deploy-agent.sh</code></pre>
 
 <h2 id="env">環境変数</h2>
+<p>エージェントが読む環境変数です。Cloud Run には台本が渡します。</p>
 <div class="table-wrap">
-<table>
-  <tr><th>名前</th><th>既定</th><th>説明</th></tr>
-  <tr><td><code>PORT</code></td><td>8787</td><td>待ち受けるポートです。</td></tr>
-  <tr><td><code>JUDGE_MODE</code></td><td>キーの有無で決まる</td><td><code>claude</code> か <code>deterministic</code> を指定します。公開では明示します。</td></tr>
-  <tr><td><code>ANTHROPIC_API_KEY</code></td><td>なし</td><td>Claude API のキーです。秘密の置き場所から渡します。</td></tr>
-  <tr><td><code>CONTENT_DIR</code></td><td>リポジトリのルート</td><td>シナリオの置き場所です。相対パスはルートから解決します。</td></tr>
-  <tr><td><code>CORS_ORIGINS</code></td><td><code>http://localhost:3000</code></td><td>画面のオリジンです。カンマ区切りで複数指定できます。</td></tr>
-  <tr><td><code>RATE_LIMIT_PER_MINUTE</code></td><td>20</td><td>1 分あたりの <code>/judge</code> の上限です。クライアントごとに数えます。</td></tr>
-  <tr><td><code>TRUST_PROXY</code></td><td>false</td><td>プロキシのヘッダを信用するかの設定です。Cloud Run のようにプロキシの背後では true にします。直接受けるときは false にします。</td></tr>
-</table>
+  <table>
+    <tr><th>名前</th><th>公開での値</th><th>説明</th></tr>
+    <tr><td><code>PORT</code></td><td>Cloud Run が渡す</td><td>待ち受けるポートです。手元の既定は 8787 です。</td></tr>
+    <tr><td><code>JUDGE_MODE</code></td><td><code>claude</code></td><td>未設定ならキーの有無で決まります。公開では明示します。</td></tr>
+    <tr><td><code>ANTHROPIC_API_KEY</code></td><td>Secret Manager から</td><td>Claude API のキーです。</td></tr>
+    <tr><td><code>CORS_ORIGINS</code></td><td>画面の本番オリジン</td><td>カンマ区切りで複数指定できます。</td></tr>
+    <tr><td><code>RATE_LIMIT_PER_MINUTE</code></td><td>6</td><td>1 分あたりに 1 利用者へ許す <code>/judge</code> の回数です。アプリの既定は 20 です。</td></tr>
+    <tr><td><code>TRUST_PROXY</code></td><td><code>true</code></td><td>利用者を <code>X-Forwarded-For</code> で見分けます。Cloud Run では必須です。</td></tr>
+    <tr><td><code>CONTENT_DIR</code></td><td><code>packages/schema/test/fixtures/dev-content</code></td><td>リプレイのシナリオの置き場所です。イメージにはこのフォルダも入れてあります。</td></tr>
+  </table>
 </div>
 
-<h2 id="secret">API キーの管理</h2>
-<ul>
-  <li>キーはエージェントの環境変数だけに置きます。</li>
-  <li>Cloud Run では Secret Manager から渡します。</li>
-  <li>Vercel にはキーを登録しません。画面はキーを必要としません。</li>
-  <li><code>NEXT_PUBLIC_</code> の付いた名前にキーを入れることは禁止です。</li>
-  <li><code>.env</code> のファイルはコミットしません。イメージにも入れません。</li>
-  <li>Anthropic Console で利用額の上限を設定します。</li>
-  <li>漏れた疑いがあれば、キーを無効にして作り直します。</li>
-</ul>
-<p><code>.dockerignore</code> は <code>.env*</code> をビルドの文脈から除きます。</p>
-
-<h2 id="cors">CORS と頻度制限</h2>
-<h3>CORS</h3>
-<p><code>CORS_ORIGINS</code> には画面の本番オリジンだけを入れます。</p>
-<p>オリジンは <code>https://</code> から始め、末尾のスラッシュを付けません。</p>
-<p>プレビュー用の URL はデプロイごとに変わります。必要なときだけ一時的に足します。</p>
-<p><code>*</code> は指定しません。他のサイトから API キーの費用を使われるためです。</p>
-
+<h2 id="limits">頻度制限と使いすぎの防止</h2>
 <h3>頻度制限</h3>
-<p>エージェントは <code>/judge</code> をクライアントごとに 1 分単位で数えます。</p>
+<p>エージェントは <code>/judge</code> を利用者ごとに 1 分単位で数えます。</p>
 <p>上限を超えると、状態 429 の <code>error</code> イベントを返します。</p>
-<p><code>TRUST_PROXY=true</code> のときだけ、<code>X-Forwarded-For</code> の先頭の値で数えます。</p>
-<p>それ以外では接続元のアドレスで数えます。</p>
-<p>Cloud Run の背後では、全員が同じアドレスに見えます。そのため <code>TRUST_PROXY=true</code> にします。</p>
-<p>プロキシを通さず直接受けるときは false にします。true だと利用者がヘッダを偽れるためです。</p>
+<p>公開では 1 分に 6 回とします。人が画面から送る速さなら足ります。</p>
+<p>Cloud Run の背後では、接続元が全員同じに見えます。そのため <code>TRUST_PROXY=true</code> にします。</p>
 <div class="note">
-<p>カウンタはインスタンスごとのメモリにあります。台数が増えると上限も増えます。</p>
+  <p>カウンタはインスタンスごとのメモリにあります。台数が増えると上限も増えます。</p>
+  <p><code>X-Forwarded-For</code> の先頭は利用者が偽れます。頻度制限は一次の守りにすぎません。</p>
 </div>
-<p>当面は次の対策を重ねます。</p>
+<h3>守りの重ね方</h3>
 <ul>
-  <li><code>--max-instances</code> を小さく保ちます。</li>
-  <li>必要なら手前のロードバランサで IP ごとの制限をかけます。</li>
+  <li>最大インスタンス数を 2 に保ちます。</li>
+  <li>CORS は画面の本番オリジンだけを許します。<code>*</code> は指定しません。</li>
   <li>Anthropic Console の利用額の上限を最後の防壁にします。</li>
 </ul>
+<h3>キーの扱い</h3>
+<ul>
+  <li>キーは Secret Manager だけに置きます。</li>
+  <li><code>NEXT_PUBLIC_</code> の付いた名前にキーを入れることは禁止です。</li>
+  <li><code>.env</code> のファイルはコミットしません。イメージにも入れません。</li>
+  <li>漏れた疑いがあれば、Anthropic Console でキーを無効にします。新しいキーを手順 1 の形で入れ直します。</li>
+</ul>
 
-<h2 id="local">ローカルでの確認</h2>
-<p>リポジトリのルートで次を実行します。既定は決定論モードです。</p>
-<pre><code>docker compose -f infra/compose.yaml up --build</code></pre>
-<p>別の端末で、生存確認と判断の SSE を確かめます。</p>
-<pre><code>curl http://localhost:8787/health
-
-curl -N -X POST http://localhost:8787/judge \
+<h2 id="local">手元での確認</h2>
+<p>公開前に、同じイメージを手元の docker で確かめられます。キーは渡しません。</p>
+<pre><code>docker build -f infra/agent/Dockerfile -t kansai-agent:local .
+docker run -d --name kansai-agent-local -p 18080:8080 \
+  -e PORT=8080 -e JUDGE_MODE=deterministic -e TRUST_PROXY=true \
+  -e CORS_ORIGINS=http://localhost:3000 \
+  -e CONTENT_DIR=packages/schema/test/fixtures/dev-content kansai-agent:local
+docker logs kansai-agent-local
+curl -s http://localhost:18080/health
+curl -s -N -X POST http://localhost:18080/judge \
   -H 'content-type: application/json' \
   -d '{"observations":[],
        "newInput":{"type":"text","text":"JR京都線は人身事故の影響で、大阪駅〜京都駅間で運転を見合わせています。"},
        "origin":{"kind":"station","name":"大阪"},
        "destination":{"kind":"station","name":"京都"},
        "constraints":{"deadline":"2026-11-06T00:25:00+09:00","knowsAlternatives":false,"mobilityNotes":null},
-       "language":"ja","now":"2026-11-05T22:12:00+09:00"}'</code></pre>
-<p>最後に <code>judgment_ready</code> のイベントが届けば成功です。</p>
-<p>Claude を使うときは、ホストで <code>ANTHROPIC_API_KEY</code> を設定して起動します。</p>
-<pre><code>JUDGE_MODE=claude docker compose -f infra/compose.yaml up</code></pre>
+       "language":"ja","now":"2026-11-05T22:12:00+09:00"}'
+docker rm -f kansai-agent-local</code></pre>
+<p>起動ログに <code>scenarios: 5</code> と出て、最後に <code>judgment_ready</code> のイベントが届けば成功です。</p>
+<p><code>docker compose -f infra/compose.yaml up --build</code> でも同じ確認ができます。こちらは 8787 で待ち受けます。</p>
+
+<h2 id="trouble">困ったとき</h2>
+<div class="table-wrap">
+  <table>
+    <tr><th>症状</th><th>見るところ</th></tr>
+    <tr><td>Cloud Build が権限の不足で止まる</td><td>手順 1 の <code>roles/cloudbuild.builds.builder</code> の付与を確かめます。</td></tr>
+    <tr><td>出し直しで、シークレットを読めないと出る</td><td>手順 1 の <code>secretAccessor</code> の付与を確かめます。</td></tr>
+    <tr><td>起動ログが <code>mode: deterministic</code> になる</td><td>キーが渡っていません。<code>--set-secrets</code> の名前を確かめます。</td></tr>
+    <tr><td>画面で判断が始まらない</td><td>CORS か <code>NEXT_PUBLIC_AGENT_URL</code> の誤りです。手順 5 のコマンドで確かめます。</td></tr>
+    <tr><td>判断が途中で止まる</td><td>エージェントの記録を読みます。429 なら頻度制限です。</td></tr>
+  </table>
+</div>
 
 <h2 id="checklist">公開前の確認リスト</h2>
 <h3>表示</h3>
@@ -267,30 +341,26 @@ curl -N -X POST http://localhost:8787/judge \
   <li>注意書きに、公式発表を優先する旨が含まれています。</li>
   <li>地図の隅に出典が出ています。</li>
   <li>「このアプリについて」に、全データの出典が並んでいます。</li>
-  <li>出典は <code>docs/data-sources.md</code> の 4 章と一致しています。</li>
 </ul>
 <h3>ログと秘密</h3>
 <ul class="check">
-  <li>判断を数回流し、エージェントのログを読みます。</li>
-  <li>ログに入力の文面、画像、現在地が残っていません。</li>
-  <li>Vercel のログにも入力が残っていません。</li>
+  <li>エージェントのログに、入力の文面と画像と現在地が残っていません。</li>
   <li>画面の配信物に API キーが含まれていません。</li>
   <li><code>NEXT_PUBLIC_JUDGE_MOCK</code> が本番で未設定です。</li>
+  <li>Anthropic Console で月の利用額の上限がかかっています。</li>
 </ul>
 <h3>動作</h3>
 <ul class="check">
-  <li><code>JUDGE_MODE=deterministic</code> で判断が最後まで届きます。</li>
-  <li><code>JUDGE_MODE=claude</code> で判断が最後まで届きます。</li>
   <li>本番の画面から判断を流し、CORS で止まりません。</li>
-  <li>上限を超えて送ると、状態 429 が返ります。</li>
-  <li>起動ログの読み込み件数と、読めなかった件数を確かめます。</li>
-  <li><code>CONTENT_DIR</code> が本番の意図どおりのシナリオを指しています。</li>
+  <li>起動ログに <code>mode: claude</code> と出ています。</li>
+  <li>起動ログのシナリオの数が 5 で、読めなかった件数が 0 です。</li>
+  <li>画面のリプレイにダミーのシナリオが並びます。</li>
 </ul>
 <h3>リポジトリ</h3>
 <ul class="check">
   <li><code>pnpm typecheck</code>、<code>pnpm lint</code>、<code>pnpm test</code> が通ります。</li>
   <li><code>pnpm guard</code> が通ります。</li>
-  <li><code>pnpm --filter @repo/web build</code> が警告なく通ります。</li>
+  <li><code>pnpm --filter @repo/web build</code> が通ります。</li>
 </ul>
 </main>
 </body>
