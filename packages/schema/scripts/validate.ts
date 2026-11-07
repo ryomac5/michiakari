@@ -1,7 +1,7 @@
 import { findRepoRoot, resolveContentDir } from "../src/loaders.ts";
 import { buildValidationReport, watchContentDirs } from "./validate-report.ts";
 
-// knowledge/ と scenarios/ を検証する。既定はリポジトリルート、CONTENT_DIR で切り替える
+// scenarios/ を検証する。既定はリポジトリルート、CONTENT_DIR で切り替える
 // --watch を付けると、変更のたびに検証し直す
 
 const repoRoot = findRepoRoot();
@@ -20,7 +20,7 @@ function formatClockNow(): string {
 
 if (process.argv.includes("--watch")) {
   runOnce();
-  console.log("監視中: knowledge/ と scenarios/ の変更を待っています。Ctrl+C で終了します");
+  console.log("監視中: scenarios/ の変更を待っています。Ctrl+C で終了します");
   watchContentDirs(rootDir, () => {
     console.log(`\n---- ${formatClockNow()} 変更を検出したので検証し直します ----`);
     runOnce();

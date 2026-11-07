@@ -30,7 +30,6 @@ describe("開発用のダミー内容", () => {
 
   it("雛形が無くても allowMissing なら失敗にしない", () => {
     expect(checkTemplateConformance(DEV_CONTENT_DIR, { allowMissing: true })).toEqual([
-      { file: "knowledge/_template.yaml", errors: [], skipped: true },
       { file: "scenarios/_template.yaml", errors: [], skipped: true },
     ]);
   });

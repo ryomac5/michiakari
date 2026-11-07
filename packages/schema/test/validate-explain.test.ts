@@ -15,7 +15,7 @@ import {
   readRealTemplate,
   removeContentRoot,
   writeContentFile,
-  writeValidPair,
+  writeValidScenario,
 } from "./fixtures/content-root.ts";
 
 // validate のエラーに添える説明と直し方を確かめる
@@ -24,14 +24,13 @@ let root: string;
 
 beforeEach(() => {
   root = createContentRoot();
-  writeValidPair(root);
+  writeValidScenario(root);
 });
 
 afterEach(() => {
   removeContentRoot(root);
 });
 
-const knowledgeText = () => readFixtureText("knowledge.valid.yaml");
 const scenarioText = () => readFixtureText("scenario.valid.yaml");
 
 function explainAll(): ExplainedContentError[] {
@@ -44,8 +43,8 @@ function findByMessage(prefix: string): ExplainedContentError | undefined {
 
 describe("describeYamlPath", () => {
   it("配列の添字を 1 始まりの番号にして日本語の項目名でつなぐ", () => {
-    expect(describeYamlPath(["phases", 0, "duration_minutes", "p50"])).toBe(
-      "段階 1 › 所要時間 › 中央値 p50",
+    expect(describeYamlPath(["expectations", 0, "evidence_includes", 1])).toBe(
+      "期待 1 › 根拠の兆候 2",
     );
     expect(describeYamlPath(["timeline", 2, "text", "ja"])).toBe("観測 3 › 文面 › 日本語");
     expect(describeYamlPath([])).toBe("ファイルの最上位");
@@ -53,39 +52,26 @@ describe("describeYamlPath", () => {
 });
 
 describe("explainContentErrors", () => {
-  it("p50 が null なら中央値を分で書くよう促す", () => {
+  it("空の値には、項目の書き方を示す", () => {
     writeContentFile(
       root,
-      "knowledge/sample_event.yaml",
-      editYaml(knowledgeText(), ["phases", 0, "duration_minutes", "p50"], null),
+      "scenarios/sample_scenario.yaml",
+      editYaml(scenarioText(), ["timeline", 1, "offset_minutes"], null),
     );
-    const e = findByMessage("phases.0.duration_minutes.p50");
+    const e = findByMessage("timeline.1.offset_minutes");
     expect(e?.line).toBeTypeOf("number");
-    expect(e?.explanation).toBe("「段階 1 › 所要時間 › 中央値 p50」が空です");
-    expect(e?.hint).toBe("所要時間の中央値を分で書いてください。例: p50: 15");
-  });
-
-  it("p80 が p50 より小さければ理由と直し方を返す", () => {
-    writeContentFile(
-      root,
-      "knowledge/sample_event.yaml",
-      editYaml(knowledgeText(), ["phases", 0, "duration_minutes", "p80"], 5),
-    );
-    const e = findByMessage("phases.0.duration_minutes.p80");
-    expect(e?.explanation).toBe(
-      "「段階 1 › 所要時間 › 長引く場合 p80」が中央値 p50 より小さくなっています",
-    );
-    expect(e?.hint).toContain("p50 以上");
+    expect(e?.explanation).toBe("「観測 2 › 経過分」が空です");
+    expect(e?.hint).toBe("start_time からの経過を 0 以上の整数の分で書き、昇順に並べてください");
   });
 
   it("選べない値には候補を示す", () => {
     writeContentFile(
       root,
-      "knowledge/sample_event.yaml",
-      editYaml(knowledgeText(), ["phases", 0, "signals", 0, "observable_from", 0], "poster"),
+      "scenarios/sample_scenario.yaml",
+      editYaml(scenarioText(), ["timeline", 0, "kind"], "poster"),
     );
-    const e = findByMessage("phases.0.signals.0.observable_from.0");
-    expect(e?.explanation).toBe("「段階 1 › 兆候 1 › 情報源 1」が選べる値ではありません");
+    const e = findByMessage("timeline.0.kind");
+    expect(e?.explanation).toBe("「観測 1 › 種類」が選べる値ではありません");
     expect(e?.hint).toContain("announcement、signage");
   });
 
@@ -125,40 +111,40 @@ describe("explainContentErrors", () => {
   it("TODO の場所を項目名で示す。同じ行の TODO も順に対応させる", () => {
     writeContentFile(
       root,
-      "knowledge/sample_event.yaml",
-      knowledgeText().replace("name: { ja: 対応中 }", "name: { ja: TODO, en: TODO }"),
+      "scenarios/sample_scenario.yaml",
+      scenarioText().replace("text: { ja: 架空の放送 }", "text: { ja: TODO, en: TODO }"),
     );
     const todos = explainAll().filter((e) => e.message.startsWith("TODO が残っています"));
     expect(todos.map((e) => e.explanation)).toEqual([
-      "「段階 2 › 名前 › 日本語」が雛形のままです",
-      "「段階 2 › 名前 › 英語」が雛形のままです",
+      "「観測 2 › 文面 › 日本語」が雛形のままです",
+      "「観測 2 › 文面 › 英語」が雛形のままです",
     ]);
-    expect(todos[0]?.hint).toBe("段階の名前を書いてください。例: 発生直後");
+    expect(todos[0]?.hint).toBe(
+      "発表文や掲示の文面を自作して書いてください。実在の発表文は転載しません",
+    );
     expect(todos[1]?.hint).toBe("英語で書くか、不要なら行ごと消してください");
   });
 
   it("雛形をそのまま写すと、すべてのエラーに説明が付く", () => {
     writeContentFile(
       root,
-      "knowledge/sample_event.yaml",
-      readRealTemplate("knowledge").replace("id: TODO_event_id", "id: sample_event"),
+      "scenarios/sample_scenario.yaml",
+      readRealTemplate("scenarios").replace("id: TODO_scenario_id", "id: sample_scenario"),
     );
-    const errors = explainAll().filter((e) => e.file === "knowledge/sample_event.yaml");
+    const errors = explainAll().filter((e) => e.file === "scenarios/sample_scenario.yaml");
     expect(errors.length).toBeGreaterThan(0);
     expect(errors.filter((e) => !e.explanation || !e.hint)).toEqual([]);
   });
 
-  it("exit_signals の未定義を signals への追加で直すよう促す", () => {
+  it("expectations の after の未定義を timeline の id で直すよう促す", () => {
     writeContentFile(
       root,
-      "knowledge/sample_event.yaml",
-      editYaml(knowledgeText(), ["phases", 1, "exit_signals"], ["missing_signal"]),
+      "scenarios/sample_scenario.yaml",
+      editYaml(scenarioText(), ["expectations", 1, "after"], "obs_9"),
     );
-    const e = findByMessage("phase working の exit_signals");
-    expect(e?.explanation).toBe(
-      "段階 working の exit_signals にある missing_signal が、どの段階の signals にもありません",
-    );
-    expect(e?.hint).toContain("signals");
+    const e = findByMessage("expectations.after が未定義");
+    expect(e?.explanation).toBe("expectations の after にある obs_9 が timeline にありません");
+    expect(e?.hint).toContain("timeline");
   });
 
   it("event_type の形式違反に、統計値の種類の id を書くよう案内する", () => {
@@ -177,29 +163,21 @@ describe("explainContentErrors", () => {
     expect(e?.explanation).toBe("YAML として読めません");
     expect(e?.hint).toContain("インデント");
   });
-
-  it("id とファイル名の不一致に両方の直し方を示す", () => {
-    writeContentFile(root, "knowledge/other_name.yaml", knowledgeText());
-    const e = findByMessage("id とファイル名が一致しません");
-    expect(e?.hint).toBe(
-      "ファイル名を sample_event.yaml に変えるか、id を other_name に直してください",
-    );
-  });
 });
 
 describe("formatExplainedError", () => {
   it("1 行目は従来の形式のまま、説明と直し方を字下げして続ける", () => {
     const e = {
-      file: "knowledge/a.yaml",
+      file: "scenarios/a.yaml",
       line: 3,
       message: "TODO が残っています: TODO",
-      explanation: "「名前 › 日本語」が雛形のままです",
-      hint: "事象の名前を書いてください。例: 人身事故",
+      explanation: "「題名 › 日本語」が雛形のままです",
+      hint: "どんな状況かが分かる題名を書いてください",
     };
     expect(formatExplainedError(e, "  ")).toEqual([
       formatContentError(e),
-      "  説明: 「名前 › 日本語」が雛形のままです",
-      "  直し方: 事象の名前を書いてください。例: 人身事故",
+      "  説明: 「題名 › 日本語」が雛形のままです",
+      "  直し方: どんな状況かが分かる題名を書いてください",
     ]);
   });
 
@@ -212,8 +190,8 @@ describe("sortContentErrors", () => {
   it("ファイル名、行番号の順に並べる", () => {
     const sorted = sortContentErrors([
       { file: "scenarios/s.yaml", line: 1, message: "c" },
-      { file: "knowledge/k.yaml", line: 9, message: "b" },
-      { file: "knowledge/k.yaml", line: 2, message: "a" },
+      { file: "scenarios/k.yaml", line: 9, message: "b" },
+      { file: "scenarios/k.yaml", line: 2, message: "a" },
     ]);
     expect(sorted.map((e) => e.message)).toEqual(["a", "b", "c"]);
   });

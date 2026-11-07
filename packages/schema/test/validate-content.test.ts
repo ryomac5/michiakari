@@ -1,4 +1,4 @@
-import { rmSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { formatContentError, validateContent } from "../src/validate-content.ts";
@@ -8,7 +8,7 @@ import {
   readFixtureText,
   removeContentRoot,
   writeContentFile,
-  writeValidPair,
+  writeValidScenario,
 } from "./fixtures/content-root.ts";
 
 let root: string;
@@ -21,7 +21,6 @@ afterEach(() => {
   removeContentRoot(root);
 });
 
-const knowledgeText = () => readFixtureText("knowledge.valid.yaml");
 const scenarioText = () => readFixtureText("scenario.valid.yaml");
 
 function messagesOf(): string[] {
@@ -34,19 +33,16 @@ describe("validateContent", () => {
   });
 
   it("合格例を受け付け、検証したファイルを返す", () => {
-    writeValidPair(root);
+    writeValidScenario(root);
     const result = validateContent(root);
     expect(result.errors).toEqual([]);
-    expect(result.checkedFiles).toEqual([
-      "knowledge/sample_event.yaml",
-      "scenarios/sample_scenario.yaml",
-    ]);
+    expect(result.checkedFiles).toEqual(["scenarios/sample_scenario.yaml"]);
   });
 
   it("_ で始まるファイルと .md は対象外", () => {
-    writeContentFile(root, "knowledge/_template.yaml", "id: TODO\n");
+    writeContentFile(root, "scenarios/_template.yaml", "id: TODO\n");
     writeContentFile(root, "scenarios/_draft.yaml", "broken: [\n");
-    writeContentFile(root, "knowledge/README.md", "# TODO\n");
+    writeContentFile(root, "scenarios/README.md", "# TODO\n");
     expect(validateContent(root)).toEqual({ checkedFiles: [], errors: [] });
   });
 
@@ -58,20 +54,20 @@ describe("validateContent", () => {
   });
 
   it("スキーマ違反を行番号つきで返す", () => {
-    writeValidPair(root);
+    writeValidScenario(root);
     writeContentFile(
       root,
-      "knowledge/sample_event.yaml",
-      editYaml(knowledgeText(), ["phases", 0, "duration_minutes", "p50"], "十分"),
+      "scenarios/sample_scenario.yaml",
+      editYaml(scenarioText(), ["timeline", 1, "offset_minutes"], "十分"),
     );
     const { errors } = validateContent(root);
-    const schemaError = errors.find((e) => e.message.startsWith("phases.0.duration_minutes.p50"));
-    expect(schemaError?.file).toBe("knowledge/sample_event.yaml");
+    const schemaError = errors.find((e) => e.message.startsWith("timeline.1.offset_minutes"));
+    expect(schemaError?.file).toBe("scenarios/sample_scenario.yaml");
     expect(schemaError?.line).toBeTypeOf("number");
   });
 
   it("スキーマに無いキーを拒否する", () => {
-    writeValidPair(root);
+    writeValidScenario(root);
     writeContentFile(
       root,
       "scenarios/sample_scenario.yaml",
@@ -83,42 +79,19 @@ describe("validateContent", () => {
   });
 
   it("ファイル内の整合性違反を返す", () => {
-    writeValidPair(root);
+    writeValidScenario(root);
     writeContentFile(
       root,
-      "knowledge/sample_event.yaml",
-      editYaml(knowledgeText(), ["phases", 1, "exit_signals"], ["missing_signal"]),
+      "scenarios/sample_scenario.yaml",
+      editYaml(scenarioText(), ["expectations", 1, "after"], "obs_9"),
     );
     expect(messagesOf()).toContain(
-      "knowledge/sample_event.yaml: phase working の exit_signals が未定義の signal を指しています: missing_signal",
+      "scenarios/sample_scenario.yaml: expectations.after が未定義の timeline id を指しています: obs_9",
     );
-  });
-
-  it("知見の id とファイル名の不一致を返す", () => {
-    writeContentFile(root, "knowledge/other_name.yaml", knowledgeText());
-    writeContentFile(root, "scenarios/sample_scenario.yaml", scenarioText());
-    const { errors } = validateContent(root);
-    expect(errors).toEqual([
-      {
-        file: "knowledge/other_name.yaml",
-        line: 2,
-        message: "id とファイル名が一致しません: id=sample_event, ファイル名=other_name",
-      },
-    ]);
-  });
-
-  it("知見の id 重複を返す", () => {
-    writeValidPair(root);
-    writeContentFile(root, "knowledge/sample_event_copy.yaml", knowledgeText());
-    expect(
-      messagesOf().some((m) =>
-        m.includes("知見の id が複数のファイルで重複しています: sample_event"),
-      ),
-    ).toBe(true);
   });
 
   it("シナリオの id 重複を返す", () => {
-    writeValidPair(root);
+    writeValidScenario(root);
     writeContentFile(root, "scenarios/copy.yaml", scenarioText());
     expect(messagesOf()).toContain(
       "scenarios/copy.yaml: シナリオの id が複数のファイルで重複しています: sample_scenario (copy.yaml, sample_scenario.yaml)",
@@ -126,11 +99,11 @@ describe("validateContent", () => {
   });
 
   it("TODO の残った文字列値を返す", () => {
-    writeValidPair(root);
+    writeValidScenario(root);
     writeContentFile(
       root,
-      "knowledge/sample_event.yaml",
-      editYaml(knowledgeText(), ["after_resume", "notes"], "TODO あとで書く"),
+      "scenarios/sample_scenario.yaml",
+      editYaml(scenarioText(), ["ground_truth", "notes"], "TODO あとで書く"),
     );
     const { errors } = validateContent(root);
     expect(errors).toHaveLength(1);
@@ -139,13 +112,13 @@ describe("validateContent", () => {
   });
 
   it("コメントの TODO は対象外", () => {
-    writeValidPair(root);
-    writeContentFile(root, "knowledge/sample_event.yaml", `# TODO 見直す\n${knowledgeText()}`);
+    writeValidScenario(root);
+    writeContentFile(root, "scenarios/sample_scenario.yaml", `# TODO 見直す\n${scenarioText()}`);
     expect(validateContent(root).errors).toEqual([]);
   });
 
   it(".yml 拡張子を拒否する", () => {
-    writeValidPair(root);
+    writeValidScenario(root);
     writeContentFile(root, "scenarios/extra.yml", scenarioText());
     const { errors, checkedFiles } = validateContent(root);
     expect(errors.map(formatContentError)).toEqual([
@@ -155,7 +128,7 @@ describe("validateContent", () => {
   });
 
   it("シナリオは知見を参照しないので、知見の無い event_type、phase、手がかりの id を受け付ける", () => {
-    writeValidPair(root);
+    writeValidScenario(root);
     const edited = [
       [["event_type"], "person_collision"],
       [["expectations", 0, "phase"], "unknown_phase"],
@@ -166,19 +139,24 @@ describe("validateContent", () => {
     expect(messagesOf()).toEqual([]);
   });
 
-  it("knowledge/ が無くても、シナリオだけを検証する", () => {
-    writeValidPair(root);
-    rmSync(join(root, "knowledge"), { recursive: true, force: true });
+  it("knowledge/ があっても検証しない", () => {
+    writeValidScenario(root);
+    mkdirSync(join(root, "knowledge"));
+    writeContentFile(root, "knowledge/broken.yaml", "broken: [\n");
     const result = validateContent(root);
     expect(result.errors).toEqual([]);
     expect(result.checkedFiles).toEqual(["scenarios/sample_scenario.yaml"]);
   });
 
   it("重複キーを行番号つきで返す", () => {
-    writeValidPair(root);
-    writeContentFile(root, "knowledge/sample_event.yaml", `${knowledgeText()}id: sample_event\n`);
+    writeValidScenario(root);
+    writeContentFile(
+      root,
+      "scenarios/sample_scenario.yaml",
+      `${scenarioText()}id: sample_scenario\n`,
+    );
     const { errors } = validateContent(root);
-    const duplicate = errors.find((e) => e.file === "knowledge/sample_event.yaml");
+    const duplicate = errors.find((e) => e.file === "scenarios/sample_scenario.yaml");
     expect(duplicate?.message).toContain("DUPLICATE_KEY");
     expect(duplicate?.line).toBeTypeOf("number");
   });

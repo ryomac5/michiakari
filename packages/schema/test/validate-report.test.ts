@@ -9,16 +9,16 @@ import {
   readFixtureText,
   removeContentRoot,
   writeContentFile,
-  writeValidPair,
+  writeValidScenario,
 } from "./fixtures/content-root.ts";
 
-// pnpm validate の出力と --watch を確かめる。本物の knowledge/ と scenarios/ には書かない
+// pnpm validate の出力と --watch を確かめる。本物の scenarios/ には書かない
 
 let root: string;
 
 beforeEach(() => {
   root = createContentRoot();
-  writeValidPair(root);
+  writeValidScenario(root);
 });
 
 afterEach(() => {
@@ -31,11 +31,9 @@ describe("buildValidationReport", () => {
     expect(report.ok).toBe(true);
     expect(report.lines).toEqual([
       `読み込み元: ${root}`,
-      "検証したファイル: 2 件",
-      "  - knowledge/sample_event.yaml",
+      "検証したファイル: 1 件",
       "  - scenarios/sample_scenario.yaml",
       "雛形の整合:",
-      "  knowledge/_template.yaml: 雛形なし (CONTENT_DIR 指定のため省略)",
       "  scenarios/_template.yaml: 雛形なし (CONTENT_DIR 指定のため省略)",
       "エラーはありません",
     ]);
@@ -44,23 +42,19 @@ describe("buildValidationReport", () => {
   it("エラーの行は従来の形式で、その下に説明と直し方を続ける", () => {
     writeContentFile(
       root,
-      "knowledge/sample_event.yaml",
-      editYaml(
-        readFixtureText("knowledge.valid.yaml"),
-        ["phases", 0, "duration_minutes", "p50"],
-        null,
-      ),
+      "scenarios/sample_scenario.yaml",
+      editYaml(readFixtureText("scenario.valid.yaml"), ["timeline", 1, "offset_minutes"], null),
     );
     const report = buildValidationReport(root, { isDefaultRoot: false });
     expect(report.ok).toBe(false);
     expect(report.lines.some((l) => /^エラー: \d+ 件$/.test(l))).toBe(true);
     const index = report.lines.findIndex((l) =>
-      /^ {2}- knowledge\/sample_event\.yaml:\d+: phases\.0\.duration_minutes\.p50: /.test(l),
+      /^ {2}- scenarios\/sample_scenario\.yaml:\d+: timeline\.1\.offset_minutes: /.test(l),
     );
     expect(index).toBeGreaterThan(0);
     expect(report.lines.slice(index + 1, index + 3)).toEqual([
-      "      説明: 「段階 1 › 所要時間 › 中央値 p50」が空です",
-      "      直し方: 所要時間の中央値を分で書いてください。例: p50: 15",
+      "      説明: 「観測 2 › 経過分」が空です",
+      "      直し方: start_time からの経過を 0 以上の整数の分で書き、昇順に並べてください",
     ]);
   });
 
@@ -72,19 +66,21 @@ describe("buildValidationReport", () => {
     );
     writeContentFile(
       root,
-      "knowledge/sample_event.yaml",
-      editYaml(readFixtureText("knowledge.valid.yaml"), ["caveats", 0], "TODO"),
+      "scenarios/second.yaml",
+      readFixtureText("scenario.valid.yaml")
+        .replace("id: sample_scenario", "id: second_scenario")
+        .replace("notes: 架空の結末", "notes: TODO"),
     );
     const { lines } = buildValidationReport(root, { isDefaultRoot: false });
     const errorLines = lines.filter((l) => l.startsWith("  - ") && l.includes("TODO"));
     expect(errorLines.map((l) => l.split(":")[0])).toEqual([
-      "  - knowledge/sample_event.yaml",
       "  - scenarios/sample_scenario.yaml",
+      "  - scenarios/second.yaml",
     ]);
     expect(lines.slice(-3)).toEqual([
       "ファイルごとの件数:",
-      "  knowledge/sample_event.yaml: 1 件",
       "  scenarios/sample_scenario.yaml: 1 件",
+      "  scenarios/second.yaml: 1 件",
     ]);
   });
 });

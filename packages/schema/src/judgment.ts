@@ -8,7 +8,6 @@ import {
   NonNegativeIntSchema,
 } from "./common.ts";
 import { findDuplicateIds } from "./internal.ts";
-import { TypicalFlowSchema } from "./typical-flow.ts";
 
 // emit_judgment の出力。Claude のツール定義に変換するため refine で ID 参照を検査しない
 
@@ -240,8 +239,6 @@ export const JudgmentSchema = z.object({
   recommendedOptionId: IdSchema.nullable(),
   evidence: z.array(EvidenceSchema),
   disclaimer: z.string().min(1),
-  // 事象のよくある流れ。以前の記録との互換のため残す。agent は付けない
-  typicalFlow: TypicalFlowSchema.optional(),
   ...RuleOutlookShape,
   // 近くのバス停の確認候補。判断の確定後にサーバーが決定論で付ける。無ければ画面は欄を出さない
   busChecks: z.array(BusCheckSchema).max(BUS_CHECK_LIMIT).optional(),
