@@ -12,6 +12,7 @@ import { LogoMark } from "./LogoMark";
 
 // 画面の上に浮かせる細い帯。左にロゴ、中央に画面ごとの中身、右端にメニュー
 // map は地図の画面。PC 幅では左上に寄せ、右側のパネルと重ならないようにする
+// float は判断の画面。帯を出さず、戻るボタンとメニューだけを地図の上の左右に浮かせる
 export function AppHeader({
   children,
   leading,
@@ -23,7 +24,7 @@ export function AppHeader({
   below?: ReactNode;
   // ロゴの代わりに置く部品（リプレイの「戻る」など）
   leading?: ReactNode;
-  variant?: "page" | "map";
+  variant?: "page" | "map" | "float";
 }) {
   const t = useTranslations("app");
   const { mockEnabled } = useJudgmentSession();
@@ -36,6 +37,7 @@ export function AppHeader({
         className={cn(
           "pointer-events-none fixed inset-x-0 top-0 z-30 flex flex-col items-center gap-2 pt-[max(12px,env(safe-area-inset-top))] pr-[max(12px,env(safe-area-inset-right))] pl-[max(12px,env(safe-area-inset-left))]",
           variant === "map" && "lg:right-auto lg:items-start lg:px-4 lg:pt-4",
+          variant === "float" && "items-stretch lg:right-[432px] lg:px-4 lg:pt-4",
         )}
       >
         <a
@@ -44,37 +46,48 @@ export function AppHeader({
         >
           {t("skipToContent")}
         </a>
-        <div
-          className={cn(
-            "glass pointer-events-auto relative flex h-14 w-full items-center gap-1 rounded-2xl pr-1 pl-1.5",
-            variant === "page" ? "max-w-2xl" : "lg:w-[min(560px,calc(100vw-464px))]",
-          )}
-        >
-          {leading ?? (
-            <Link
-              href="/"
-              data-testid={testIds.app.homeLink}
-              aria-label={`${t("name")} — ${t("home")}`}
-              className={cn(
-                "flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-xl px-1.5",
-                // 地図の画面のスマートフォン幅では帯を経路と状況に譲る。ホームへはメニューから戻れる
-                compact && "max-sm:hidden",
-              )}
-            >
-              <LogoMark className="size-7" />
-              <span
+        {variant === "float" ? (
+          <div className="flex w-full items-start justify-between">
+            <div className="glass pointer-events-auto flex size-12 items-center justify-center rounded-full">
+              {leading}
+            </div>
+            <div className="glass pointer-events-auto flex size-12 items-center justify-center rounded-full">
+              <AppMenu mock={mockEnabled} />
+            </div>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "glass pointer-events-auto relative flex h-14 w-full items-center gap-1 rounded-2xl pr-1 pl-1.5",
+              variant === "page" ? "max-w-2xl" : "lg:w-[min(560px,calc(100vw-464px))]",
+            )}
+          >
+            {leading ?? (
+              <Link
+                href="/"
+                data-testid={testIds.app.homeLink}
+                aria-label={`${t("name")} — ${t("home")}`}
                 className={cn(
-                  "text-[15px] font-bold tracking-tight whitespace-nowrap",
-                  compact && "sr-only",
+                  "flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-xl px-1.5",
+                  // 地図の画面のスマートフォン幅では帯を経路と状況に譲る。ホームへはメニューから戻れる
+                  compact && "max-sm:hidden",
                 )}
               >
-                {t("name")}
-              </span>
-            </Link>
-          )}
-          <div className="flex min-w-0 flex-1 items-center gap-1">{children}</div>
-          <AppMenu mock={mockEnabled && variant === "map"} />
-        </div>
+                <LogoMark className="size-7" />
+                <span
+                  className={cn(
+                    "text-[15px] font-bold tracking-tight whitespace-nowrap",
+                    compact && "sr-only",
+                  )}
+                >
+                  {t("name")}
+                </span>
+              </Link>
+            )}
+            <div className="flex min-w-0 flex-1 items-center gap-1">{children}</div>
+            <AppMenu mock={mockEnabled && variant === "map"} />
+          </div>
+        )}
         {below && (
           <div
             className={cn(

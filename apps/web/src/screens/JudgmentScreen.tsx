@@ -31,7 +31,7 @@ import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/
 import { InCarBand, ResumeBand } from "@/features/judgment/components/ResumeBand";
 import { RuleOutlook } from "@/features/judgment/components/RuleOutlook";
 import { TrainPositionChips } from "@/features/judgment/components/TrainPositionChips";
-import { StatusChip, TripSummary } from "@/features/judgment/components/TripSummary";
+import { StatusChip } from "@/features/judgment/components/TripSummary";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { selectFallbackOptionId } from "@/features/judgment/fallback-option";
 import { buildInCarBand } from "@/features/judgment/in-car-band";
@@ -56,6 +56,8 @@ import { useSectionPick } from "@/features/situation/use-section-pick";
 const noOptions: RouteOption[] = [];
 // 地図に重ねる見込みの帯が占める高さ。単位は px。地図の札と寄せる範囲をその下へずらす
 const resumeBandSpace = 76;
+// 浮かせた戻るボタンとメニューの下端までの高さに余白を足したもの。単位は px。地図を寄せるときの上の余白にする
+const floatHeaderInset = 68;
 // 閉じたシートの高さの下限。単位は px。見出しと時刻と注意書きだけなので低くし、詳細を覗かせない
 const collapsedSheetMin = 120;
 
@@ -102,7 +104,7 @@ export function JudgmentScreen() {
   useEffect(() => {
     resumeJudgment();
   }, [resumeJudgment]);
-  const chrome = useMapChrome();
+  const chrome = useMapChrome(floatHeaderInset);
   // 情報を追加するとき、シートが開き切った次のフレームで入力欄へ寄せる
   const [focusAddInfo, setFocusAddInfo] = useState(false);
   useEffect(() => {
@@ -116,6 +118,8 @@ export function JudgmentScreen() {
     return () => window.cancelAnimationFrame(frame);
   }, [focusAddInfo, chrome.snap]);
   const [reachSource, setReachSource] = useState<ReachSource | null>(null);
+  // 地図が止まっている区間の線のそばに「見合わせ」の札を出しているか
+  const [blockedTagShown, setBlockedTagShown] = useState(false);
   const [guide, setGuide] = useState<StationGuide | null>(null);
   const { highlightId, focusOption } = useOptionFocus(chrome.setSnap);
   const { selectedOptionId, selectOption } = useOptionSelection(chrome.setSnap, state.judgedAt);
@@ -193,6 +197,26 @@ export function JudgmentScreen() {
     (resumeChance !== null || inCarBandGuide !== null) &&
     chrome.snap !== "full" &&
     sectionPick === null;
+  // 運行の状態の札。区間を地図に赤い線で描いているときは、線のそばの「見合わせ」の札が示すので出さない
+  // 描いていなければ、見込みの帯の左上に小さく添える。帯が無ければ、戻るボタンとメニューの間に出す
+  // 区間を地図で選んでいる間は、帯と同じく隠す
+  const sectionDrawn = blockedSection !== null && stopScope !== "train" && blockedTagShown;
+  const status =
+    (blockedLine || stopScope === "train") && !sectionDrawn && sectionPick === null ? (
+      <StatusChip
+        size="small"
+        line={blockedLine ? lineLabel : null}
+        scope={stopScope}
+        place={
+          stoppedPlace === null
+            ? null
+            : stoppedPlace.kind === "between"
+              ? t("tripBetween", { from: stoppedPlace.from, to: stoppedPlace.to })
+              : stoppedPlace.name
+        }
+        testId={testIds.judgment.statusChip}
+      />
+    ) : null;
   const mapInsets = showBand
     ? { ...chrome.insets, top: chrome.insets.top + resumeBandSpace }
     : chrome.insets;
@@ -200,8 +224,9 @@ export function JudgmentScreen() {
   return (
     <div data-testid={testIds.judgment.screen} data-status={state.status} className="h-dvh">
       {/* 戻るは端末の戻る操作と同じ道を通し、入口の最後に答えた段へ戻る。更新中と失敗時にも押せる */}
+      {/* 見出しの場所は戻るボタンとメニューだけにする。行程は地図の「いま」と「行き先」の札が示す */}
       <AppHeader
-        variant="map"
+        variant="float"
         leading={
           <HeaderBackButton
             label={t("back")}
@@ -209,27 +234,7 @@ export function JudgmentScreen() {
             onClick={() => router.back()}
           />
         }
-      >
-        <TripSummary
-          origin={origin}
-          destination={destination}
-          testId={testIds.judgment.tripSummary}
-        />
-        {(blockedLine || stopScope === "train") && (
-          <StatusChip
-            line={blockedLine ? lineLabel : null}
-            scope={stopScope}
-            place={
-              stoppedPlace === null
-                ? null
-                : stoppedPlace.kind === "between"
-                  ? t("tripBetween", { from: stoppedPlace.from, to: stoppedPlace.to })
-                  : stoppedPlace.name
-            }
-            testId={testIds.judgment.statusChip}
-          />
-        )}
-      </AppHeader>
+      />
 
       <MapPanel
         origin={origin}
@@ -245,6 +250,7 @@ export function JudgmentScreen() {
         trainOnly={stopScope === "train"}
         insets={mapInsets}
         afterAlight={inCarGuide?.afterAlight ?? null}
+        onBlockedTagChange={setBlockedTagShown}
         inCarPlan={inCarPlan}
         motionKey={ready ? (state.judgedAt ?? null) : null}
         onReachSourceChange={setReachSource}
@@ -256,6 +262,7 @@ export function JudgmentScreen() {
       {showBand && inCarBandGuide && (
         <InCarBand
           guide={inCarBandGuide}
+          status={status}
           className="fixed z-10 lg:max-w-[420px]"
           style={{
             top: chrome.insets.top + 8,
@@ -269,6 +276,7 @@ export function JudgmentScreen() {
           chance={resumeChance}
           breakEvenTime={display.breakEven.time}
           switching={display.judgment?.action === "switch"}
+          status={status}
           className="fixed z-10 lg:max-w-[420px]"
           style={{
             top: chrome.insets.top + 8,
@@ -276,6 +284,19 @@ export function JudgmentScreen() {
             right: chrome.insets.right + 12,
           }}
         />
+      )}
+
+      {!showBand && status && (
+        <div
+          className="pointer-events-none fixed z-30 flex justify-center"
+          style={{
+            top: `calc(${chrome.insets.top - floatHeaderInset}px + 24px)`,
+            left: 72,
+            right: 72,
+          }}
+        >
+          {status}
+        </div>
       )}
 
       <main id="main">
@@ -288,6 +309,7 @@ export function JudgmentScreen() {
           snap={chrome.snap}
           onSnapChange={chrome.setSnap}
           onCollapsedHeightChange={chrome.setCollapsedHeight}
+          topInset={chrome.topInset}
           collapsedMin={collapsedSheetMin}
           summary={
             <div className="flex flex-col gap-3">
