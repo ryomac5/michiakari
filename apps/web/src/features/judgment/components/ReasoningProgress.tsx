@@ -3,11 +3,6 @@
 import { Check, ChevronDown, CircleAlert, LoaderCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import {
-  findCatalogEvent,
-  type KnowledgeCatalog,
-  pickLocalized,
-} from "@/features/knowledge/catalog";
 import { cn } from "@/lib/utils";
 import {
   type JudgmentState,
@@ -20,15 +15,9 @@ import { formatClockTime } from "../time";
 
 // 判断の生成中に、閉じたシートへ推論の 5 段を横一列の点で出し、最新の進捗を 1 行添える
 // 段の data-testid は始まった段にだけ付け、現れた順を外から確かめられるようにする
-export function ReasoningProgress({
-  state,
-  catalog,
-}: {
-  state: JudgmentState;
-  catalog: KnowledgeCatalog;
-}) {
+export function ReasoningProgress({ state }: { state: JudgmentState }) {
   const t = useTranslations("judgment.reasoning");
-  const describe = useDescribeStep(state, catalog);
+  const describe = useDescribeStep(state);
   const started = [...reasoningSteps].reverse().filter((id) => state.steps[id] !== "pending");
   const latest = started[0];
   const progress = latest ? (state.progress[latest] ?? null) : null;
@@ -126,15 +115,9 @@ function StepDot({
 }
 
 // 判断が出たあとに、推論の過程を振り返る。終わった過程は畳み、見たい人だけが開く
-export function ReasoningLog({
-  state,
-  catalog,
-}: {
-  state: JudgmentState;
-  catalog: KnowledgeCatalog;
-}) {
+export function ReasoningLog({ state }: { state: JudgmentState }) {
   const t = useTranslations("judgment.reasoning");
-  const describe = useDescribeStep(state, catalog);
+  const describe = useDescribeStep(state);
   const steps = reasoningSteps.filter((id) => state.steps[id] !== "pending");
   if (steps.length === 0) return null;
 
@@ -182,7 +165,7 @@ export function ReasoningLog({
 }
 
 // 段の中身を短い文にする。まだ分からなければ null
-function useDescribeStep(state: JudgmentState, catalog: KnowledgeCatalog) {
+function useDescribeStep(state: JudgmentState) {
   const t = useTranslations("judgment.reasoning.detail");
   const locale = useLocale();
 
@@ -194,14 +177,9 @@ function useDescribeStep(state: JudgmentState, catalog: KnowledgeCatalog) {
       }
       case "signals":
         return state.signals.length > 0 ? t("signals", { count: state.signals.length }) : null;
-      case "phase": {
-        const estimate = state.estimate;
-        if (!estimate?.phaseId) return null;
-        const phase = findCatalogEvent(catalog, estimate.eventType)?.phases.find(
-          (p) => p.id === estimate.phaseId,
-        );
-        return t("phase", { phase: phase ? pickLocalized(phase.name, locale) : estimate.phaseId });
-      }
+      // 事象の段階の名前は出さない
+      case "phase":
+        return null;
       case "options":
         return state.options ? t("options", { count: state.options.length }) : null;
       case "breakEven":

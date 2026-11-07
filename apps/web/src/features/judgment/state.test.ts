@@ -50,7 +50,7 @@ describe("reduceJudgmentState", () => {
 
     const afterPhase = applyEvents(afterSignals, [findEvent(events, "phase_estimated")]);
     expect(afterPhase.steps).toMatchObject({ signals: "done", phase: "done", options: "active" });
-    expect(afterPhase.estimate?.phaseId).toBe("on_site");
+    expect(afterPhase.estimate?.eventType).toBe("person_collision");
 
     const afterOptions = applyEvents(afterPhase, [findEvent(events, "alternatives_computed")]);
     expect(afterOptions.steps).toMatchObject({ options: "done", breakEven: "active" });

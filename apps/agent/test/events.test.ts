@@ -1,4 +1,4 @@
-import { parseIsoToMs } from "@repo/core";
+import { checkWeatherIncident, findIncidentType, parseIsoToMs } from "@repo/core";
 import type { JudgmentEvent, JudgmentEventOf } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.ts";
@@ -129,9 +129,9 @@ function pickWeatherChecked(events: JudgmentEvent[]): JudgmentEventOf<"weather_c
   return events.flatMap((e) => (e.type === "weather_checked" ? [e] : []));
 }
 
-// 知見が気象を使う事象かどうか。シナリオ ID は埋め込まず、知見の external_factors で分ける
+// 気象を使う種類かどうか。シナリオ ID は埋め込まず、core の天気の事象の判定で分ける
 function usesWeather(scenario: (typeof scenarios)[number]): boolean {
-  return deps.content.knowledge.get(scenario.event_type)?.external_factors.weather === true;
+  return checkWeatherIncident(findIncidentType(scenario.event_type));
 }
 
 describe("weather_checked", () => {

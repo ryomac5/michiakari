@@ -7,7 +7,6 @@ import en from "../../apps/web/messages/en.json" with { type: "json" };
 import jaMessages from "../../apps/web/messages/ja.json" with { type: "json" };
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
-  loadReplayKnowledge,
   loadReplayScenarios,
   openSheet,
   splitScenariosByWeather,
@@ -48,8 +47,8 @@ const scenario =
   scenarios.find((s) => s.expectations.some((e) => e.action === "switch")) ?? scenarios[0];
 const switchAfter =
   scenario?.expectations.find((e) => e.action === "switch")?.after ?? scenario?.timeline.at(-1)?.id;
-// 気象を使う事象のシナリオは、知見の external_factors.weather で選ぶ。待つ判断になった観測で撮る
-const weatherScenario = splitScenariosByWeather(scenarios, loadReplayKnowledge()).weather[0];
+// 気象を使う事象のシナリオは、core の事象の種類で選ぶ。待つ判断になった観測で撮る
+const weatherScenario = splitScenariosByWeather(scenarios).weather[0];
 const weatherWaitAfter =
   weatherScenario?.expectations.find((e) => e.action === "wait")?.after ??
   weatherScenario?.timeline.at(-1)?.id;

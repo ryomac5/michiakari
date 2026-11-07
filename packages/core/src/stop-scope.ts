@@ -1,70 +1,36 @@
 import type { Confidence, IncidentCause, Observation } from "@repo/schema";
+import { INCIDENT_BEHAVIOR, type StopKind } from "../params/incident-behavior.ts";
 import {
   INCIDENT_TYPE_DURATIONS,
   INCIDENT_TYPE_IDS,
   type IncidentTypeId,
 } from "../params/incident-durations.ts";
 
-// 止まり方の区別。種類ごとの止まり方はこのファイルの表 1 か所にまとめ、web と agent が同じ表を引く
-// 出典: 経験からの目安。社内規程の数値や手順ではない
+// 止まり方の区別。種類ごとの止まり方は params/incident-behavior.ts の規則表 1 か所にまとめ、web と agent が同じ表を引く
+// 出典: 開発者の推定。社内規程の数値や手順ではない
 
-// 種類ごとの止まり方
-// train_only: その列車だけが止まる。車内の対応が済めばすぐ動く
-// train_first: その列車から止まり、後ろの列車が詰まる。発表で区間が出れば区間の見合わせになる
-// section: 周りの列車も止まり、区間が止まる
-export type StopKind = "train_only" | "train_first" | "section";
+export type { StopKind } from "../params/incident-behavior.ts";
 
 // 画面と判断で使う止まり方。train は見合わせと言わず停車中と伝える
 export type StopScope = "train" | "section";
 
-// 分からない種類は区間を止めるものとみなす
-const STOP_KIND_BY_INCIDENT_TYPE: Readonly<Record<IncidentTypeId, StopKind>> = {
-  // 周りの列車も止める事象
-  person_collision: "section",
-  track_intrusion: "section",
-  crossing_obstruction: "section",
-  track_structure_damage: "section",
-  building_falling_object: "section",
-  track_smoke_check: "section",
-  crossing_collision: "section",
-  derailment: "section",
-  onboard_fire: "section",
-  // 周りの列車も止めることがある事象
-  vegetation_obstruction: "section",
-  foreign_object: "section",
-  animal_collision: "section",
-  bridge_impact: "section",
-  // 車内の対応。急病人は次の駅で駅員に引き継ぎ、すぐ動く
-  medical_response: "train_only",
-  passenger_conflict: "train_only",
-  // 駅で止めて確かめる。周りへの広がりは分からないので区間とみなす
-  suspicious_object: "section",
-  // その列車から止まる故障
-  vehicle_failure: "train_first",
-  vehicle_smoke: "train_first",
-  signal_failure: "train_first",
-  point_failure: "train_first",
-  // 大雨と強風は区間ごとに上下とも止まる。地震は揺れた所が止まる
-  heavy_rain: "section",
-  strong_wind: "section",
-  earthquake: "section",
-  // 止まり方が分からない種類
-  power_outage: "section",
-  heat_rail_deformation: "section",
-  lightning: "section",
-  snow_ice: "section",
-};
+// 種類ごとの止まり方。規則表から引いた表を再輸出する
+export const STOP_KIND_BY_INCIDENT_TYPE: Readonly<Record<IncidentTypeId, StopKind>> =
+  Object.fromEntries(INCIDENT_TYPE_IDS.map((t) => [t, INCIDENT_BEHAVIOR[t].stopKind])) as Record<
+    IncidentTypeId,
+    StopKind
+  >;
 
 // 知見の事象から種類を引く。docs/research/rail-suspensions/taxonomy.json の existing_model_id の逆引き
 // 車両故障の事象は発煙確認も含むが、どちらも同じ止まり方なので故障に寄せる
-const INCIDENT_TYPE_BY_EVENT_TYPE: Readonly<Record<string, IncidentTypeId>> = {
+export const INCIDENT_TYPE_BY_EVENT_TYPE: Readonly<Record<string, IncidentTypeId>> = {
   person_accident: "person_collision",
   in_car_response: "medical_response",
   vehicle_failure: "vehicle_failure",
   heavy_rain: "heavy_rain",
 };
 
-function findIncidentType(id: string | null | undefined): IncidentTypeId | null {
+export function findIncidentType(id: string | null | undefined): IncidentTypeId | null {
   if (!id) return null;
   const mapped = INCIDENT_TYPE_BY_EVENT_TYPE[id];
   if (mapped) return mapped;

@@ -19,7 +19,7 @@ import { createMulberry32 } from "./random.ts";
 import { summarizeSamples } from "./remaining.ts";
 import { diffMinutes, parseIsoToMs } from "./time.ts";
 
-// 知見の無い原因の、集めた事例の統計値からの再開の見込み
+// 集めた事例の統計値からの再開の見込み
 // 統計値は報道に残った事例なので長引いたものに偏る。幅は p50 と p80 から作る
 
 const JST_OFFSET_MS = 9 * 60 * 60_000;
@@ -100,7 +100,7 @@ export type StatsRemaining = {
 };
 
 // 所要時間を対数正規分布に当て、発生からの経過を超えた条件付きの残りを標本にする
-// 経過の差し引き方は、知見の段階の残りと同じ sampleRemainingDuration を使う
+// 経過の差し引きは sampleRemainingDuration を使う
 export function sampleStatsRemaining(
   duration: DurationDist,
   elapsedSinceOnsetMinutes: number,
@@ -118,7 +118,7 @@ export function sampleStatsRemaining(
 }
 
 // 原因の統計値から、いまから再開までの残りを見積もる。使える統計値が無ければ null
-// 経過は知見の見込みと同じく、発生とみなした時刻からの分を切り捨てて数える
+// 経過は発生とみなした時刻からの分を切り捨てて数える
 export function estimateStatsRemaining(
   cause: IncidentCause,
   onsetTime: string,

@@ -1,34 +1,27 @@
+import { findIncidentType, resolveIncidentType } from "@repo/core";
 import {
-  type Confidence,
+  AnnouncementCueIdSchema,
   type DetectedSignal,
-  type EventTypeCandidate,
-  type Knowledge,
   type ObservableKind,
   type Observation,
   type RawInput,
   TrainTypeSchema,
 } from "@repo/schema";
 import type { LineInfo } from "../alternatives/provider.ts";
+import { findIncidentGroup } from "../domain/incident.ts";
 import {
   parseLine,
   parseSection,
   parseStatedResumeTime,
   parseTransferServiceActive,
 } from "./parse-text.ts";
-import {
-  buildFragmentIndex,
-  findQuote,
-  matchIdentification,
-  matchSignals,
-  type SignalFragmentIndex,
-} from "./text-match.ts";
+import { matchCueSentences, matchIncidentPhrase } from "./text-match.ts";
 
-// API を呼ばずに観測を解釈する。知見の文言との文字列照合で事象種別と兆候を当てる
+// API を呼ばずに観測を解釈する。core の呼び名の表で起きていることの種類を、手がかりの表で放送の手がかりを当てる
 
 export type InterpretContext = {
-  knowledge: ReadonlyMap<string, Knowledge>;
   lines: readonly LineInfo[];
-  // これまでの観測から決めた事象種別。新しい観測だけでは決まらないときに使う
+  // これまでの観測から決めた事象の種類。新しい観測だけでは決まらないときに使う
   contextEventType: string | null;
   observationId: string;
   observedAt: string;
@@ -40,70 +33,16 @@ export type TextInput = {
   text: string;
 };
 
-function buildIndexes(knowledge: ReadonlyMap<string, Knowledge>): SignalFragmentIndex[] {
-  return [...knowledge.values()].map(buildFragmentIndex);
-}
-
-// 知見をまたいで 1 つの知見にしか現れない断片で当たった兆候の数を数える
-function countGloballyDistinctMatches(
-  indexes: SignalFragmentIndex[],
-  text: string,
-): Map<string, number> {
-  const fragmentOwners = new Map<string, Set<string>>();
-  for (const index of indexes) {
-    for (const { fragment } of index.fragments) {
-      fragmentOwners.set(
-        fragment,
-        (fragmentOwners.get(fragment) ?? new Set()).add(index.eventType),
-      );
-    }
-  }
-  const all = indexes.flatMap((index) => matchSignals(index, text));
-  // 別の知見の長い断片に含まれる短い断片の一致は数えない
-  const distinct = all.filter(
-    (m) =>
-      fragmentOwners.get(m.fragment)?.size === 1 &&
-      !all.some(
-        (o) =>
-          o.eventType !== m.eventType &&
-          o.fragment.length > m.fragment.length &&
-          o.fragment.includes(m.fragment),
-      ),
-  );
-  const counts = new Map<string, number>();
-  for (const m of distinct) counts.set(m.eventType, (counts.get(m.eventType) ?? 0) + 1);
-  return counts;
-}
-
-function identifyEventTypes(indexes: SignalFragmentIndex[], text: string): EventTypeCandidate[] {
-  const identified = indexes.filter((i) => matchIdentification(i, text));
-  if (identified.length > 0) {
-    const confidence: Confidence = identified.length === 1 ? "high" : "medium";
-    return identified.map((i) => ({ eventType: i.eventType, confidence }));
-  }
-  const counts = countGloballyDistinctMatches(indexes, text);
-  const confidence: Confidence = counts.size === 1 ? "medium" : "low";
-  return [...counts.keys()].map((eventType) => ({ eventType, confidence }));
+// 手がかりは、この観測かこれまでの観測で決まった種類に結びつける。種類が決まらなければ入れない
+// 種類が無くても、原文が残るので判断は手がかりを拾える
+function buildCueSignals(text: string, eventType: string | null): DetectedSignal[] {
+  if (!eventType) return [];
+  return matchCueSentences(text).map((m) => ({ eventType, signalId: m.cueId, quote: m.quote }));
 }
 
 export function interpretText(input: TextInput, ctx: InterpretContext): Observation {
-  const indexes = buildIndexes(ctx.knowledge);
-  const candidates = identifyEventTypes(indexes, input.text);
-  const targets =
-    candidates.length > 0 ? candidates.map((c) => c.eventType) : [ctx.contextEventType];
-
-  const detectedSignals: DetectedSignal[] = [];
-  for (const index of indexes) {
-    if (!targets.includes(index.eventType)) continue;
-    for (const m of matchSignals(index, input.text)) {
-      detectedSignals.push({
-        eventType: m.eventType,
-        signalId: m.signalId,
-        quote: findQuote(input.text, m.fragment),
-      });
-    }
-  }
-
+  const phrase = matchIncidentPhrase(input.text);
+  const eventType = phrase?.type ?? findIncidentType(ctx.contextEventType);
   const line = parseLine(input.text, ctx.lines);
   return {
     id: ctx.observationId,
@@ -111,39 +50,40 @@ export function interpretText(input: TextInput, ctx: InterpretContext): Observat
     source: input.source,
     ...(input.kind ? { kind: input.kind } : {}),
     rawText: input.text,
-    eventTypeCandidates: candidates,
+    // 呼び名がそのまま書かれているので確信度は高い
+    eventTypeCandidates: phrase ? [{ eventType: phrase.type, confidence: "high" }] : [],
     operator: line?.operator ?? null,
     line: line?.name ?? null,
     section: parseSection(input.text),
     statedResumeTime: parseStatedResumeTime(input.text, ctx.observedAt),
     transferServiceActive: parseTransferServiceActive(input.text),
-    detectedSignals,
+    detectedSignals: buildCueSignals(input.text, eventType),
   };
 }
 
-// 選択式の入力は、選ばれた事象と兆候をそのまま観測にする
+// 選択式の入力は、選ばれた種類と手がかりをそのまま観測にする。引用は無いので空にする
+// 種類が 1 つに決まらない原因は統計値の大分類の id で届くので、大分類の候補として残す
 export function interpretSelection(
   input: Extract<RawInput, { type: "selection" }>,
   ctx: InterpretContext,
 ): Observation {
-  const knowledge = ctx.knowledge.get(input.eventType);
-  const signals = knowledge?.phases.flatMap((p) => p.signals) ?? [];
+  const eventType =
+    resolveIncidentType({ eventType: input.eventType }) ?? findIncidentGroup(input.eventType);
+  const cues = input.signalIds.flatMap((id) => {
+    const parsed = AnnouncementCueIdSchema.safeParse(id);
+    return parsed.success ? [parsed.data] : [];
+  });
   return {
     id: ctx.observationId,
     observedAt: ctx.observedAt,
     source: "selection",
-    eventTypeCandidates: knowledge ? [{ eventType: input.eventType, confidence: "high" }] : [],
+    eventTypeCandidates: eventType ? [{ eventType, confidence: "high" }] : [],
     operator: null,
     line: null,
     section: null,
     statedResumeTime: null,
     transferServiceActive: null,
-    detectedSignals: input.signalIds.flatMap((id) => {
-      const signal = signals.find((s) => s.id === id);
-      return signal
-        ? [{ eventType: input.eventType, signalId: id, quote: signal.description }]
-        : [];
-    }),
+    detectedSignals: eventType ? cues.map((signalId) => ({ eventType, signalId, quote: "" })) : [],
   };
 }
 

@@ -103,3 +103,34 @@ export async function findCanvasPointNear(
   if (!open) throw new Error("印に掛からない点がありません");
   return open;
 }
+
+// 地図を指で引いて、点を画面の goal へ動かす。キーより細かく動かせるので、シートが高く地図の見える所が狭いときに使う
+// 指は上部の帯とシートの間（band）の内だけで動かし、届かなければ何度かに分けて引く。指を止めてから離し、慣性で流れないようにする
+export async function dragTo(
+  page: Page,
+  position: [number, number],
+  goal: { x: number; y: number },
+  band: { top: number; bottom: number },
+): Promise<{ x: number; y: number }> {
+  const viewport = page.viewportSize() ?? { width: 390, height: 844 };
+  const margin = 12;
+  const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+  for (let i = 0; i < 12; i++) {
+    const point = await projectOnPage(page, position);
+    const dx = goal.x - point.x;
+    const dy = goal.y - point.y;
+    if (Math.hypot(dx, dy) < 4) break;
+    const startX = dx > 0 ? margin : viewport.width - margin;
+    const startY = dy > 0 ? band.top + margin : band.bottom - margin;
+    const start = await findCanvasPointNear(page, { x: startX, y: startY });
+    const endX = clamp(start.x + dx, margin, viewport.width - margin);
+    const endY = clamp(start.y + dy, band.top + margin, band.bottom - margin);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(endX, endY, { steps: 20 });
+    await page.waitForTimeout(300);
+    await page.mouse.up();
+    await waitForMapStill(page);
+  }
+  return projectOnPage(page, position);
+}

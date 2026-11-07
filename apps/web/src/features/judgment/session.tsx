@@ -13,12 +13,10 @@ import {
   useState,
 } from "react";
 import type { CauseAnswer, EntryMethod, EntryState } from "@/features/entry/flow";
-import { type KnowledgeCatalog, mergeCatalogs } from "@/features/knowledge/catalog";
 import type { ElapsedOption } from "@/features/situation/plain-questions";
 import { applyTrainMovement } from "@/features/situation/train-movement";
 import type { NearestStationLabel, StationNames } from "@/features/stations/describe";
 import { JudgmentChangeContext } from "./components/JudgmentChangeCard";
-import { personAccidentCatalog } from "./fixtures/person-accident";
 import { buildJudgmentChange, selectChangeEvidence } from "./judgment-change";
 import { isMockRequested, streamMockJudgment } from "./mock";
 import { buildJudgeRequest } from "./request";
@@ -59,12 +57,11 @@ type JudgmentSession = {
   updateTrainPosition: (position: TrainPosition, meta: TrainPositionMeta) => void;
   observations: Observation[];
   state: JudgmentState;
-  catalog: KnowledgeCatalog;
   mockEnabled: boolean;
   submitInput: (input: RawInput | null) => void;
   // 新しい行程として判断を始める。これまでの観測は捨て、seed（利用者が選んだ路線など）から始める
   // 原因が分からないまま進んだときは input を null にし、seed だけで判断する
-  // cause は入口で答えた原因。この行程の判断のたびに送り、知見の無い原因の見込みに使う
+  // cause は入口で答えた原因。この行程の判断のたびに送り、種類の無い原因の見込みに使う
   startJudgment: (
     input: RawInput | null,
     seed: Observation[],
@@ -105,7 +102,7 @@ export type TripContext = {
   trainsAheadFromPattern?: boolean;
   // 止まってからの分。分からなければ null。選んで答えたときだけ持つ
   elapsedMinutes?: number | null;
-  // 原因が分からないか、選んだ大分類に知見が無い。選んで答えたときだけ持つ
+  // 原因が分からないか、選んだ大分類で種類が決まらない。選んで答えたときだけ持つ
   causeUnknown?: boolean;
   // 様子の段で答えたこと。入口に戻ったとき、最後に答えた問いから再開する
   entryAnswers?: EntryAnswers;
@@ -131,13 +128,7 @@ export const defaultTrainPositionMeta: TrainPositionMeta = {
 
 const JudgmentSessionContext = createContext<JudgmentSession | null>(null);
 
-export function JudgmentSessionProvider({
-  catalog,
-  children,
-}: {
-  catalog: KnowledgeCatalog;
-  children: ReactNode;
-}) {
+export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
   const locale = useLocale();
   const [origin, setOrigin] = useState<Place | null>(null);
   const [destination, setDestination] = useState<Place | null>(null);
@@ -272,12 +263,6 @@ export function JudgmentSessionProvider({
     setStationNames((prev) => (prev[name] === nameEn ? prev : { ...prev, [name]: nameEn }));
   }, []);
 
-  const effectiveCatalog = useMemo(
-    // モックのイベントはモック用の段階 id を使うので、モックの抜粋を優先する
-    () => (mockEnabled ? mergeCatalogs(personAccidentCatalog, catalog) : catalog),
-    [catalog, mockEnabled],
-  );
-
   const value = useMemo<JudgmentSession>(
     () => ({
       origin,
@@ -298,7 +283,6 @@ export function JudgmentSessionProvider({
       updateTrainPosition,
       observations,
       state,
-      catalog: effectiveCatalog,
       mockEnabled,
       submitInput,
       startJudgment,
@@ -319,7 +303,6 @@ export function JudgmentSessionProvider({
       updateTrainPosition,
       observations,
       state,
-      effectiveCatalog,
       mockEnabled,
       submitInput,
       startJudgment,
@@ -334,10 +317,10 @@ export function JudgmentSessionProvider({
     currentJudgment,
     state.observations.at(-1)?.rawText ?? null,
     selectChangeEvidence({
-      catalog: effectiveCatalog,
       estimate: currentJudgment?.estimate ?? null,
       signals: state.signals,
-      locale,
+      cues: currentJudgment?.cues,
+      observations: [...observations, ...state.observations],
     }),
   );
 

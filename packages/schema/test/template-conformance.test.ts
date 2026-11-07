@@ -28,7 +28,6 @@ function errorsOf(file: string): string[] {
 describe("checkTemplateConformance", () => {
   it("本物の雛形が合格する", () => {
     expect(checkTemplateConformance(REPO_ROOT)).toEqual([
-      { file: "knowledge/_template.yaml", errors: [] },
       { file: "scenarios/_template.yaml", errors: [] },
     ]);
   });
@@ -36,11 +35,11 @@ describe("checkTemplateConformance", () => {
   it("スキーマに無いキーを足すと失敗する", () => {
     writeContentFile(
       root,
-      "knowledge/_template.yaml",
-      editYaml(readRealTemplate("knowledge"), ["phases", 0, "signals", 0, "severity"], "TODO"),
+      "scenarios/_template.yaml",
+      editYaml(readRealTemplate("scenarios"), ["timeline", 0, "severity"], "TODO"),
     );
-    expect(errorsOf("knowledge/_template.yaml")).toEqual([
-      "phases[0].signals[0].severity: スキーマに無いキーです",
+    expect(errorsOf("scenarios/_template.yaml")).toEqual([
+      "timeline[0].severity: スキーマに無いキーです",
     ]);
   });
 
@@ -71,11 +70,11 @@ describe("checkTemplateConformance", () => {
   it("配列要素の必須キーを消すと失敗する", () => {
     writeContentFile(
       root,
-      "knowledge/_template.yaml",
-      editYaml(readRealTemplate("knowledge"), ["phases", 1, "guidance"], undefined),
+      "scenarios/_template.yaml",
+      editYaml(readRealTemplate("scenarios"), ["timeline", 0, "kind"], undefined),
     );
-    expect(errorsOf("knowledge/_template.yaml")).toEqual([
-      "phases[1].guidance: スキーマの必須キーが雛形にありません",
+    expect(errorsOf("scenarios/_template.yaml")).toEqual([
+      "timeline[0].kind: スキーマの必須キーが雛形にありません",
     ]);
   });
 
@@ -100,6 +99,6 @@ describe("checkTemplateConformance", () => {
   it("雛形が無ければ失敗する", () => {
     removeContentRoot(root);
     root = createContentRoot();
-    expect(errorsOf("knowledge/_template.yaml")).toEqual(["雛形がありません"]);
+    expect(errorsOf("scenarios/_template.yaml")).toEqual(["雛形がありません"]);
   });
 });

@@ -1,10 +1,8 @@
 import { compareReplayOutcome, type ReplayOutcome } from "@repo/core";
 import type { Judgment, Observation } from "@repo/schema";
 import { describe, expect, it } from "vitest";
-import {
-  buildPersonAccidentEvents,
-  personAccidentCatalog,
-} from "@/features/judgment/fixtures/person-accident";
+import { estimateFirstTrainWait } from "@/features/judgment/break-even-timeline";
+import { buildPersonAccidentEvents } from "@/features/judgment/fixtures/person-accident";
 import { buildTestRequest } from "@/features/judgment/test-helpers";
 import { formatClockTime } from "@/features/judgment/time";
 import ja from "../../../messages/ja.json";
@@ -22,7 +20,7 @@ function pickJudgment(followUp: boolean, now: string): Judgment {
 const scenario: ReplayScenario = {
   id: "test",
   title: { ja: "テスト" },
-  event_type: "person_accident",
+  event_type: "person_collision",
   operator: "架空鉄道",
   line: "架空線",
   blocked_section: { from_station: "大阪", to_station: "三ノ宮" },
@@ -125,7 +123,7 @@ describe("buildReplayDecision", () => {
 });
 
 describe("selectReplayOutcome", () => {
-  it("記録した判断と知見の初列車待ちで core の計算を呼ぶ", () => {
+  it("記録した判断と core の初列車待ちで core の計算を呼ぶ", () => {
     const decisions = [
       buildReplayDecision(
         pickJudgment(false, "2026-11-05T22:10:00+09:00"),
@@ -136,8 +134,8 @@ describe("selectReplayOutcome", () => {
         "2026-11-05T22:40:00+09:00",
       ),
     ];
-    const firstTrainWait = personAccidentCatalog[0]?.firstTrainWaitMinutes ?? 0;
-    expect(selectReplayOutcome(scenario, decisions, personAccidentCatalog)).toEqual(
+    const firstTrainWait = estimateFirstTrainWait("person_collision");
+    expect(selectReplayOutcome(scenario, decisions)).toEqual(
       compareReplayOutcome({
         decisions,
         resumeOffsetMinutes: 90,
@@ -155,14 +153,8 @@ describe("selectReplayOutcome", () => {
         "2026-11-05T22:10:00+09:00",
       ),
     ];
-    expect(
-      selectReplayOutcome(
-        { ...scenario, resumeOffsetMinutes: null },
-        decisions,
-        personAccidentCatalog,
-      ),
-    ).toBeNull();
-    expect(selectReplayOutcome(scenario, [], personAccidentCatalog)).toBeNull();
+    expect(selectReplayOutcome({ ...scenario, resumeOffsetMinutes: null }, decisions)).toBeNull();
+    expect(selectReplayOutcome(scenario, [])).toBeNull();
   });
 });
 

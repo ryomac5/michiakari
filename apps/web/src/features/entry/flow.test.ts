@@ -119,6 +119,38 @@ describe("reduceEntry", () => {
       expect(reduceEntry(elapsed, { type: "back" })).toEqual(cause);
     }
   });
+  it("電車の中の人だけ、原因の後に受信の放送を聞き、戻ると答えが消える", () => {
+    const station = reduceEntry(run(toCause), {
+      type: "chooseCause",
+      cause: { category: null, kind: null },
+    });
+    expect(station.stage).toBe("elapsed");
+    const trainCause = run([
+      { type: "chooseLocation", location: "train" },
+      { type: "locateBetween", line, segment, place, area },
+      { type: "chooseDestination", inferred: { line, direction } },
+    ]);
+    const protection = reduceEntry(trainCause, {
+      type: "chooseCause",
+      cause: { category: null, kind: null },
+    });
+    expect(protection).toMatchObject({ stage: "protection", protection: null });
+    expect(selectProgressIndex(protection.stage)).toBe(3);
+    expect(reduceEntry(protection, { type: "chooseElapsed", elapsed: "now" })).toBe(protection);
+    const elapsed = reduceEntry(protection, { type: "chooseProtection", protection: "heard" });
+    expect(elapsed).toMatchObject({ stage: "elapsed", protection: "heard" });
+    const back = reduceEntry(elapsed, { type: "back" });
+    expect(back).toMatchObject({ stage: "protection", protection: null });
+    expect(reduceEntry(back, { type: "back" })).toEqual(trainCause);
+    expect(reduceEntry(trainCause, { type: "chooseProtection", protection: "heard" })).toBe(
+      trainCause,
+    );
+    const weather = reduceEntry(
+      reduceEntry(trainCause, { type: "chooseCause", cause: { category: "weather", kind: null } }),
+      { type: "chooseCauseKind", kind: "rain" },
+    );
+    expect(weather.stage).toBe("protection");
+  });
   it("駅にいる人は推定で省略した路線・方面には戻らない", () => {
     let state = run([
       ...toCause,

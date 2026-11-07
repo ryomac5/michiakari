@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { IsoDateTimeSchema, NonNegativeIntSchema } from "./common.ts";
-import { BreakEvenSchema, EstimateSchema, JudgmentSchema, RouteOptionSchema } from "./judgment.ts";
+import {
+  BreakEvenSchema,
+  EstimateSchema,
+  JudgmentSchema,
+  RouteOptionSchema,
+  RuleOutlookShape,
+} from "./judgment.ts";
 import { DetectedSignalSchema, ObservationSchema } from "./observation.ts";
 
 // SSE で送る判断イベント。種類を足すときは defineEvent で作り JudgmentEventSchema に並べる
@@ -22,8 +28,10 @@ export const SignalDetectedEventSchema = defineEvent("signal_detected", {
   signal: DetectedSignalSchema,
 });
 
+// 再開の見込み。名前は以前のまま。手がかり、防護無線、支障の無い線路、詰まりの欄は判断の結果と同じ
 export const PhaseEstimatedEventSchema = defineEvent("phase_estimated", {
   estimate: EstimateSchema,
+  ...RuleOutlookShape,
 });
 
 export const AlternativesComputedEventSchema = defineEvent("alternatives_computed", {
@@ -81,7 +89,6 @@ export const ErrorEventSchema = defineEvent("error", {
 // 判断の途中経過。画面に短い一文で出す
 export const ProgressStageSchema = z.enum([
   "interpret",
-  "knowledge",
   "weather",
   "phase",
   "alternatives",

@@ -96,7 +96,7 @@ test("人身事故を選ぶと、続けての問いなしに人身事故の事�
   const request = await judgeWithCategory(page, "person");
   expect((await request).postDataJSON().newInput).toEqual({
     type: "selection",
-    eventType: "person_accident",
+    eventType: "person_collision",
     signalIds: [],
   });
   await openSheet(page, "full");
@@ -110,7 +110,7 @@ test("車内の急病人を選ぶと、続けての問いなしに車内対応�
   const request = await judgeWithCategory(page, "inCar");
   expect((await request).postDataJSON().newInput).toEqual({
     type: "selection",
-    eventType: "in_car_response",
+    eventType: "medical_response",
     signalIds: [],
   });
   await openSheet(page, "full");

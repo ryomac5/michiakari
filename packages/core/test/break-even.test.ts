@@ -1,5 +1,6 @@
 import { BreakEvenSchema } from "@repo/schema";
 import { describe, expect, it } from "vitest";
+import { FIRST_TRAIN_WAIT_BY_STOP_KIND } from "../params/incident-behavior.ts";
 import {
   checkDeadline,
   computeBreakEven,
@@ -8,9 +9,9 @@ import {
   convertToBreakEven,
   selectBestAlternative,
 } from "../src/break-even.ts";
-import { estimateRemaining, getFirstTrainWait } from "../src/remaining.ts";
+import { resolveFirstTrainWait } from "../src/incident-rules.ts";
+import { sampleDurationDist, summarizeSamples } from "../src/remaining.ts";
 import { addMinutesToIso, diffMinutes } from "../src/time.ts";
-import { resumeExampleKnowledge } from "./fixtures/knowledge.ts";
 
 const NOW = "2026-11-05T22:00:00+09:00";
 
@@ -53,9 +54,9 @@ describe("computeWaitArrival", () => {
 });
 
 describe("computeBreakEven", () => {
-  it("例: 段階 {10,20}・初列車待ち {10,15}・W=30・代替 23:00 なら再開の期限は 22:20", () => {
-    const firstTrainWaitMinutes = getFirstTrainWait(resumeExampleKnowledge).p50;
-    const remaining = estimateRemaining(resumeExampleKnowledge, "only", 0);
+  it("例: 残り {20,35}・初列車待ち 10・W=30・代替 23:00 なら再開の期限は 22:20", () => {
+    const firstTrainWaitMinutes = 10;
+    const remaining = summarizeSamples(sampleDurationDist({ p50: 20, p80: 35 }));
     const result = computeBreakEven({
       now: NOW,
       remaining,
@@ -273,9 +274,10 @@ describe("computeBreakEven", () => {
   });
 });
 
-describe("getFirstTrainWait", () => {
-  it("知見の after_resume.first_train_wait_minutes を返す", () => {
-    expect(getFirstTrainWait(resumeExampleKnowledge)).toEqual({ p50: 10, p80: 15 });
+describe("resolveFirstTrainWait", () => {
+  it("事象の種類の止まり方から初列車待ちを引き、種類が分からなければ区間で止まる値にする", () => {
+    expect(resolveFirstTrainWait("heavy_rain")).toEqual(FIRST_TRAIN_WAIT_BY_STOP_KIND.section);
+    expect(resolveFirstTrainWait(null)).toEqual(FIRST_TRAIN_WAIT_BY_STOP_KIND.section);
   });
 });
 

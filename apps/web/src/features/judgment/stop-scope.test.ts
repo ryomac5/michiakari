@@ -22,48 +22,43 @@ function buildObservation(
   };
 }
 
-// 知見のある事象。エージェントの知見と同じく、候補はこの中だけから選ぶ
-const known = new Set(["in_car_response", "person_accident", "vehicle_failure", "heavy_rain"]);
-const isKnownEvent = (id: string) => known.has(id);
-
 function select(
   estimatedEventType: string | null | undefined,
   observations: readonly Observation[],
   cause: IncidentCause | null = null,
-  isKnown: (id: string) => boolean = isKnownEvent,
 ) {
-  return selectStopScope({ estimatedEventType, observations, cause, isKnownEvent: isKnown });
+  return selectStopScope({ estimatedEventType, observations, cause });
 }
 
 describe("selectStopScope", () => {
   it("車内の急病人や非常ボタンはその列車だけが止まり、人身事故は区間を止める", () => {
-    expect(select("in_car_response", [])).toBe("train");
-    expect(select("person_accident", [])).toBe("section");
+    expect(select("medical_response", [])).toBe("train");
+    expect(select("person_collision", [])).toBe("section");
   });
 
   it("判断の推定がまだ無ければ、観測の候補から事象を選ぶ。候補が無ければ区間を止めるとみなす", () => {
-    expect(select(null, [buildObservation("in_car_response")])).toBe("train");
-    expect(select(undefined, [buildObservation("in_car_response"), buildObservation(null)])).toBe(
+    expect(select(null, [buildObservation("medical_response")])).toBe("train");
+    expect(select(undefined, [buildObservation("medical_response"), buildObservation(null)])).toBe(
       "train",
     );
     expect(select(null, [buildObservation(null)])).toBe("section");
   });
 
-  it("知見の無い観測の候補は、エージェントと同じく使わず、入口の原因で決める", () => {
+  it("種類の分からない観測の候補は使わず、入口の原因で決める", () => {
     const person = { group: "passenger", type: "person_collision" };
-    expect(
-      select(null, [buildObservation("in_car_response")], person, (id) => id !== "in_car_response"),
-    ).toBe("section");
+    expect(select(null, [buildObservation("unknown_event")], person)).toBe("section");
+    const inCar = { group: "passenger", type: "medical_response" };
+    expect(select(null, [buildObservation("unknown_event")], inCar)).toBe("train");
   });
 
   it("候補は確信度で重みづけして選び、新しい観測の第一候補だけでは決めない", () => {
     const observations: Observation[] = [
-      { ...buildObservation("person_accident"), id: "a" },
-      { ...buildObservation("person_accident"), id: "b" },
+      { ...buildObservation("person_collision"), id: "a" },
+      { ...buildObservation("person_collision"), id: "b" },
       {
         ...buildObservation(null),
         id: "c",
-        eventTypeCandidates: [{ eventType: "in_car_response", confidence: "low" }],
+        eventTypeCandidates: [{ eventType: "medical_response", confidence: "low" }],
       },
     ];
     expect(select(null, observations)).toBe("section");

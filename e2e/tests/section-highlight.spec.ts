@@ -137,19 +137,29 @@ test.describe("手で動かさない地図", () => {
     page,
   }) => {
     await openMap(page);
-    // 引いた地図で大阪〜福島のあたりの線を押すと、段はそのままで寄る。キーや指では地図を動かさない
+    // 引いた地図で大阪〜福島のあたりの線を押すと、段はそのままで候補の区間を光らせ、駅の印が出る倍率まで寄る
+    // キーや指では地図を動かさない
     expect(await readZoom(page)).toBeLessThan(12.5);
     const far = await findCanvasPointNear(page, await projectOnPage(page, loopMiddle));
     await page.mouse.click(far.x, far.y);
     await waitForMapStill(page);
     await expectStage(page, "position");
     await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-detail", "stations");
-    await expectSections(page, 0, "");
+    await expect(page.getByTestId(testIds.start.map)).toHaveAttribute(
+      "data-section-focus",
+      /^between:/,
+    );
 
+    // 寄せた倍率によっては、押せる幅に入る路線が 3 件になる
     const zoom = await readZoom(page);
-    await tapLoopMiddle(page);
+    const point = await projectOnPage(page, loopMiddle);
+    const sheetTop = (await page.getByTestId(testIds.start.sheet).boundingBox())?.y ?? 0;
+    expect(point.y).toBeLessThan(sheetTop);
+    await page.mouse.click(point.x, point.y);
+    await expect(page.locator(choiceLocator).filter({ hasText: "JR環状線" })).toHaveCount(1);
     await waitForMapStill(page);
-    await expectSections(page, 2, await readChoiceKey(page, 0));
+    const count = await page.locator(choiceLocator).count();
+    await expectSections(page, count, await readChoiceKey(page, 0));
     // 候補が出てシートが伸びても、段の寄せ方で倍率を変えず、押した点をシートの上に残す
     expect(await readZoom(page)).toBeCloseTo(zoom, 1);
     await expectAboveSheet(page);

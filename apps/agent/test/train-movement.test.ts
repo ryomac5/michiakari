@@ -11,7 +11,6 @@ import { createTestDeps } from "./helpers.ts";
 
 const deps = createTestDeps();
 const ctx = {
-  knowledge: deps.content.knowledge,
   lines: deps.provider.listLines(),
   contextEventType: null,
   observationId: "photo_1",
@@ -26,7 +25,7 @@ const interpretation = {
   section: null,
   statedResumeClock: null,
   transferServiceActive: null,
-  detectedSignals: [],
+  detectedCues: [],
 };
 
 function buildPhoto(fileName: string) {

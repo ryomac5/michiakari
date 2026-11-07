@@ -29,14 +29,14 @@ timeline:
     offset_minutes: 0
     kind: announcement
     text:
-      ja: 京阪本線は、石清水八幡宮駅〜淀駅間を走行中の列車で車両の不具合が発生したため、枚方市駅〜中書島駅間で運転を見合わせています。現在、車両の点検を行っています。
-      en: The Keihan Main Line is suspended between Hirakatashi and Chushojima due to a malfunction on a train between Iwashimizu-hachimangu and Yodo. The train is being inspected.
+      ja: 京阪本線は、石清水八幡宮駅〜淀駅間を走行中の列車で車両の不具合が発生したため、枚方市駅〜中書島駅間で運転を見合わせています。現在、車両の点検を行っています。運転再開は7時55分頃を見込んでいます。
+      en: The Keihan Main Line is suspended between Hirakatashi and Chushojima due to a malfunction on a train between Iwashimizu-hachimangu and Yodo. The train is being inspected. Service is expected to resume at around 7:55.
   - id: obs_2
     offset_minutes: 7
     kind: station_broadcast
     text:
-      ja: お客様にお知らせします。ただいま運転士が車両の点検と処置を行っております。しばらくお待ちください。
-      en: Attention passengers. The driver is inspecting and fixing the train. Please wait a moment.
+      ja: お客様にお知らせします。ただいま運転士が車両の処置を行っております。まもなく運転を再開する見込みです。
+      en: Attention passengers. The driver is fixing the train. Service will resume shortly.
   - id: obs_3
     offset_minutes: 15
     kind: announcement
@@ -51,21 +51,17 @@ timeline:
       en: The Keihan Main Line resumed at 7:56. Trains are running with delays.
 
 expectations:
+  # obs_1 と obs_2 は、短く終わることが発表から分かる文に直した（2026-11-07）。理由は README.md
   - after: obs_1
-    action: hold
-    phase: initial
-    evidence_includes: [vf_failure_announced]
+    action: wait
     break_even_shown: true
-    note: 短く終わるか長引くかはまだ分からない。分岐点を示して様子を見る。
+    note: 発表の再開見込みが期限の境目より前にある。他社線へ回ると大きく遠回りになるので待つ。
   - after: obs_2
     action: wait
-    phase: onsite_repair
-    evidence_includes: [vf_repair_in_progress]
-    note: 救援の文言が無く、現場で処置している。他社線へ回ると大きく遠回りになるので待つ。
+    evidence_includes: [resume_soon]
+    note: まもなく再開する放送が出た。現場の処置で短く終わる見込みなので待つ。
   - after: obs_3
     action: wait
-    phase: resuming
-    evidence_includes: [vf_recovered_announced]
     note: 点検終了と再開見込みが出た。他社線へ回るより早く着き、9時にも間に合うので待つ。
 
 ground_truth:

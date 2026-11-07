@@ -54,7 +54,9 @@ async function stepUntil(page: Page, observationId: string): Promise<void> {
   throw new Error(`観測 ${observationId} まで進めませんでした`);
 }
 
-test("待つ判断では再開見込みが分岐点より前、切り替える判断では後に描かれる", async ({ page }) => {
+test("待つ判断では再開見込みの中央が分岐点より前、切り替える判断では後に描かれる", async ({
+  page,
+}) => {
   if (!scenario || !switchExpectation || !waitExpectation) {
     throw new Error("wait のあとに switch へ変わるシナリオがありません");
   }
@@ -67,14 +69,20 @@ test("待つ判断では再開見込みが分岐点より前、切り替える�
   // 半分開くと再開見込みを 1 行で示し、全部開くと境目の見方に時間軸の全体が見える
   await openSheet(page, "half");
   await expect(page.getByTestId(testIds.judgment.breakEvenResume)).toBeInViewport();
+  // 発表の時刻には延びる余地を持たせるので、帯が分岐点をまたぐこともある。中央は分岐点より前
   await expect(page.getByTestId(testIds.judgment.breakEvenResume)).toHaveAttribute(
     "data-relation",
-    "before",
+    /^(before|straddle)$/,
   );
   await openSheet(page, "full");
   await timeline.scrollIntoViewIfNeeded();
   await expect(timeline).toBeInViewport();
-  await expect(timeline).toHaveAttribute("data-relation", "before");
+  await expect(timeline).toHaveAttribute("data-relation", /^(before|straddle)$/);
+  const [waitBreakEven, waitResumeP50] = await timeline.evaluate((el) => [
+    Date.parse(el.getAttribute("data-break-even") ?? ""),
+    Date.parse(el.getAttribute("data-resume-p50") ?? ""),
+  ]);
+  expect(waitResumeP50).toBeLessThanOrEqual(waitBreakEven ?? Number.NEGATIVE_INFINITY);
   await captureTop(page, `timeline-${waitExpectation.after}`);
 
   await stepUntil(page, switchExpectation.after);

@@ -37,7 +37,6 @@ import {
   SECTION_FOCUS_STRENGTH,
   type SectionGlow,
   selectMapTapTarget,
-  selectRailTapAction,
 } from "./map-pick";
 import {
   buildEdgeHubRect,
@@ -64,8 +63,6 @@ import {
 // 段ごとに出す印を絞り、地図そのものは淡く沈める
 
 export type EntryMapApi = {
-  // 最初の段のまま、エリアに寄せる。エリアが無ければ押した点へ駅の印が出る倍率まで寄せる
-  approach: (area: EntryArea | null, point: Position) => void;
   // 判断へ移る直前に、出発の駅へ寄せる。判断の画面の最初の視点に近づける
   zoomToOrigin: (zoom: number) => Promise<void>;
 };
@@ -121,7 +118,7 @@ type EntryMapProps = {
     reachMeters: number,
     tapReachMeters: number,
   ) => void;
-  // 最初の段で、駅の間を決められる倍率のとき、指の下に描いた路線を知らせる。近い順に並べる
+  // 最初の段と駅の間の段で、指の下に描いた路線を知らせる。倍率にかかわらず知らせ、近い順に並べる
   // reachMeters は押せる大きさ 44px を地図の距離にしたもの。label は札を押したときの駅で、駅の間が無ければその駅を選ぶ
   onSelectRails?: (
     lineIds: string[],
@@ -131,8 +128,6 @@ type EntryMapProps = {
   ) => void;
   // 地図に出した駅を、答えとして受け付ける段か。受け付けない段では、駅の印や札の上も線として押させる
   placePickable?: boolean;
-  // 最初の段で、引いた地図の線のあたりを押したとき。駅の間は決めず、まずそのあたりへ寄せる
-  onApproachRails?: (point: Position, reachMeters: number) => void;
   segments: MapSegment[];
   // 線を押して出した駅の間の候補か、確定した駅の間。光らせて描き、ほかの線を薄くする
   sections: SectionGlow;
@@ -162,10 +157,20 @@ const kansaiCenter: Position = [135.5, 34.75];
 const betweenCenter: Position = [135.4959, 34.7024];
 // 駅の間の段の倍率。駅の印が出て、駅と駅の間の線を押せる倍率にする
 const betweenZoom = 13.5;
+// 引いた地図で線を押して候補を出したとき、候補の区間を収める余白（px）と、寄せる倍率の上限
+const sectionMargin = { x: 40, y: 32 };
+const sectionMaxZoom = 14;
 // 何もない所を触ったとき、そのあたりの駅とみなす指の幅（px）。押せる部品の大きさにそろえる
 const tapReachPx = 44;
 // 様子を聞く段。行き先を選び終えているので、出発と行き先を弧で結び、視点は動かさない
-const situationStages = new Set<EntryStage>(["cause", "causeKind", "elapsed", "resume", "input"]);
+const situationStages = new Set<EntryStage>([
+  "cause",
+  "causeKind",
+  "protection",
+  "elapsed",
+  "resume",
+  "input",
+]);
 const sourceIds = {
   lines: "entry-lines",
   trip: "entry-trip",
@@ -502,6 +507,30 @@ function keepPointVisible(
   map.panBy([point.x - goal.x, point.y - goal.y], { duration });
 }
 
+// 引いた地図で線を押して候補が出たら、候補の区間を収め、駅の印が出る倍率まで寄せる
+// 収めると駅の印の倍率に届かないときは、押した点を中心にして駅の印の倍率にする
+function approachSections(
+  map: MapLibreMap,
+  tapPoint: Position,
+  sectionPoints: Position[],
+  insets: MapInsets,
+  duration: number,
+): void {
+  const bounds = computeBounds([tapPoint, ...sectionPoints]);
+  if (!bounds) return;
+  const camera = map.cameraForBounds(bounds, {
+    padding: buildPadding(map, insets, sectionMargin),
+    maxZoom: sectionMaxZoom,
+  });
+  const fitZoom = camera?.zoom ?? BETWEEN_PICK_MIN_ZOOM;
+  const zoom = Math.max(fitZoom, BETWEEN_PICK_MIN_ZOOM);
+  const center: Position =
+    fitZoom >= BETWEEN_PICK_MIN_ZOOM
+      ? [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2]
+      : tapPoint;
+  map.easeTo({ center, zoom, offset: buildOffset(insets), duration });
+}
+
 // 地図を押した点の答えを決めて知らせる。札を押したときは label にその駅を渡す
 // 駅の印の中心の近くは駅、描いた線の上は駅の間、どちらでもなければ何もない所を押したとみなす
 function handleTapAt(
@@ -516,7 +545,7 @@ function handleTapAt(
   const point: Position = [lngLat.lng, lngLat.lat];
   const edge = map.unproject([x + tapReachPx, y]);
   const reach = computeDistanceMeters(point, [edge.lng, edge.lat]);
-  const { onSelectRails, onApproachRails } = props;
+  const { onSelectRails } = props;
   // 札の上は、駅の印が出る倍率のときだけ札の下の線を見る。引いた地図の札は駅を選ぶ
   const railPickable =
     onSelectRails !== undefined && (label === null || map.getZoom() >= BETWEEN_PICK_MIN_ZOOM);
@@ -559,18 +588,10 @@ function handleTapAt(
     );
     return;
   }
-  // 最初の段は、駅の印が出る倍率のときだけ線を押して駅の間を決める
-  // 引いた地図では線が細く駅が込み合うので、線のあたりを押したら、まずそこへ寄せる
-  if (target.kind === "rail") {
-    const action = selectRailTapAction(map.getZoom(), target.lineIds.length);
-    if (action === "pick") {
-      onSelectRails?.(target.lineIds, point, reach, placePickable ? label : null);
-      return;
-    }
-    if (action === "approach") {
-      onApproachRails?.(point, reach);
-      return;
-    }
+  // 線の上を押したら、倍率にかかわらず駅の間を尋ねる。引いた地図でも、押した点から 22px の内の線で決める
+  if (target.kind === "rail" && onSelectRails) {
+    onSelectRails(target.lineIds, point, reach, placePickable ? label : null);
+    return;
   }
   props.onTap(point, reach);
 }
@@ -808,14 +829,19 @@ export function EntryMap(props: EntryMapProps) {
   useEffect(() => {
     if (!map) return;
     const sameScene = lastSceneRef.current === sceneKey;
-    // 線を押して候補を出している間は、段の寄せ方をせず、倍率を保ったまま押した点を見える所に置くだけにする
+    // 線を押して候補を出している間は、段の寄せ方をしない。駅の印が出る倍率なら、倍率を保ったまま押した点を見える所に置く
+    // 引いた地図なら、候補の区間が見える倍率まで寄せる
     // 候補を出した後に利用者が地図を動かしていれば、シートの高さが変わっても動かさない
     if (tapPoint && sameScene) {
       if (lastTapRef.current !== tapKey) tapMovedRef.current = false;
       lastTapRef.current = tapKey;
       if (!tapMovedRef.current) {
         const duration = prefersReducedMotion() ? 0 : durationMs;
-        keepPointVisible(map, tapPoint, { top, right, bottom, left }, duration);
+        const current = { top, right, bottom, left };
+        const sectionPoints = sections.features.flatMap((f) => f.geometry.coordinates);
+        if (map.getZoom() < BETWEEN_PICK_MIN_ZOOM && sectionPoints.length > 0)
+          approachSections(map, tapPoint, sectionPoints, current, duration);
+        else keepPointVisible(map, tapPoint, current, duration);
       }
       return;
     }
@@ -1140,22 +1166,6 @@ export function EntryMap(props: EntryMapProps) {
   };
 
   props.apiRef.current = {
-    approach: (targetArea, point) => {
-      if (!map) return;
-      // 利用者が選んだ寄せ方として扱い、シートの高さが変わっても関西の地図へ戻さない
-      userMovedRef.current = true;
-      lastSceneRef.current = sceneKey;
-      const duration = prefersReducedMotion() ? 0 : durationMs;
-      const current = { top, right, bottom, left };
-      if (targetArea) flyToArea(map, targetArea, current, duration);
-      else
-        map.flyTo({
-          center: point,
-          zoom: Math.max(map.getZoom(), minimumAreaZoom),
-          offset: buildOffset(current),
-          duration,
-        });
-    },
     zoomToOrigin: (zoom) =>
       new Promise((resolve) => {
         if (!map || !origin || prefersReducedMotion()) {

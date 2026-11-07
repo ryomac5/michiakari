@@ -67,7 +67,7 @@ function buildFileSummary(files: readonly string[]): string[] {
 
 const WATCH_DEBOUNCE_MS = 200;
 
-// knowledge/ と scenarios/ の変更を監視し、落ち着いたら onChange を呼ぶ。戻り値で監視を止める
+// scenarios/ の変更を監視し、落ち着いたら onChange を呼ぶ。戻り値で監視を止める
 export function watchContentDirs(rootDir: string, onChange: () => void): () => void {
   let timer: NodeJS.Timeout | undefined;
   const schedule = (filename: string | null) => {
@@ -75,7 +75,7 @@ export function watchContentDirs(rootDir: string, onChange: () => void): () => v
     clearTimeout(timer);
     timer = setTimeout(onChange, WATCH_DEBOUNCE_MS);
   };
-  const watchers: FSWatcher[] = ["knowledge", "scenarios"]
+  const watchers: FSWatcher[] = ["scenarios"]
     .map((name) => join(rootDir, name))
     .filter((dir) => existsSync(dir))
     .map((dir) => watch(dir, { recursive: true }, (_event, filename) => schedule(filename)));

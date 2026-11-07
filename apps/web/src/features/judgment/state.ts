@@ -74,7 +74,6 @@ export function createJudgmentState(): JudgmentState {
 // 進捗の段階を推論の段に対応させる
 const progressStageSteps: Record<ProgressStage, ReasoningStepId> = {
   interpret: "reading",
-  knowledge: "signals",
   weather: "phase",
   phase: "phase",
   alternatives: "options",

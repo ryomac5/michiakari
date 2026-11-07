@@ -7,12 +7,11 @@ type Observation = z.infer<typeof ObservationSchema>;
 
 const SUMMARY_MAX_CHARACTERS = 50;
 
-// 変化のカードの「そこから読めること」。根拠の欄と同じ項目の先頭を使い、段階が絞れなければ出さない
+// 変化のカードの「そこから読めること」。根拠の欄で手がかりの読みが付いた項目を使い、無ければ出さない
 export function selectChangeEvidence(
   context: Parameters<typeof selectEvidenceEntries>[0],
 ): EvidenceEntry | null {
-  const first = selectEvidenceEntries(context)[0];
-  return first?.phaseName ? first : null;
+  return selectEvidenceEntries(context).find((entry) => entry.cueId !== null) ?? null;
 }
 
 // 発表の最初の一文を使う。確率は同じ指標の推定値をそのまま並べる

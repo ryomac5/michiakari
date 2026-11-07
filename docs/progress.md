@@ -15,6 +15,56 @@
 
 ## 記録
 
+### 2026-11-07 / 統合 / guard と文書の取り込みと、発表の時刻での待つの判定
+- feat/guard-private と feat/docs-private を取り込んだ。衝突は無かった。設計文書から typicalFlow の欄を外した。
+- 発表の再開時刻が分岐点より後でも、余裕の判定で待つになり、見出しの時刻が発表より前になっていた。
+- 発表の時刻で比べるときは余裕を取らず、分岐点より後なら切り替える。agent と e2e にテストを足した。
+- 非公開の材料の検査で一致した短い言い回しを 4 か所で言い換えた。プロンプト、設計文書、ガイド、core のコメントである。
+- 確認結果: typecheck、lint、test、validate:dev、guard、e2e の全件が通った。
+### 2026-11-07 / 統合 / 知見の移行を 1 本にまとめ、知見の型と計算を消す
+- feat/agent-rules と feat/first-tap を取り込んだ。衝突は無かった。
+- schema の知見の型、よくある流れ、知見の読み込みと検証を消した。pnpm validate はシナリオだけを見る。
+- core の知見を使う残り時間と流れの計算を消した。テストは架空の分布、規則表、統計値の標本に替えた。
+- 画面は短く終わる事象かを規則表で決める。手がかりの無い発表でも、根拠の欄に聞いた言葉を出す。
+- e2e は段階の名前が出ないことと手がかりの読みを確かめる形に替えた。
+- 確認結果: typecheck、lint、test、validate:dev、guard、e2e の全件が通った。
+### 2026-11-07 / 入口 / 開いた直後の地図で線を押しても駅の間を選べるようにする
+- 開発者の報告は「最初の画面で線路の線を押しても駅の間にならない」だった。
+- 原因は、倍率 12.5 未満の線の押下を寄せるだけにしていたことである。大阪のあたりはエリアの丸の四角も線を覆っていた。
+- 線を押したら倍率にかかわらず候補を出し、候補の区間が入るまで寄せる。並びは線路の形との近さの順で、3 件までにした。
+- エリアの丸は白い丸の内だけを押せるようにした。候補が出たら価値の 3 行を閉じる。
+- 確認結果: first-tap.spec.ts を足した。入口の spec、web の単体テスト、typecheck、lint が通った。
+### 2026-11-07 / 画面 / 防護無線、支障の無い線路、再開後の詰まりの見込みを出す
+- feat/entry-protection、feat/rules-core、feat/agent-rules の schema を取り込んだ。衝突は無かった。
+- 事象の id を core の IncidentTypeId にそろえ、空の catalog と型だけの知見のファイルを消した。
+- 初列車待ちは core の resolveFirstTrainWait の中央値にした。判断の cues を根拠の読みにつないだ。
+- 防護無線の読み、支障の無い線路の行、詰まりの行を足した。乗り換え先は agent の並びのままにした。
+- 確認結果: web の単体テスト、typecheck、lint が通った。agent の typecheck は移行中の箇所で落ちる。
+- 残課題: agent が protection を付けるまで、受信の放送の e2e は読みが出ずに落ちる。
+### 2026-11-07 / 画面 / 知見の抜粋を読まず、事象の段階の文を出さない
+- 画面は知見を読まない。根拠の欄は段階の文をやめ、手がかりがあるときだけ一般的な読みを 1 行出す。
+- 初列車待ちは仮の値で置き、core の resolveFirstTrainWait に替える TODO を残した。e2e の期待値は agent の移行後に直す。
+### 2026-11-07 / 入口 / 車内の人に受信の放送を聞いたかを尋ねる
+- 電車の中の人にだけ、原因の後に受信の放送の問いを足した。答えは、あった、なかった、覚えていないの 3 つ。
+- あったなら、聞いた放送を station_broadcast の観測として判断に送る。schema は変えていない。
+- 観測は protection-broadcast.ts の buildProtectionObservations で作る。戻ると答えは消える。
+- 車内の流れを通る e2e には、なかったと答える手順を足した。
+- 確認結果: web の単体テスト、typecheck、lint が通った。entry-protection.spec.ts と車内の流れの spec が通った。
+### 2026-11-07 / agent / 判断を知見から core の規則表と統計値に移す
+- schema に手がかり、防護無線、支障の無い線路、詰まりの欄を足し、agent の判断と解釈を規則表で作り直し、ダミーの知見を消した。
+- 防護無線の並べ替え、支障の無い線路、再開後の詰まりを決定論の判断に載せ、規則 2〜5 の単体テストを足した。
+- 確認結果: agent、schema、core の test、lint、validate:dev が通る。web と e2e の型の崩れは各作業で直す。
+
+### 2026-11-07 / core / 開発者の知見から振る舞いの規則表と見込みの関数を作る
+- 種類ごとの規則表と放送の手がかりを core に置いた。見込みは再開、発表、規則、統計値の順に当てはめる。
+- 支障の無い線路の見込み、再開後の詰まり、防護無線の乗り換え先の並べ方を足した。線路の安全の判定は agent から移した。
+- 確認結果: core と agent の test、typecheck、lint が通った。初列車待ちの値は開発者の推定（仮）で、確認を待つ。
+### 2026-11-07 / guard / knowledge/ を使わない方針に合わせて guard と保護を直した
+- やったこと: PROTECTED_DIRS を scenarios だけにし、knowledge/ の非追跡と非公開の材料の混入の検査を足した。knowledge:new と guard の知見分を外し、compose と Dockerfile と deploy.html の CONTENT_DIR をシナリオだけの意味に直した。hook の修正は staging/A2.patch に分けた。開発者が適用する。
+- 確認結果: pnpm guard、PRIVATE_NOTES_DIR 付きの pnpm guard、pnpm test、pnpm lint、git apply --check staging/A2.patch。
+### 2026-11-07 / 文書 / 知見を非公開の材料にし、判断を規則表と統計値で出す方針に設計文書を書き直す
+- CLAUDE.md、README.md、architecture.md、vision.md、goals.md、roadmap.md、data-sources.md と手順書 3 本を直した。実装は別の作業で行う。
+
 ### 2026-11-07 / 入口 / 線を押して出した駅の間の候補を地図で光らせる
 - 開発者の声は「選べたことが分かりにくい。候補が光ったりしないの」だった。
 - 候補の区間を、駅の間で切った線路の形で光らせる。形と強さは map-pick.ts の buildSectionGlow で決める。

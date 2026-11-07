@@ -24,6 +24,7 @@ import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { NextCheckSection, PremiseSection } from "@/features/judgment/components/NextCheck";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
+import { RuleOutlook } from "@/features/judgment/components/RuleOutlook";
 import { TrainPositionChips } from "@/features/judgment/components/TrainPositionChips";
 import { StatusChip, TripSummary } from "@/features/judgment/components/TripSummary";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
@@ -76,7 +77,6 @@ export function JudgmentScreen() {
     destination,
     observations,
     state,
-    catalog,
     submitInput,
     retry,
     resumeJudgment,
@@ -133,7 +133,6 @@ export function JudgmentScreen() {
   const stopScope = selectStopScope({
     estimatedEventType: display.estimate?.eventType,
     observations: known,
-    isKnownEvent: (id) => catalog.some((e) => e.id === id),
     cause: selectHeardIncidentCause(tripContext),
   });
   const stoppedPlace = selectStoppedPlace(
@@ -142,7 +141,6 @@ export function JudgmentScreen() {
   );
   const blockedSection = known.findLast((o) => o.section !== null)?.section ?? null;
   const options = display.options ?? noOptions;
-  const typicalFlow = display.settled?.judgment.typicalFlow ?? null;
   const heardChoice = selectHeardCauseChoice(tripContext);
   const heardCause = heardChoice ? tEntry(`causes.${heardChoice}`) : null;
   // 近くのバス停の確認候補。確定した判断に載ったものだけを出す
@@ -152,7 +150,7 @@ export function JudgmentScreen() {
     known: display.breakEvenKnown,
     stale: display.breakEvenStale,
     judgedAt: display.settled?.at ?? null,
-    timeline: selectTimelineBasis(display.settled, catalog, null),
+    timeline: selectTimelineBasis(display.settled, null),
     // 時刻ごとの再開の見込み。入口で止まってからの時間を答えたときだけ「発生から」を出す
     chance: display.breakEven?.resumeChance ?? null,
     showOnset: typeof tripContext?.elapsedMinutes === "number",
@@ -234,7 +232,7 @@ export function JudgmentScreen() {
           onCollapsedHeightChange={chrome.setCollapsedHeight}
           summary={
             <div className="flex flex-col gap-3">
-              {streaming && <ReasoningProgress state={state} catalog={catalog} />}
+              {streaming && <ReasoningProgress state={state} />}
               {state.status === "error" && state.error && (
                 <JudgmentError
                   message={state.error.message}
@@ -262,6 +260,15 @@ export function JudgmentScreen() {
                 onOpenEditor={() => {
                   if (chrome.snap === "collapsed") chrome.setSnap("half");
                 }}
+              />
+            </SheetSection>
+          )}
+          {/* 支障の無い線路が先に動く見込みと、再開後の詰まり。乗り換え先はその選択肢の行へ寄せる */}
+          {state.status === "ready" && display.judgment && (
+            <SheetSection className="empty:hidden">
+              <RuleOutlook
+                judgment={display.judgment}
+                onFocusOption={inCar ? undefined : focusOption}
               />
             </SheetSection>
           )}
@@ -310,8 +317,6 @@ export function JudgmentScreen() {
           {state.status === "ready" && display.estimate && (
             <NextCheckSection
               estimate={display.estimate}
-              flow={typicalFlow}
-              catalog={catalog}
               onUpdate={() => {
                 chrome.setSnap("full");
                 setFocusAddInfo(true);
@@ -323,13 +328,14 @@ export function JudgmentScreen() {
             <EvidenceSection
               estimate={display.estimate}
               signals={state.signals}
-              catalog={catalog}
               heardCause={heardCause}
+              cues={display.judgment?.cues}
+              observations={known}
             />
           </SheetSection>
           {state.status === "ready" && (
             <SheetSection>
-              <ReasoningLog state={state} catalog={catalog} />
+              <ReasoningLog state={state} />
             </SheetSection>
           )}
           <SheetSection>
@@ -342,7 +348,6 @@ export function JudgmentScreen() {
           >
             <p className="text-[13px] text-muted">{t("addInfo.lead")}</p>
             <SituationInput
-              catalog={catalog}
               busy={streaming}
               onSubmit={(input) => {
                 submitInput(input);

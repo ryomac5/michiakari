@@ -1,8 +1,10 @@
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaContentBlockParam } from "@anthropic-ai/sdk/resources/beta/messages/messages";
+import { findIncidentType } from "@repo/core";
 import {
+  AnnouncementCueIdSchema,
   ConfidenceSchema,
-  type Knowledge,
+  type EventTypeCandidate,
   MAX_INPUT_TEXT_LENGTH,
   ObservableKindSchema,
   type Observation,
@@ -12,10 +14,10 @@ import {
 import { z } from "zod";
 import { claudeSettings, models } from "../config.ts";
 import type { LlmClient } from "../llm-client.ts";
-import { buildKnowledgeCatalog, type Prompts } from "../prompts/load-prompts.ts";
+import { buildIncidentCatalog, type Prompts } from "../prompts/load-prompts.ts";
 import { resolveClockNearTime } from "./parse-text.ts";
 
-// 写真・文章を Haiku で観測に変換する。出力は境界で Zod により検証し、知見に無い id は捨てる
+// 写真・文章を Haiku で観測に変換する。出力は境界で Zod により検証し、core の表に無い id は捨てる
 
 export const InterpretationSchema = z.object({
   kind: ObservableKindSchema.nullable(),
@@ -27,16 +29,13 @@ export const InterpretationSchema = z.object({
   section: z.object({ fromStation: z.string(), toStation: z.string() }).nullable(),
   statedResumeClock: z.string().nullable(),
   transferServiceActive: z.boolean().nullable(),
-  detectedSignals: z.array(
-    z.object({ eventType: z.string(), signalId: z.string(), quote: z.string() }),
-  ),
+  detectedCues: z.array(z.object({ cueId: z.string(), quote: z.string() })),
 });
 export type Interpretation = z.infer<typeof InterpretationSchema>;
 
 export type ClaudeInterpretContext = {
   llm: LlmClient;
   prompts: Prompts;
-  knowledge: ReadonlyMap<string, Knowledge>;
   observationId: string;
   observedAt: string;
   signal?: AbortSignal;
@@ -72,15 +71,28 @@ function parseClock(clock: string | null, observedAt: string): string | null {
   return m ? resolveClockNearTime(Number(m[1]), Number(m[2]), observedAt) : null;
 }
 
-// 知見に無い事象種別と兆候を捨てて Observation にする
+// 種類は統計値の種類の id に直し、表に無いものと重なりを捨てる
+function normalizeCandidates(
+  candidates: Interpretation["eventTypeCandidates"],
+): EventTypeCandidate[] {
+  const seen = new Set<string>();
+  return candidates.flatMap((c) => {
+    const type = findIncidentType(c.eventType);
+    if (!type || seen.has(type)) return [];
+    seen.add(type);
+    return [{ eventType: type, confidence: c.confidence }];
+  });
+}
+
+// 表に無い種類と手がかりを捨てて Observation にする。手がかりは最初の候補の種類に結びつける
 export function convertInterpretation(
   interpretation: Interpretation,
   input: InterpretableInput,
-  ctx: Pick<ClaudeInterpretContext, "knowledge" | "observationId" | "observedAt">,
+  ctx: Pick<ClaudeInterpretContext, "observationId" | "observedAt">,
 ): Observation {
-  const signalIds = (eventType: string) =>
-    new Set(ctx.knowledge.get(eventType)?.phases.flatMap((p) => p.signals.map((s) => s.id)) ?? []);
   const kind = input.type === "scenario" ? input.kind : (interpretation.kind ?? undefined);
+  const candidates = normalizeCandidates(interpretation.eventTypeCandidates);
+  const eventType = candidates[0]?.eventType ?? null;
   return {
     id: ctx.observationId,
     observedAt: ctx.observedAt,
@@ -91,17 +103,18 @@ export function convertInterpretation(
       : {}),
     // 原文の上限を超えた読み取りは切り詰める
     rawText: interpretation.rawText.slice(0, MAX_INPUT_TEXT_LENGTH),
-    eventTypeCandidates: interpretation.eventTypeCandidates.filter((c) =>
-      ctx.knowledge.has(c.eventType),
-    ),
+    eventTypeCandidates: candidates,
     operator: interpretation.operator,
     line: interpretation.line,
     section: interpretation.section,
     statedResumeTime: parseClock(interpretation.statedResumeClock, ctx.observedAt),
     transferServiceActive: interpretation.transferServiceActive,
-    detectedSignals: interpretation.detectedSignals.filter((s) =>
-      signalIds(s.eventType).has(s.signalId),
-    ),
+    detectedSignals: eventType
+      ? interpretation.detectedCues.flatMap((c) => {
+          const cue = AnnouncementCueIdSchema.safeParse(c.cueId);
+          return cue.success ? [{ eventType, signalId: cue.data, quote: c.quote }] : [];
+        })
+      : [],
   };
 }
 
@@ -117,7 +130,7 @@ export async function interpretWithClaude(
         { type: "text", text: ctx.prompts.interpretationSystem },
         {
           type: "text",
-          text: buildKnowledgeCatalog(ctx.knowledge),
+          text: buildIncidentCatalog(),
           cache_control: { type: "ephemeral" },
         },
       ],

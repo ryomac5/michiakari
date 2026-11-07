@@ -48,8 +48,8 @@ timeline:
     offset_minutes: 60
     kind: announcement
     text:
-      ja: 雨が弱まったため、宝塚駅〜三田駅間で線路の点検を行っています。点検が終わり次第、運転を再開します。
-      en: As the rain has eased, track inspection is under way between Takarazuka and Sanda. Service will resume once inspection is complete.
+      ja: 雨が弱まったため、宝塚駅〜三田駅間で線路の点検を行っています。運転再開は19時20分頃を見込んでいます。
+      en: As the rain has eased, track inspection is under way between Takarazuka and Sanda. Service is expected to resume at around 19:20.
   - id: obs_5
     offset_minutes: 80
     kind: signage
@@ -66,31 +66,24 @@ timeline:
 expectations:
   - after: obs_1
     action: hold
-    phase: suspended
-    evidence_includes: [hr_suspension_announced]
     break_even_shown: true
     note: 雨が強まっているあいだは再開に向かわない。代替経路も雨の影響を受けやすいので、分岐点を示して保留する。
   - after: obs_2
     action: hold
-    phase: suspended
     note: 強い雨雲がかかり続け、警報も続いている。保留を続ける。
   - after: obs_3
     action: hold
-    phase: rain_easing
-    evidence_includes: [hr_rain_easing]
     note: 10分雨量がピークから下がり始めた。警報が残るあいだは保留し、点検が残ることを伝える。
+  # obs_4 は、再開の見込みの時刻が発表から分かる文に直した（2026-11-07）。理由は README.md
   - after: obs_4
     action: wait
-    phase: track_inspection
-    evidence_includes: [hr_inspection_announced]
-    note: 雨が弱まり点検に入った。代替経路は三宮を回る長い迂回なので待つ。
+    note: 雨が弱まり点検に入り、再開の見込み時刻が出た。代替経路は三宮を回る長い迂回なので待つ。
   - after: obs_5
     action: wait
-    phase: track_inspection
-    note: 再開の見込み時刻が出た。分岐点より十分に早いので待つ。
+    note: 掲示でも同じ再開の見込み時刻を確かめた。分岐点より十分に早いので待つ。
   - after: obs_6
     action: wait
-    evidence_includes: [hr_resumed]
+    evidence_includes: [resumed]
     note: 運転を再開した。次の列車を待つ。
 
 ground_truth:

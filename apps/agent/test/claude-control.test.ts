@@ -19,8 +19,8 @@ import {
 const baseDeps = createTestDeps();
 const scenario = [...baseDeps.content.scenarios.values()][0];
 const entry = scenario?.timeline[0];
-const knowledge = scenario ? baseDeps.content.knowledge.get(scenario.event_type) : undefined;
-if (!scenario || !entry || !knowledge) throw new Error("開発用の知見とシナリオが必要です");
+if (!scenario || !entry) throw new Error("開発用のシナリオが必要です");
+const eventType = scenario.event_type;
 
 const textRequest = {
   ...buildScenarioRequest(scenario, entry, []),
@@ -52,13 +52,13 @@ function replyWithTool(name: string, input: unknown, extra: unknown[] = []): Bet
 const interpretation: Interpretation = {
   kind: "announcement",
   rawText: entry.text.ja,
-  eventTypeCandidates: [{ eventType: knowledge.id, confidence: "high" }],
+  eventTypeCandidates: [{ eventType, confidence: "high" }],
   operator: null,
   line: null,
   section: null,
   statedResumeClock: null,
   transferServiceActive: null,
-  detectedSignals: [],
+  detectedCues: [],
 };
 const interpretationReply = buildMessage(
   [{ type: "text", text: JSON.stringify(interpretation) }],
@@ -88,7 +88,7 @@ describe("切断時の中断", () => {
         judgeCalls += 1;
         // 2 回目の呼び出しの最中に利用者が切断した
         if (judgeCalls === 2) controller.abort();
-        return replyWithTool("lookup_knowledge", { eventType: knowledge?.id });
+        return replyWithTool("estimate_remaining", { eventType });
       },
     };
     const { events, sink } = collectSink();
@@ -117,7 +117,7 @@ describe("切断時の中断", () => {
             reject(new Error("aborted"));
           });
         });
-        return replyWithTool("lookup_knowledge", { eventType: knowledge?.id });
+        return replyWithTool("estimate_remaining", { eventType });
       },
     };
     const app = createTestApp(createTestDeps({ mode: "claude", llm }));
@@ -184,9 +184,9 @@ describe("解釈の失敗", () => {
 describe("進捗に流す内容", () => {
   it("text ブロックと進捗メモを流し、ツールの入力は流さない", async () => {
     const replies = [
-      replyWithTool("lookup_knowledge", { eventType: knowledge.id }, [
-        { type: "thinking", thinking: "知見の段階を見比べています", signature: "sig" },
-        { type: "text", text: "知見を確かめます" },
+      replyWithTool("estimate_remaining", { eventType }, [
+        { type: "thinking", thinking: "再開の見込みを見比べています", signature: "sig" },
+        { type: "text", text: "発表を確かめます" },
       ]),
     ];
     const llm: LlmClient = {
@@ -203,6 +203,6 @@ describe("進捗に流す内容", () => {
     );
     const notes = events.flatMap((e) => (e.type === "progress" && !e.stage ? [e.message] : []));
     expect(claudeSettings.thinkingDisplay).toBe("updates");
-    expect(notes).toEqual(["知見の段階を見比べています", "知見を確かめます"]);
+    expect(notes).toEqual(["再開の見込みを見比べています", "発表を確かめます"]);
   });
 });

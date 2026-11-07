@@ -5,7 +5,6 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 import { JudgmentSessionProvider } from "@/features/judgment/session";
-import { loadKnowledgeCatalog } from "@/features/knowledge/load-catalog";
 import { resolveTheme, themeCookieName } from "@/i18n/config";
 import { cn } from "@/lib/utils";
 import "./globals.css";
@@ -44,7 +43,6 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const locale = await getLocale();
   const theme = resolveTheme((await cookies()).get(themeCookieName)?.value);
-  const catalog = loadKnowledgeCatalog();
 
   return (
     <html lang={locale} className={theme}>
@@ -56,7 +54,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         )}
       >
         <NextIntlClientProvider>
-          <JudgmentSessionProvider catalog={catalog}>{children}</JudgmentSessionProvider>
+          <JudgmentSessionProvider>{children}</JudgmentSessionProvider>
         </NextIntlClientProvider>
       </body>
     </html>

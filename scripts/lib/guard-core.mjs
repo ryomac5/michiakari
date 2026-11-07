@@ -1,10 +1,19 @@
-// knowledge/ と scenarios/ の無断変更を検出するための判定ロジック
+// scenarios/ の無断変更と、非公開の材料の混入を検出するための判定ロジック
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
-export const PROTECTED_DIRS = ["knowledge", "scenarios"];
+export const PROTECTED_DIRS = ["scenarios"];
+// 開発者が後で消すまで追跡を許す knowledge/ 内のファイル
+// 古い承認記録 .approved.sha256 も、knowledge/ を空にする作業が終わるまで許す
+export const KNOWLEDGE_ALLOWED = [
+  "knowledge/README.md",
+  "knowledge/_template.yaml",
+  "knowledge/.approved.sha256",
+];
+export const MIN_SENTENCE_LENGTH = 10;
+const MAX_TRACKED_FILE_BYTES = 5 * 1024 * 1024;
 export const RECORD_FILE = ".approved.sha256";
 const IGNORED_NAMES = new Set([".DS_Store"]);
 const RECORD_LINE = /^([0-9a-f]{64}) {2}(.+)$/;
@@ -141,8 +150,57 @@ export const checkBranchDiff = (rootDir, { baseRef = "main", dirs = PROTECTED_DI
   return { status: sorted.length === 0 ? "pass" : "fail", reason: "diff", base, files: sorted };
 };
 
+const listTrackedFiles = (rootDir) => {
+  const out = tryRunGit(rootDir, ["ls-files", "-z"]);
+  return out === null ? null : out.split("\0").filter((path) => path !== "");
+};
+
+// knowledge/ に README.md と _template.yaml 以外が追跡されていないかを調べる
+export const checkKnowledgeUntracked = (rootDir) => {
+  const tracked = listTrackedFiles(rootDir);
+  if (tracked === null) return { status: "warn", files: [] };
+  const files = tracked.filter(
+    (path) => path.startsWith("knowledge/") && !KNOWLEDGE_ALLOWED.includes(path),
+  );
+  return { status: files.length === 0 ? "pass" : "fail", files };
+};
+
+// 本文から MIN_SENTENCE_LENGTH 字以上の文を集める。見出しや箇条書きの記号は外す
+export const extractSentences = (text) =>
+  text
+    .split(/[。！？!?\n]/)
+    .map((part) => part.replace(/^[\s#>*\-・]+/, "").trim())
+    .filter((part) => Array.from(part).length >= MIN_SENTENCE_LENGTH);
+
+export const collectPrivateSentences = (notesDir) => {
+  const sentences = new Set();
+  for (const rel of walkDir(notesDir).files) {
+    if (!/\.(md|yaml)$/.test(rel)) continue;
+    for (const sentence of extractSentences(readFileSync(join(notesDir, rel), "utf8"))) {
+      sentences.add(sentence);
+    }
+  }
+  return [...sentences];
+};
+
+// 非公開の材料の文が追跡中のファイルに無いかを調べる。文そのものは返さない
+export const checkPrivateNotes = (rootDir, notesDir = process.env.PRIVATE_NOTES_DIR) => {
+  if (!notesDir || !existsSync(notesDir)) return { status: "skip", files: [] };
+  const tracked = listTrackedFiles(rootDir);
+  if (tracked === null) return { status: "warn", files: [] };
+  const sentences = collectPrivateSentences(notesDir);
+  const files = [];
+  for (const rel of tracked) {
+    const path = join(rootDir, rel);
+    if (!existsSync(path) || statSync(path).size > MAX_TRACKED_FILE_BYTES) continue;
+    const text = readFileSync(path, "utf8");
+    if (sentences.some((sentence) => text.includes(sentence))) files.push(rel);
+  }
+  return { status: files.length === 0 ? "pass" : "fail", files, sentenceCount: sentences.length };
+};
+
 // pnpm validate を実行し、終了コードを返す
-// CONTENT_DIR は引き継がない（本物の knowledge/ と scenarios/ を検証するため）
+// CONTENT_DIR は引き継がない（本物の scenarios/ を検証するため）
 export const runValidate = (rootDir, { stdio = "inherit", env = process.env } = {}) => {
   const { CONTENT_DIR: _omitted, ...childEnv } = env;
   const result = spawnSync("pnpm", ["validate"], { cwd: rootDir, stdio, env: childEnv });

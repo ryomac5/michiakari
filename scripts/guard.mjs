@@ -1,9 +1,11 @@
-// knowledge/ と scenarios/ の無断変更を検出する。1つでも失敗すれば exit 1
+// scenarios/ の無断変更と、knowledge/ や非公開の材料の混入を検出する。1つでも失敗すれば exit 1
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   checkApproval,
   checkBranchDiff,
+  checkKnowledgeUntracked,
+  checkPrivateNotes,
   findSymlinks,
   formatDiffLines,
   RECORD_FILE,
@@ -72,7 +74,50 @@ const reportValidate = () => {
   return false;
 };
 
-const results = [reportApproval(), reportSymlinks(), reportBranchDiff(), reportValidate()];
+const reportKnowledgeUntracked = () => {
+  const result = checkKnowledgeUntracked(rootDir);
+  if (result.status === "warn") {
+    console.log("[警告] 知見の非追跡: git 管理外のため検査できません");
+    return true;
+  }
+  if (result.status === "pass") {
+    console.log(
+      "[合格] 知見の非追跡: knowledge/ に README.md と _template.yaml と古い承認記録以外の追跡はありません",
+    );
+    return true;
+  }
+  console.log("[失敗] 知見の非追跡: knowledge/ に追跡されているファイルがあります");
+  for (const path of result.files) console.log(`  ${path}`);
+  return false;
+};
+
+const reportPrivateNotes = () => {
+  const result = checkPrivateNotes(rootDir);
+  if (result.status === "skip") {
+    console.log("[警告] 非公開の材料: PRIVATE_NOTES_DIR が無いか存在しないため検査を省きます");
+    return true;
+  }
+  if (result.status === "warn") {
+    console.log("[警告] 非公開の材料: git 管理外のため検査できません");
+    return true;
+  }
+  if (result.status === "pass") {
+    console.log("[合格] 非公開の材料: 追跡中のファイルに一致する文はありません");
+    return true;
+  }
+  console.log("[失敗] 非公開の材料: 追跡中のファイルに一致する文があります");
+  for (const path of result.files) console.log(`  ${path}`);
+  return false;
+};
+
+const results = [
+  reportApproval(),
+  reportSymlinks(),
+  reportBranchDiff(),
+  reportKnowledgeUntracked(),
+  reportPrivateNotes(),
+  reportValidate(),
+];
 const passed = results.every(Boolean);
 console.log(passed ? "guard: 合格" : "guard: 不合格");
 process.exit(passed ? 0 : 1);

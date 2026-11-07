@@ -1,13 +1,15 @@
+import { resolveFirstTrainWait } from "@repo/core";
 import type { JudgmentEvent } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import {
   buildBreakEvenTimeline,
   classifyResumeRelation,
   computeResumeWindow,
+  estimateFirstTrainWait,
   listTicks,
   selectTimelineBasis,
 } from "./break-even-timeline";
-import { buildPersonAccidentEvents, personAccidentCatalog } from "./fixtures/person-accident";
+import { buildPersonAccidentEvents } from "./fixtures/person-accident";
 import {
   createJudgmentState,
   type JudgmentState,
@@ -124,26 +126,32 @@ describe("期限と判断からの値の選び方", () => {
     expect(timeline.positions.deadline).toBeNull();
   });
 
-  it("分岐点と残り時間があるときだけ図の値を作り、初列車待ちは知見から引く", () => {
+  it("分岐点と残り時間があるときだけ図の値を作り、初列車待ちは core の規則表から引く", () => {
     const ready = applyEvents(startJudgmentRun(createJudgmentState()), events);
     const display = selectJudgmentDisplay(ready);
     const judgment = display.settled?.judgment;
     if (!judgment) throw new Error("判断がありません");
-    const catalog = personAccidentCatalog.map((e) => ({ ...e, firstTrainWaitMinutes: 12 }));
-    expect(selectTimelineBasis(display.settled, catalog, null)).toEqual({
+    expect(selectTimelineBasis(display.settled, null)).toEqual({
       asOf: display.settled?.at,
       breakEvenTime: judgment.breakEven?.time,
       remaining: judgment.estimate.remaining,
-      firstTrainWaitMinutes: 12,
+      firstTrainWaitMinutes: estimateFirstTrainWait(judgment.estimate.eventType),
       deadline: null,
       action: judgment.action,
     });
-    expect(selectTimelineBasis(display.settled, [], null)?.firstTrainWaitMinutes).toBe(0);
+    expect(estimateFirstTrainWait("person_collision")).toBe(
+      resolveFirstTrainWait("person_collision").p50,
+    );
+    expect(estimateFirstTrainWait("medical_response")).toBe(
+      resolveFirstTrainWait("medical_response").p50,
+    );
+    expect(estimateFirstTrainWait("unknown_event")).toBe(resolveFirstTrainWait(null).p50);
+    expect(estimateFirstTrainWait(null)).toBe(resolveFirstTrainWait(null).p50);
     const noRemaining = {
       at: at("22:00"),
       judgment: { ...judgment, estimate: { ...judgment.estimate, remaining: null } },
     };
-    expect(selectTimelineBasis(noRemaining, catalog, null)).toBeNull();
-    expect(selectTimelineBasis(null, catalog, null)).toBeNull();
+    expect(selectTimelineBasis(noRemaining, null)).toBeNull();
+    expect(selectTimelineBasis(null, null)).toBeNull();
   });
 });

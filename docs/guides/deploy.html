@@ -125,7 +125,7 @@
 <table>
   <tr><th>名前</th><th>値の例</th><th>説明</th></tr>
   <tr><td><code>NEXT_PUBLIC_AGENT_URL</code></td><td><code>https://agent.example.com</code></td><td>エージェントの公開 URL です。末尾にスラッシュを付けません。</td></tr>
-  <tr><td><code>CONTENT_DIR</code></td><td><code>packages/schema/test/fixtures/dev-content</code></td><td>エージェントと同じ値にします。知見がそろうまでは、この値を必ず設定します。そろったら外します。</td></tr>
+  <tr><td><code>CONTENT_DIR</code></td><td>設定しない</td><td>シナリオの置き場所です。エージェントと同じ値にします。</td></tr>
   <tr><td><code>NEXT_PUBLIC_JUDGE_MOCK</code></td><td>設定しない</td><td>本番では必ず未設定にします。設定すると固定の判断を表示します。</td></tr>
 </table>
 </div>
@@ -134,19 +134,18 @@
 <p>値を変えたら再デプロイが必要です。秘密の値には決して使いません。</p>
 </div>
 <div class="note">
-<p><code>CONTENT_DIR</code> が未設定だと、リポジトリの <code>knowledge/</code> と <code>scenarios/</code> を読みます。</p>
-<p>そこは雛形だけなので、知見とシナリオが 0 件になります。</p>
+<p><code>CONTENT_DIR</code> はシナリオだけの置き場所です。</p>
+<p>未設定ならリポジトリの <code>scenarios/</code> を読みます。</p>
 </div>
 
 <h3>同梱するファイル</h3>
-<p>画面のサーバー関数は、知見の YAML を fs で読みます。</p>
+<p>画面のサーバー関数は、シナリオの YAML を fs で読みます。</p>
 <p>そのため <code>apps/web/next.config.ts</code> の <code>outputFileTracingIncludes</code> で同梱を指定しています。</p>
 <div class="table-wrap">
 <table>
   <tr><th>対象</th><th>理由</th></tr>
   <tr><td><code>pnpm-workspace.yaml</code></td><td>リポジトリのルートを探す目印です。</td></tr>
-  <tr><td><code>knowledge/</code> と <code>scenarios/</code></td><td>知見の抜粋とリプレイに使います。</td></tr>
-  <tr><td>ダミー内容</td><td><code>packages/schema/test/fixtures/dev-content/</code> です。デモで <code>CONTENT_DIR</code> に指定できます。</td></tr>
+  <tr><td><code>scenarios/</code></td><td>リプレイに使います。</td></tr>
   <tr><td><code>packages/geo/data/</code></td><td>路線と駅のデータです。</td></tr>
 </table>
 </div>
@@ -158,7 +157,7 @@
 <ul>
   <li>Node 24 の型の除去で、TypeScript をそのまま実行します。</li>
   <li>エージェントが使うワークスペースだけを本番依存で入れます。</li>
-  <li>知見、シナリオ、ダミー内容、路線データを同梱します。</li>
+  <li>シナリオと路線データを同梱します。</li>
   <li>実行ユーザーは非 root の <code>node</code> です。</li>
   <li>待ち受けのポートは <code>PORT</code> で決まり、既定は 8787 です。</li>
   <li><code>HEALTHCHECK</code> が <code>/health</code> を定期的に確かめます。</li>
@@ -184,13 +183,12 @@ gcloud run deploy kansai-agent \
   --image REGION-docker.pkg.dev/PROJECT_ID/kansai/agent:v1 \
   --region REGION \
   --allow-unauthenticated \
-  --set-env-vars JUDGE_MODE=claude,CORS_ORIGINS=https://your-app.vercel.app,TRUST_PROXY=true,CONTENT_DIR=packages/schema/test/fixtures/dev-content \
+  --set-env-vars JUDGE_MODE=claude,CORS_ORIGINS=https://your-app.vercel.app,TRUST_PROXY=true \
   --set-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest \
   --max-instances 2 \
   --timeout 300</code></pre>
 <p>Cloud Run は <code>PORT</code> を自動で渡します。指定は不要です。</p>
 <p><code>TRUST_PROXY=true</code> は必須です。外すと全利用者が同じ接続元に見え、頻度制限が合算されます。</p>
-<p>開発者の知見がそろうまでは、<code>CONTENT_DIR</code> にダミー内容を指定します。そろったら <code>CONTENT_DIR</code> を外します。</p>
 <p>判断は SSE で数十秒続きます。タイムアウトは 300 秒あれば足ります。</p>
 <p>デプロイ後に表示される URL を、Vercel の <code>NEXT_PUBLIC_AGENT_URL</code> に入れます。</p>
 
@@ -201,7 +199,7 @@ gcloud run deploy kansai-agent \
   <tr><td><code>PORT</code></td><td>8787</td><td>待ち受けるポートです。</td></tr>
   <tr><td><code>JUDGE_MODE</code></td><td>キーの有無で決まる</td><td><code>claude</code> か <code>deterministic</code> を指定します。公開では明示します。</td></tr>
   <tr><td><code>ANTHROPIC_API_KEY</code></td><td>なし</td><td>Claude API のキーです。秘密の置き場所から渡します。</td></tr>
-  <tr><td><code>CONTENT_DIR</code></td><td>リポジトリのルート</td><td>知見とシナリオの置き場所です。相対パスはルートから解決します。公開では知見がそろうまでダミー内容を指定します。</td></tr>
+  <tr><td><code>CONTENT_DIR</code></td><td>リポジトリのルート</td><td>シナリオの置き場所です。相対パスはルートから解決します。</td></tr>
   <tr><td><code>CORS_ORIGINS</code></td><td><code>http://localhost:3000</code></td><td>画面のオリジンです。カンマ区切りで複数指定できます。</td></tr>
   <tr><td><code>RATE_LIMIT_PER_MINUTE</code></td><td>20</td><td>1 分あたりの <code>/judge</code> の上限です。クライアントごとに数えます。</td></tr>
   <tr><td><code>TRUST_PROXY</code></td><td>false</td><td>プロキシのヘッダを信用するかの設定です。Cloud Run のようにプロキシの背後では true にします。直接受けるときは false にします。</td></tr>
@@ -245,7 +243,7 @@ gcloud run deploy kansai-agent \
 </ul>
 
 <h2 id="local">ローカルでの確認</h2>
-<p>リポジトリのルートで次を実行します。既定は決定論モードとダミー内容です。</p>
+<p>リポジトリのルートで次を実行します。既定は決定論モードです。</p>
 <pre><code>docker compose -f infra/compose.yaml up --build</code></pre>
 <p>別の端末で、生存確認と判断の SSE を確かめます。</p>
 <pre><code>curl http://localhost:8787/health
@@ -285,8 +283,8 @@ curl -N -X POST http://localhost:8787/judge \
   <li><code>JUDGE_MODE=claude</code> で判断が最後まで届きます。</li>
   <li>本番の画面から判断を流し、CORS で止まりません。</li>
   <li>上限を超えて送ると、状態 429 が返ります。</li>
-  <li>起動ログの知見の件数と、読めなかった件数を確かめます。</li>
-  <li><code>CONTENT_DIR</code> が本番の意図どおりの内容を指しています。</li>
+  <li>起動ログの読み込み件数と、読めなかった件数を確かめます。</li>
+  <li><code>CONTENT_DIR</code> が本番の意図どおりのシナリオを指しています。</li>
 </ul>
 <h3>リポジトリ</h3>
 <ul class="check">
