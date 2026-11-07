@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Page, Route } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import { addAnswers, expectJudgmentAfterDirection } from "../support/add-info.ts";
 import { chooseBetweenStations } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
@@ -14,11 +15,7 @@ const screenshotRoot = fileURLToPath(new URL("../screenshots/rules/", import.met
 test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
 test.setTimeout(150_000);
 
-function expectStage(page: Page, stage: string) {
-  return expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", stage);
-}
-
-// 大阪から JR 神戸線で三ノ宮へ向かう途中、大阪と塚本の間で止まり、受信の放送を聞いた
+// 大阪から JR 神戸線で三ノ宮へ向かう途中、大阪と塚本の間で止まった。判断が出てから受信の放送を聞いたと足す
 async function startWithProtectionHeard(page: Page): Promise<void> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
@@ -27,23 +24,12 @@ async function startWithProtectionHeard(page: Page): Promise<void> {
   await chooseBetweenStations(page, "JR神戸線", "大阪", "塚本");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  const screen = page.getByTestId(testIds.start.screen);
-  await expect(screen).toHaveAttribute("data-stage", /^(cause|direction)$/);
-  if ((await screen.getAttribute("data-stage")) === "direction")
-    await page.locator("[data-testid^='start-direction-'][data-testid$='.神戸']").click();
-  await expectStage(page, "cause");
-  await page.getByTestId(testIds.start.cause("unknown")).click();
-  await expectStage(page, "protection");
-  await page.getByTestId("start-protection-heard").click();
-  await page.getByTestId(testIds.start.elapsed("now")).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  await expectJudgmentAfterDirection(page, "神戸");
+  await addAnswers(page, { protection: "heard", elapsed: "now", resume: "unknown" });
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
 }
 
-test("受信の放送を「あった」と答えると、判断の見出しの下に防護無線の読みが出る", async ({
-  page,
-}) => {
+test("受信の放送を「あった」と足すと、判断の見出しの下に防護無線の読みが出る", async ({ page }) => {
   await startWithProtectionHeard(page);
   await expect(page.getByTestId(testIds.judgment.protection)).toHaveText(
     "近くで非常停止があったと読めます",

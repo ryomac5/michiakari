@@ -2,10 +2,11 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
+import { addAnswers, expectJudgmentOpened } from "../support/add-info.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
-// 入口で原因に「聞き取れなかった」、再開見込みに放送の時刻を選んだときの結論
+// 原因を答えず、情報を追加するで再開見込みに放送の時刻を選んだときの結論
 // 原因が分からなくても、発表の時刻を見込みとして分岐点と比べ、待つか切り替えるかを言い切る
 // 決定論モードの agent とダミーの内容で確かめる
 
@@ -15,7 +16,7 @@ const screenshotDir = fileURLToPath(new URL("../screenshots/", import.meta.url))
 const nonDecisive =
   /まだ判断できません|判断できません|分かりません|わかりません|情報が足りません|材料が不足|見込みが立ちません/;
 
-// 大阪から JR 神戸線で三ノ宮へ向かう途中で止まった想定。原因は聞き取れず、再開見込みの時刻だけを選ぶ
+// 大阪から JR 神戸線で三ノ宮へ向かう途中で止まった想定。原因は聞き取れず、再開見込みの時刻だけを足す
 async function answerWithStatedTime(
   page: Page,
   pickTime: "first" | "second" | "last",
@@ -30,22 +31,12 @@ async function answerWithStatedTime(
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expect(page.getByTestId(testIds.start.trip)).toContainText("三ノ宮");
-
-  await page.getByTestId(testIds.start.cause("unknown")).click();
-  await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText("聞き取れなかった");
-  await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume("stated")).click();
-  const times = page.locator("[data-testid^='start-resume-time-']");
-  await expect(times).toHaveCount(8);
+  await expectJudgmentOpened(page);
+  // 原因は答えず、止まってからの時間と放送で聞いた再開見込みの時刻だけを足す
   // 最初は 0〜10 分先で分岐点より前、最後は 70〜80 分先で分岐点より十分後になる
   // 原因が分からないときも初列車待ちを規則表の区間の値で見込むので、2 つ目は分岐点の近くになる
-  const chosen =
-    pickTime === "first" ? times.first() : pickTime === "second" ? times.nth(1) : times.last();
-  const label = (await chosen.textContent()) ?? "";
-  await chosen.click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
-  return label;
+  const label = await addAnswers(page, { elapsed: "m10", resume: { time: pickTime } });
+  return label ?? "";
 }
 
 // 「HH:MM」か「H時MM分」の表示を 0 時からの分にする

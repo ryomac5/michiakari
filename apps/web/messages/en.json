@@ -64,7 +64,39 @@
     "select": {
       "eventLabel": "Pick the cause",
       "kindLabel": "Pick the closest one",
-      "back": "Pick another cause"
+      "back": "Back",
+      "backToCause": "Choose the cause again",
+      "change": "change",
+      "cuesLabel": "Announcements heard",
+      "itemsLabel": "What you know",
+      "items": {
+        "cause": "Cause",
+        "resume": "Expected resumption",
+        "elapsed": "Stopped for",
+        "protection": "\"Signal received\" announcement",
+        "section": "Stopped section",
+        "ticket": "Ticket"
+      },
+      "cues": {
+        "resume_soon": "Resuming soon",
+        "resumed": "Service resumed",
+        "inspection_ongoing": "Inspection continuing",
+        "proceed_to_station": "Moving to the next station",
+        "evacuation_on_track": "Told to walk on the track",
+        "turnback": "Turnback service"
+      },
+      "questions": {
+        "elapsed": "Time since the stop",
+        "protection": "\"Emergency stop after receiving a signal\" announcement",
+        "resume": "Announced resumption",
+        "resumeTime": "Time announced",
+        "ticket": "Ticket"
+      },
+      "resume": {
+        "stated": "Time announced",
+        "undecided": "Said undecided",
+        "unknown": "Not announced"
+      }
     },
     "busy": "Thinking"
   },
@@ -483,6 +515,11 @@
     "between": "between {from} and {to}",
     "alight": "Get off at",
     "walkShort": "{minutes} min walk",
+    "sectionPick": {
+      "first": "Tap a station at one end of the suspended section",
+      "second": "Tap the station at the other end",
+      "cancel": "Cancel"
+    },
     "destination": "To",
     "train": "Your train",
     "replay": "Play the move again"
@@ -557,17 +594,6 @@
     "from": "From",
     "to": "To",
     "change": "change",
-    "withText": "Have a notice or sign?",
-    "methods": {
-      "photo": {
-        "title": "Photo",
-        "heading": "Take a photo of the sign or screen"
-      },
-      "paste": {
-        "title": "Paste",
-        "heading": "Paste the announcement text"
-      }
-    },
     "demoNote": "Replay a fictional disruption",
     "quickPicks": "Popular stations",
     "directionQuestion": "Pick your direction",
@@ -590,7 +616,6 @@
     },
     "tripHub": "Using a major station that way",
     "tripTerminal": "Using the end of the line",
-    "causeQuestion": "Pick the cause you heard",
     "causes": {
       "person": "Person hit by a train",
       "inCar": "Illness or emergency button on board",
@@ -603,7 +628,6 @@
       "major_accident": "Crash, derail, fire",
       "unknown": "Nothing said or not sure"
     },
-    "causeKindQuestion": "Pick the closest one",
     "causeKinds": {
       "rain": "Rain",
       "wind": "Wind",
@@ -612,37 +636,22 @@
       "earthquake": "Earthquake",
       "other": "Other or not sure"
     },
-    "protectionQuestion": "When the train stopped, did you hear an announcement like “emergency stop after receiving a signal”?",
     "protection": {
       "heard": "Yes",
       "notHeard": "No",
       "unsure": "Not sure"
     },
-    "elapsedQuestion": "Pick how long you have been stopped",
     "elapsed": {
       "now": "Just stopped",
       "m10": "About 10 min",
       "m30": "30 min or more",
       "unknown": "Not sure"
     },
-    "ticketQuestion": "Your ticket",
     "ticket": {
       "ic": "IC card",
       "commuter_pass": "Commuter pass",
       "paper": "Paper ticket",
       "unknown": "Not sure"
-    },
-    "resumeQuestion": "Pick the restart outlook you heard",
-    "resume": {
-      "stated": "Yes, they gave a time",
-      "statedNote": "Tap to pick the time",
-      "undecided": "They said it is undecided",
-      "unknown": "Nothing said or not sure"
-    },
-    "resumeTimeQuestion": "Pick the announced time",
-    "answers": {
-      "cause": "Announcement",
-      "elapsed": "Stopped for"
     },
     "nextStation": "Next: {station}",
     "positionBetweenTrip": "Between stations, start from the next one",
@@ -678,7 +687,8 @@
     "betweenSecondStation": "Second station",
     "betweenChangeStation": "Change {station}",
     "betweenPairNone": "No line runs through both stations. Search with other station names.",
-    "betweenPickQuestion": "Choose the stations you are between"
+    "betweenPickQuestion": "Choose the stations you are between",
+    "judge": "Judge this trip"
   },
   "status": {
     "notFound": {

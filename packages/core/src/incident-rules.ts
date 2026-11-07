@@ -10,6 +10,7 @@ import {
 import {
   INCIDENT_TYPE_DURATIONS,
   INCIDENT_TYPE_IDS,
+  type IncidentGroupId,
   type IncidentTypeId,
 } from "../params/incident-durations.ts";
 import { INCIDENT_PHRASES } from "../params/incident-phrases.ts";
@@ -76,6 +77,11 @@ export function resolveFirstTrainWait(
 ): DurationDist {
   if (cues.includes("turnback")) return FIRST_TRAIN_WAIT_BY_STOP_KIND.section;
   return type ? INCIDENT_BEHAVIOR[type].firstTrainWait : UNKNOWN_FIRST_TRAIN_WAIT;
+}
+
+// 種類が属する統計値の大分類
+export function findIncidentTypeGroup(type: IncidentTypeId): IncidentGroupId {
+  return INCIDENT_TYPE_DURATIONS[type].groupId;
 }
 
 // 天気の事象か。統計値の大分類が weather の種類

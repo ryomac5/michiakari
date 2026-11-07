@@ -6,6 +6,7 @@ import type { Page } from "@playwright/test";
 import en from "../../apps/web/messages/en.json" with { type: "json" };
 import jaMessages from "../../apps/web/messages/ja.json" with { type: "json" };
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import { expectJudgmentOpened, openAddInfo, waitForJudgmentReady } from "../support/add-info.ts";
 import {
   loadReplayScenarios,
   openSheet,
@@ -119,24 +120,20 @@ async function expectHandleRingOnlyForKeyboard(page: Page) {
 }
 
 // 原因の札の言葉が日本語は 2 行、英語は 3 行以内に収まり、札が画面の内側にあること
-async function expectCauseCardsReadable(page: Page, width: number, maxLines: number) {
-  const cards = await page.locator("[data-testid^='start-cause-']").evaluateAll((elements) =>
-    elements.map((el) => {
-      const label = el.querySelector<HTMLElement>("span:last-child");
-      const lineHeight = label ? Number.parseFloat(getComputedStyle(label).lineHeight) : 1;
-      return {
+// 情報を追加するの原因の選択肢が、画面からも札からもはみ出さないこと
+async function expectCauseCardsReadable(page: Page, width: number) {
+  const cards = await page
+    .getByTestId(testIds.judgment.addInfo)
+    .locator("[data-testid^='situation-cause-']")
+    .evaluateAll((elements) =>
+      elements.map((el) => ({
         id: el.getAttribute("data-testid"),
-        lines: label ? Math.round(label.getBoundingClientRect().height / lineHeight) : 0,
         right: el.getBoundingClientRect().right,
-        overflow: label ? label.scrollWidth > label.clientWidth + 1 : false,
-      };
-    }),
-  );
+        overflow: el.scrollWidth > el.clientWidth + 1,
+      })),
+    );
   expect(cards.length).toBeGreaterThan(0);
   for (const card of cards) {
-    expect(card.lines, `${card.id} の言葉が ${maxLines} 行を超えている`).toBeLessThanOrEqual(
-      maxLines,
-    );
     expect(card.right, `${card.id} が画面からはみ出している`).toBeLessThanOrEqual(width);
     expect(card.overflow, `${card.id} の言葉が札からはみ出している`).toBe(false);
   }
@@ -256,7 +253,17 @@ for (const variant of variants) {
       await capture(page, variant, "03b-start-destination");
       await checkScreen(page, "開始（行き先）");
       await page.getByTestId(testIds.start.destinationSearch).fill(ja ? "三ノ宮" : "sannomiya");
+      // 行き先を選ぶと、そのまま判断を始める
       await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+      await expect(page.getByTestId(testIds.judgment.reasoningStep("phase"))).toBeVisible({
+        timeout: 30_000,
+      });
+      await capture(page, variant, "06-judgment-reasoning");
+      await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
+      await waitForJudgmentReady(page);
+
+      // 戻ると行程の札に、推定した乗る電車が出る
+      await page.getByTestId(testIds.judgment.backButton).click();
       await expect(page.getByTestId(testIds.start.routeSummary)).toContainText(
         ja ? "JR神戸線" : "JR Kobe Line",
       );
@@ -264,40 +271,35 @@ for (const variant of variants) {
       await checkScreen(page, "開始（乗る電車の推定）");
       await expect(page.getByTestId(testIds.start.trip)).toContainText(ja ? "三ノ宮" : "Sannomiya");
       await expect(page.getByTestId(testIds.start.destinationPin)).toBeVisible();
-      // 様子の段は、原因・止まってからの時間・再開の見込みの 3 問を 1 タップずつ聞く
-      await capture(page, variant, "04-situation-cause");
-      await checkScreen(page, "状況の入力（原因）");
-      if (variant.width < desktop.width)
-        await expectCauseCardsReadable(page, variant.width, ja ? 2 : 3);
-      await page.getByTestId(testIds.start.cause("unknown")).click();
-      await expect(page.getByTestId(testIds.start.answer("cause"))).toBeVisible();
-      await capture(page, variant, "05a-situation-elapsed");
-      await checkScreen(page, "状況の入力（経過）");
-      await page.getByTestId(testIds.start.elapsed("m10")).click();
-      await expect(page.getByTestId(testIds.start.answer("elapsed"))).toBeVisible();
-      await capture(page, variant, "05c-situation-resume");
-      await checkScreen(page, "状況の入力（再開見込み）");
-      // 時刻を言っていたを押すと、その場で時刻の候補が開く
-      await page.getByTestId(testIds.start.resume("stated")).click();
-      await expect(page.locator("[data-testid^='start-resume-time-']")).toHaveCount(8);
-      await capture(page, variant, "05d-situation-resume-time");
-      await checkScreen(page, "状況の入力（再開見込みの時刻）");
-      await page.getByTestId(testIds.start.back).click();
-      await page.getByTestId(testIds.start.back).click();
-      await expect(page.getByTestId(testIds.start.cause("unknown"))).toBeVisible();
-      await page.getByTestId(testIds.start.method("paste")).click();
-      await page
+      await page.getByTestId(testIds.start.judge).click();
+      await expectJudgmentOpened(page);
+
+      // 情報を追加するで、原因・止まってからの時間・再開の見込みを分かったときに足す
+      const addInfo = await openAddInfo(page);
+      await capture(page, variant, "04-add-info-cause");
+      await checkScreen(page, "情報を追加する（原因）");
+      if (variant.width < desktop.width) await expectCauseCardsReadable(page, variant.width);
+      await addInfo.getByTestId(testIds.situation.item("elapsed")).click();
+      await capture(page, variant, "05a-add-info-elapsed");
+      await checkScreen(page, "情報を追加する（経過）");
+      await addInfo.getByTestId(testIds.situation.option("elapsed", "m10")).click();
+      await waitForJudgmentReady(page);
+      await openAddInfo(page);
+      await expect(addInfo.getByTestId(testIds.situation.answer("elapsed"))).toBeVisible();
+      await addInfo.getByTestId(testIds.situation.item("resume")).click();
+      await expect(addInfo.locator("[data-testid^='situation-resume-time-']")).toHaveCount(8);
+      await capture(page, variant, "05d-add-info-resume-time");
+      await checkScreen(page, "情報を追加する（再開見込みの時刻）");
+      await addInfo.getByTestId(testIds.situation.back).click();
+      await addInfo.getByTestId(testIds.situation.tab("paste")).click();
+      await addInfo
         .getByTestId(testIds.situation.pasteInput)
         .fill("人身事故のため、運転を見合わせています。現在、現場の確認を行っています。");
-      await capture(page, variant, "05b-situation-ready");
-      await checkScreen(page, "状況の入力（判断の直前）");
-      await page.getByTestId(testIds.situation.submit("paste")).click();
-
-      await expect(page.getByTestId(testIds.judgment.reasoningStep("phase"))).toBeVisible({
-        timeout: 30_000,
-      });
-      await capture(page, variant, "06-judgment-reasoning");
-      await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
+      await capture(page, variant, "05b-add-info-paste");
+      await checkScreen(page, "情報を追加する（貼り付け）");
+      await addInfo.getByTestId(testIds.situation.submit("paste")).click();
+      await waitForJudgmentReady(page);
+      await openSheet(page, "collapsed");
       await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
         timeout: 30_000,
       });

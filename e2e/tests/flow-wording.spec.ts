@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
+import { addAnswers, expectJudgmentOpened, openAddInfo } from "../support/add-info.ts";
 import { openReplay, openSheet, waitForJudged } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -103,7 +104,7 @@ test("人身事故のリプレイでは、発生直後から切り替えを言�
   await expectNoFlowWording(page);
 });
 
-test("入口で「車内の急病人・非常ボタン」を選ぶと、待つの判断と安心させる文が出る", async ({
+test("情報を追加するで「車内の急病人・非常ボタン」を足すと、待つの判断と安心させる文が出る", async ({
   page,
 }) => {
   await page.goto("/");
@@ -116,21 +117,23 @@ test("入口で「車内の急病人・非常ボタン」を選ぶと、待つ�
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
+  await expectJudgmentOpened(page);
 
-  // 様子の段は方式を選ばせず、すぐに原因を聞く。原因、時間、再開見込みの順に答える
-  // 車内の急病人・非常ボタンは人身事故と別の選択肢で、続けての種類の問いなしに経過の問いへ進む
-  const inCar = page.getByTestId(testIds.start.cause("inCar"));
-  await expect(inCar).toHaveText("車内の急病人・非常ボタン");
-  await inCar.click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "elapsed");
-  await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText(
+  // 原因は情報を追加するで足す。車内の急病人・非常ボタンは人身事故と別の選択肢で、種類の問いは続かない
+  const addInfo = await openAddInfo(page);
+  await expect(addInfo.getByTestId(testIds.situation.causeOption("inCar"))).toHaveText(
     "車内の急病人・非常ボタン",
   );
-  await page.getByTestId(testIds.start.elapsed("now")).click();
-  await expect(page.getByTestId(testIds.start.answer("elapsed"))).toContainText("いま止まった");
-  await page.getByTestId(testIds.start.resume("unknown")).click();
+  await addAnswers(page, { cause: "inCar", elapsed: "now", resume: "unknown" });
+  const added = await openAddInfo(page);
+  await expect(added.getByTestId(testIds.situation.answer("cause"))).toContainText(
+    "車内の急病人・非常ボタン",
+  );
+  await expect(added.getByTestId(testIds.situation.answer("elapsed"))).toContainText(
+    "いま止まった",
+  );
+  await openSheet(page, "collapsed");
 
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   await expect(conclusion).toHaveAttribute("data-action", "wait", { timeout: 30_000 });
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText(reassuring);
@@ -142,7 +145,7 @@ test("入口で「車内の急病人・非常ボタン」を選ぶと、待つ�
   const nextCheck = page.getByTestId(testIds.judgment.nextCheck);
   await expect(nextCheck).toContainText("まもなく発車");
   await expect(nextCheck).not.toContainText("再開見込み");
-  // 根拠を開いても段階の名前は出さない。聞いたことは入口で選んだ原因の呼び名にする
+  // 根拠を開いても段階の名前は出さない。聞いたことは足した原因の呼び名にする
   await expectNoStageReading(page, "「車内の急病人・非常ボタン」");
   await expect(page.getByTestId(testIds.judgment.evidence)).not.toContainText("車内対応");
   await expectNoFlowWording(page);

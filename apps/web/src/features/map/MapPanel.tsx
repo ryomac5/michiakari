@@ -88,6 +88,7 @@ import {
   resolveStationByName,
   thinKeyStationsOnScreen,
 } from "./scene";
+import { listPickStations, type MapSectionPick, selectPickBounds } from "./section-pick";
 import {
   buildStationGuide,
   checkFeaturedStation,
@@ -135,6 +136,8 @@ export type MapPanelProps = {
   motionKey?: string | null;
   // 駅間の車内の人に勧める動き。次の駅で降りるときだけ「降りる駅」の印を出す
   inCarPlan?: InCarPlan | null;
+  // 止まっている区間の両端を選んでいる間だけ渡す。路線の駅を押せる印にし、ほかの札は隠す
+  sectionPick?: MapSectionPick | null;
 };
 
 // updating は描画済みの地図にレイヤーの差し替えを反映している間
@@ -811,7 +814,9 @@ export function MapPanel(props: MapPanelProps) {
     trainPosition,
     trainOnly = false,
     fallbackOptionId = null,
+    sectionPick = null,
   } = props;
+  const picking = sectionPick !== null;
   // 駅間の車内の人は降りられないので、乗り換え候補の駅と徒歩の範囲を出さない
   const inCar = trainPosition?.kind === "between_stations";
   // 地図に描く選択肢。一覧で押したものがあればそれ、無ければ推奨
@@ -1595,7 +1600,26 @@ export function MapPanel(props: MapPanelProps) {
         : [],
     [blockedTagPosition],
   );
-  const entries = useMemo(() => [...tagEntries, ...focusEntries], [tagEntries, focusEntries]);
+  // 区間を選んでいる間は、路線の駅の印だけを出す
+  const pickLineId = sectionPick?.lineId ?? null;
+  const pickStations = useMemo(
+    () => (geo && pickLineId ? listPickStations(geo.nodes, pickLineId) : []),
+    [geo, pickLineId],
+  );
+  const pickEntries = useMemo(
+    () =>
+      pickStations.map((s) => ({
+        key: `pick:${s.name}`,
+        position: s.position,
+        anchor: "center" as const,
+        offset: [0, 0] as [number, number],
+      })),
+    [pickStations],
+  );
+  const entries = useMemo(
+    () => (pickLineId ? pickEntries : [...tagEntries, ...focusEntries]),
+    [pickLineId, pickEntries, tagEntries, focusEntries],
+  );
   const hosts = useMarkerHosts(map, markerClass, entries);
   // フォントや内容で見積もりを超えた札は、描画後の寸法でもう一度配置する。
   useEffect(() => {
@@ -1639,6 +1663,30 @@ export function MapPanel(props: MapPanelProps) {
     measure();
     return () => observer.disconnect();
   }, [hosts, narrow, guide]);
+  // 選び始めたら現在地のまわりの路線の駅が収まるよう引き、やめたら元の見せ方へ戻す
+  const fitViewRef = useRef(fitView);
+  fitViewRef.current = fitView;
+  // 寄せるのは選び始めたときだけにする。余白の変化では寄せ直さない
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 上の理由で余白を依存に入れない
+  useEffect(() => {
+    if (!map || !geo || pickStations.length === 0) return;
+    const bounds = selectPickBounds(
+      pickStations,
+      resolvePlacePosition(geo.index, originRef.current),
+    );
+    if (bounds) {
+      map.fitBounds(bounds, {
+        padding: buildPadding({ top, right, bottom, left }),
+        maxZoom: 14,
+        duration: prefersReducedMotion() ? 0 : fitDurationMs,
+      });
+    }
+    return () => {
+      fittedRef.current = null;
+      fitViewRef.current(false);
+    };
+  }, [map, geo, pickStations]);
+
   // 地図に収まらない札は、上端の一覧へ移す
   const dockedRows = autoPlacements?.docked
     ? listDockedStationRows(guide?.stations ?? [], autoPlacements.docked, {
@@ -1695,6 +1743,18 @@ export function MapPanel(props: MapPanelProps) {
       )}
 
       {[...hosts.entries()].map(([key, element]) => {
+        if (key.startsWith("pick:") && sectionPick) {
+          const name = key.slice("pick:".length);
+          return createPortal(
+            <PickStationMarker
+              name={name}
+              picked={sectionPick.first === name}
+              onPick={() => sectionPick.onPick(name)}
+            />,
+            element,
+            key,
+          );
+        }
         if (key === "blocked") {
           return createPortal(<BlockedTag label={blockedLabel} />, element, key);
         }
@@ -1770,7 +1830,30 @@ export function MapPanel(props: MapPanelProps) {
           <span className="truncate">{chosenOption.label}</span>
         </p>
       )}
-      {view === "focus" && guide && dockedRows && (
+      {sectionPick && (
+        <div
+          data-testid={mapTestIds.sectionPick}
+          className="glass absolute z-10 flex items-center gap-1 rounded-full text-[13px] font-semibold text-foreground"
+          style={{
+            top: props.insets.top + 8,
+            left: left + 12,
+            maxWidth: `calc(100% - ${left + right + 24}px)`,
+          }}
+        >
+          <p role="status" className="py-2 pl-3.5">
+            {sectionPick.first ? t("sectionPick.second") : t("sectionPick.first")}
+          </p>
+          <button
+            type="button"
+            data-testid={mapTestIds.sectionPickCancel}
+            onClick={sectionPick.onCancel}
+            className="flex min-h-11 shrink-0 items-center rounded-full px-3 text-focus"
+          >
+            {t("sectionPick.cancel")}
+          </button>
+        </div>
+      )}
+      {!picking && view === "focus" && guide && dockedRows && (
         <div
           data-testid={mapTestIds.labelList}
           className="absolute z-10 overflow-y-auto rounded-xl bg-surface p-2 break-words shadow-[0_2px_10px_rgb(0_0_0/0.16)]"
@@ -1840,7 +1923,7 @@ export function MapPanel(props: MapPanelProps) {
           <LocateFixed className="size-5" strokeWidth={1.75} aria-hidden />
         </button>
       )}
-      {destinationEdge && view === "focus" && (
+      {!picking && destinationEdge && view === "focus" && (
         // 行き先が画面の外にあるとき、縁に向きと駅名を出す。押すと行き先まで収めた全体を見る
         <button
           type="button"
@@ -1865,7 +1948,7 @@ export function MapPanel(props: MapPanelProps) {
           />
         </button>
       )}
-      {motion && view === "focus" && (
+      {!picking && motion && view === "focus" && (
         <button
           type="button"
           data-testid={mapTestIds.motionReplay}
@@ -1888,5 +1971,44 @@ export function MapPanel(props: MapPanelProps) {
         testIds={{ root: mapTestIds.attribution, line: mapTestIds.attributionLine }}
       />
     </section>
+  );
+}
+
+// 区間の端に選べる駅の印。押した駅は名前を濃く出す
+function PickStationMarker({
+  name,
+  picked,
+  onPick,
+}: {
+  name: string;
+  picked: boolean;
+  onPick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={mapTestIds.sectionPickStation(name)}
+      aria-pressed={picked}
+      aria-label={name}
+      onClick={onPick}
+      className="relative flex size-7 items-center justify-center"
+    >
+      <span
+        aria-hidden
+        className={
+          picked
+            ? "size-5 rounded-full border-[3px] border-white bg-danger shadow-[0_1px_4px_rgb(0_0_0/0.35)]"
+            : "size-4 rounded-full border-[3px] border-danger bg-white shadow-[0_1px_4px_rgb(0_0_0/0.25)]"
+        }
+      />
+      <span
+        aria-hidden
+        className={`pointer-events-none absolute top-1/2 left-full ml-0.5 -translate-y-1/2 rounded px-1 text-[11px] whitespace-nowrap ${
+          picked ? "bg-danger font-bold text-white" : "bg-surface/85 font-semibold text-foreground"
+        }`}
+      >
+        {name}
+      </span>
+    </button>
   );
 }

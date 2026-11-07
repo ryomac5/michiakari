@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import { addAnswers, expectJudgmentOpened } from "../support/add-info.ts";
 import {
   loadReplayScenarios,
   openReplay,
@@ -29,11 +30,8 @@ test("大阪で止まったとき、判断画面にバスも確かめる欄が�
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await page.getByTestId(testIds.start.cause("unknown")).click();
-  await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume("stated")).click();
-  await page.locator("[data-testid^='start-resume-time-']").last().click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  await expectJudgmentOpened(page);
+  await addAnswers(page, { elapsed: "m10", resume: { time: "last" } });
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
 
   await openSheet(page, "full");

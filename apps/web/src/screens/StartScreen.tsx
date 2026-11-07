@@ -1,14 +1,14 @@
 "use client";
 
 import { computeDistanceMeters, createRouter } from "@repo/geo";
-import type { IncidentCause, RawInput } from "@repo/schema";
-import { ChevronLeft } from "lucide-react";
+import { Check, ChevronLeft, LoaderCircle } from "lucide-react";
 import type { PrefetchKind } from "next/dist/client/components/router-reducer/router-reducer-types";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { sheetTopInset } from "@/components/MapSheet";
+import { Button } from "@/components/ui/button";
 import {
   findGroupDirection,
   groupDirectionCandidates,
@@ -42,22 +42,13 @@ import {
 import { DemoDock, LocationSearch, PromptCard, StartIntro } from "@/features/entry/EntryOverlays";
 import { EntrySheet } from "@/features/entry/EntrySheet";
 import {
-  type AnsweredItem,
   AreaStep,
-  CauseKindStep,
-  CauseStep,
   computeDirectionAngle,
   DestinationStep,
   DirectionStep,
-  ElapsedStep,
   EntryProgress,
-  InputStep,
-  ProtectionStep,
-  type ResumeAnswer,
-  ResumeStep,
   StationStep,
   TripCard,
-  TripLine,
   useDirectionName,
 } from "@/features/entry/EntrySteps";
 import {
@@ -127,19 +118,6 @@ import { testIds } from "@/features/judgment/testids";
 import { loadMapGeoData, type MapGeoData } from "@/features/map/geo-data";
 import { type MapInsets, preloadMapLibre } from "@/features/map/MapPanel";
 import { findFocusArea } from "@/features/map/station-guide";
-import {
-  type CauseAnswer,
-  isAskedKind,
-  resolveCauseIncidentType,
-  resolveIncidentCause,
-  toCauseChoiceId,
-} from "@/features/situation/cause-categories";
-import { findElapsedOption, listResumeTimeOptions } from "@/features/situation/plain-questions";
-import {
-  buildProtectionObservations,
-  resolveProtectionBroadcast,
-} from "@/features/situation/protection-broadcast";
-import { type TicketAnswer, toTicketAnswer, toTicketType } from "@/features/situation/ticket";
 import {
   findNearestChoices,
   type NearestStationChoice,
@@ -212,15 +190,8 @@ function useEntryData(): { geo: MapGeoData | null; data: EntryData | null } {
 }
 
 // 入口。大阪を中心にした地図で駅を選び、同じ地図の上のシートで状況まで入れて判断へ渡す
-// 様子を聞く段。地図で選ぶものが無いので、スマートフォンでは地図を出さない
-const situationStages = new Set<EntryStage>([
-  "cause",
-  "causeKind",
-  "protection",
-  "elapsed",
-  "resume",
-  "input",
-]);
+// 判断を始める段。地図で選ぶものが無いので、スマートフォンでは地図を出さない
+const situationStages = new Set<EntryStage>(["cause"]);
 
 export function StartScreen() {
   const t = useTranslations();
@@ -243,7 +214,6 @@ export function StartScreen() {
     stationNames,
     state: judgment,
     startJudgment,
-    ticketType,
   } = session;
   const { geo, data } = useEntryData();
   const [nearest, setNearest] = useState<NearestStationChoice[]>([]);
@@ -275,6 +245,8 @@ export function StartScreen() {
     setIntroOpen(false);
   }, []);
   const depth = stageDepth(entry);
+  // 前の描画の段の深さ。進む操作で判断を始める段に着いたかを見分ける
+  const lastDepthRef = useRef(depth);
   const getDepth = (stage: Parameters<typeof stageDepth>[1]) => stageDepth(entry, stage);
   const [restored, setRestored] = useState(false);
   const goToDepth = useEntryHistory(depth, dispatch, restored);
@@ -289,10 +261,6 @@ export function StartScreen() {
   const [betweenFromPattern, setBetweenFromPattern] = useState(false);
   const [destinationBasis, setDestinationBasis] =
     useState<TripContext["destinationBasis"]>("chosen");
-  // 再開見込みの問いで押した答え。判断を始めるまでその札に印を出す
-  const [pendingResume, setPendingResume] = useState<string | null>(null);
-  // 再開見込みの問いの上で聞く乗車券の種類。入口に戻ったときは前の答えから始める
-  const [ticket, setTicket] = useState<TicketAnswer>(() => toTicketAnswer(ticketType));
   // 車内の駅の間の段で選んでいる駅の間。地図の点線と一覧の選択が同じものを指す
   const [segmentIndex, setSegmentIndex] = useState<number | null>(null);
   const directions = useMemo(
@@ -337,17 +305,14 @@ export function StartScreen() {
     () => (lineStopMode ? groupLineStops(directions) : []),
     [lineStopMode, directions],
   );
-  // 再開見込みの時刻の候補。問いに入った時刻から並べる
-  const resumeTimes = useMemo(
-    () => (entry.stage === "resume" ? listResumeTimeOptions(new Date()) : []),
-    [entry.stage],
-  );
 
   // 判断から戻る際は、実際に通った分岐と履歴をそのまま復元する。
   useEffect(() => {
     if (!data || restored) return;
     setRestored(true);
     if (!tripContext?.entryState || !originLine) return;
+    // 判断の画面から戻って復元した段では、判断を自動で始めない
+    lastDepthRef.current = stageDepth(tripContext.entryState);
     dispatch({ type: "restore", state: tripContext.entryState });
     setDestinationBasis(tripContext.destinationBasis);
     setBetweenFromPattern(tripContext.trainsAheadFromPattern ?? false);
@@ -366,7 +331,6 @@ export function StartScreen() {
 
   useEffect(() => {
     if (!restored) return;
-    if (entry.stage !== "resume") setPendingResume(null);
     if (["position", "between", "kansai", "area"].includes(entry.stage)) {
       setOrigin(null);
       setOriginLine(null);
@@ -797,21 +761,9 @@ export function StartScreen() {
   }
 
   // 判断を始め、出発の駅へ寄せてから判断の画面へ移る。地図はそのまま判断の地図に引き継ぐ
-  // 問いに答えたときだけ、止まってからの分と原因が分からないかを前提として残し、
-  // 放送で聞いた再開見込みの時刻を路線の観測に載せる
-  // 車内で受信の放送を聞いたと答えたら、その放送を観測として足す
-  async function submit(
-    input: RawInput | null,
-    answers: {
-      elapsedMinutes: number | null;
-      causeUnknown: boolean;
-      statedResumeTime: string | null;
-      cause: IncidentCause | null;
-    } | null = null,
-  ) {
+  // 入口で答えたのは、いる所と行き先だけ。原因などは判断の画面で分かったときに足す
+  async function submit() {
     if (!entry.line || !direction || origin === null) return;
-    const now = new Date();
-    const elapsedMinutes = answers?.elapsedMinutes ?? null;
     setTripContext({
       entryState: entry,
       directionKey: direction.key,
@@ -824,25 +776,24 @@ export function StartScreen() {
         .map((s) => ({ name: s.choice.name, nameEn: s.choice.nameEn })),
       directionStopNames: direction.stops.map((s) => s.choice.name),
       trainsAheadFromPattern: betweenFromPattern,
-      entryAnswers: { method: entry.method, cause: entry.cause, elapsed: entry.elapsed },
-      ...(answers
-        ? { elapsedMinutes: answers.elapsedMinutes, causeUnknown: answers.causeUnknown }
-        : {}),
     });
-    startJudgment(
-      input,
-      [
-        buildLineObservation(entry.line, now, elapsedMinutes, answers?.statedResumeTime ?? null),
-        ...buildProtectionObservations(entry.protection, now, elapsedMinutes),
-      ],
-      answers?.cause ?? null,
-      resolveProtectionBroadcast(entry.protection),
-      toTicketType(ticket),
-    );
+    startJudgment(null, [buildLineObservation(entry.line, new Date())]);
     setHandingOff(true);
     if (findFocusArea(origin)) await mapApi.current?.zoomToOrigin(handoffZoom);
     router.push("/judgment");
   }
+
+  // 行き先まで答えて判断を始める段に着いたら、そのまま判断を始める
+  const readyToJudge = entry.stage === "cause" && direction !== null && origin !== null;
+  // 進む操作で着いたときだけ始める。戻る操作や復元で着いたときは始めない
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 段に着いたときだけ始める。submit は描画ごとに作り直される
+  useEffect(() => {
+    if (!restored) return;
+    const advanced = depth > lastDepthRef.current;
+    lastDepthRef.current = depth;
+    if (!readyToJudge || !advanced) return;
+    void submit();
+  }, [restored, readyToJudge, depth]);
 
   // 関西の段はシートを出さない。線を押して駅の間の候補が出たときだけ、候補のシートを出す
   const showSheet = entry.stage !== "kansai" || mapPick !== null;
@@ -1067,15 +1018,6 @@ export function StartScreen() {
     ]),
   );
   const progressIndex = selectProgressIndex(entry.stage, entry.location, entry.routeFirst);
-  const tripLine =
-    entry.line && destination ? (
-      <TripLine
-        originName={lineOriginName}
-        destinationName={destinationLabel}
-        line={entry.line}
-        onEditDestination={() => goToDepth(getDepth("destination"))}
-      />
-    ) : null;
   // 方面は出発の行に出すので、行き先の行では繰り返さない
   const destinationNote =
     destinationBasis === "hub"
@@ -1083,47 +1025,6 @@ export function StartScreen() {
       : destinationBasis === "terminal"
         ? t("entry.tripTerminal")
         : null;
-
-  // ここまでに答えた原因と時間のチップ。押すとその問いまで引いて選び直す
-  // 種類まで答えたらその種類、そうでなければ大分類の呼び名
-  function nameCause(cause: CauseAnswer): string {
-    if (isAskedKind(cause.kind) && cause.kind !== "other")
-      return t(`entry.causeKinds.${cause.kind}`);
-    return t(`entry.causes.${toCauseChoiceId(cause) ?? "unknown"}`);
-  }
-  const answered: AnsweredItem[] = [
-    ...(entry.cause
-      ? [
-          {
-            kind: "cause" as const,
-            label: nameCause(entry.cause),
-            onEdit: () => goToDepth(getDepth("cause")),
-          },
-        ]
-      : []),
-    ...(entry.elapsed
-      ? [
-          {
-            kind: "elapsed" as const,
-            label: t(`entry.elapsed.${entry.elapsed}`),
-            onEdit: () => goToDepth(getDepth("elapsed")),
-          },
-        ]
-      : []),
-  ];
-
-  // 3 問目の答えで判断を始める。原因が分からないか、種類が決まらなければ事象の無い観測で判断する
-  function submitAnswers(answer: ResumeAnswer) {
-    const eventType = resolveCauseIncidentType(entry.cause);
-    const elapsed = entry.elapsed ? findElapsedOption(entry.elapsed) : null;
-    setPendingResume(answer.time?.id ?? answer.id);
-    void submit(eventType ? { type: "selection", eventType, signalIds: [] } : null, {
-      elapsedMinutes: elapsed?.minutes ?? null,
-      causeUnknown: eventType === null,
-      statedResumeTime: answer.time?.iso ?? null,
-      cause: resolveIncidentCause(entry.cause),
-    });
-  }
 
   // シートの答えと同じものを、地図の札にも置く
   function buildMapStops(): MapStop[] {
@@ -1491,52 +1392,19 @@ export function StartScreen() {
               />
             )}
             {entry.stage === "cause" && (
-              <CauseStep
-                onSelect={(cause) => dispatch({ type: "chooseCause", cause })}
-                onMethod={(method) => dispatch({ type: "chooseMethod", method })}
-              />
-            )}
-            {entry.stage === "input" && entry.method && (
-              <InputStep
-                method={entry.method}
-                trip={tripLine}
-                busy={handingOff || judgment.status === "streaming"}
-                onSubmit={(input) => void submit(input)}
-              />
-            )}
-            {entry.stage === "causeKind" && entry.cause?.category && (
-              <CauseKindStep
-                trip={tripLine}
-                answers={answered}
-                category={entry.cause.category}
-                onSelect={(kind) => dispatch({ type: "chooseCauseKind", kind })}
-              />
-            )}
-            {entry.stage === "protection" && entry.cause && (
-              <ProtectionStep
-                trip={tripLine}
-                answers={answered}
-                onSelect={(protection) => dispatch({ type: "chooseProtection", protection })}
-              />
-            )}
-            {entry.stage === "elapsed" && entry.cause && (
-              <ElapsedStep
-                trip={tripLine}
-                answers={answered}
-                onSelect={(option) => dispatch({ type: "chooseElapsed", elapsed: option.id })}
-              />
-            )}
-            {entry.stage === "resume" && entry.cause && entry.elapsed && (
-              <ResumeStep
-                trip={tripLine}
-                answers={answered}
-                busy={handingOff || judgment.status === "streaming"}
-                pending={pendingResume}
-                times={resumeTimes}
-                ticket={ticket}
-                onTicket={setTicket}
-                onSelect={submitAnswers}
-              />
+              <Button
+                data-testid={testIds.start.judge}
+                disabled={handingOff || judgment.status === "streaming"}
+                onClick={() => void submit()}
+                className="w-full"
+              >
+                {handingOff ? (
+                  <LoaderCircle className="animate-spin" aria-hidden />
+                ) : (
+                  <Check aria-hidden />
+                )}
+                {t("entry.judge")}
+              </Button>
             )}
           </EntrySheet>
         )}

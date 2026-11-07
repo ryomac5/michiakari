@@ -2,12 +2,13 @@ import { fileURLToPath } from "node:url";
 import type { Page, Request } from "@playwright/test";
 import { findFlowWording } from "../../apps/agent/src/domain/flow-wording.ts";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import { expectJudgmentOpened, openAddInfo, waitForJudgmentReady } from "../support/add-info.ts";
 import { openSheet } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
-// 入口の原因は、人身事故と車内の急病人を分けた選択肢と分からないで聞く。知見のある大分類はその事象で判断する
-// 知見の無い大分類は、集めた事例の統計値から再開の見込みを出す。分からないは見込みを持たず境目の時刻を目安にする
-// 決定論モードの agent とダミーの知見で確かめる
+// 原因は判断の画面の情報を追加するで、人身事故と車内の急病人を分けた選択肢から選ぶ。種類の決まる大分類はその事象で判断する
+// 種類の決まらない大分類は、集めた事例の統計値から再開の見込みを出す。答えないうちは見込みを持たず境目の時刻を目安にする
+// 決定論モードの agent とダミーの内容で確かめる
 
 const screenshotDir = fileURLToPath(new URL("../screenshots/", import.meta.url));
 
@@ -24,11 +25,16 @@ const categories = [
   "infrastructure",
   "weather",
   "major_accident",
-  "unknown",
 ];
 
-// 大阪から三ノ宮へ向かう人として、原因の問いまで進む
-async function openCauseStage(page: Page): Promise<void> {
+function waitForJudgeRequest(page: Page): Promise<Request> {
+  return page.waitForRequest(
+    (r) => r.method() === "POST" && new URL(r.url()).pathname === "/judge",
+  );
+}
+
+// 大阪から三ノ宮へ向かう人として、いる所と行き先だけを答えて判断を出す。最初の要求を返す
+async function openJudgment(page: Page): Promise<Request> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
@@ -36,63 +42,47 @@ async function openCauseStage(page: Page): Promise<void> {
   await page.getByTestId(testIds.start.positionStation).click();
   await page.getByTestId(testIds.start.hub("umeda")).click();
   await page.getByTestId(testIds.start.place("osaka")).click();
+  const request = waitForJudgeRequest(page);
   await page.getByTestId(testIds.start.destinationCandidate("三ノ宮")).click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
+  await expectJudgmentOpened(page);
+  return request;
 }
 
-function expectStage(page: Page, stage: string) {
-  return expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", stage);
-}
-
-async function expectDepth(page: Page, depth: number) {
-  await expect.poll(() => page.evaluate(() => window.history.state?.entryDepth)).toBe(depth);
-}
-
-// 大分類を選び、いま止まった・見込みは言っていないで判断を始める。agent に送った要求を返す
+// 情報を追加するで大分類を選び、判断を出し直す。agent に送った要求を返す
 // 種類を聞く大分類では、続けて種類を選ぶ
 async function judgeWithCategory(page: Page, category: string, kind?: string): Promise<Request> {
-  await page.getByTestId(testIds.start.cause(category)).click();
-  if (kind) {
-    await expectStage(page, "causeKind");
-    await page.getByTestId(testIds.start.causeKind(kind)).click();
-  }
-  await page.getByTestId(testIds.start.elapsed("now")).click();
-  const request = page.waitForRequest(
-    (r) => r.method() === "POST" && new URL(r.url()).pathname === "/judge",
-  );
-  await page.getByTestId(testIds.start.resume("unknown")).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  const addInfo = await openAddInfo(page);
+  const request = waitForJudgeRequest(page);
+  await addInfo.getByTestId(testIds.situation.causeOption(category)).click();
+  if (kind) await addInfo.getByTestId(testIds.situation.causeKindOption(kind)).click();
+  await waitForJudgmentReady(page);
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
   return request;
 }
 
-test("原因の問いは人身事故を先頭に、車内の急病人をその次に置いた 10 の選択肢を出す", async ({
+test("原因の選択肢は人身事故を先頭に、車内の急病人をその次に置いた 9 の大分類を出す", async ({
   page,
 }) => {
-  await openCauseStage(page);
-  const cards = page.locator("[data-testid^='start-cause-']");
+  await openJudgment(page);
+  const addInfo = await openAddInfo(page);
+  const cards = addInfo.locator("[data-testid^='situation-cause-']");
   await expect(cards).toHaveCount(categories.length);
   for (const id of categories) {
-    await expect(page.getByTestId(testIds.start.cause(id))).toBeVisible();
+    await expect(addInfo.getByTestId(testIds.situation.causeOption(id))).toBeVisible();
   }
-  await expect(cards.nth(0)).toHaveAttribute("data-testid", "start-cause-person");
-  await expect(cards.nth(1)).toHaveAttribute("data-testid", "start-cause-inCar");
-  await expect(page.getByTestId(testIds.start.cause("person"))).toHaveText("人身事故");
-  await expect(page.getByTestId(testIds.start.cause("inCar"))).toHaveText(
+  await expect(cards.nth(0)).toHaveAttribute("data-testid", "situation-cause-person");
+  await expect(cards.nth(1)).toHaveAttribute("data-testid", "situation-cause-inCar");
+  await expect(addInfo.getByTestId(testIds.situation.causeOption("person"))).toHaveText("人身事故");
+  await expect(addInfo.getByTestId(testIds.situation.causeOption("inCar"))).toHaveText(
     "車内の急病人・非常ボタン",
   );
-  await expect(page.getByTestId(testIds.start.cause("signaling"))).toHaveText("信号・ポイント");
+  await expect(addInfo.getByTestId(testIds.situation.causeOption("signaling"))).toHaveText(
+    "信号・ポイント",
+  );
 });
 
 test("人身事故を選ぶと、続けての問いなしに人身事故の事象で判断する", async ({ page }) => {
-  await openCauseStage(page);
-  await page.getByTestId(testIds.start.cause("person")).click();
-  await expectStage(page, "elapsed");
-  await expectDepth(page, 5);
-  await page.getByTestId(testIds.start.back).click();
-  await expectStage(page, "cause");
-  await expectDepth(page, 4);
-
+  await openJudgment(page);
   const request = await judgeWithCategory(page, "person");
   expect((await request).postDataJSON().newInput).toEqual({
     type: "selection",
@@ -106,7 +96,7 @@ test("人身事故を選ぶと、続けての問いなしに人身事故の事�
 });
 
 test("車内の急病人を選ぶと、続けての問いなしに車内対応の事象で判断する", async ({ page }) => {
-  await openCauseStage(page);
+  await openJudgment(page);
   const request = await judgeWithCategory(page, "inCar");
   expect((await request).postDataJSON().newInput).toEqual({
     type: "selection",
@@ -122,7 +112,7 @@ test("車内の急病人を選ぶと、続けての問いなしに車内対応�
 test("知見のある車両の大分類を選ぶと、車両故障の事象で判断し、前提に呼び名を出す", async ({
   page,
 }) => {
-  await openCauseStage(page);
+  await openJudgment(page);
   const request = await judgeWithCategory(page, "vehicle");
   expect((await request).postDataJSON().newInput).toEqual({
     type: "selection",
@@ -140,7 +130,7 @@ test("知見のある車両の大分類を選ぶと、車両故障の事象で�
 test("知見の無い電力の大分類を選ぶと、統計値から見込みの図を出し、前提に呼び名だけを出す", async ({
   page,
 }) => {
-  await openCauseStage(page);
+  await openJudgment(page);
   const request = await judgeWithCategory(page, "power");
   const body = (await request).postDataJSON();
   expect(body.newInput).toBeNull();
@@ -166,7 +156,7 @@ test("知見の無い電力の大分類を選ぶと、統計値から見込み�
 test("知見の無い信号・ポイントを選ぶと、判断まで進んで見込みの図を出し、再開までの時間を文で言い切らない", async ({
   page,
 }) => {
-  await openCauseStage(page);
+  await openJudgment(page);
   const request = await judgeWithCategory(page, "signaling");
   const body = (await request).postDataJSON();
   expect(body.newInput).toBeNull();
@@ -198,11 +188,10 @@ test("知見の無い信号・ポイントを選ぶと、判断まで進んで�
   await expect(page.getByTestId(testIds.judgment.sheet)).not.toContainText(/統計|事例/);
 });
 
-test("分からないを選ぶと、原因を送らず、見込みの図を出さずに境目の時刻を目安にする", async ({
+test("原因を答えないうちは、原因を送らず、見込みの図を出さずに境目の時刻を目安にする", async ({
   page,
 }) => {
-  await openCauseStage(page);
-  const request = await judgeWithCategory(page, "unknown");
+  const request = await openJudgment(page);
   const body = (await request).postDataJSON();
   expect(body.newInput).toBeNull();
   expect(body.cause).toBeUndefined();
@@ -218,19 +207,21 @@ test("分からないを選ぶと、原因を送らず、見込みの図を出�
   await expect(page.getByTestId(testIds.judgment.nextCheck)).toContainText("原因");
 });
 
-test("雨・風・雪・地震から雨を選ぶと、大雨の事象で判断し、戻るで種類の問いへ 1 段ずつ引く", async ({
+test("雨・風・雪・地震から雨を選ぶと大雨の事象で判断し、原因の札から種類を選び直せる", async ({
   page,
 }) => {
-  await openCauseStage(page);
-  await page.getByTestId(testIds.start.cause("weather")).click();
-  await expectStage(page, "causeKind");
-  await expectDepth(page, 5);
-  const kinds = page.locator("[data-testid^='start-cause-kind-']");
+  await openJudgment(page);
+  let addInfo = await openAddInfo(page);
+  await addInfo.getByTestId(testIds.situation.causeOption("weather")).click();
+  const kinds = addInfo.locator("[data-testid^='situation-cause-kind-']");
   await expect(kinds).toHaveCount(6);
-  await expect(page.getByTestId(testIds.start.causeKind("rain"))).toHaveText("雨");
-  await expect(page.getByTestId(testIds.start.causeKind("snow"))).toHaveText("雪・凍結");
-  await page.getByTestId(testIds.start.back).click();
-  await expectStage(page, "cause");
+  await expect(addInfo.getByTestId(testIds.situation.causeKindOption("rain"))).toHaveText("雨");
+  await expect(addInfo.getByTestId(testIds.situation.causeKindOption("snow"))).toHaveText(
+    "雪・凍結",
+  );
+  // 種類の問いから大分類の問いへ戻れる
+  await addInfo.getByRole("button", { name: "原因を選び直す" }).click();
+  await expect(addInfo.getByTestId(testIds.situation.causeOption("weather"))).toBeVisible();
 
   const request = await judgeWithCategory(page, "weather", "rain");
   expect((await request).postDataJSON().newInput).toEqual({
@@ -244,17 +235,20 @@ test("雨・風・雪・地震から雨を選ぶと、大雨の事象で判断�
     "原因は放送で聞いた雨・風・雪・地震と仮定しています。",
   );
 
-  await page.goBack();
-  await expectStage(page, "resume");
-  await expectDepth(page, 7);
-  await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText("雨");
-  await page.goBack();
-  await expectStage(page, "elapsed");
-  await expectDepth(page, 6);
-  await page.goBack();
-  await expectStage(page, "causeKind");
-  await expectDepth(page, 5);
-  await page.goBack();
-  await expectStage(page, "cause");
-  await expectDepth(page, 4);
+  // 決まった原因は札に残り、押すと種類まで選び直せる
+  addInfo = await openAddInfo(page);
+  const chip = addInfo.getByTestId(testIds.situation.answer("cause"));
+  await expect(chip).toHaveText("雨");
+  await chip.click();
+  await addInfo.getByTestId(testIds.situation.causeOption("weather")).click();
+  const again = waitForJudgeRequest(page);
+  await addInfo.getByTestId(testIds.situation.causeKindOption("wind")).click();
+  await waitForJudgmentReady(page);
+  expect((await again).postDataJSON().newInput).toEqual({
+    type: "selection",
+    eventType: "strong_wind",
+    signalIds: [],
+  });
+  addInfo = await openAddInfo(page);
+  await expect(addInfo.getByTestId(testIds.situation.answer("cause"))).toHaveText("風");
 });

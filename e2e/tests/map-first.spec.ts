@@ -5,7 +5,13 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { answerProtection, chooseBetweenStations } from "../support/entry.ts";
+import {
+  addAnswers,
+  type CauseAnswerInput,
+  expectJudgmentOpened,
+  openAddInfo,
+} from "../support/add-info.ts";
+import { chooseBetweenStations } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -40,14 +46,15 @@ type InCarEntry = {
   to: string;
   destinationQuery: string;
   destination: string;
-  cause: string;
+  cause: CauseAnswerInput;
   // 方面を聞かれたときに選ぶ方面の終わりの駅
   terminal?: string;
   // 再開の見込みの時刻の候補から選ぶ位置
   resumeAt: "first" | "last";
 };
 
-// 駅と駅の間の車内から、行き先と様子を答えて判断を出す。止まってから 10 分くらいで、再開の見込みは放送で聞いた
+// 駅と駅の間の車内から、いる所と行き先だけを答えて判断を出す
+// 原因、止まってから 10 分くらい、放送で聞いた再開の見込みは、判断が出てから情報を追加するで足す
 async function startInCar(page: Page, entry: InCarEntry): Promise<void> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
@@ -56,31 +63,32 @@ async function startInCar(page: Page, entry: InCarEntry): Promise<void> {
   await chooseBetweenStations(page, entry.line, entry.from, entry.to);
   await page.getByTestId(testIds.start.destinationSearch).fill(entry.destinationQuery);
   await page.getByTestId(testIds.start.destinationOption(entry.destination)).click();
-  const screen = page.getByTestId(testIds.start.screen);
-  await expect(screen).toHaveAttribute("data-stage", /^(cause|direction)$/);
-  if ((await screen.getAttribute("data-stage")) === "direction")
+  const direction = page.locator(`[data-testid="${testIds.start.screen}"][data-stage="direction"]`);
+  await expect(direction.or(page.getByTestId(testIds.judgment.screen))).toBeVisible({
+    timeout: 30_000,
+  });
+  if (await direction.isVisible())
     await page
       .locator(`[data-testid^='start-direction-'][data-testid$='.${entry.terminal}']`)
       .click();
-  await expect(screen).toHaveAttribute("data-stage", "cause");
-  await page.getByTestId(testIds.start.cause(entry.cause)).click();
-  await answerProtection(page);
-  await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume("stated")).click();
-  const times = page.locator("[data-testid^='start-resume-time-']");
-  await (entry.resumeAt === "first" ? times.first() : times.last()).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  await expectJudgmentOpened(page);
+  await addAnswers(page, {
+    cause: entry.cause,
+    elapsed: "m10",
+    resume: { time: entry.resumeAt },
+  });
+  await openSheet(page, "collapsed");
 }
 
 type StationEntry = {
   origin: string;
   destinationQuery: string;
   destination: string;
-  cause: string;
+  cause: CauseAnswerInput;
   action: "wait" | "switch";
 };
 
-// 駅にいる人の入口を答えて判断を出す。止まってから 10 分くらい、見込みは聞いていない
+// 駅にいる人の入口を答えて判断を出し、原因と止まってから 10 分くらいを足す。見込みは聞いていない
 async function startAtStation(page: Page, entry: StationEntry): Promise<void> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
@@ -91,10 +99,9 @@ async function startAtStation(page: Page, entry: StationEntry): Promise<void> {
   await page.getByTestId(testIds.start.originOption(entry.origin)).click();
   await page.getByTestId(testIds.start.destinationSearch).fill(entry.destinationQuery);
   await page.getByTestId(testIds.start.destinationOption(entry.destination)).click();
-  await page.getByTestId(testIds.start.cause(entry.cause)).click();
-  await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  await expectJudgmentOpened(page);
+  await addAnswers(page, { cause: entry.cause, elapsed: "m10", resume: "unknown" });
+  await openSheet(page, "collapsed");
   await waitForMapReady(page);
   await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
     "data-action",
@@ -120,6 +127,27 @@ async function expectInMapView(page: Page, testId: string): Promise<void> {
   expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
 }
 
+// 情報を追加するから止まっている区間を地図で選び始め、選んでいる途中を撮ってからやめる
+// 選んでいる間は、上端に選び方の案内だけを出し、見込みの帯と行き先の縁の札ともう一度見るボタンを隠す
+async function expectSectionPickClean(page: Page, theme: string, name: string): Promise<void> {
+  const addInfo = await openAddInfo(page);
+  await addInfo.getByTestId(testIds.situation.item("section")).click();
+  await expect(page.getByTestId(testIds.judgment.sheet)).toHaveAttribute("data-snap", "collapsed");
+  const banner = page.getByTestId(mapTestIds.sectionPick);
+  await expect(banner).toBeVisible();
+  await expect(page.getByTestId(testIds.judgment.resumeBand)).toHaveCount(0);
+  await expect(page.getByTestId(mapTestIds.destinationEdge)).toHaveCount(0);
+  await expect(page.getByTestId(mapTestIds.motionReplay)).toHaveCount(0);
+  // 押せる駅の印は、しぼり込みの対象外にして路線の駅を並べる
+  await expect
+    .poll(() => page.locator("[data-testid^='judgment-map-pick-']").count())
+    .toBeGreaterThan(1);
+  await page.waitForTimeout(1_000);
+  await capture(page, theme, name);
+  await page.getByTestId(mapTestIds.sectionPickCancel).click();
+  await expect(banner).toHaveCount(0);
+}
+
 // 地図に出す駅の吹き出しの数。勧める経路で乗る駅だけにしぼったので、多くても 1 つ
 async function countStationBubbles(page: Page): Promise<number> {
   return page.locator("[data-testid^='judgment-map-station-']").count();
@@ -132,6 +160,9 @@ async function expectMapFirst(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toBeInViewport();
   await expect(page.getByTestId(testIds.judgment.disclaimer)).toBeInViewport();
   await expect(page.getByTestId(testIds.judgment.conclusionReason)).not.toBeInViewport();
+  // 閉じたシートの下に、次の行の頭を覗かせない
+  const bodyId = await page.getByTestId(testIds.judgment.sheetHandle).getAttribute("aria-controls");
+  await expect(page.locator(`[id="${bodyId}"]`)).toHaveCSS("opacity", "0");
   const viewport = page.viewportSize();
   const top = await page.getByTestId(testIds.judgment.sheetHandle).evaluate((el) => {
     return el.getBoundingClientRect().top;
@@ -207,6 +238,8 @@ for (const theme of ["light", "dark"] as const) {
       expect(await countStationBubbles(page)).toBe(0);
       expect(Number(await map.getAttribute("data-colored-lines"))).toBeLessThanOrEqual(2);
       await expect(map).toHaveAttribute("data-walk-reach", "false");
+      await expectSectionPickClean(page, theme, "incar-section-pick");
+      await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
       // もう一度再生できる
       await page.getByTestId(mapTestIds.motionReplay).click();
       await expect(map).toHaveAttribute("data-motion", /^(ride|alight|route)$/);
@@ -314,6 +347,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(map).toHaveAttribute("data-fit-scope", "near");
       await expect(page.getByTestId(mapTestIds.destinationEdge)).toBeVisible();
       await expectInMapView(page, mapTestIds.here);
+      await expectSectionPickClean(page, theme, "switch-section-pick");
     });
 
     test("駅で待つ判断では、今の路線の行き先までを光らせ、再開の見込みの帯を地図に重ねる", async ({
