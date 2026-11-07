@@ -28,7 +28,7 @@ export type JudgeDeps = {
   // claude モードで使う。無ければ決定論モードで動く
   llm: LlmClient | null;
   prompts: Prompts;
-  // ログ。入力内容と現在地は渡さない
+  // ログ。入力内容と現在地は渡さない。検証に落ちた判断の文だけは、200 字までの抜粋を出す
   logWarning: (message: string) => void;
 };
 
@@ -227,6 +227,7 @@ export async function runJudge(
         return;
       }
       deps.logWarning(`判断を決定論モードに切り替えました: ${outcome.reason}`);
+      for (const line of outcome.diagnostics ?? []) deps.logWarning(line);
     } catch (error) {
       if (signal?.aborted) return;
       deps.logWarning(`判断を決定論モードに切り替えました: ${describeError(error)}`);

@@ -5,11 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import {
-  addAnswers,
-  expectJudgmentAfterDirection,
-  expectJudgmentOpened,
-} from "../support/add-info.ts";
+import { addAnswers, chooseDirectionIfAsked, finishEntry } from "../support/add-info.ts";
 import { chooseBetweenStations, searchStationPair } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
@@ -156,7 +152,8 @@ async function startBetweenStations(
   await page.getByTestId(testIds.start.destinationSearch).fill(destination.search);
   await page.getByTestId(testIds.start.destinationOption(destination.name)).click();
   // 行き先が JR神戸線の先に無ければ、神戸方面を答える
-  await expectJudgmentAfterDirection(page, "神戸");
+  await chooseDirectionIfAsked(page, "神戸");
+  await finishEntry(page);
   // 行程は見出しに出さず、地図の「いま」の札が示す
   await expect(page.getByTestId(testIds.judgment.tripSummary)).toHaveCount(0);
   await expect(page.getByTestId(mapTestIds.here)).toContainText("塚本");
@@ -304,7 +301,7 @@ test("福島〜大阪の車内で急病人により止まり、行き先が大�
   await chooseBetweenStations(page, "JR環状線", "福島", "大阪");
   await page.getByTestId(testIds.start.destinationSearch).fill("大阪");
   await page.getByTestId(testIds.start.destinationOption("大阪")).click();
-  await expectJudgmentOpened(page);
+  await finishEntry(page);
   // 原因と様子は判断が出てから情報を追加するで足す
   await addAnswers(page, {
     cause: "inCar",

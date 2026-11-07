@@ -3,8 +3,8 @@ import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { openSheet } from "./replay.ts";
 import { expect } from "./test.ts";
 
-// 判断の画面の「情報を追加する」から、分かったことを 1 つずつ足す
-// 入口ではいる所と行き先だけを答え、原因や止まってからの分はここで足す
+// 入口の問いに答えて判断を出す。判断の画面の「情報を追加する」から、後で分かったことを 1 つずつ足す
+// 入口ではいる所と行き先の後に、原因、受信の放送、止まってからの分、乗車券と再開見込みを順に聞く
 
 // 原因の答え。weather は種類まで選ぶ
 export type CauseAnswerInput =
@@ -136,13 +136,62 @@ export async function addAnswers(page: Page, answers: AddInfoAnswers): Promise<s
   return resumeLabel;
 }
 
-// 行き先から向きが決まらなければ方面を聞かれる。聞かれたら terminal で終わる方面を選び、判断が出るまで待つ
-export async function expectJudgmentAfterDirection(page: Page, terminal: string): Promise<void> {
-  const direction = page.locator(`[data-testid="${testIds.start.screen}"][data-stage="direction"]`);
-  await expect(direction.or(page.getByTestId(testIds.judgment.screen))).toBeVisible({
-    timeout: 30_000,
-  });
-  if (await direction.isVisible())
+// 行き先から向きが決まらなければ方面を聞かれる。聞かれたら terminal で終わる方面を選び、原因の問いまで進む
+export async function chooseDirectionIfAsked(page: Page, terminal?: string): Promise<void> {
+  const screen = page.getByTestId(testIds.start.screen);
+  await expect(screen).toHaveAttribute("data-stage", /^(cause|direction)$/, { timeout: 30_000 });
+  if ((await screen.getAttribute("data-stage")) === "direction") {
+    if (!terminal) throw new Error("方面を聞かれたが、選ぶ方面が無い");
     await page.locator(`[data-testid^='start-direction-'][data-testid$='.${terminal}']`).click();
+  }
+  await expect(screen).toHaveAttribute("data-stage", "cause");
+}
+
+function expectEntryStage(page: Page, stage: string | RegExp) {
+  return expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", stage);
+}
+
+// 入口の原因の問いから最後の問いまで答え、判断の画面で判断が出るまで待つ
+// 答えない問いは分からないを押す。受信の放送は車内の人にだけ聞く。乗車券は再開見込みの問いの上で選ぶ
+// 時刻を選んだら、その表示を返す
+export async function finishEntry(
+  page: Page,
+  answers: AddInfoAnswers = {},
+): Promise<string | null> {
+  await expectEntryStage(page, "cause");
+  const cause = answers.cause;
+  if (cause === undefined) await page.getByTestId(testIds.start.cause("unknown")).click();
+  else if (typeof cause === "string") await page.getByTestId(testIds.start.cause(cause)).click();
+  else {
+    await page.getByTestId(testIds.start.cause("weather")).click();
+    await expectEntryStage(page, "causeKind");
+    await page.getByTestId(testIds.start.causeKind(cause.weather)).click();
+  }
+  await expectEntryStage(page, /^(protection|elapsed)$/);
+  const screen = page.getByTestId(testIds.start.screen);
+  if ((await screen.getAttribute("data-stage")) === "protection") {
+    await page.getByTestId(`start-protection-${answers.protection ?? "unsure"}`).click();
+    await expectEntryStage(page, "elapsed");
+  }
+  await page.getByTestId(testIds.start.elapsed(answers.elapsed ?? "unknown")).click();
+  await expectEntryStage(page, "resume");
+  if (answers.ticket) await page.getByTestId(testIds.start.ticket(answers.ticket)).click();
+  let label: string | null = null;
+  const resume = answers.resume ?? "unknown";
+  if (typeof resume === "string") await page.getByTestId(testIds.start.resume(resume)).click();
+  else {
+    await page.getByTestId(testIds.start.resume("stated")).click();
+    const times = page.locator("[data-testid^='start-resume-time-']");
+    await expect(times).toHaveCount(8);
+    const chosen =
+      resume.time === "first"
+        ? times.first()
+        : resume.time === "second"
+          ? times.nth(1)
+          : times.last();
+    label = (await chosen.textContent()) ?? "";
+    await chosen.click();
+  }
   await expectJudgmentOpened(page);
+  return label;
 }

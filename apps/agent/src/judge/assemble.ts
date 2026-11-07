@@ -554,30 +554,45 @@ export type JudgmentCheckInput = {
   sectionContext?: SectionWordingContext;
 };
 
+// 落ちた検査の名前と指摘。記録に出し、どの検査に落ちたかを追えるようにする
+export type JudgmentIssue = { check: string; message: string };
+
+// 根拠に挙げてよい種類と ID の一覧の表記。Claude への指摘に添える
+export function formatEvidenceChoices(refs: readonly Evidence[]): string {
+  return refs.length === 0 ? "なし" : refs.map((r) => `${r.kind}/${r.id}`).join(", ");
+}
+
 // スキーマ、ID 参照、根拠の出どころ、文中の数値を検査し、問題を文字列で返す
 export function validateJudgment(input: JudgmentCheckInput): {
   judgment: Judgment | null;
   errors: string[];
+  issues: JudgmentIssue[];
 } {
   const parsed = JudgmentSchema.safeParse(input.judgment);
   if (!parsed.success) {
-    return {
-      judgment: null,
-      errors: parsed.error.issues.map((i) => `${i.path.join(".") || "(ルート)"}: ${i.message}`),
-    };
+    const issues = parsed.error.issues.map((i) => ({
+      check: "schema",
+      message: `${i.path.join(".") || "(ルート)"}: ${i.message}`,
+    }));
+    return { judgment: null, errors: issues.map((i) => i.message), issues };
   }
   const j = parsed.data;
-  const errors = [
-    ...checkJudgmentRefs(j),
-    ...checkHeadlineLength(j.headline, input.language),
-    ...checkReasonLength(j.reason, input.language),
-    ...checkDecisiveWording("headline", j.headline, input.language),
-    ...checkDecisiveWording("reason", j.reason ?? "", input.language),
-  ];
+  const issues: JudgmentIssue[] = [];
+  const add = (check: string, messages: readonly string[]) => {
+    for (const message of messages) issues.push({ check, message });
+  };
+  add("refs", checkJudgmentRefs(j));
+  add("headline_length", checkHeadlineLength(j.headline, input.language));
+  add("reason_length", checkReasonLength(j.reason, input.language));
+  add("decisive_wording", checkDecisiveWording("headline", j.headline, input.language));
+  add("decisive_wording", checkDecisiveWording("reason", j.reason ?? "", input.language));
 
+  const choices = formatEvidenceChoices(input.evidenceRefs);
   for (const e of j.evidence) {
     if (!input.evidenceRefs.some((r) => r.kind === e.kind && r.id === e.id)) {
-      errors.push(`根拠がツールの結果にありません: ${e.kind}/${e.id}`);
+      add("evidence_ref", [
+        `根拠がツールの結果にありません: ${e.kind}/${e.id}。根拠に挙げてよいのは compute_break_even の evidenceChoices にある ${choices} だけです。一覧に無ければ evidence を空の配列にしてください`,
+      ]);
     }
   }
   const inCarLines = input.inCarAlternativeLines ?? null;
@@ -598,37 +613,40 @@ export function validateJudgment(input: JudgmentCheckInput): {
   // 利用者に見せる文の言い回しの検査。流れと段階の言い方、内部の名前、発表に無い区間を順にかける
   const sectionContext = input.sectionContext;
   for (const [field, text] of shownTexts) {
-    errors.push(...checkFlowWording(field, text, input.language));
-    errors.push(...checkSourceWording(field, text));
+    add("flow_wording", checkFlowWording(field, text, input.language));
+    add("source_wording", checkSourceWording(field, text));
     if (sectionContext) {
-      errors.push(...checkSectionWording(field, text, input.language, sectionContext));
+      add("section_wording", checkSectionWording(field, text, input.language, sectionContext));
     }
   }
   // 止まった理由の見込みがあるときは、理由の文に割合を書かせない。観測や確率の割合の流用も防ぐ
   if (j.stopReasons) {
-    for (const [field, text] of shownTexts) errors.push(...checkStopReasonShares(field, text));
+    for (const [field, text] of shownTexts)
+      add("stop_reason_shares", checkStopReasonShares(field, text));
   }
   if (inCarLines !== null) {
     if (j.recommendedOptionId !== null) {
-      errors.push("駅間の車内の人には recommendedOptionId を null にしてください");
+      add("in_car_recommended", ["駅間の車内の人には recommendedOptionId を null にしてください"]);
     }
     if (!input.inCarAlightAllowed) {
       for (const [field, text] of shownTexts) {
-        errors.push(...checkInCarWording(field, text, input.language, inCarLines));
+        add("in_car_wording", checkInCarWording(field, text, input.language, inCarLines));
       }
     }
   }
   if (input.stopScope === "train") {
     for (const [field, text] of shownTexts) {
-      errors.push(...checkStopScopeWording(field, text, input.language));
+      add("stop_scope_wording", checkStopScopeWording(field, text, input.language));
     }
   }
   const recommended = j.options.find((o) => o.id === j.recommendedOptionId);
   if (j.action === "switch" && recommended?.kind === "wait") {
-    errors.push("action が switch のときは待つ以外の選択肢を推奨してください");
+    add("action_option", ["action が switch のときは待つ以外の選択肢を推奨してください"]);
   }
   if (j.action === "wait" && recommended && recommended.kind !== "wait") {
-    errors.push("action が wait のときは recommendedOptionId を待つ選択肢か null にしてください");
+    add("action_option", [
+      "action が wait のときは recommendedOptionId を待つ選択肢か null にしてください",
+    ]);
   }
   // 勧める代替手段は core が決める。タクシーは鉄道の代替が無いときと、期限に間に合わないときだけ
   if (
@@ -636,9 +654,9 @@ export function validateJudgment(input: JudgmentCheckInput): {
     input.recommendedAlternativeId &&
     j.recommendedOptionId !== input.recommendedAlternativeId
   ) {
-    errors.push(
+    add("recommended_alternative", [
       `action が switch のときの recommendedOptionId は、compute_break_even が勧める代替手段 ${input.recommendedAlternativeId} にしてください。タクシーを勧めるのは、鉄道の代替が無いときと、鉄道の代替では期限に間に合わないときだけです`,
-    );
+    ]);
   }
   const texts: [string, string][] = [
     ["headline", j.headline],
@@ -647,8 +665,12 @@ export function validateJudgment(input: JudgmentCheckInput): {
     ...j.evidence.map((e, i): [string, string] => [`evidence[${i}].description`, e.description]),
   ];
   for (const [field, text] of texts)
-    errors.push(...findUnknownNumbers(field, text, input.allowedNumbers));
+    add("unknown_number", findUnknownNumbers(field, text, input.allowedNumbers));
   // 同じ文を別の検査で拾っても、同じ指摘は 1 度だけ返す
-  const unique = [...new Set(errors)];
-  return { judgment: unique.length === 0 ? j : null, errors: unique };
+  const unique = issues.filter((i, n) => issues.findIndex((x) => x.message === i.message) === n);
+  return {
+    judgment: unique.length === 0 ? j : null,
+    errors: unique.map((i) => i.message),
+    issues: unique,
+  };
 }

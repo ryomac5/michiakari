@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { buildJudgeRequest } from "@/features/judgment/request";
+import {
+  buildProtectionObservations,
+  resolveProtectionBroadcast,
+} from "@/features/situation/protection-broadcast";
 import type { EntryArea, EntryLine, EntryPlace } from "./entry-places";
 import {
   type EntryAction,
@@ -77,28 +82,133 @@ describe("reduceEntry", () => {
       station,
     );
   });
-  it("いる所と行き先を答えると判断を始める段へ進み、様子は入口で聞かない", () => {
+  it("いまどこ・行き先・様子の順に進み、撮る・貼るは原因から入力へ入る", () => {
     const cause = run(toCause);
     expect(cause).toMatchObject({ stage: "cause", line, place, area, direction });
-    expect(Object.keys(cause)).not.toContain("elapsed");
-    expect(Object.keys(cause)).not.toContain("protection");
-    const train = run([
+    expect(reduceEntry(cause, { type: "chooseMethod", method: "paste" })).toMatchObject({
+      stage: "input",
+      method: "paste",
+    });
+  });
+  it("原因・経過・再開見込みの順に進み、段の外では回答を受け付けない", () => {
+    const cause = run(toCause);
+    const elapsed = reduceEntry(cause, {
+      type: "chooseCause",
+      cause: { category: null, kind: null },
+    });
+    expect(elapsed.stage).toBe("elapsed");
+    expect(reduceEntry(elapsed, { type: "chooseElapsed", elapsed: "m10" })).toMatchObject({
+      stage: "resume",
+      elapsed: "m10",
+    });
+    const paste = reduceEntry(cause, { type: "chooseMethod", method: "paste" });
+    expect(reduceEntry(paste, { type: "chooseCause", cause: { category: null, kind: null } })).toBe(
+      paste,
+    );
+    expect(reduceEntry(cause, { type: "chooseElapsed", elapsed: "now" })).toBe(cause);
+  });
+  it("気象・自然を選んだときだけ種類を 1 問聞き、戻ると大分類の問いへ戻る", () => {
+    const cause = run(toCause);
+    const kind = reduceEntry(cause, {
+      type: "chooseCause",
+      cause: { category: "weather", kind: null },
+    });
+    expect(kind).toMatchObject({
+      stage: "causeKind",
+      cause: { category: "weather", kind: null },
+    });
+    expect(selectProgressIndex(kind.stage)).toBe(3);
+    expect(reduceEntry(kind, { type: "chooseElapsed", elapsed: "now" })).toBe(kind);
+    const elapsed = reduceEntry(kind, { type: "chooseCauseKind", kind: "rain" });
+    expect(elapsed).toMatchObject({
+      stage: "elapsed",
+      cause: { category: "weather", kind: "rain" },
+    });
+    expect(reduceEntry(elapsed, { type: "back" }).stage).toBe("causeKind");
+    expect(reduceEntry(kind, { type: "back" })).toEqual(cause);
+    expect(reduceEntry(cause, { type: "chooseCauseKind", kind: "wind" })).toBe(cause);
+  });
+  it("人身事故と車内の急病人は種類を聞かずに経過の問いへ進み、戻ると原因の問いへ戻る", () => {
+    const cause = run(toCause);
+    for (const kind of ["person", "inCar"] as const) {
+      const elapsed = reduceEntry(cause, {
+        type: "chooseCause",
+        cause: { category: "passenger", kind },
+      });
+      expect(elapsed).toMatchObject({ stage: "elapsed", cause: { category: "passenger", kind } });
+      expect(reduceEntry(elapsed, { type: "back" })).toEqual(cause);
+    }
+  });
+  it("電車の中で「なかった」を選ぶと、判断の要求に not_heard の欄が入り、放送の観測は入らない", () => {
+    const answered = run([
+      { type: "chooseLocation", location: "train" },
+      { type: "locateBetween", line, segment, place, area },
+      { type: "chooseDestination", inferred: { line, direction } },
+      { type: "chooseCause", cause: { category: null, kind: null } },
+      { type: "chooseProtection", protection: "notHeard" },
+    ]);
+    expect(answered).toMatchObject({ stage: "elapsed", protection: "notHeard" });
+    const now = new Date("2026-11-07T12:00:00+09:00");
+    const request = buildJudgeRequest({
+      observations: buildProtectionObservations(answered.protection, now),
+      newInput: null,
+      origin: { kind: "station", name: "大阪" },
+      destination: { kind: "station", name: "三ノ宮" },
+      language: "ja",
+      now,
+      protectionBroadcast: resolveProtectionBroadcast(answered.protection),
+    });
+    expect(request.protectionBroadcast).toBe("not_heard");
+    expect(request.observations).toEqual([]);
+  });
+
+  it("電車の中の人だけ、原因の後に受信の放送を聞き、戻ると答えが消える", () => {
+    const station = reduceEntry(run(toCause), {
+      type: "chooseCause",
+      cause: { category: null, kind: null },
+    });
+    expect(station.stage).toBe("elapsed");
+    const trainCause = run([
       { type: "chooseLocation", location: "train" },
       { type: "locateBetween", line, segment, place, area },
       { type: "chooseDestination", inferred: { line, direction } },
     ]);
-    expect(train).toMatchObject({ stage: "cause", location: "train", line, direction });
-    expect(selectProgressIndex(train.stage)).toBe(3);
+    const protection = reduceEntry(trainCause, {
+      type: "chooseCause",
+      cause: { category: null, kind: null },
+    });
+    expect(protection).toMatchObject({ stage: "protection", protection: null });
+    expect(selectProgressIndex(protection.stage)).toBe(3);
+    expect(reduceEntry(protection, { type: "chooseElapsed", elapsed: "now" })).toBe(protection);
+    const elapsed = reduceEntry(protection, { type: "chooseProtection", protection: "heard" });
+    expect(elapsed).toMatchObject({ stage: "elapsed", protection: "heard" });
+    const back = reduceEntry(elapsed, { type: "back" });
+    expect(back).toMatchObject({ stage: "protection", protection: null });
+    expect(reduceEntry(back, { type: "back" })).toEqual(trainCause);
+    expect(reduceEntry(trainCause, { type: "chooseProtection", protection: "heard" })).toBe(
+      trainCause,
+    );
+    const weather = reduceEntry(
+      reduceEntry(trainCause, { type: "chooseCause", cause: { category: "weather", kind: null } }),
+      { type: "chooseCauseKind", kind: "rain" },
+    );
+    expect(weather.stage).toBe("protection");
   });
   it("駅にいる人は推定で省略した路線・方面には戻らない", () => {
-    let state = run(toCause);
+    let state = run([
+      ...toCause,
+      { type: "chooseCause", cause: { category: "vehicle", kind: null } },
+      { type: "chooseElapsed", elapsed: "m30" },
+    ]);
     const stages = [];
     while (state.history.length) {
       state = reduceEntry(state, { type: "back" });
       stages.push(state.stage);
     }
-    expect(stages).toEqual(["destination", "area", "kansai", "position"]);
+    expect(stages).toEqual(["elapsed", "cause", "destination", "area", "kansai", "position"]);
     expect(state).toEqual(initialEntryState);
+    const paste = run([...toCause, { type: "chooseMethod", method: "photo" }]);
+    expect(reduceEntry(paste, { type: "back" })).toMatchObject({ stage: "cause", method: null });
   });
   it("方面が一つなら問いを省略し、戻ると路線へ戻る", () => {
     const state = run([...toTrainLine, { type: "chooseLine", line, autoDirection: direction }]);
@@ -117,13 +227,21 @@ describe("reduceEntry", () => {
     expect(reduceEntry(state, { type: "chooseDestination" })).toBe(state);
   });
   it("実際に通った深さへ引き、先の回答を捨てる", () => {
-    const filled = run(toCause);
-    expect(stageDepth(filled)).toBe(4);
+    const filled = run([...toCause, { type: "chooseMethod", method: "paste" }]);
+    expect(stageDepth(filled)).toBe(5);
     expect(
       reduceEntry(filled, { type: "backTo", depth: stageDepth(filled, "destination") }),
-    ).toMatchObject({ stage: "destination", line: null, direction: null });
+    ).toMatchObject({ stage: "destination", line: null, method: null });
     expect(reduceEntry(filled, { type: "backTo", depth: 12 })).toBe(filled);
     expect(reduceEntry(filled, { type: "backTo", depth: -1 })).toEqual(initialEntryState);
+    const resume = run([
+      ...toCause,
+      { type: "chooseCause", cause: { category: null, kind: null } },
+      { type: "chooseElapsed", elapsed: "unknown" },
+    ]);
+    expect(
+      reduceEntry(resume, { type: "backTo", depth: stageDepth(resume, "cause") }),
+    ).toMatchObject({ stage: "cause", cause: null, elapsed: null });
   });
   it("駅と駅の間を選ぶと、路線と方面の段を飛ばして駅の間の段へ進み、確定すると行き先へ進む", () => {
     const between = run([{ type: "chooseLocation", location: "train" }]);
@@ -248,10 +366,21 @@ describe("現在地から読み取った位置", () => {
 describe("selectProgressIndex", () => {
   it("いまどこ・行き先・乗る電車・様子の順に印を出す", () => {
     expect(
-      (["position", "kansai", "area", "destination", "station", "direction", "cause"] as const).map(
-        (stage) => selectProgressIndex(stage, "station"),
-      ),
-    ).toEqual([0, 0, 0, 1, 2, 2, 3]);
+      (
+        [
+          "position",
+          "kansai",
+          "area",
+          "destination",
+          "station",
+          "direction",
+          "cause",
+          "input",
+          "elapsed",
+          "resume",
+        ] as const
+      ).map((stage) => selectProgressIndex(stage, "station")),
+    ).toEqual([0, 0, 0, 1, 2, 2, 3, 3, 3, 3]);
     expect(selectProgressIndex("station", "train")).toBe(0);
     expect(selectProgressIndex("direction", "train")).toBe(0);
     expect(selectProgressIndex("trainPosition", "train")).toBe(0);
@@ -260,36 +389,40 @@ describe("selectProgressIndex", () => {
 });
 
 describe("selectEntryHistoryAction", () => {
-  const causeDepth = 4;
-  const destinationDepth = 3;
+  const resumeDepth = 6;
+  const elapsedDepth = 5;
 
   it("判断から戻った履歴が最後の段なら、入口の履歴を積み直さない", () => {
-    expect(selectEntryHistoryAction(causeDepth, causeDepth, true)).toEqual({ type: "none" });
-    expect(selectEntryHistoryAction(causeDepth, causeDepth, false)).toEqual({ type: "none" });
+    expect(selectEntryHistoryAction(resumeDepth, resumeDepth, true)).toEqual({ type: "none" });
+    expect(selectEntryHistoryAction(resumeDepth, resumeDepth, false)).toEqual({ type: "none" });
   });
 
   it("復元した答えより履歴が浅ければ段を戻し、更新後も履歴を積まない", () => {
-    const restored = run(toCause);
-    const action = selectEntryHistoryAction(stageDepth(restored), destinationDepth, true);
-    expect(action).toEqual({ type: "restore", depth: destinationDepth });
+    const restored = run([
+      ...toCause,
+      { type: "chooseCause", cause: { category: "vehicle", kind: null } },
+      { type: "chooseElapsed", elapsed: "m10" },
+    ]);
+    const action = selectEntryHistoryAction(stageDepth(restored), elapsedDepth, true);
+    expect(action).toEqual({ type: "restore", depth: elapsedDepth });
     // 段の更新前に再実行されても、復元を進行として扱わない。
-    expect(selectEntryHistoryAction(stageDepth(restored), destinationDepth, true)).toEqual(action);
+    expect(selectEntryHistoryAction(stageDepth(restored), elapsedDepth, true)).toEqual(action);
     if (action.type !== "restore") throw new Error("履歴の深さへの復元が必要");
     const next = reduceEntry(restored, { type: "backTo", depth: action.depth });
-    expect(next.stage).toBe("destination");
-    expect(selectEntryHistoryAction(stageDepth(next), destinationDepth, true)).toEqual({
+    expect(next.stage).toBe("elapsed");
+    expect(selectEntryHistoryAction(stageDepth(next), elapsedDepth, true)).toEqual({
       type: "none",
     });
-    expect(selectEntryHistoryAction(stageDepth(next), destinationDepth, false)).toEqual({
+    expect(selectEntryHistoryAction(stageDepth(next), elapsedDepth, false)).toEqual({
       type: "none",
     });
   });
 
   it("通常の回答では次の段だけを積む", () => {
-    expect(selectEntryHistoryAction(causeDepth, destinationDepth, false)).toEqual({
+    expect(selectEntryHistoryAction(resumeDepth, elapsedDepth, false)).toEqual({
       type: "write",
-      from: destinationDepth,
-      to: causeDepth,
+      from: elapsedDepth,
+      to: resumeDepth,
       initialize: false,
     });
   });
@@ -301,18 +434,18 @@ describe("selectEntryHistoryAction", () => {
       to: 0,
       initialize: true,
     });
-    expect(selectEntryHistoryAction(causeDepth, null, true)).toEqual({
+    expect(selectEntryHistoryAction(resumeDepth, null, true)).toEqual({
       type: "write",
       from: 0,
-      to: causeDepth,
+      to: resumeDepth,
       initialize: true,
     });
   });
 
   it("選び直しで段が浅くなったときは既存の履歴を引く", () => {
-    expect(selectEntryHistoryAction(destinationDepth, causeDepth, false)).toEqual({
+    expect(selectEntryHistoryAction(elapsedDepth, resumeDepth, false)).toEqual({
       type: "travel",
-      depth: destinationDepth,
+      depth: elapsedDepth,
     });
   });
 });

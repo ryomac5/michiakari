@@ -2,13 +2,8 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import {
-  addAnswers,
-  expectJudgmentOpened,
-  openAddInfo,
-  waitForJudgmentReady,
-} from "../support/add-info.ts";
-import { backToTrip, chooseTrainDirection, searchStationPair } from "../support/entry.ts";
+import { addAnswers, finishEntry, openAddInfo, waitForJudgmentReady } from "../support/add-info.ts";
+import { chooseTrainDirection, expectTripCard, searchStationPair } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -67,7 +62,7 @@ test("丸を触るとエリア、駅を触ると行き先が出て、戻るで1�
   await expect(page.getByTestId(testIds.start.line(kobeLine))).toHaveCount(0);
   await expect(page.getByTestId(testIds.start.progress)).toHaveAttribute("data-step", "1");
   await page.getByTestId(testIds.start.destinationCandidate("三ノ宮")).click();
-  await backToTrip(page);
+  await expectTripCard(page);
   await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("JR神戸線");
   await expect(page.getByTestId(testIds.start.destinationPin)).toBeVisible();
   await expect(page.getByTestId(testIds.start.progress)).toHaveAttribute("data-step", "3");
@@ -86,7 +81,7 @@ test("心斎橋では先に行き先を選び、御堂筋線の方面を推定�
   await expect(page.getByTestId(testIds.start.destinationCandidate("難波"))).toBeVisible();
   await expect(page.getByTestId(testIds.start.destinationSearch)).toBeVisible();
   await page.getByTestId(testIds.start.mapStop("destination-梅田")).click();
-  await backToTrip(page);
+  await expectTripCard(page);
   await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("新大阪・千里中央方面");
   await page.getByTestId(testIds.start.routeSummary).click();
   await expectStage(page, "station");
@@ -101,7 +96,7 @@ test("心斎橋では先に行き先を選び、御堂筋線の方面を推定�
   await expect(page.locator("[data-testid^='start-map-stop-direction-']")).toHaveCount(2);
   // 方面を選び直すと、そのまま判断を出し直す
   await page.getByTestId(testIds.start.direction(`${midosuji}>osaka-metro.御堂筋線.江坂`)).click();
-  await expectJudgmentOpened(page);
+  await finishEntry(page);
 });
 
 test("行き先を決めず、情報を追加するで「分からない」を足しても判断が出て、前提と次に確かめることが出る", async ({
@@ -113,11 +108,10 @@ test("行き先を決めず、情報を追加するで「分からない」を�
   await page.getByTestId(testIds.start.nearStop("本町")).click();
   await expectStage(page, "destination");
   await page.getByTestId(testIds.start.destinationUndecided).click();
-  await backToTrip(page);
+  await expectTripCard(page);
   await expect(page.getByTestId(testIds.start.trip)).toContainText("本町");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("方面の主な駅を行き先にする");
-  await page.getByTestId(testIds.start.judge).click();
-  await expectJudgmentOpened(page);
+  await finishEntry(page);
 
   // どの項目にも分からないがあり、押せばそのまま判断を出し直す
   await addAnswers(page, { protection: "unsure", elapsed: "unknown" });
@@ -186,18 +180,18 @@ test("大阪梅田から京都河原町へは路線と方面を聞かず、戻�
   await openEntry(page);
   await openStation(page, "大阪梅田", "大阪梅田");
   await page.getByTestId(testIds.start.destinationCandidate("京都河原町")).click();
-  await backToTrip(page);
+  await expectTripCard(page);
   await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("阪急京都線");
   await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("京都河原町方面");
   await page.getByTestId(testIds.start.back).click();
   await expectStage(page, "destination");
-  // 選び直すと判断へ進み、端末の戻る操作は行程の札、行き先の順に引く
+  // 選び直して問いに答えると判断へ進み、端末の戻る操作は最後の問いから 1 段ずつ引く
   await page.getByTestId(testIds.start.destinationCandidate("京都河原町")).click();
-  await expectJudgmentOpened(page);
-  await page.goBack();
-  await expectStage(page, "cause");
-  await page.goBack();
-  await expectStage(page, "destination");
+  await finishEntry(page);
+  for (const stage of ["resume", "elapsed", "cause", "destination"]) {
+    await page.goBack();
+    await expectStage(page, stage);
+  }
 });
 
 test("画面の外にある京都は、縁の札から寄れる", async ({ page }) => {
@@ -241,14 +235,14 @@ test("入力を終えると、選んだ路線を見合わせとして判断の�
   await page.getByTestId(testIds.start.hub("umeda")).click();
   await page.getByTestId(testIds.start.place("osaka")).click();
   await page.getByTestId(testIds.start.destinationCandidate("高槻")).click();
-  await backToTrip(page);
+  await expectTripCard(page);
   await expect(page.getByTestId(testIds.start.trip)).toContainText("JR京都線");
 
-  // 行き先は行程の札から選び直せる。選び直すと判断を出し直す
+  // 行き先は行程の札から選び直せる。選び直して問いに答えると判断を出す
   await page.getByTestId(testIds.start.editDestination).click();
   await expectStage(page, "destination");
   await page.getByTestId(testIds.start.destinationCandidate("京都")).click();
-  await expectJudgmentOpened(page);
+  await finishEntry(page);
   await expect(page.getByTestId(mapTestIds.destination)).toContainText("京都");
   await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("JR京都線");
 
@@ -256,12 +250,16 @@ test("入力を終えると、選んだ路線を見合わせとして判断の�
   await addAnswers(page, { cause: "vehicle", elapsed: "m10" });
   await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("JR京都線");
 
-  // 判断の画面から戻ると、選んだ駅・路線・方面・行き先の行程の札から再開する
+  // 判断の画面から戻ると、最後の問いから再開する。選んだ行き先が残っている
   await page.goBack();
-  await expectStage(page, "cause");
+  await expectStage(page, "resume");
   await expect(page.getByTestId(testIds.start.editDestination)).toContainText("京都");
+  // 再開したあとも、端末の戻る操作は 1 段ずつ引き、行程の札には選んだ路線が残る
+  for (const stage of ["elapsed", "cause"]) {
+    await page.goBack();
+    await expectStage(page, stage);
+  }
   await expect(page.getByTestId(testIds.start.trip)).toContainText("JR京都線");
-  // 再開したあとも、端末の戻る操作は 1 段ずつ引く
   await page.goBack();
   await expectStage(page, "destination");
   await page.goBack();
@@ -273,31 +271,29 @@ test("判断が出たあとの端末の戻る操作は、1 回で直前の段に
   await page.getByTestId(testIds.start.hub("umeda")).click();
   await page.getByTestId(testIds.start.place("osaka")).click();
   await page.getByTestId(testIds.start.destinationCandidate("三ノ宮")).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  await finishEntry(page, { elapsed: "m10" });
   // 判断が届き、地図が描けてから戻る
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
     timeout: 30_000,
   });
 
-  // 1 回目の戻るで行程の札に戻り、そのあとは 1 回ごとに 1 段ずつ引く
+  // 1 回目の戻るで最後に答えた再開見込みの問いに戻り、そのあとは 1 回ごとに 1 段ずつ引く
   await page.goBack();
-  await expectStage(page, "cause");
+  await expectStage(page, "resume");
   await expect(page).toHaveURL(/\/$/);
-  await page.goBack();
-  await expectStage(page, "destination");
-  await page.goBack();
-  await expectStage(page, "area");
+  for (const stage of ["elapsed", "cause", "destination", "area"]) {
+    await page.goBack();
+    await expectStage(page, stage);
+  }
 });
 
-test("判断の画面の戻るを押すと、行程の札に戻り、出し直しのボタンで判断へ戻れる", async ({
-  page,
-}) => {
+test("判断の画面の戻るを押すと、最後の問いに答えを残したまま戻る", async ({ page }) => {
   await openEntry(page);
   await page.getByTestId(testIds.start.hub("umeda")).click();
   await page.getByTestId(testIds.start.place("osaka")).click();
   await page.getByTestId(testIds.start.destinationCandidate("三ノ宮")).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  await finishEntry(page, { cause: "person", elapsed: "m10", ticket: "ic" });
 
   // 戻るは上部の帯の左端にあり、判断の更新中でも押せる大きさで見えている
   const back = page.getByTestId(testIds.judgment.backButton);
@@ -306,33 +302,33 @@ test("判断の画面の戻るを押すと、行程の札に戻り、出し直�
   const box = await back.boundingBox();
   expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-  await expectJudgmentOpened(page);
 
-  // 原因と時間は情報を追加するで足し、答えの札に残る
-  await addAnswers(page, { cause: "person", elapsed: "m10" });
+  // 入口で答えたことは、情報を追加するの札にも残る
   const addInfo = await openAddInfo(page);
   await expect(addInfo.getByTestId(testIds.situation.answer("cause"))).toContainText("人身事故");
   await expect(addInfo.getByTestId(testIds.situation.answer("elapsed"))).toContainText("約10分");
+  await expect(addInfo.getByTestId(testIds.situation.answer("ticket"))).toContainText("IC カード");
 
-  // 押すと行程の札に戻り、行き先が残っている。戻っただけでは判断を始めない
+  // 押すと最後の問いに戻り、答えた原因と時間のチップが残っている。戻っただけでは判断を始めない
   await back.click();
   await expect(page).toHaveURL(/\/\?mock=1$/);
-  await expectStage(page, "cause");
+  await expectStage(page, "resume");
+  await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText("人身事故");
+  await expect(page.getByTestId(testIds.start.answer("elapsed"))).toContainText("約10分");
   await expect(page.getByTestId(testIds.start.editDestination)).toContainText("三ノ宮");
-  await expect(page.getByTestId(testIds.start.judge)).toBeVisible();
 
   // 履歴は二重にならず、端末の戻る操作は 1 回で 1 段引く
   await page.goBack();
-  await expectStage(page, "destination");
+  await expectStage(page, "elapsed");
+  await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText("人身事故");
 
-  // 選び直して判断を出し、もう一度戻ると、選び直した行き先が残っている
-  await page.getByTestId(testIds.start.destinationCandidate("神戸")).click();
+  // 選び直して判断を出し、もう一度戻ると、選び直した答えが残っている
+  await page.getByTestId(testIds.start.elapsed("m30")).click();
+  await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
   await back.click();
-  await expectStage(page, "cause");
-  await expect(page.getByTestId(testIds.start.editDestination)).toContainText("神戸");
-  await page.getByTestId(testIds.start.judge).click();
-  await expectJudgmentOpened(page);
+  await expectStage(page, "resume");
+  await expect(page.getByTestId(testIds.start.answer("elapsed"))).toContainText("30分以上");
 });
 
 test("端末の戻る操作でも、入口の段を 1 段ずつ引ける", async ({ page }) => {
@@ -340,7 +336,7 @@ test("端末の戻る操作でも、入口の段を 1 段ずつ引ける", async
   await page.getByTestId(testIds.start.hub("umeda")).click();
   await page.getByTestId(testIds.start.place("osaka")).click();
   await page.getByTestId(testIds.start.destinationCandidate("三ノ宮")).click();
-  await backToTrip(page);
+  await expectTripCard(page);
 
   // 選び直しも履歴を引くので、そのあとの戻る操作と食い違わない
   await page.getByTestId(testIds.start.editDestination).click();
@@ -408,7 +404,7 @@ test("京都の地図で私鉄の駅を選び、方面と行き先へ進める",
   await expectStage(page, "destination");
   await expect(page.getByTestId(testIds.start.destinationCandidate("大和西大寺"))).toBeVisible();
   await page.getByTestId(testIds.start.destinationCandidate("大和西大寺")).click();
-  await backToTrip(page);
+  await expectTripCard(page);
   await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("大和西大寺");
 });
 
@@ -420,7 +416,7 @@ test("三宮の地図で阪神を選び、利用者向けの方面と行き先�
   await expectStage(page, "station");
   const line = "神戸三宮|hanshin.本線|阪神本線";
   await page.getByTestId(testIds.start.line(line)).click();
-  await backToTrip(page);
+  await expectTripCard(page);
   await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("大阪梅田");
 });
 
@@ -459,7 +455,7 @@ test("駅にいる人は行き先まで答えると、路線と方面を聞か�
   await expect(page.locator("[data-testid^='start-direction-']")).toHaveCount(0);
   await page.getByTestId(testIds.start.destinationSearch).fill("三ノ宮");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await backToTrip(page);
+  await expectTripCard(page);
   await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("JR神戸線");
   await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("尼崎・三ノ宮方面");
   await expect(page.getByTestId(testIds.start.progress)).toHaveAttribute("data-step", "3");
@@ -575,7 +571,7 @@ test("駅と駅の間では路線と方面を聞かずに駅の間を答えて�
   await expectStage(page, "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("三ノ宮");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await backToTrip(page);
+  await expectTripCard(page);
   await expect(page.getByTestId(testIds.start.trip)).toContainText("尼崎");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("駅と駅の間");
   for (const stage of ["destination", "between", "position"]) {
@@ -597,7 +593,7 @@ test("駅と駅の間の人が乗る電車を選び直すと、路線・方面�
   await expectStage(page, "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("三ノ宮");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await backToTrip(page);
+  await expectTripCard(page);
   await expect(page.getByTestId(testIds.start.trip)).toContainText("尼崎");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("駅と駅の間");
   for (const stage of [

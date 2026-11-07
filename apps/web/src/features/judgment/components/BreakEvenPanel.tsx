@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { splitAroundClock } from "../break-even-text";
 import { buildBreakEvenTimeline, type TimelineBasis } from "../break-even-timeline";
 import type { SwitchStep } from "../switch-step";
+import { useScopedTestId } from "../test-id-scope";
 import { testIds } from "../testids";
 import {
   type Countdown,
@@ -158,6 +159,7 @@ export function ResumeOutlook(props: BreakEvenProps) {
   const locale = useLocale();
   const { breakEven, stale, timeline = null, chance = null, showOnset = true } = props;
   const { now } = useBreakEvenState(props);
+  const sid = useScopedTestId();
   if (!breakEven) return null;
   const relation = timeline && now ? buildBreakEvenTimeline({ ...timeline, now }).relation : null;
 
@@ -178,7 +180,7 @@ export function ResumeOutlook(props: BreakEvenProps) {
           <p className="flex items-center gap-1.5 text-[13px] text-muted">
             {t("title")}
             <time
-              data-testid={testIds.judgment.breakEvenTime}
+              data-testid={sid(testIds.judgment.breakEvenTime)}
               dateTime={breakEven.time}
               className="font-semibold text-foreground tabular-nums"
             >

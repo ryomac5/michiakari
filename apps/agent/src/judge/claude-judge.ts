@@ -11,7 +11,8 @@ import type { LlmClient } from "../llm-client.ts";
 import type { Prompts } from "../prompts/load-prompts.ts";
 import { buildClaudeTools } from "../tools/definitions.ts";
 import { DecisionSchema } from "../tools/emit-judgment.ts";
-import { assembleJudgment } from "./assemble.ts";
+import { assembleJudgment, type JudgmentIssue } from "./assemble.ts";
+import { maskSecrets } from "./describe-error.ts";
 import type { JudgeSession, ToolOutcome } from "./session.ts";
 
 // Opus による判断ループ。ツールの実行は自前で行い、イベントはセッションが送る
@@ -26,7 +27,8 @@ export type ClaudeJudgeDeps = {
 
 export type ClaudeJudgeOutcome =
   | { status: "done"; judgment: Judgment }
-  | { status: "failed"; reason: string }
+  // diagnostics は検証に落ちたときの記録。落ちた検査の名前と指摘、判断の文の抜粋を回ごとに 1 行で持つ
+  | { status: "failed"; reason: string; diagnostics?: string[] }
   | { status: "aborted" };
 
 // 利用者の入力は観測データとしてシステムプロンプトと分けて渡す
@@ -101,11 +103,51 @@ function toToolResult(id: string, outcome: ToolOutcome): BetaToolResultBlockPara
   };
 }
 
+const MAX_LOG_EXCERPT_LENGTH = 200;
+
+function shortenForLog(text: string): string {
+  const masked = maskSecrets(text.replace(/\s+/g, " ").trim());
+  return masked.length > MAX_LOG_EXCERPT_LENGTH
+    ? `${masked.slice(0, MAX_LOG_EXCERPT_LENGTH - 1)}…`
+    : masked;
+}
+
+function readText(input: unknown, key: string): string | null {
+  if (typeof input !== "object" || input === null) return null;
+  const value = (input as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : null;
+}
+
+function listEvidenceIds(input: unknown): string {
+  const evidence =
+    typeof input === "object" && input !== null ? (input as { evidence?: unknown }).evidence : null;
+  if (!Array.isArray(evidence)) return "";
+  return evidence
+    .map((e) => (typeof e === "object" && e !== null ? `${String(e.kind)}/${String(e.id)}` : "?"))
+    .join(",");
+}
+
+// 検証の失敗を記録の 1 行にする。落ちた検査の名前と指摘、Claude の文の抜粋を 200 字までに切って出す
+export function formatValidationFailure(
+  attempt: number,
+  issues: readonly JudgmentIssue[],
+  input: unknown,
+): string {
+  const found = issues.map((i) => `[${i.check}] ${shortenForLog(i.message)}`).join(" | ");
+  const excerpt = [
+    `action=${readText(input, "action") ?? "?"}`,
+    `headline=「${shortenForLog(readText(input, "headline") ?? "")}」`,
+    `reason=「${shortenForLog(readText(input, "reason") ?? "")}」`,
+    `evidence=${shortenForLog(listEvidenceIds(input))}`,
+  ].join(" ");
+  return `判断の検証の失敗 ${attempt} 回目: ${found} :: ${excerpt}`;
+}
+
 // emit_judgment を検証し、通れば判断結果を返す
 function handleEmitJudgment(
   session: JudgeSession,
   input: unknown,
-): { judgment: Judgment | null; outcome: ToolOutcome } {
+): { judgment: Judgment | null; outcome: ToolOutcome; issues: JudgmentIssue[] } {
   const { estimate, alternatives, breakEven } = session.state;
   if (!estimate || !alternatives || !breakEven) {
     return {
@@ -116,6 +158,7 @@ function handleEmitJudgment(
           error: "先に estimate_remaining・find_alternatives・compute_break_even を呼んでください",
         },
       },
+      issues: [{ check: "tool_order", message: "ツールの結果がそろう前に呼ばれました" }],
     };
   }
   const decision = DecisionSchema.safeParse(input);
@@ -126,6 +169,10 @@ function handleEmitJudgment(
         isError: true,
         content: { error: "入力がスキーマに合いません", issues: decision.error.issues },
       },
+      issues: decision.error.issues.map((i) => ({
+        check: "decision_schema",
+        message: `${i.path.join(".") || "(ルート)"}: ${i.message}`,
+      })),
     };
   }
   const results = { estimate, alternatives, breakEven };
@@ -139,9 +186,14 @@ function handleEmitJudgment(
     results,
   );
   if (checked.judgment)
-    return { judgment: checked.judgment, outcome: { isError: false, content: { ok: true } } };
+    return {
+      judgment: checked.judgment,
+      outcome: { isError: false, content: { ok: true } },
+      issues: [],
+    };
   return {
     judgment: null,
+    issues: checked.issues,
     outcome: {
       isError: true,
       content: {
@@ -160,13 +212,19 @@ export async function runClaudeJudgment(
   const messages: BetaMessageParam[] = [{ role: "user", content: buildUserMessage(session) }];
   let toolCalls = 0;
   let validationFailures = 0;
+  const diagnostics: string[] = [];
+  // 失敗の理由に、それまでの検証の失敗の記録を添える
+  const fail = (reason: string): ClaudeJudgeOutcome =>
+    diagnostics.length > 0
+      ? { status: "failed", reason, diagnostics }
+      : { status: "failed", reason };
   let nudged = false;
   const includeThinkingUpdates = base.thinking.display === "updates";
 
   for (let iteration = 0; ; iteration++) {
     if (deps.signal?.aborted) return { status: "aborted" };
     if (iteration >= claudeSettings.maxLoopIterations) {
-      return { status: "failed", reason: "判断ループの反復回数の上限を超えました" };
+      return fail("判断ループの反復回数の上限を超えました");
     }
     const response = await deps.llm.createMessage(
       { ...base, messages },
@@ -188,7 +246,7 @@ export async function runClaudeJudgment(
     const toolUses = response.content.filter((b): b is BetaToolUseBlock => b.type === "tool_use");
     if (toolUses.length === 0) {
       if (response.stop_reason === "pause_turn") continue;
-      if (nudged) return { status: "failed", reason: "emit_judgment が呼ばれませんでした" };
+      if (nudged) return fail("emit_judgment が呼ばれませんでした");
       nudged = true;
       messages.push({ role: "user", content: "emit_judgment を呼んで判断を確定してください。" });
       continue;
@@ -198,7 +256,7 @@ export async function runClaudeJudgment(
     for (const toolUse of toolUses) {
       toolCalls += 1;
       if (toolCalls > claudeSettings.maxToolCalls) {
-        return { status: "failed", reason: "ツール呼び出しの上限を超えました" };
+        return fail("ツール呼び出しの上限を超えました");
       }
       if (toolUse.name !== "emit_judgment") {
         results.push(
@@ -210,9 +268,12 @@ export async function runClaudeJudgment(
       const emitted = handleEmitJudgment(session, toolUse.input);
       if (emitted.judgment) return { status: "done", judgment: emitted.judgment };
       // ツールを呼ぶ前の emit_judgment は再生成の回数に数えない
+      diagnostics.push(
+        formatValidationFailure(diagnostics.length + 1, emitted.issues, toolUse.input),
+      );
       if (session.state.breakEven) validationFailures += 1;
       if (validationFailures > claudeSettings.maxRegenerations) {
-        return { status: "failed", reason: "判断の検証に再び失敗しました" };
+        return fail("判断の検証に再び失敗しました");
       }
       results.push(toToolResult(toolUse.id, emitted.outcome));
     }

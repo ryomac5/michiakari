@@ -5,7 +5,7 @@ import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
   addAnswers,
   type CauseAnswerInput,
-  expectJudgmentOpened,
+  finishEntry,
   openAddInfo,
   waitForJudgmentReady,
 } from "../support/add-info.ts";
@@ -38,7 +38,7 @@ async function openJudgment(page: Page): Promise<void> {
   await page.getByTestId(testIds.start.originOption("大阪")).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expectJudgmentOpened(page);
+  await finishEntry(page);
 }
 
 // 判断を出し、原因、10 分くらい前に止まった、見込みは言っていないを足す。原因が null なら答えない
@@ -61,7 +61,7 @@ async function judgeWithPaste(page: Page, pasted: string): Promise<void> {
   await page.getByTestId(testIds.start.originOption("京橋")).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
-  await expectJudgmentOpened(page);
+  await finishEntry(page);
   const addInfo = await openAddInfo(page);
   await addInfo.getByTestId(testIds.situation.tab("paste")).click();
   await addInfo.getByTestId(testIds.situation.pasteInput).fill(pasted);
@@ -167,8 +167,7 @@ test("駅と駅の間の車内では、車内で待つ案内を出し、図を�
   await chooseBetweenStations(page, "JR神戸線", "大阪", "塚本");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expectJudgmentOpened(page);
-  await addAnswers(page, {
+  await finishEntry(page, {
     cause: "person",
     protection: "notHeard",
     elapsed: "m10",

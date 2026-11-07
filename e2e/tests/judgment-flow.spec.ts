@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { expectJudgmentOpened } from "../support/add-info.ts";
+import { finishEntry } from "../support/add-info.ts";
 import { openSheet } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -59,7 +59,7 @@ async function startWithPastedText(page: Page): Promise<void> {
   // 行き先を選ぶと、そのまま判断を始める
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expectJudgmentOpened(page);
+  await finishEntry(page);
   // 行程は見出しに出さず、地図の「行き先」の札が示す。見出しは戻るボタンとメニューだけにする
   await expect(page.getByTestId(testIds.judgment.tripSummary)).toHaveCount(0);
   await expect(page.getByTestId(mapTestIds.destination)).toContainText("三ノ宮");

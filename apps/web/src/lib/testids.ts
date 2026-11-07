@@ -66,11 +66,23 @@ export const testIds = {
     // 乗る電車を選び直したときの駅間の段。選んだ駅と駅の間で既定値のまま先へ進む
     positionBetween: "start-position-between",
     nearStop: (id: string) => `start-near-stop-${id}`,
+    // 様子の 3 つの問い。原因、止まってからの時間、再開の見込み
+    cause: (id: string) => `start-cause-${id}`,
+    // 原因の大分類の続きで聞く種類
+    causeKind: (id: string) => `start-cause-kind-${id}`,
+    elapsed: (id: string) => `start-elapsed-${id}`,
+    resume: (id: string) => `start-resume-${id}`,
+    // 再開見込みの問いの上で聞く乗車券の種類
+    ticket: (id: string) => `start-ticket-${id}`,
+    // 放送で聞いた再開見込みの時刻。id は HHMM
+    resumeTime: (id: string) => `start-resume-time-${id}`,
+    // 答えたことを示すチップ。押すとその問いへ戻る
+    answer: (kind: "cause" | "elapsed") => `start-answer-${kind}`,
     trip: "start-trip",
     editLine: "start-edit-line",
     editDestination: "start-edit-destination",
-    // 判断の画面から戻ったとき、同じ行程で判断を出し直す
-    judge: "start-judge",
+    // 発表文や掲示を持っている人向けの、撮る・貼るの小さな入口
+    method: (kind: Exclude<SituationTab, "select">) => `start-method-${kind}`,
     replayLink: "start-replay-link",
   },
   situation: {

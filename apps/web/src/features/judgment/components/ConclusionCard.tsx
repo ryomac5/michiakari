@@ -68,6 +68,8 @@ export function ConclusionSummary({
   const locale = useLocale();
   const { lead } = splitHeadline(judgment.headline);
   const time = timeLine ? formatClockInSentence(timeLine.time, locale) : null;
+  // 着く時刻が無い判断では、なぜその行動かが分かるよう、2 行目に判断の理由の 1 文目を出す
+  const cardReason = timeLine ? null : selectCardReason(judgment);
 
   return (
     <section
@@ -93,6 +95,14 @@ export function ConclusionSummary({
               }
             />
           </time>
+        </p>
+      )}
+      {cardReason && (
+        <p
+          data-testid={testIds.judgment.summaryReason}
+          className="text-[15px] leading-snug font-semibold text-pretty text-muted"
+        >
+          <NoBreakText text={cardReason} />
         </p>
       )}
     </section>

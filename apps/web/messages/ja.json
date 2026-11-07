@@ -688,7 +688,35 @@
     "betweenChangeStation": "{station}を選び直す",
     "betweenPairNone": "2つの駅を通る路線が見つかりませんでした。別の駅名で探してください。",
     "betweenPickQuestion": "止まっている駅の間を選ぶ",
-    "judge": "この行程で判断する"
+    "judge": "この行程で判断する",
+    "withText": "発表文や掲示があれば",
+    "methods": {
+      "photo": {
+        "title": "撮る",
+        "heading": "掲示や画面を撮る"
+      },
+      "paste": {
+        "title": "貼る",
+        "heading": "発表の文章を貼る"
+      }
+    },
+    "causeQuestion": "放送で聞いた原因を選ぶ",
+    "causeKindQuestion": "近いものを選ぶ",
+    "protectionQuestion": "止まったとき「信号を受信したため緊急停止」のような放送はありましたか",
+    "elapsedQuestion": "止まってからの時間を選ぶ",
+    "ticketQuestion": "乗車券",
+    "resumeQuestion": "放送で聞いた再開見込みを選ぶ",
+    "resume": {
+      "stated": "時刻を言っていた",
+      "statedNote": "押して時刻を選ぶ",
+      "undecided": "見込みは未定と言っていた",
+      "unknown": "言っていない・分からない"
+    },
+    "resumeTimeQuestion": "放送で聞いた時刻を選ぶ",
+    "answers": {
+      "cause": "放送の原因",
+      "elapsed": "止まってから"
+    }
   },
   "status": {
     "notFound": {
