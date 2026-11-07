@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import { searchStationPair } from "../support/entry.ts";
+import { backToTrip, searchStationPair } from "../support/entry.ts";
 import {
   betweenTsukamotoAmagasaki,
   expectStage,
@@ -117,7 +117,7 @@ for (const viewport of [
       await expectStage(page, "destination");
       await page.getByTestId(testIds.start.destinationSearch).fill("三ノ宮");
       await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-      await expectStage(page, "cause");
+      await backToTrip(page);
       await expect(page.getByTestId(testIds.start.trip)).toContainText("尼崎");
       await expect(page.getByTestId(testIds.start.trip)).toContainText("駅と駅の間");
       for (const stage of ["destination", "between", "position"]) {

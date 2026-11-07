@@ -2,6 +2,12 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import {
+  addAnswers,
+  expectJudgmentOpened,
+  openAddInfo,
+  waitForJudgmentReady,
+} from "../support/add-info.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -13,12 +19,8 @@ const screenshotDir = fileURLToPath(new URL("../screenshots/ticket/", import.met
 test.use({ viewport: { width: 375, height: 667 }, deviceScaleFactor: 2 });
 test.setTimeout(150_000);
 
-function expectStage(page: Page, stage: string) {
-  return expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", stage);
-}
-
-// 再開見込みの問いまで進む。乗車券の問いはこの問いの上にある
-async function reachResumeStep(page: Page): Promise<void> {
+// 塚本の駅から三ノ宮への判断を出し、人身事故と止まってからの時間を足す
+async function openJudgment(page: Page): Promise<void> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
@@ -26,45 +28,40 @@ async function reachResumeStep(page: Page): Promise<void> {
   await page.getByTestId(testIds.start.positionStation).click();
   await page.getByTestId(testIds.start.originSearch).fill("塚本");
   await page.getByTestId(testIds.start.originOption("塚本")).click();
-  await expectStage(page, "destination");
+  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expectStage(page, "cause");
-  await page.getByTestId(testIds.start.cause("person")).click();
-  await expectStage(page, "elapsed");
-  await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await expectStage(page, "resume");
+  await expectJudgmentOpened(page);
+  await addAnswers(page, { cause: "person", elapsed: "m10" });
 }
 
 async function judgeWithTicket(page: Page, ticket: "ic" | "commuter_pass"): Promise<void> {
-  await reachResumeStep(page);
-  await page.getByTestId(testIds.start.ticket(ticket)).click();
-  await expect(page.getByTestId(testIds.start.ticket(ticket))).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-  await page.getByTestId(testIds.start.resume("unknown")).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
-  await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready", {
-    timeout: 30_000,
-  });
+  await openJudgment(page);
+  await addAnswers(page, { ticket });
   await openSheet(page, "full");
 }
 
-test("再開見込みの問いの上で乗車券の種類を聞き、既定は分からない", async ({ page }) => {
-  await reachResumeStep(page);
+test("情報を追加するで乗車券の種類を足せ、答えるまでは札に出さない", async ({ page }) => {
+  await openJudgment(page);
+  let addInfo = await openAddInfo(page);
+  await expect(addInfo.getByTestId(testIds.situation.answer("ticket"))).toHaveCount(0);
+  await addInfo.getByTestId(testIds.situation.item("ticket")).click();
   for (const id of ["ic", "commuter_pass", "paper", "unknown"]) {
-    await expect(page.getByTestId(testIds.start.ticket(id))).toBeVisible();
+    await expect(addInfo.getByTestId(testIds.situation.option("ticket", id))).toBeVisible();
   }
-  await expect(page.getByTestId(testIds.start.ticket("unknown"))).toHaveAttribute(
-    "aria-pressed",
-    "true",
+  await expect(addInfo.getByTestId(testIds.situation.option("ticket", "ic"))).toHaveText(
+    "IC カード",
   );
-  await expect(page.getByTestId(testIds.start.ticket("ic"))).toHaveText("IC カード");
+  await addInfo.getByTestId(testIds.situation.option("ticket", "ic")).scrollIntoViewIfNeeded();
   await waitForFiniteAnimations(page);
   mkdirSync(screenshotDir, { recursive: true });
   await page.screenshot({ path: `${screenshotDir}question.png` });
-  await page.getByTestId(testIds.start.ticket("commuter_pass")).click();
+  await addInfo.getByTestId(testIds.situation.option("ticket", "commuter_pass")).click();
+  await waitForJudgmentReady(page);
+  addInfo = await openAddInfo(page);
+  const chip = addInfo.getByTestId(testIds.situation.answer("ticket"));
+  await expect(chip).toContainText("定期券");
+  await chip.scrollIntoViewIfNeeded();
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}question-pass.png` });
 });

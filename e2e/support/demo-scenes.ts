@@ -9,7 +9,7 @@ export type DemoScene = { scene: number; title: string; start: number; end: numb
 export const demoScenes: readonly DemoScene[] = [
   { scene: 1, title: "開始画面", start: 0, end: 25 },
   { scene: 2, title: "入口。現在地、地図、駅と駅の間", start: 25, end: 42 },
-  { scene: 3, title: "起きていることの 10 の選択肢", start: 42, end: 54 },
+  { scene: 3, title: "すぐ出る判断と、起きていることの選択肢", start: 42, end: 54 },
   { scene: 4, title: "リプレイの最初の判断", start: 54, end: 73 },
   { scene: 5, title: "2 倍速で進め、判断が変わった瞬間", start: 73, end: 98 },
   { scene: 6, title: "地図とバスを確かめる欄", start: 98, end: 120 },
