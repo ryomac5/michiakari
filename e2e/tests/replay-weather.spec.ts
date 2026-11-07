@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
-  loadReplayKnowledge,
   loadReplayScenarios,
   openReplay,
   openSheet,
@@ -15,13 +14,12 @@ import {
 import { expect, test } from "../support/test.ts";
 
 // 雨量の推移のグラフ（デモ台本 1:50〜2:05）
-// 気象を使う事象かどうかは知見の external_factors.weather で決め、シナリオ ID は書かない
+// 気象を使う事象かどうかは core の事象の種類で決め、シナリオ ID は書かない
 
 const screenshotDir = fileURLToPath(new URL("../screenshots/", import.meta.url));
 const viewport = { width: 390, height: 844 };
 const { weather: weatherScenarios, other: otherScenarios } = splitScenariosByWeather(
   loadReplayScenarios(),
-  loadReplayKnowledge(),
 );
 const trends = ["rising", "falling", "steady", "unknown"];
 

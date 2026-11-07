@@ -1,24 +1,18 @@
 /// <reference lib="dom" />
 // page 内で動かす関数（evaluate）のために DOM の型を読む
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import ja from "../../apps/web/messages/ja.json" with { type: "json" };
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
   compareReplayOutcome,
-  getFirstTrainWait,
   type ReplayDecision,
   type ReplayOutcome,
+  resolveFirstTrainWait,
+  resolveIncidentType,
 } from "../../packages/core/src/index.ts";
 import type { Judgment } from "../../packages/schema/src/judgment.ts";
-import {
-  findRepoRoot,
-  loadKnowledgeDir,
-  resolveContentDir,
-} from "../../packages/schema/src/loaders.ts";
 import { resolveDeadline } from "../../packages/schema/src/scenario.ts";
-import { contentDir } from "../servers.ts";
 import { loadReplayScenarios, openReplay, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -31,9 +25,6 @@ const testSpeed = 60;
 const scenarios = loadReplayScenarios().filter(
   (s) => s.ground_truth.resume_offset_minutes !== null,
 );
-const knowledge = loadKnowledgeDir(
-  join(resolveContentDir({ CONTENT_DIR: contentDir }, findRepoRoot()), "knowledge"),
-).entries.map((entry) => entry.data);
 
 type RecordedJudgment = { now: string; judgment: Judgment };
 
@@ -120,11 +111,12 @@ function toDecision({ now, judgment }: RecordedJudgment, deadline: string | null
   };
 }
 
+// 初列車待ちは、最後に分かった事象の種類から core の規則表で引く
 function findFirstTrainWait(recorded: readonly RecordedJudgment[]): number {
-  const eventType = recorded.findLast((r) => r.judgment.estimate.eventType !== null)?.judgment
-    .estimate.eventType;
-  const found = knowledge.find((k) => k.id === eventType);
-  return found ? getFirstTrainWait(found).p50 : 0;
+  const eventType =
+    recorded.findLast((r) => r.judgment.estimate.eventType !== null)?.judgment.estimate.eventType ??
+    null;
+  return resolveFirstTrainWait(resolveIncidentType({ eventType })).p50;
 }
 
 // 列に表示した到着時刻。列の中で最後に出る HH:MM が到着である
