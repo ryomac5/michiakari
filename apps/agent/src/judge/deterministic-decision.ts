@@ -79,10 +79,11 @@ function decideByStatedResume(
 
 // 再開後に先の列車が詰まり、次の駅で降りて乗り換える価値があれば、待つ・保留の代わりに切り替える
 // 次の駅まで行かせることが優先されるので、いま乗っていなければ駅にいる人が乗り換える形になる
+// 雨が続くあいだの保留は、代わりの手段も雨で止まりやすいので、詰まりで切り替えない
 function applyResumeQueueRule(input: RuleInput, outcome: RuleOutcome): RuleOutcome {
   const r = input.breakEven.result;
-  if (outcome.action === "switch" || !input.estimate.resumeQueue?.worthAlightingAtNextStation)
-    return outcome;
+  if (outcome.action === "switch" || outcome.reason === "rain_continuing") return outcome;
+  if (!input.estimate.resumeQueue?.worthAlightingAtNextStation) return outcome;
   if (r.kind !== "future" && r.kind !== "passed") return outcome;
   return {
     action: "switch",
@@ -108,6 +109,10 @@ function applyIncidentRules(input: RuleInput): RuleOutcome {
         reason: "break_even_passed",
         recommendedOptionId: r.bestAlternativeId,
       };
+    }
+    // 天気の大分類だけが分かっていて雨が続くあいだは、種類が分かるときと同じく保留する
+    if (checkRainContinuing(input)) {
+      return { action: "hold", reason: "rain_continuing", recommendedOptionId: null };
     }
     // 発表の再開見込みがあるときは、その時刻を見込みとして分岐点と比べる
     if (estimate.remainingBasis === "stated") {
@@ -137,7 +142,7 @@ function applyIncidentRules(input: RuleInput): RuleOutcome {
   // 分岐点を過ぎた: いま再開しても代替手段のほうが早い
   if (r.kind === "passed") return { action: "switch", reason: "break_even_passed", ...switchTo };
   // 天気の事象で雨が続くあいだは、代替経路も同じ雨の影響を受けやすい
-  if (estimate.weatherIncident && input.weather?.summary.rainContinuing === true) {
+  if (checkRainContinuing(input)) {
     return { action: "hold", reason: "rain_continuing", recommendedOptionId: null };
   }
   // 規則表で長く止まる種類は、発生直後から言い切る。統計値の再開の見込みが分岐点より後なら、時間の窓を待たずに切り替える
@@ -172,6 +177,11 @@ function applyIncidentRules(input: RuleInput): RuleOutcome {
     reason: "resume_before_break_even",
     recommendedOptionId: input.alternatives.waitOptionId,
   };
+}
+
+// 天気の事象で、雨が続いているか。代わりの経路も同じ雨の影響を受けやすい
+function checkRainContinuing(input: RuleInput): boolean {
+  return input.estimate.weatherIncident && input.weather?.summary.rainContinuing === true;
 }
 
 // 規則表で長く止まる種類か。とても長いものも含む

@@ -107,6 +107,8 @@ export type TextNumbers = {
   yen: { raw: string; value: number }[];
   // 「3割」「30%」。1 割単位に直した値。「1割未満」は 1、「9割以上」は 9 として拾う
   shares: { raw: string; tenths: number }[];
+  // 列車の本数と駅の数。「2本」「3駅」「2 trains」「3 stations」
+  counts: { raw: string; value: number }[];
 };
 
 const CLOCK_PATTERN = /(\d{1,2})時(\d{1,2})分|(\d{1,2}):(\d{2})/g;
@@ -116,6 +118,7 @@ const MINUTES_PATTERN =
   /(\d+)\s*分|(\d+)\s*(?:(?:more|another|additional|extra)\s+)?(?:minutes|minute|mins|min)\b/gi;
 const YEN_PATTERN = /(\d[\d,]*)\s*円|¥\s*(\d[\d,]*)|(\d[\d,]*)\s*yen\b/gi;
 const SHARE_PATTERN = /(\d{1,2})\s*割|(\d{1,3})\s*(?:%|％|percent|per cent)/gi;
+const COUNT_PATTERN = /(\d+)\s*(?:本|駅)|(\d+)\s*(?:trains?|stations?|stops?)\b/gi;
 
 const parseNumber = (raw: string) => Number(raw.replaceAll(",", ""));
 
@@ -128,7 +131,14 @@ function takeMatches(text: string, pattern: RegExp, take: (m: RegExpMatchArray) 
 }
 
 export function extractTextNumbers(text: string): TextNumbers {
-  const found: TextNumbers = { clocks: [], hours: [], minutes: [], yen: [], shares: [] };
+  const found: TextNumbers = {
+    clocks: [],
+    hours: [],
+    minutes: [],
+    yen: [],
+    shares: [],
+    counts: [],
+  };
   let rest = text.normalize("NFKC");
   rest = takeMatches(rest, CLOCK_PATTERN, (m) => {
     const minuteOfDay = (Number(m[1] ?? m[3]) % 24) * 60 + Number(m[2] ?? m[4]);
@@ -147,6 +157,9 @@ export function extractTextNumbers(text: string): TextNumbers {
     const tenths = m[1] !== undefined ? Number(m[1]) : Number(m[2]) / 10;
     found.shares.push({ raw: m[0], tenths });
   });
+  rest = takeMatches(rest, COUNT_PATTERN, (m) => {
+    found.counts.push({ raw: m[0], value: Number(m[1] ?? m[2]) });
+  });
   takeMatches(rest, MINUTES_PATTERN, (m) => {
     found.minutes.push({ raw: m[0], value: Number(m[1] ?? m[2]) });
   });
@@ -161,6 +174,8 @@ export type AllowedNumbers = {
   yen: Set<number>;
   // 1 割単位の確率。ツールの resumeChance の値。1 割未満は 1、9 割以上は 9 として許す
   shares: Set<number>;
+  // 列車の本数と駅の数。詰まりの本数と、駅間の車内の前の列車の本数
+  counts: Set<number>;
 };
 
 // 「1割未満」は「1割」、「9割以上」は「9割」と書かれるので、その数字で許す
@@ -257,6 +272,11 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
         .filter((v): v is number => v !== null)
         .map(toWrittenTenths),
     ),
+    counts: new Set(
+      [estimate.resumeQueue?.trainsInQueue, estimate.trainQueue?.trainsAheadCount].filter(
+        (v): v is number => typeof v === "number",
+      ),
+    ),
   };
   const sources = [
     ...observations.map((o) => o.rawText ?? ""),
@@ -269,6 +289,7 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
     for (const m of numbers.minutes) allowed.minutes.add(m.value);
     for (const y of numbers.yen) allowed.yen.add(y.value);
     for (const share of numbers.shares) allowed.shares.add(share.tenths);
+    for (const count of numbers.counts) allowed.counts.add(count.value);
   }
   for (const minute of allowed.clockMinutes) allowed.hours.add(Math.floor(minute / 60));
   return allowed;
@@ -283,6 +304,7 @@ function findUnknownNumbers(field: string, text: string, allowed: AllowedNumbers
     ...n.minutes.filter((m) => !allowed.minutes.has(m.value)).map((m) => m.raw),
     ...n.yen.filter((y) => !allowed.yen.has(y.value)).map((y) => y.raw),
     ...n.shares.filter((s) => !allowed.shares.has(s.tenths)).map((s) => s.raw),
+    ...n.counts.filter((c) => !allowed.counts.has(c.value)).map((c) => c.raw),
   ];
   return unknown.map(
     (raw) =>

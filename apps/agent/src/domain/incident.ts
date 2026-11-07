@@ -1,4 +1,5 @@
 import {
+  checkWeatherIncident,
   detectObservationCues,
   findIncidentType,
   INCIDENT_GROUP_IDS,
@@ -35,7 +36,7 @@ export function resolveObservedIncidentType(
   return resolveIncidentType({
     eventType: selectEventType(observations),
     cause,
-    texts: observations.flatMap((o) => (o.rawText ? [o.rawText] : [])),
+    texts: listObservationTexts(observations),
   });
 }
 
@@ -57,6 +58,19 @@ export function resolveObservedCause(
     }
   }
   return null;
+}
+
+// 天気の事象か。種類が天気の種類か、種類が分からず原因の大分類が天気なら true
+export function checkWeatherCause(
+  type: IncidentTypeId | null,
+  cause: IncidentCause | null,
+): boolean {
+  return checkWeatherIncident(type) || (type === null && cause?.group === "weather");
+}
+
+// 観測の原文。種類の呼び名や台風のような長さを上げる語を見るのに使う
+export function listObservationTexts(observations: readonly Observation[]): string[] {
+  return observations.flatMap((o) => (o.rawText ? [o.rawText] : []));
 }
 
 // 観測の手がかり。原文と引用の照合に、解釈や選択で付いた手がかりの id を足す

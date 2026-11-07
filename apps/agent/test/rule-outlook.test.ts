@@ -15,6 +15,9 @@ import type {
 import { describe, expect, it } from "vitest";
 import type { AlternativesProvider } from "../src/alternatives/provider.ts";
 import { interpretSelection } from "../src/interpret/deterministic-interpret.ts";
+import { assembleJudgment, extractTextNumbers } from "../src/judge/assemble.ts";
+import { createEventSink } from "../src/judge/event-sink.ts";
+import { createJudgeSession } from "../src/judge/session.ts";
 import { runComputeBreakEven } from "../src/tools/compute-break-even.ts";
 import { runEstimateRemaining } from "../src/tools/estimate-remaining.ts";
 import { runFindAlternatives } from "../src/tools/find-alternatives.ts";
@@ -95,6 +98,14 @@ const personCollision = buildObservation({
   id: "entry-cause",
   minutesAgo: 5,
   eventType: "person_collision",
+});
+
+// 駅で聞いた詰まりの放送
+const queueObservation = buildObservation({
+  id: "queue",
+  minutesAgo: 1,
+  kind: "station_broadcast",
+  rawText: "前の列車がつかえているため、再開後もこの列車はしばらく停車いたします。",
 });
 
 // 乗る路線の事業者キー。乗らない選択肢は null
@@ -389,5 +400,115 @@ describe("選択式の入力", () => {
       ctx,
     );
     expect(observation.eventTypeCandidates).toEqual([]);
+  });
+});
+
+describe("天気の大分類と台風", () => {
+  // 雨が強まり続けている架空の観測値
+  const rainyDeps = createTestDeps({
+    fetchRain: async () => ({
+      stationName: "テスト観測所",
+      readings: [
+        { time: addMinutesToIso(now, -10), rainfall10minMm: 4, warnings: ["大雨警報"] },
+        { time: now, rainfall10minMm: 8, warnings: ["大雨警報"] },
+      ],
+    }),
+  });
+
+  it("入口で天気の大分類だけを答えても、気象を確かめ、雨が続くあいだは保留する", async () => {
+    const request: JudgeRequest = {
+      ...buildRequest([buildObservation({ id: "entry", minutesAgo: 5 })]),
+      cause: { group: "weather", type: null },
+    };
+    const events = await postJudge(createTestApp(rainyDeps), request);
+    const ready = events.find((e) => e.type === "judgment_ready");
+    if (ready?.type !== "judgment_ready") throw new Error("judgment_ready が届きません");
+    expect(ready.judgment.estimate.eventType).toBeNull();
+    expect(events.some((e) => e.type === "weather_checked")).toBe(true);
+    expect(ready.judgment.action).toBe("hold");
+    expect(ready.judgment.headline).toBe("雨が弱まるまで待つ");
+  });
+
+  it("選択式で天気の大分類の id を送っても、同じく気象を確かめる", async () => {
+    const request: JudgeRequest = {
+      ...buildRequest([]),
+      newInput: { type: "selection", eventType: "weather", signalIds: [] },
+    };
+    const events = await postJudge(createTestApp(rainyDeps), request);
+    expect(events.some((e) => e.type === "weather_checked")).toBe(true);
+  });
+
+  it("発表に台風の語があれば、強風の長さの見込みを very_long に上げる", () => {
+    const wind = buildObservation({ id: "wind", minutesAgo: 5, eventType: "strong_wind" });
+    const typhoon = { ...wind, rawText: "台風の接近に伴う強風のため、運転を見合わせています。" };
+    const estimateFor = (observations: Observation[]) => {
+      const request = buildRequest(observations);
+      const ctx: ToolContext = {
+        request,
+        observations,
+        content: deps.content,
+        provider: deps.provider,
+        scenario: null,
+        fetchRain: deps.fetchRain,
+      };
+      return runEstimateRemaining(ctx, { eventType: "strong_wind" });
+    };
+    expect(estimateFor([wind]).flowOutlook).toBe("long");
+    expect(estimateFor([typhoon]).flowOutlook).toBe("very_long");
+  });
+});
+
+describe("本数と駅の数の検査", () => {
+  it("列車の本数と駅の数は、ツールの結果と原文にある値だけを許す", async () => {
+    const session = createJudgeSession(
+      {
+        request: buildRequest([personCollision, queueObservation]),
+        observations: [personCollision, queueObservation],
+        content: deps.content,
+        provider: deps.provider,
+        scenario: null,
+        fetchRain: deps.fetchRain,
+      },
+      createEventSink(
+        async () => {},
+        () => now,
+      ),
+    );
+    await session.executeTool("estimate_remaining", { eventType: "person_collision" });
+    await session.executeTool("find_alternatives", {});
+    await session.executeTool("compute_break_even", {});
+    const { estimate, alternatives, breakEven } = session.state;
+    if (!estimate || !alternatives || !breakEven) throw new Error("ツールの結果がそろいません");
+    const results = { estimate, alternatives, breakEven };
+    const queued = estimate.resumeQueue?.trainsInQueue;
+    if (!queued) throw new Error("詰まりの本数がありません");
+    const decide = (reason: string) =>
+      assembleJudgment(
+        results,
+        {
+          action: "hold",
+          headline: "このまま待つ",
+          reason,
+          breakEvenExplanation: "説明",
+          recommendedOptionId: null,
+          evidence: [],
+        },
+        "ja",
+      );
+    expect(
+      session.checkJudgment(decide(`前に${queued}本詰まっています。`), results).errors,
+    ).toEqual([]);
+    const errors = session.checkJudgment(
+      decide(`前に${queued + 7}本詰まっています。発生場所まで${queued + 9}駅です。`),
+      results,
+    ).errors;
+    expect(errors.some((e) => e.includes(`${queued + 7}本`))).toBe(true);
+    expect(errors.some((e) => e.includes(`${queued + 9}駅`))).toBe(true);
+  });
+
+  it("英語の本数と駅の数も拾う", () => {
+    const n = extractTextNumbers("2 trains ahead, 3 stations away, and 1 stop.");
+    expect(n.counts.map((c) => c.value)).toEqual([2, 3, 1]);
+    expect(n.minutes).toEqual([]);
   });
 });

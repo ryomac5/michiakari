@@ -1,7 +1,6 @@
 import {
   addMinutesToIso,
   checkProtectionIncident,
-  checkWeatherIncident,
   classifyTimeOfDay,
   computeHaversineMeters,
   decideRuleConfidence,
@@ -38,9 +37,11 @@ import type {
 import { z } from "zod";
 import {
   checkTrackCleared,
+  checkWeatherCause,
   collectObservationCues,
   findLatestStatedResume,
   findOnsetTime,
+  listObservationTexts,
   resolveObservedCause,
 } from "../domain/incident.ts";
 import type { EstimateToolResult, ToolContext, TrainQueueToolResult } from "./types.ts";
@@ -250,6 +251,8 @@ export function runEstimateRemaining(
     statedResumeTime: stated && statedIsFuture ? stated.time : null,
     onsetTime,
     now,
+    // 台風のように長さの見込みを上げる語を見る
+    texts: listObservationTexts(ctx.observations),
   });
   const elapsed = Math.max(0, Math.floor(diffMinutes(onsetTime, now)));
   const protection = checkProtectionIncident({ type, cues });
@@ -278,7 +281,7 @@ export function runEstimateRemaining(
     boardableP80: remaining ? addMinutesToIso(now, remaining.p80) : null,
     flowOutlook: incident.flowOutlook,
     withholdNumbers: incident.withholdNumbers,
-    weatherIncident: checkWeatherIncident(type),
+    weatherIncident: checkWeatherCause(type, cause),
     cues,
     protection,
     unaffectedTrack: estimateUnaffectedTrackResume({
