@@ -15,6 +15,13 @@
 
 ## 記録
 
+### 2026-11-07 / 画面 / 防護無線、支障の無い線路、再開後の詰まりの見込みを出す
+- feat/entry-protection、feat/rules-core、feat/agent-rules の schema を取り込んだ。衝突は無かった。
+- 事象の id を core の IncidentTypeId にそろえ、空の catalog と型だけの知見のファイルを消した。
+- 初列車待ちは core の resolveFirstTrainWait の中央値にした。判断の cues を根拠の読みにつないだ。
+- 防護無線の読み、支障の無い線路の行、詰まりの行を足した。乗り換え先は agent の並びのままにした。
+- 確認結果: web の単体テスト、typecheck、lint が通った。agent の typecheck は移行中の箇所で落ちる。
+- 残課題: agent が protection を付けるまで、受信の放送の e2e は読みが出ずに落ちる。
 ### 2026-11-07 / 画面 / 知見の抜粋を読まず、事象の段階の文を出さない
 - 画面は知見を読まない。根拠の欄は段階の文をやめ、手がかりがあるときだけ一般的な読みを 1 行出す。
 - 初列車待ちは仮の値で置き、core の resolveFirstTrainWait に替える TODO を残した。e2e の期待値は agent の移行後に直す。
