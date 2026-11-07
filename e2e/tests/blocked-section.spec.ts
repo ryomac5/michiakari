@@ -44,19 +44,18 @@ async function startBetweenStations(page: Page): Promise<void> {
   });
 }
 
-test("発表に区間が無い駅の間の車内では区間を描かず、区間は発表で確かめると添え、発表を貼ると線路に沿った区間と札を描く", async ({
+test("発表に区間が無い駅の間の車内では区間も区間の札も描かず、発表を貼ると線路に沿った区間と札を描く", async ({
   page,
 }) => {
   await startBetweenStations(page);
   const map = page.getByTestId(testIds.judgment.map);
 
-  // 利用者がいることだけを根拠に区間を作らない。区間の線と札を出さず、発表で確かめるよう添える
+  // 利用者がいることだけを根拠に区間を作らない。区間の線と札を出さない
   await expect(map).toHaveAttribute("data-blocked", "false");
   await expect(map).toHaveAttribute("data-blocked-points", "0");
   await expect(page.getByTestId(mapTestIds.blockedTag)).toHaveCount(0);
   const note = page.getByTestId(mapTestIds.sectionNote);
-  await expect(note).toBeVisible();
-  await expect(note).toContainText("区間は発表で確かめる");
+  await expect(note).toHaveCount(0);
   // 上部の札は人身事故なので見合わせのまま。判断の文には駅の位置から作った区間を書かない
   await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("見合わせ");
   await expect(page.getByTestId(testIds.judgment.conclusion)).not.toContainText("大阪〜三ノ宮");
@@ -79,12 +78,10 @@ test("発表に区間が無い駅の間の車内では区間を描かず、区�
     .toBe("");
   await capture(page, "no-announcement");
 
-  // 案内の文を押すと、シートを開いて発表を貼る欄へ移る
-  const action = page.getByTestId(mapTestIds.sectionNoteAction);
-  await expect(action).toBeVisible();
-  await action.click();
-  await expect(page.getByTestId(testIds.judgment.sheet)).toHaveAttribute("data-snap", "full");
+  // シートを開いて発表を貼る欄へ移る
+  await openSheet(page, "full");
   const addInfo = page.getByTestId(testIds.judgment.addInfo);
+  await addInfo.scrollIntoViewIfNeeded();
   await expect(addInfo).toBeInViewport();
 
   // 区間のある発表を貼ると、その区間だけを強く描き、「見合わせ 大阪〜三ノ宮」の札を付ける

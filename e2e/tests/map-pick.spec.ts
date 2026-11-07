@@ -295,11 +295,11 @@ test.describe("地図と一覧の同期", () => {
       timeout: 30_000,
     });
     await expect(page.getByTestId(testIds.judgment.statusChip)).not.toContainText("神戸線");
-    // 判断の地図は、入口で選んだ環状線の方面を区間として描かない。発表に区間が無いので、発表で確かめると添える
+    // 判断の地図は、入口で選んだ環状線の方面を区間として描かない。発表に区間が無いので、区間の札も出さない
     const map = page.getByTestId(testIds.judgment.map);
     await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
     await expect(map).toHaveAttribute("data-blocked", "false");
-    await expect(page.getByTestId(mapTestIds.sectionNote)).toContainText("区間は発表で確かめる");
+    await expect(page.getByTestId(mapTestIds.sectionNote)).toHaveCount(0);
   });
 
   test("車内の駅の間は、一覧の選択が地図の点線に出て、地図の線の丸を押して選べる", async ({

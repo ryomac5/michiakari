@@ -533,7 +533,7 @@ export function checkSectionWording(
   return [
     section
       ? `${field} の「${found.text}」は発表の区間と違う範囲です。止まっている区間は、発表の区間だけを書いてください`
-      : `${field} の「${found.text}」は止まっている区間の言い方です。発表に区間が無いので、区間を書かないでください。区間は発表で確かめるよう画面が添えます`,
+      : `${field} の「${found.text}」は止まっている区間の言い方です。発表に区間が無いので、区間を書かないでください`,
   ];
 }
 
