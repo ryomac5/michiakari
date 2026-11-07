@@ -70,7 +70,8 @@
   - このときの見込みは core の `estimateStatedRemainingWithoutKnowledge` で求める。p50 は発表の時刻どおり、p80 は `STATED_RESUME_SLACK_MINUTES` だけ後ろに置く
   - 確信度は `confidenceParams.whenStatedWithoutEvent` にする。結論の理由は、発表の時刻をもとにした推定だと分かる言い方にする
   - 発表の時刻が無いときの振る舞いは変えない。claude モードもプロンプトで同じ方針にする
-  - 事象の種類が分かれば、core の `estimateIncidentRemaining` で見込みを出す。種類は観測か、要求の `cause` に入口で答えた原因から決める
+  - 事象の種類は core の `resolveIncidentType` が決める。観測の事象、要求の `cause` に入口で答えた原因、発表の呼び名の順に引く
+  - 見込みは core の `estimateIncidentRemaining` で出す
   - 確信度は core の `decideRuleConfidence` が決める。事象は決め打ちせず、確信度が低ければ原因が分からないときと同じ規則で保留か切り替えを選ぶ
   - 統計値から見積もったことは文に書かない。再開までの時間も文で言い切らない。見込みは見込みの図の幅で示す
   - 見込みの出どころは `estimate.source` に持つ。規則表は `rule`、統計値は `statistics`、どちらも無ければ `none` にする
@@ -119,20 +120,28 @@
 
 事象の振る舞いの規則は次の関数が担う。規則の中身は 4.1 に書く。
 
-- `estimateIncidentRemaining`: 事象の種類と発生からの経過から、実際に乗れる列車が来るまでの残り時間の p50 と p80 を返す
-  - 値は、発表の見込み時刻、規則表の目安、統計値の順に探す。どれも無ければ null を返す
-  - 出どころを `rule`、`statistics`、`none` で返す
+- `estimateIncidentRemaining`: 事象の種類、手がかり、発表の見込み時刻から、実際に乗れる列車が来るまでの残りを返す
+  - 次の順に当てはめ、最初に当たったものを出どころ `basis` にする
+  - `resumed` の手がかりがあれば `resumed` とし、再開までの残りを 0 分にする
+  - 発表の見込み時刻があれば `stated` とし、`estimateStatedRemainingWithoutKnowledge` で求める
+  - めったにない事象で長さが分からなければ、`withholdNumbers` を true にして数字を出さない
+  - 規則表に短い事象の目安があれば `rule` とする。発生からの経過が目安の p80 を過ぎていれば当てはめない
+  - 統計値があれば `statistics` とし、`estimateStatsRemaining` で求める。確率に使う標本も返す
+  - どれにも当たらなければ `basis` を null にする
+  - 再開までの残り `untilResume` に、初列車待ち `firstTrainWait` を足して `remaining` にする
   - 発生時刻は観測から分からないので、agent は最初の観測の時刻を発生とみなす
-  - 初列車待ちは、`packages/core/params/transit.ts` の運転間隔の半分を足す
-- `decideRuleConfidence`: 見込みの確信度を返す。段階の推定が無くなった分は、手がかりと規則で medium に上げる
-  - 原因が観測から特定でき、規則表に目安がある事象は medium にする
-  - `protection_received`、`resume_soon`、`track_cleared` の手がかりがあれば medium にする
-  - それ以外は low にする。high を返す条件は要確認
+- `resolveFirstTrainWait`: 初列車待ちを、事象の種類の止まり方ごとに返す。表は `FIRST_TRAIN_WAIT_BY_STOP_KIND` で、種類が分からなければ区間の値を使う
+- `decideRuleConfidence`: 見込みの確信度を、出どころと手がかりから返す
+  - `resumed` と、延長されていない `stated` は high にする。延長された `stated` は medium にする
+  - `rule` は、種類が分かれば medium にする
+  - `statistics` は、`resume_soon` か `track_cleared` があれば medium にする
+  - それ以外は low にする
 - `checkProtectionIncident`: 事象の種類と手がかりから、防護無線で止まった事象かを返す
-- `detectAnnouncementCues`: 発表と放送の文から、手がかりの id と根拠の文言を返す。手がかりの id は 4.1 の表を正とする
-- `estimateUnaffectedTrackResume`: 防護無線の事象で、支障の無い線路と並ぶ同じ会社の線が動き出す見込みを返す
-- `estimateQueueAfterResume`: 再開した後に先の列車が詰まり、次の駅から先へ進めない時間の見込みを返す。`estimateTrainQueueArrival` を土台にする
-- `rankAlternativesForProtection`: 防護無線の事象で、代替手段の到着を止まり方に合わせて直し、並べ替える。勧める代替手段は直した後の到着で `selectBestAlternative` が選ぶ
+- `detectAnnouncementCues`: 発表と放送の文から、手がかりの id を返す。観測の列には `detectObservationCues` を使い、`rawText` と `detectedSignals` の `quote` を見る
+- `checkTrackCleared`: 前の列車が詰め始めてよいかを返す。agent から core に移した
+- `estimateUnaffectedTrackResume`: 防護無線の事象で、当該の線路と反対の線路の再開までの残りを返す。防護無線の事象でなければ null を返す
+- `estimateQueueAfterResume`: 再開した後に先の列車が詰まり、次の駅から先へ進めない時間の範囲を返す。次の駅で降りる価値があるかも返す
+- `rankAlternativesForProtection`: 防護無線の事象で、代替手段に上げる、そのまま、下げるの印を付け、この順に並べ替える。到着の時刻は変えない
 - `estimateStatedRemainingWithoutKnowledge`: 事象が分からないときに、発表された見込み時刻だけから残り時間を返す
   - p50 は発表の時刻までの分とする。p80 はそれに `STATED_RESUME_SLACK_MINUTES` を足す
   - 余地の根拠は `packages/core/params/estimation.ts` のコメントに書く
@@ -241,6 +250,8 @@
         Judgment を Zod で検証。失敗したら修正を求めて再生成（1回まで）
 ```
 
+`lookup_incident_rules` と `estimate_remaining` の名前は、agent の作り直しの後に合わせる。要確認。
+
 各ステップで判断イベントを SSE で送り、画面はそれを逐次描画する。推論の過程が見えることは、デモと信頼性の両方にとって中核の価値である。
 
 ## 4. 主要スキーマ（packages/schema）
@@ -249,7 +260,18 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 
 ### 4.1 事象の振る舞いの規則
 
-規則表は `packages/core/params/` に 1 か所で置く。画面と判断は同じ表を引く。値の出典は「開発者の推定」と書く。社内の数値は書かない。
+規則表は `packages/core/params/incident-behavior.ts` の `INCIDENT_BEHAVIOR` に 1 か所で置く。画面と判断は同じ表を引く。値の出典は `INCIDENT_BEHAVIOR_SOURCE` の「開発者の推定」とする。社内の数値は書かない。
+
+種類ごとに次の項目を持つ。
+
+| 項目 | 内容 |
+|---|---|
+| `stopKind` | 止まり方。`train_only`、`train_first`、`section` のいずれか |
+| `protection` | 防護無線を出すか。`always`、`maybe`、`none` のいずれか |
+| `flowOutlook` | 長さの見込み。`short`、`long`、`very_long`、`unknown` のいずれか |
+| `ruleRange` | 短い事象の、発生から再開までの p50 と p80。短い事象でなければ null |
+| `firstTrainWait` | 再開から乗れる列車が来るまでの分。止まり方の表から引く |
+| `rare` | めったにない事象か。true で長さが `unknown` なら数字を言い切らない |
 
 事象の id は、統計値の種類の id `IncidentTypeId` に一本化する。観測とシナリオの `event_type` もこの id を使う。古い事象の id は、`stop-scope.ts` の `INCIDENT_TYPE_BY_EVENT_TYPE` で読み替える。
 
@@ -257,66 +279,79 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 
 防護無線は、自分の列車の外に危害が及びそうなときに運転士が鳴らす。鳴ると、周りの同じ会社の列車が一斉に止まる。他社の列車は止まらない。
 
-| 区分 | 事象の種類 | 止まる列車 |
-|---|---|---|
-| 防護無線 | `person_collision`、`track_intrusion`、`crossing_obstruction`、`track_structure_damage`、`building_falling_object`、`track_smoke_check`、`crossing_collision`、`derailment`、`onboard_fire` | 周りの同じ会社の列車 |
-| 防護無線の恐れ | `vegetation_obstruction`、`foreign_object`、`animal_collision`、`bridge_impact` | 鳴れば周りの同じ会社の列車 |
-| 車内非常ブザー | `medical_response`、`passenger_conflict` | その列車 |
-| その列車から | `vehicle_failure`、`vehicle_smoke`、`signal_failure`、`point_failure` | その列車から後ろへ |
-| 駅 | `suspicious_object` | その駅の列車 |
-| 区間 | `heavy_rain`、`strong_wind` | 区間ごとに上下とも |
-| 揺れた所 | `earthquake` | 揺れた所の列車 |
+| 区分 | 事象の種類 | `protection` | `stopKind` |
+|---|---|---|---|
+| 防護無線 | `person_collision`、`track_intrusion`、`crossing_obstruction`、`track_structure_damage`、`building_falling_object`、`track_smoke_check`、`crossing_collision`、`derailment`、`onboard_fire` | `always` | `section` |
+| 防護無線の恐れ | `vegetation_obstruction`、`foreign_object`、`animal_collision`、`bridge_impact` | `maybe` | `section` |
+| 車内非常ブザー | `medical_response`、`passenger_conflict` | `none` | `train_only` |
+| その列車から | `vehicle_failure`、`vehicle_smoke`、`signal_failure`、`point_failure` | `none` | `train_first` |
+| 駅 | `suspicious_object` | `none` | `section` |
+| 区間 | `heavy_rain`、`strong_wind` | `none` | `section` |
+| 揺れた所 | `earthquake` | `none` | `section` |
 
-ここに無い種類は、止まり方が分からないものとして区間とみなす。急病人は、次の駅の駅員に引き継げばすぐ動く。
+ここに無い種類は、止まり方が分からないものとして区間とみなす。駅で止まる不審物も、周りへの広がりが分からないので区間とみなす。急病人は、次の駅の駅員に引き継げばすぐ動く。
+
+初列車待ちは止まり方ごとに次の目安を使う。値は仮である。
+
+| `stopKind` | p50 | p80 |
+|---|---|---|
+| `train_only` | 2 分 | 5 分 |
+| `train_first` | 5 分 | 15 分 |
+| `section` | 10 分 | 25 分 |
 
 #### 手がかりの id
 
-発表と放送の文から、行動を変える一般的な手がかりだけを拾う。`detectAnnouncementCues` が文を照合し、id を返す。id の列挙は `packages/schema` に置き、シナリオの `evidence_includes` もこの id で照合する。
+発表と放送の文から、行動を変える一般的な手がかりだけを拾う。`detectAnnouncementCues` が文を照合し、id を返す。id の列挙は core の `ANNOUNCEMENT_CUE_IDS`、照合の言い回しは `ANNOUNCEMENT_CUE_PATTERNS` に置く。シナリオの `evidence_includes` もこの id で照合する。
 
 | id | 拾う文の例 | 判断での使い方 |
 |---|---|---|
 | `resumed` | 運転を再開しました | 再開したとみなし、初列車待ちだけを残す |
-| `resume_soon` | まもなく再開、順次再開 | 再開が近いとみなし、確信度を medium に上げる |
+| `resume_soon` | まもなく再開、順次再開 | 統計値の見込みの確信度を medium に上げる |
 | `rescue` | 救援 | 長く止まる見込みに寄せる |
 | `protection_received` | 信号を受信、緊急停止信号 | 防護無線で止まったとみなす |
 | `queue_ahead` | 前の列車がつかえて、先行列車の影響 | 再開後の詰まりの列に入ったとみなす |
-| `track_cleared` | 再開が近いと言い切る放送 | 前の列車が詰め始めたとみなす |
+| `track_cleared` | 再開が近いと言い切る放送 | 前の列車が詰め始めたとみなす。統計値の見込みの確信度を medium に上げる |
 
-`track_cleared` は、agent の `checkTrackCleared` の照合を core に移したものである。
+`track_cleared` の判定は、`checkTrackCleared` とともに agent から core に移した。
 
 #### 防護無線
 
-`checkProtectionIncident` は、止まり方の区分が防護無線なら true を返す。区分が防護無線の恐れでも、`protection_received` があれば true にする。
+`checkProtectionIncident` は、`protection` が `always` の種類なら true を返す。`maybe` の種類は、`protection_received` があるときだけ true にする。
 
-原因の発表が無くても、`protection_received` があれば防護無線とみなす。このとき事象は、列車の外に危害が及ぶものと推し量る。種類は決め打ちせず、統計値は防護無線の区分の大分類を使う。大分類の選び方は要確認。
+原因の発表が無くても、`protection_received` があれば防護無線とみなす。このとき事象は、列車の外に危害が及ぶものと推し量る。種類は決め打ちしない。統計値は入口で答えた原因の大分類を使い、それも無ければ数字を出さない。
 
-防護無線の事象では、`rankAlternativesForProtection` が代替手段を直す。
+防護無線の事象では、`rankAlternativesForProtection` が代替手段に印を付けて並べ替える。
 
-- 並ぶ他社の線は止まらないので、すぐ使える選択肢として上げる
-- 並ぶ同じ会社の線は最初は一緒に止まる。`estimateUnaffectedTrackResume` の見込みを待ちに足し、すぐの乗り換え先としては下げる
+- 並ぶ他社の線は止まらないので、すぐ使える選択肢として `raised` にする
+- 並ぶ同じ会社の線は最初は一緒に止まるので、`lowered` にする
+- 止まった会社が分からなければ、すべて `neutral` のまま返す
+- 同じ印の中は元の並びを保つ
+
+印と `selectBestAlternative` の選び方をどうつなぐかは、agent の作り直しで決める。要確認。
 
 #### 支障の無い線路から先に動く
 
 指令は範囲を確かめ、支障の無い線路から順に動かす。`estimateUnaffectedTrackResume` は、この順番を見込みにする。
 
-- 反対の線路と並ぶ同じ会社の線は、確かめが済めば早く動き出すことがある。目安は規則表に置く
-- 当該の線路は長く止まる。見込みは `estimateIncidentRemaining` が出す
-- 利用者がどちら側か分からなければ、両方の見込みを並べて返す
+- 反対の線路は、確かめが済めば早く動き出すことがある。目安は `UNAFFECTED_TRACK_RESUME` の p50 10 分、p80 15 分で、発生からの経過を引いて返す
+- 当該の線路は長く止まる。見込みは `estimateIncidentRemaining` の `untilResume` を渡す
+- 利用者がいる線路は `trackSide` で渡す。`unknown` なら両方の見込みを並べて返す
 
 #### 再開後の詰まり
 
 大きな事故では、動き出して次の駅まで行けても、先の列車が詰まって先へ進めないことがある。`estimateQueueAfterResume` はこの待ちを見積もる。
 
 - 次の駅まで行かせることは優先されるので、次の駅には着く見込みとする
-- 見積もりの材料は、自分と当該の間の駅の数、時間帯の運転間隔、1 区間を詰める分の 3 つである
-- 駅の数は、発表の発生場所から数える。1 区間を詰める分は `packages/core/params/train-queue.ts` の目安を使う
-- 詰めるのは JR西日本だけとする。`estimateTrainQueueArrival` と同じ事業者の表を引く
-- `queue_ahead` があれば、詰まりの列に入ったとみなす
-- 先へ進めない時間が長ければ、次の駅で降りて別の手段に乗り換える一手を比べる。比べ方は `selectAfterAlightStep` と同じにする
+- 駅の数は、発表の発生場所から数える。分からなければ距離を `AVERAGE_STATION_SPACING_KM` で駅の数に直す
+- 間の駅を走る分を時間帯の運転間隔で割り、自分の前に詰まる列車の本数とする
+- 待つ分の範囲は、本数に 1 本あたりの分を掛ける。下限は `MIN_MINUTES_PER_TRAIN_AHEAD`、上限は事業者の長めの分を使う
+- 詰めるのは JR西日本だけとする。`estimateTrainQueueArrival` と同じ事業者の表を引き、詰めない事業者では範囲を null にする
+- `queue_ahead` があれば、詰まりの列に入ったとみなし、本数を 1 本以上にする
+- `queue_ahead` があるか、待つ分の上限が `QUEUE_ALIGHT_WORTH_MINUTES` 以上なら、次の駅で降りる価値があるとする
 
 #### 短く終わる事象
 
-次の事象は、規則表の目安で見込みを出す。p80 は仮の値である。
+次の事象は、規則表の `ruleRange` で見込みを出す。p80 は仮の値である。
 
 | 事象の種類 | p50 | p80 |
 |---|---|---|
@@ -329,9 +364,9 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 
 #### 長く止まる事象
 
-設備、車両、天気の事象は基本長い。衝突、脱線、車内の発火はとても長い。台風は特に長い。これらは統計値で見込みを出し、規則表は長い側に寄せる向きだけを持つ。
+設備、車両、天気の事象は基本長く、`flowOutlook` を `long` にする。衝突、脱線、車内の発火はとても長く、`very_long` にする。台風は強風の中で特に長い。これらは統計値で見込みを出す。
 
-めったにない事象は、統計値が足りなければ分からないと扱う。数字を言い切らない。
+めったにない事象は `rare` を true、`flowOutlook` を `unknown` にする。このときは数字を言い切らない。
 
 ### 4.2 Observation（利用者が持ち込んだ観測）
 
@@ -349,7 +384,7 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `section` | 区間 `{ fromStation, toStation }`。不明なら null |
 | `statedResumeTime` | 発表文に記載された再開見込み時刻。記載が無ければ null |
 | `transferServiceActive` | 振替輸送の実施有無。記載が無ければ null |
-| `detectedSignals` | 手がかりとの対応 `{ cueId, quote }` の配列。`quote` は根拠の文言 |
+| `detectedSignals` | 兆候との対応 `{ eventType, signalId, quote }` の配列。`quote` は根拠の文言で、core はここから手がかりを拾う |
 
 ### 4.3 JudgmentEvent（SSE で送るイベント）
 
@@ -360,7 +395,7 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `observation_parsed` | `{ observation: Observation }` | 「掲示を読み取りました」 |
 | `signal_detected` | `{ signal: DetectedSignal }` | 手がかりを根拠リストに追加 |
 | `weather_checked` | `{ source, readings, warnings, trend, summary }` | 雨量の推移と警報を出す。readings は 36 件・6 時間まで |
-| `remaining_estimated` | `{ estimate: Estimate }` | 見込みの図を更新 |
+| `remaining_estimated` | `{ estimate: Estimate }`。名前は要確認 | 見込みの図を更新 |
 | `alternatives_computed` | `{ options: RouteOption[] }` | 地図に経路と到達範囲を描画 |
 | `break_even_computed` | `{ breakEven: BreakEven \| null }` | 分岐点の表示を更新 |
 | `judgment_ready` | `{ judgment: Judgment }` | 結論を確定表示。近くのバス停の確認候補は判断の確定後に決定論で `busChecks` に付け、Claude には渡さない |
@@ -369,7 +404,7 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 
 `progress` は判断の途中経過である。両モードで各段階の開始を知らせ、claude モードでは Claude の text ブロックと進捗メモも流す。進捗メモは `thinking.display: "updates"` で得る。
 
-- `stage` は `interpret` / `rules` / `weather` / `remaining` / `alternatives` / `break_even` / `judgment` のいずれか
+- `stage` は `interpret` / `rules` / `weather` / `remaining` / `alternatives` / `break_even` / `judgment` のいずれか。`rules` と `remaining` の名前は要確認
 - Claude の進捗メモは `stage` を持たない。画面は進行中の段に付ける
 - 画面は知らない種類のイベントを読み飛ばす
 
@@ -524,8 +559,10 @@ agent は `compute_break_even` で詰め、`break_even_computed` と `judgment_r
 | `lookup_incident_rules` | 事象の種類、観測の列 | 止まり方の区分、防護無線の事象か、拾った手がかりの id | packages/core の規則表 |
 | `get_weather` | 区間の座標、時間幅 | 10分ごとの雨量、警報の発表状況 | 気象庁 |
 | `estimate_remaining` | 事象の種類、観測の列 | 残り時間の p50 と p80、出どころ、確信度。防護無線の事象なら支障の無い線路の見込み、詰まりの列なら再開後の詰まりの見込みも返す。事象が null でも発表の見込み時刻があれば残り時間を返す。駅間の車内なら、ホームに着ける駅とそこに着く時刻、動き出す時刻、遅れる理由を `trainQueue` で返す。止まり方を `stopScope` で返す | packages/core |
-| `find_alternatives` | 現在地、行き先、止まっている区間、時刻、制約 | 代替手段の一覧（徒歩・乗車・待ち・運賃）。防護無線の事象なら `rankAlternativesForProtection` で直す。駅間の車内なら、次の駅に着く見込みの時刻から探す。その結果はいまの選択肢として示さず、着いた後の次の一手を選ぶ比較にだけ使う。通常の徒歩の上限の中に鉄道の代替が無ければ、上限を広げて探す。バス停は返さない | packages/geo + core |
+| `find_alternatives` | 現在地、行き先、止まっている区間、時刻、制約 | 代替手段の一覧（徒歩・乗車・待ち・運賃）。防護無線の事象なら `rankAlternativesForProtection` で印を付けて並べ替える。駅間の車内なら、次の駅に着く見込みの時刻から探す。その結果はいまの選択肢として示さず、着いた後の次の一手を選ぶ比較にだけ使う。通常の徒歩の上限の中に鉄道の代替が無ければ、上限を広げて探す。バス停は返さない | packages/geo + core |
 | `compute_break_even` | 待つ場合の条件、代替手段の到着時刻、期限 | 分岐点の時刻、勧める代替手段の id、比較表、時刻ごとの再開の見込みと待ったほうが早く着く確率。駅間の車内でも同じ標本から求める | packages/core |
+
+`lookup_incident_rules` と `estimate_remaining` の名前は要確認である。
 
 バス停は駅から約 616m 以内だけを収録する。現在地をそのまま起点にすると、駅から離れたバス停は出ない。
 

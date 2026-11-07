@@ -128,7 +128,8 @@
   <tr><td><code>pnpm guard</code></td><td>材料の文を、git が追跡中のファイルと照合します。文が写っていれば失敗します。</td></tr>
 </table>
 </div>
-<p><code>PRIVATE_NOTES_DIR</code> が未設定のときの guard の振る舞いは要確認です。</p>
+<p><code>PRIVATE_NOTES_DIR</code> が無いと、guard は警告を出して照合を省きます。</p>
+<p>照合を効かせるため、手元では必ず設定してから guard を走らせます。</p>
 <div class="note">
 <p>材料の文を、コードにもテストにも文書にも写しません。</p>
 <p>材料をリポジトリの中へ動かしたり、リンクを張ったりもしません。</p>
@@ -138,19 +139,21 @@
 <h2 id="rules">規則表への落とし方</h2>
 <p>開発者は材料のフォルダに答えを書き、エージェントに場所を伝えます。</p>
 <p>エージェントは答えを読み、規則の言葉に言い換えて規則表に置きます。</p>
-<p>規則表は <code>packages/core/params/</code> に 1 か所で置きます。</p>
+<p>規則表は <code>packages/core/params/incident-behavior.ts</code> に 1 か所で置きます。</p>
 <p>規則の中身と手がかりの id は <code>docs/architecture.md</code> の 4.1 を正とします。</p>
 
 <h3>答えが決める項目</h3>
 <div class="table-wrap">
 <table>
   <tr><th>規則表の項目</th><th>答えが決めること</th></tr>
-  <tr><td>止まり方の区分</td><td>事象ごとに、どの列車が止まるかです。防護無線を鳴らす事象かどうかもここで決まります。</td></tr>
-  <tr><td>短く終わる目安</td><td>すぐ動く事象の p50 と p80 の分です。</td></tr>
-  <tr><td>長く止まる向き</td><td>統計値の見込みを長い側に寄せる事象です。分からないと扱う事象もここで決めます。</td></tr>
-  <tr><td>支障の無い線路の目安</td><td>反対の線路や並ぶ線が動き出すまでの分です。</td></tr>
-  <tr><td>再開後の詰まり</td><td>1 区間を詰める分と、詰める事業者です。</td></tr>
-  <tr><td>手がかり</td><td>行動を変える一般的な放送の言い回しです。</td></tr>
+  <tr><td><code>stopKind</code></td><td>事象ごとに、どの列車が止まるかです。</td></tr>
+  <tr><td><code>protection</code></td><td>防護無線を出すか、出すことがあるか、出さないかです。</td></tr>
+  <tr><td><code>ruleRange</code></td><td>すぐ動く事象の、発生から再開までの p50 と p80 の分です。</td></tr>
+  <tr><td><code>flowOutlook</code> と <code>rare</code></td><td>長く止まる事象と、とても長い事象を分けます。めったにない事象もここで決めます。</td></tr>
+  <tr><td><code>FIRST_TRAIN_WAIT_BY_STOP_KIND</code></td><td>再開から乗れる列車が来るまでの分です。止まり方ごとに置きます。</td></tr>
+  <tr><td><code>UNAFFECTED_TRACK_RESUME</code></td><td>反対の線路が動き出すまでの分です。</td></tr>
+  <tr><td>詰まりの目安</td><td>1 本あたりの詰める分と、詰める事業者です。<code>train-queue.ts</code> に置きます。</td></tr>
+  <tr><td><code>ANNOUNCEMENT_CUE_PATTERNS</code></td><td>行動を変える一般的な放送の言い回しです。</td></tr>
 </table>
 </div>
 <p>事象の id は、統計値の種類の id <code>IncidentTypeId</code> を使います。</p>
