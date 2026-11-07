@@ -6,15 +6,17 @@ import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import {
   addAnswers,
   expectJudgmentOpened,
+  finishEntry,
   openAddInfo,
   waitForJudgmentReady,
 } from "../support/add-info.ts";
+import { chooseBetweenStations } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
-// 入口ではいる所と行き先だけを聞き、すぐ判断を出す
-// 原因や見合わせ区間は、判断の画面の「情報を追加する」から分かったときに足す
-// 決定論モードの agent とダミーの内容で確かめる
+// 入口ではいる所と行き先の後に、原因、止まってからの分、受信の放送、乗車券、再開見込みを順に聞く
+// どの問いも分からないで次へ進め、最後まで答えたら判断を出す
+// 後から分かったことは、判断の画面の「情報を追加する」から足す。決定論モードの agent とダミーの内容で確かめる
 
 const screenshotDir = fileURLToPath(new URL("../screenshots/add-info/", import.meta.url));
 
@@ -27,8 +29,8 @@ async function capture(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: `${screenshotDir}${name}.png` });
 }
 
-// 大阪駅にいて三ノ宮へ向かう。いる所と行き先だけを答える
-async function enterOsakaToSannomiya(page: Page, shoot = false): Promise<void> {
+// 大阪駅にいて三ノ宮へ向かう。いる所と行き先を答え、原因の問いまで進む
+async function enterOsakaToSannomiya(page: Page): Promise<void> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
@@ -37,10 +39,13 @@ async function enterOsakaToSannomiya(page: Page, shoot = false): Promise<void> {
   await page.getByTestId(testIds.start.originSearch).fill("大阪");
   await page.getByTestId(testIds.start.originOption("大阪")).click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
-  if (shoot) await capture(page, "entry");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expectJudgmentOpened(page);
+  await expectStage(page, "cause");
+}
+
+function expectStage(page: Page, stage: string) {
+  return expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", stage);
 }
 
 // 判断の中身の要約。結論と選択肢の並びを、足す前と後で比べる
@@ -50,11 +55,28 @@ async function readJudgment(page: Page): Promise<string> {
   return [conclusion, ...options].join("|");
 }
 
-test("いる所と行き先だけで判断まで進み、原因の問いは入口に出ない", async ({ page }) => {
-  await enterOsakaToSannomiya(page, true);
-  for (const stage of ["cause", "causeKind", "elapsed", "resume", "protection"]) {
-    expect(await page.locator(`[data-stage='${stage}']`).count()).toBe(0);
-  }
+test("入口の問いに全部「分からない」を押すと、問いを順に進み、最後に判断を出す", async ({
+  page,
+}) => {
+  await enterOsakaToSannomiya(page);
+  // 行き先を答えただけでは判断を出さない
+  await page.waitForTimeout(1_000);
+  await expect(page).toHaveURL(/\/$/);
+  await capture(page, "entry-1-cause");
+  await page.getByTestId(testIds.start.cause("unknown")).click();
+  // 駅にいる人には受信の放送を聞かない
+  await expectStage(page, "elapsed");
+  await capture(page, "entry-3-elapsed");
+  await page.getByTestId(testIds.start.elapsed("unknown")).click();
+  await expectStage(page, "resume");
+  // 乗車券は再開見込みの問いの上に並び、既定は分からない
+  await expect(page.getByTestId(testIds.start.ticket("unknown"))).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await capture(page, "entry-4-ticket-resume");
+  await page.getByTestId(testIds.start.resume("unknown")).click();
+  await expectJudgmentOpened(page);
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible();
   await expect(page.getByTestId(testIds.judgment.disclaimer)).toContainText(
     "推定であり、公式発表を優先してください",
@@ -63,10 +85,47 @@ test("いる所と行き先だけで判断まで進み、原因の問いは入�
   await capture(page, "judgment");
 });
 
-test("原因を答えて判断を出し直すと、情報を追加するは原因の選択肢を最初に出さず、札から選び直せる", async ({
+test("駅と駅の間の車内では、原因の後に受信の放送を聞き、覚えていないで次へ進む", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
+    timeout: 30_000,
+  });
+  await chooseBetweenStations(page, "JR神戸線", "大阪", "塚本");
+  await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
+  await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+  await expectStage(page, "cause");
+  await page.getByTestId(testIds.start.cause("unknown")).click();
+  await expectStage(page, "protection");
+  await capture(page, "entry-2-protection");
+  await page.getByTestId("start-protection-unsure").click();
+  await expectStage(page, "elapsed");
+  await page.getByTestId(testIds.start.elapsed("unknown")).click();
+  await page.getByTestId(testIds.start.resume("unknown")).click();
+  await expectJudgmentOpened(page);
+});
+
+test("入口で原因を答えると、情報を追加するは原因の選択肢を最初に出さず、入口の答えを札で出す", async ({
   page,
 }) => {
   await enterOsakaToSannomiya(page);
+  await finishEntry(page, { cause: "person", elapsed: "m10" });
+  const addInfo = await openAddInfo(page);
+  await expect(addInfo.getByTestId(testIds.situation.answer("cause"))).toHaveText("人身事故");
+  await expect(addInfo.locator("[data-testid^='situation-cause-']")).toHaveCount(0);
+  await expect(addInfo.getByTestId(testIds.situation.cue("resumed"))).toBeVisible();
+  await expect(addInfo.getByTestId(testIds.situation.answer("elapsed"))).toContainText("約10分");
+  // 分からないと答えた問いは、後から足せる項目として残す
+  await expect(addInfo.getByTestId(testIds.situation.item("resume"))).toBeVisible();
+  await capture(page, "add-info");
+});
+
+test("入口で原因を分からないとし、後から原因を足すと、原因の選択肢を最初に出さず、札から選び直せる", async ({
+  page,
+}) => {
+  await enterOsakaToSannomiya(page);
+  await finishEntry(page);
 
   // 原因が決まっていなければ、原因を先に聞く
   let addInfo = await openAddInfo(page);
@@ -85,7 +144,7 @@ test("原因を答えて判断を出し直すと、情報を追加するは原�
   await expect(addInfo.getByTestId(testIds.situation.cue("resumed"))).toBeVisible();
   await expect(addInfo.getByTestId(testIds.situation.item("elapsed"))).toBeVisible();
   await expect(addInfo.getByTestId(testIds.situation.item("section"))).toBeVisible();
-  await capture(page, "add-info");
+  await capture(page, "add-info-later");
 
   // 札を押すと原因を選び直せる
   await chip.click();
@@ -102,6 +161,7 @@ test("原因を答えて判断を出し直すと、情報を追加するは原�
 
 test("地図で両端の駅を押して見合わせ区間を足すと、区間を描き、判断が変わる", async ({ page }) => {
   await enterOsakaToSannomiya(page);
+  await finishEntry(page);
   const map = page.getByTestId(testIds.judgment.map);
   await expect(map).toHaveAttribute("data-blocked", "false");
   const before = await readJudgment(page);

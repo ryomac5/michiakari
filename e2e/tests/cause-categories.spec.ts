@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import type { Page, Request } from "@playwright/test";
 import { findFlowWording } from "../../apps/agent/src/domain/flow-wording.ts";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import { expectJudgmentOpened, openAddInfo, waitForJudgmentReady } from "../support/add-info.ts";
+import { finishEntry, openAddInfo, waitForJudgmentReady } from "../support/add-info.ts";
 import { openSheet } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -44,7 +44,7 @@ async function openJudgment(page: Page): Promise<Request> {
   await page.getByTestId(testIds.start.place("osaka")).click();
   const request = waitForJudgeRequest(page);
   await page.getByTestId(testIds.start.destinationCandidate("三ノ宮")).click();
-  await expectJudgmentOpened(page);
+  await finishEntry(page);
   return request;
 }
 

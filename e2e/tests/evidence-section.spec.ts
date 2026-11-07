@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { ANNOUNCEMENT_CUE_IDS } from "../../packages/schema/src/judgment.ts";
-import { expectJudgmentOpened, waitForJudgmentReady } from "../support/add-info.ts";
+import { finishEntry, waitForJudgmentReady } from "../support/add-info.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -53,7 +53,7 @@ async function startWithPaste(page: Page, locale: "ja" | "en", pasted: string): 
   await page.getByTestId(testIds.start.originOption("京橋")).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
-  await expectJudgmentOpened(page);
+  await finishEntry(page);
 
   // 発表文は判断が出てから情報を追加するで貼り、判断を出し直す
   await openSheet(page, "full");

@@ -2,11 +2,8 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Page, Request } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import {
-  addAnswers,
-  type CauseAnswerInput,
-  expectJudgmentAfterDirection,
-} from "../support/add-info.ts";
+import type { CauseAnswerInput } from "../support/add-info.ts";
+import { chooseDirectionIfAsked, finishEntry } from "../support/add-info.ts";
 import { chooseBetweenStations } from "../support/entry.ts";
 import { waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
@@ -36,8 +33,8 @@ async function startInCar(page: Page, entry: Entry): Promise<void> {
   await chooseBetweenStations(page, "JR神戸線", "大阪", "塚本");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expectJudgmentAfterDirection(page, "神戸");
-  await addAnswers(page, {
+  await chooseDirectionIfAsked(page, "神戸");
+  await finishEntry(page, {
     ...(entry.cause ? { cause: entry.cause } : {}),
     protection: entry.protection,
     elapsed: entry.elapsed,

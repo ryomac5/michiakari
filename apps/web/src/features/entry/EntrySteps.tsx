@@ -1,9 +1,62 @@
 "use client";
-import { ArrowUp, ChevronRight, HelpCircle, MapPin } from "lucide-react";
+
+import type { RawInput } from "@repo/schema";
+import {
+  Activity,
+  ArrowUp,
+  BellRing,
+  Camera,
+  ChevronRight,
+  ClipboardPaste,
+  Clock,
+  CloudLightning,
+  CloudRain,
+  Construction,
+  Flame,
+  HelpCircle,
+  Hourglass,
+  LoaderCircle,
+  type LucideIcon,
+  MapPin,
+  Pencil,
+  PlugZap,
+  Radio,
+  Siren,
+  Snowflake,
+  Timer,
+  TrafficCone,
+  TreePine,
+  VolumeX,
+  Wind,
+  Wrench,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import type { OriginLine } from "@/features/judgment/session";
 import { testIds } from "@/features/judgment/testids";
+import { formatClockTime } from "@/features/judgment/time";
+import {
+  type AskedKindId,
+  type CauseAnswer,
+  type CauseCategoryId,
+  type CauseChoiceId,
+  type CauseKindId,
+  causeChoiceIds,
+  listCauseKinds,
+  toCauseAnswer,
+} from "@/features/situation/cause-categories";
+import {
+  type ElapsedOption,
+  elapsedOptions,
+  type ResumeOptionId,
+  type ResumeTimeOption,
+} from "@/features/situation/plain-questions";
+import {
+  type ProtectionAnswer,
+  protectionAnswerIds,
+} from "@/features/situation/protection-broadcast";
+import { PastePanel, PhotoPanel } from "@/features/situation/SituationInput";
+import { type TicketAnswer, ticketAnswerIds } from "@/features/situation/ticket";
 import type { StationChoice } from "@/features/stations/catalog";
 import { StationSearch } from "@/features/stations/components/StationSearch";
 import { pickStationName } from "@/features/stations/describe";
@@ -13,7 +66,7 @@ import type { DirectionStop, EntryDirection } from "./directions";
 import { SheetTitle } from "./EntrySheet";
 import type { EntryArea, EntryLine, EntryPlace } from "./entry-places";
 import { pickLocalized, pickPlaceName } from "./entry-places";
-import { progressSteps } from "./flow";
+import { type EntryMethod, progressSteps } from "./flow";
 
 // 入口のシートの中身。段ごとに 1 つの問いだけを出し、答えはチップを 1 回押せば進む
 
@@ -623,5 +676,514 @@ export function TripCard({
         <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
       </button>
     </div>
+  );
+}
+
+// 「心斎橋 → 新大阪」。2 問目からは、ここまでの答えを 1 行に縮めて添える。押すと行き先を選び直せる
+export function TripLine({
+  originName,
+  destinationName,
+  line,
+  onEditDestination,
+}: {
+  originName: string;
+  destinationName: string;
+  line: OriginLine;
+  onEditDestination: () => void;
+}) {
+  const t = useTranslations("entry");
+  return (
+    <button
+      type="button"
+      data-testid={testIds.start.editDestination}
+      onClick={onEditDestination}
+      aria-label={`${originName} → ${destinationName}・${t("change")}`}
+      className="-mx-2 flex min-h-11 w-fit max-w-full items-center rounded-xl px-2 text-left hover:bg-foreground/[0.04]"
+    >
+      <Eyebrow>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <HereName name={originName} />
+          <ChevronRight className="size-3.5 shrink-0 text-muted" aria-hidden />
+          <span className="truncate">{destinationName}</span>
+        </span>
+        <LineTag line={line} />
+      </Eyebrow>
+    </button>
+  );
+}
+
+// 発表文や掲示を持っている人向けの、撮る・貼るの控えめな入口
+function MethodLinks({ onSelect }: { onSelect: (method: EntryMethod) => void }) {
+  const t = useTranslations("entry");
+  const link = (method: EntryMethod, icon: ReactNode) => (
+    <button
+      type="button"
+      data-testid={testIds.start.method(method)}
+      onClick={() => onSelect(method)}
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 font-semibold text-foreground transition-colors hover:bg-foreground/[0.06] active:scale-[0.97]"
+    >
+      {icon}
+      {t(`methods.${method}.title`)}
+    </button>
+  );
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-1 border-t border-foreground/10 pt-3 text-[13px] text-muted">
+      <span className="py-2.5 pr-1 font-medium">{t("withText")}</span>
+      {link("photo", <Camera className="size-4" strokeWidth={2} aria-hidden />)}
+      {link("paste", <ClipboardPaste className="size-4" strokeWidth={2} aria-hidden />)}
+    </div>
+  );
+}
+
+export function InputStep({
+  method,
+  trip,
+  busy,
+  onSubmit,
+}: {
+  method: EntryMethod;
+  trip: ReactNode;
+  busy: boolean;
+  onSubmit: (input: RawInput) => void;
+}) {
+  const t = useTranslations("entry");
+  return (
+    <>
+      <SheetTitle eyebrow={trip} title={t(`methods.${method}.heading`)} />
+      {method === "photo" && <PhotoPanel busy={busy} onSubmit={onSubmit} />}
+      {method === "paste" && <PastePanel busy={busy} onSubmit={onSubmit} />}
+    </>
+  );
+}
+
+// 答えたことを示すチップ。押すとその問いへ戻って選び直せる
+export type AnsweredItem = { kind: "cause" | "elapsed"; label: string; onEdit: () => void };
+
+function AnswerChips({ items }: { items: AnsweredItem[] }) {
+  const t = useTranslations("entry");
+  if (items.length === 0) return null;
+  // 横に並べ、収まらなければ折り返す。押せる高さは 44px のまま、見える札は低くして場所を取らない
+  return (
+    <div className="flex flex-wrap gap-x-1.5">
+      {items.map((item) => (
+        <button
+          key={item.kind}
+          type="button"
+          data-testid={testIds.start.answer(item.kind)}
+          onClick={item.onEdit}
+          aria-label={`${t(`answers.${item.kind}`)} ${item.label}・${t("change")}`}
+          className="group -my-1.5 inline-flex h-11 max-w-full min-w-0 items-center"
+        >
+          <span className="inline-flex h-8 max-w-full min-w-0 items-center gap-1 rounded-full bg-focus/[0.10] px-2.5 text-[12px] leading-none font-semibold text-focus transition-[transform,background-color] duration-150 group-hover:bg-focus/[0.16] group-active:scale-[0.97]">
+            <span className="truncate">{item.label}</span>
+            <Pencil className="size-3 shrink-0 opacity-70" strokeWidth={2.25} aria-hidden />
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// 問いの上に、行き先の 1 行とここまでの答えのチップを重ねる
+function QuestionEyebrow({ trip, answers }: { trip: ReactNode; answers: AnsweredItem[] }) {
+  return (
+    <div className="flex flex-col gap-2">
+      {trip}
+      <AnswerChips items={answers} />
+    </div>
+  );
+}
+
+const causeIcons: Record<CauseChoiceId, LucideIcon> = {
+  person: Siren,
+  inCar: BellRing,
+  vehicle: Wrench,
+  signaling: TrafficCone,
+  power: PlugZap,
+  obstruction: TreePine,
+  infrastructure: Construction,
+  weather: CloudRain,
+  major_accident: Flame,
+};
+
+const causeKindIcons: Record<CauseKindId, LucideIcon> = {
+  person: Siren,
+  inCar: BellRing,
+  rain: CloudRain,
+  wind: Wind,
+  snow: Snowflake,
+  lightning: CloudLightning,
+  earthquake: Activity,
+  other: HelpCircle,
+};
+
+// 原因や答えの大きな札。左に丸い印、右に言葉
+function AnswerCard({
+  testId,
+  icon,
+  label,
+  tone = "soft",
+  span = false,
+  stacked = false,
+  disabled = false,
+  pending = false,
+  onClick,
+}: {
+  testId: string;
+  icon: ReactNode;
+  label: string;
+  tone?: "soft" | "dashed";
+  span?: boolean;
+  // 印を言葉の上に置き、言葉に札の幅を全部使わせる。長い原因の名前を 2 行に収める
+  stacked?: boolean;
+  disabled?: boolean;
+  pending?: boolean;
+  onClick: () => void;
+}) {
+  const iconNode = pending ? <LoaderCircle className="size-5 animate-spin" /> : icon;
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        cardBase,
+        stacked ? "min-h-16 flex-col items-start justify-center gap-1 py-2" : "min-h-14",
+        "disabled:opacity-60",
+        tone === "soft"
+          ? softChip
+          : "border-[1.5px] border-dashed border-foreground/25 hover:bg-foreground/[0.05]",
+        span && "col-span-2",
+      )}
+    >
+      {stacked ? (
+        <span aria-hidden className={cn("flex size-5 shrink-0", tone === "dashed" && "text-muted")}>
+          {iconNode}
+        </span>
+      ) : (
+        <span
+          aria-hidden
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-full",
+            tone === "soft"
+              ? "bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.12)]"
+              : "bg-foreground/[0.05] text-muted",
+          )}
+        >
+          {iconNode}
+        </span>
+      )}
+      <span className="text-[15px] leading-snug font-bold text-balance">{label}</span>
+    </button>
+  );
+}
+
+// 1 問目。放送で聞いた原因の選択肢。人身事故と車内の急病人を分け、聞き取れなかったを同じ重さで並べる
+export function CauseStep({
+  onSelect,
+  onMethod,
+}: {
+  onSelect: (answer: CauseAnswer) => void;
+  onMethod: (method: EntryMethod) => void;
+}) {
+  const t = useTranslations("entry");
+  return (
+    <>
+      <SheetTitle title={t("causeQuestion")} />
+      <div className="grid grid-cols-2 gap-2">
+        {causeChoiceIds.map((id) => {
+          const Icon = causeIcons[id];
+          return (
+            <AnswerCard
+              key={id}
+              testId={testIds.start.cause(id)}
+              icon={<Icon className="size-5" strokeWidth={1.75} />}
+              label={t(`causes.${id}`)}
+              stacked
+              onClick={() => onSelect(toCauseAnswer(id))}
+            />
+          );
+        })}
+        <AnswerCard
+          testId={testIds.start.cause("unknown")}
+          icon={<HelpCircle className="size-5" strokeWidth={1.75} />}
+          label={t("causes.unknown")}
+          tone="dashed"
+          stacked
+          span={causeChoiceIds.length % 2 === 0}
+          onClick={() => onSelect({ category: null, kind: null })}
+        />
+      </div>
+      <MethodLinks onSelect={onMethod} />
+    </>
+  );
+}
+
+// 原因の続きの 1 問。大分類の中で事象が分かれるときだけ、近い種類を選ぶ
+export function CauseKindStep({
+  trip,
+  answers,
+  category,
+  onSelect,
+}: {
+  trip: ReactNode;
+  answers: AnsweredItem[];
+  category: CauseCategoryId;
+  onSelect: (kind: AskedKindId) => void;
+}) {
+  const t = useTranslations("entry");
+  const kinds = listCauseKinds(category);
+  return (
+    <>
+      <SheetTitle
+        eyebrow={<QuestionEyebrow trip={trip} answers={answers} />}
+        title={t("causeKindQuestion")}
+      />
+      <div className="grid grid-cols-2 gap-2">
+        {kinds.map((kind) => {
+          const Icon = causeKindIcons[kind];
+          return (
+            <AnswerCard
+              key={kind}
+              testId={testIds.start.causeKind(kind)}
+              icon={<Icon className="size-5" strokeWidth={1.75} />}
+              label={t(`causeKinds.${kind}`)}
+              tone={kind === "other" ? "dashed" : "soft"}
+              span={kind === "other" && kinds.length % 2 === 1}
+              onClick={() => onSelect(kind)}
+            />
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+const protectionIcons: Record<ProtectionAnswer, LucideIcon> = {
+  heard: Radio,
+  notHeard: VolumeX,
+  unsure: HelpCircle,
+};
+
+// 電車の中の人だけに聞く。止まったときに「信号を受信したため緊急停止」の放送を聞いたか
+export function ProtectionStep({
+  trip,
+  answers,
+  onSelect,
+}: {
+  trip: ReactNode;
+  answers: AnsweredItem[];
+  onSelect: (answer: ProtectionAnswer) => void;
+}) {
+  const t = useTranslations("entry");
+  return (
+    <>
+      <SheetTitle
+        eyebrow={<QuestionEyebrow trip={trip} answers={answers} />}
+        title={t("protectionQuestion")}
+      />
+      <div className="grid grid-cols-2 gap-2">
+        {protectionAnswerIds.map((id) => {
+          const Icon = protectionIcons[id];
+          return (
+            <AnswerCard
+              key={id}
+              testId={`start-protection-${id}`}
+              icon={<Icon className="size-5" strokeWidth={1.75} />}
+              label={t(`protection.${id}`)}
+              tone={id === "unsure" ? "dashed" : "soft"}
+              span={id === "unsure"}
+              onClick={() => onSelect(id)}
+            />
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+// 2 問目。止まってどれくらいか
+export function ElapsedStep({
+  trip,
+  answers,
+  onSelect,
+}: {
+  trip: ReactNode;
+  answers: AnsweredItem[];
+  onSelect: (option: ElapsedOption) => void;
+}) {
+  const t = useTranslations("entry");
+  return (
+    <>
+      <SheetTitle
+        eyebrow={<QuestionEyebrow trip={trip} answers={answers} />}
+        title={t("elapsedQuestion")}
+      />
+      <div className="grid grid-cols-2 gap-2">
+        {elapsedOptions.map((option) => (
+          <AnswerCard
+            key={option.id}
+            testId={testIds.start.elapsed(option.id)}
+            icon={
+              option.minutes === null ? (
+                <HelpCircle className="size-5" strokeWidth={1.75} />
+              ) : (
+                <Timer className="size-5" strokeWidth={1.75} />
+              )
+            }
+            label={t(`elapsed.${option.id}`)}
+            tone={option.minutes === null ? "dashed" : "soft"}
+            onClick={() => onSelect(option)}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
+// 再開見込みの答え。時刻を言っていたときだけ time を持つ
+export type ResumeAnswer = { id: ResumeOptionId; time: ResumeTimeOption | null };
+
+// 乗車券の種類。押しても先へ進まず、再開見込みの答えと一緒に送る。既定は分からない
+function TicketChoice({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: TicketAnswer;
+  disabled: boolean;
+  onChange: (answer: TicketAnswer) => void;
+}) {
+  const t = useTranslations("entry");
+  return (
+    <fieldset className="flex flex-col gap-1.5" disabled={disabled}>
+      <legend className="mb-1.5 text-[13px] font-semibold text-muted">{t("ticketQuestion")}</legend>
+      <div className="grid grid-cols-4 gap-1.5">
+        {ticketAnswerIds.map((id) => (
+          <button
+            key={id}
+            type="button"
+            data-testid={testIds.start.ticket(id)}
+            aria-pressed={value === id}
+            onClick={() => onChange(id)}
+            className={cn(
+              "inline-flex min-h-11 items-center justify-center rounded-xl px-1 text-center text-[13px] leading-tight font-bold transition-[transform,background-color] duration-150 active:scale-[0.96] disabled:opacity-60",
+              value === id ? "bg-focus/[0.12] text-focus ring-2 ring-focus" : softChip,
+            )}
+          >
+            {t(`ticket.${id}`)}
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+// 3 問目。再開の見込みを言っていたか。時刻を言っていたなら、その場で時刻を選ぶ
+// どの答えも押せばそのまま判断を始める。上に乗車券の種類を軽く聞き、答えと一緒に送る
+export function ResumeStep({
+  trip,
+  answers,
+  busy,
+  pending,
+  times,
+  ticket,
+  onTicket,
+  onSelect,
+}: {
+  trip: ReactNode;
+  answers: AnsweredItem[];
+  busy: boolean;
+  // 押した答えの id。時刻なら HHMM
+  pending: string | null;
+  times: ResumeTimeOption[];
+  ticket: TicketAnswer;
+  onTicket: (answer: TicketAnswer) => void;
+  onSelect: (answer: ResumeAnswer) => void;
+}) {
+  const t = useTranslations("entry");
+  const locale = useLocale();
+  const [statedOpen, setStatedOpen] = useState(false);
+  return (
+    <>
+      <QuestionEyebrow trip={trip} answers={answers} />
+      <TicketChoice value={ticket} disabled={busy} onChange={onTicket} />
+      <SheetTitle title={t("resumeQuestion")} />
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          data-testid={testIds.start.resume("stated")}
+          aria-expanded={statedOpen}
+          disabled={busy}
+          onClick={() => setStatedOpen((v) => !v)}
+          className={cn(
+            cardBase,
+            "col-span-2 min-h-14 disabled:opacity-60",
+            statedOpen ? "bg-focus/[0.10] ring-2 ring-focus" : softChip,
+          )}
+        >
+          <span
+            aria-hidden
+            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.12)]"
+          >
+            <Clock className="size-5" strokeWidth={1.75} />
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-[15px] leading-snug font-bold">{t("resume.stated")}</span>
+            <span className="text-[12px] leading-tight text-muted">{t("resume.statedNote")}</span>
+          </span>
+          <ChevronRight
+            className={cn(
+              "size-4 shrink-0 text-muted transition-transform duration-200",
+              statedOpen && "rotate-90",
+            )}
+            aria-hidden
+          />
+        </button>
+        {statedOpen && (
+          <div className="col-span-2 flex animate-step-in flex-col gap-2 rounded-2xl bg-foreground/[0.04] p-3">
+            <p className="text-[13px] font-semibold text-muted">{t("resumeTimeQuestion")}</p>
+            <div className="grid grid-cols-4 gap-2">
+              {times.map((time) => (
+                <button
+                  key={time.id}
+                  type="button"
+                  data-testid={testIds.start.resumeTime(time.id)}
+                  disabled={busy}
+                  onClick={() => onSelect({ id: "stated", time })}
+                  className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl bg-surface text-[15px] font-bold tabular-nums shadow-[0_1px_4px_rgb(0_0_0/0.10)] transition-[transform,background-color] duration-150 hover:bg-focus/[0.10] active:scale-[0.96] disabled:opacity-60"
+                >
+                  {pending === time.id && (
+                    <LoaderCircle className="size-4 animate-spin" aria-hidden />
+                  )}
+                  {formatClockTime(time.iso, locale)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* 言葉が長いので、3 つとも横いっぱいの札にして同じ重さで並べる */}
+        <AnswerCard
+          testId={testIds.start.resume("undecided")}
+          icon={<Hourglass className="size-5" strokeWidth={1.75} />}
+          label={t("resume.undecided")}
+          span
+          disabled={busy}
+          pending={pending === "undecided"}
+          onClick={() => onSelect({ id: "undecided", time: null })}
+        />
+        <AnswerCard
+          testId={testIds.start.resume("unknown")}
+          icon={<HelpCircle className="size-5" strokeWidth={1.75} />}
+          label={t("resume.unknown")}
+          tone="dashed"
+          span
+          disabled={busy}
+          pending={pending === "unknown"}
+          onClick={() => onSelect({ id: "unknown", time: null })}
+        />
+      </div>
+    </>
   );
 }

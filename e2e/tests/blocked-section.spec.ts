@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { addAnswers, expectJudgmentOpened } from "../support/add-info.ts";
+import { finishEntry } from "../support/add-info.ts";
 import { chooseBetweenStations } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
@@ -31,8 +31,7 @@ async function startBetweenStations(page: Page): Promise<void> {
   await chooseBetweenStations(page, "JR神戸線", "大阪", "塚本");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expectJudgmentOpened(page);
-  await addAnswers(page, {
+  await finishEntry(page, {
     cause: "person",
     protection: "notHeard",
     elapsed: "m10",
@@ -117,8 +116,7 @@ test("その列車だけが止まるときは、区間も区間を確かめる�
   await chooseBetweenStations(page, "JR神戸線", "大阪", "塚本");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expectJudgmentOpened(page);
-  await addAnswers(page, {
+  await finishEntry(page, {
     cause: "inCar",
     protection: "notHeard",
     elapsed: "m10",

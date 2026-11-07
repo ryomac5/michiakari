@@ -6,9 +6,9 @@ import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
 import {
-  addAnswers,
   type CauseAnswerInput,
-  expectJudgmentOpened,
+  chooseDirectionIfAsked,
+  finishEntry,
   openAddInfo,
 } from "../support/add-info.ts";
 import { chooseBetweenStations } from "../support/entry.ts";
@@ -53,8 +53,8 @@ type InCarEntry = {
   resumeAt: "first" | "last";
 };
 
-// 駅と駅の間の車内から、いる所と行き先だけを答えて判断を出す
-// 原因、止まってから 10 分くらい、放送で聞いた再開の見込みは、判断が出てから情報を追加するで足す
+// 駅と駅の間の車内から、入口の問いに答えて判断を出す
+// 原因、止まってから 10 分くらい、放送で聞いた再開の見込みを入口で答える
 async function startInCar(page: Page, entry: InCarEntry): Promise<void> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
@@ -63,16 +63,8 @@ async function startInCar(page: Page, entry: InCarEntry): Promise<void> {
   await chooseBetweenStations(page, entry.line, entry.from, entry.to);
   await page.getByTestId(testIds.start.destinationSearch).fill(entry.destinationQuery);
   await page.getByTestId(testIds.start.destinationOption(entry.destination)).click();
-  const direction = page.locator(`[data-testid="${testIds.start.screen}"][data-stage="direction"]`);
-  await expect(direction.or(page.getByTestId(testIds.judgment.screen))).toBeVisible({
-    timeout: 30_000,
-  });
-  if (await direction.isVisible())
-    await page
-      .locator(`[data-testid^='start-direction-'][data-testid$='.${entry.terminal}']`)
-      .click();
-  await expectJudgmentOpened(page);
-  await addAnswers(page, {
+  await chooseDirectionIfAsked(page, entry.terminal);
+  await finishEntry(page, {
     cause: entry.cause,
     elapsed: "m10",
     resume: { time: entry.resumeAt },
@@ -99,8 +91,7 @@ async function startAtStation(page: Page, entry: StationEntry): Promise<void> {
   await page.getByTestId(testIds.start.originOption(entry.origin)).click();
   await page.getByTestId(testIds.start.destinationSearch).fill(entry.destinationQuery);
   await page.getByTestId(testIds.start.destinationOption(entry.destination)).click();
-  await expectJudgmentOpened(page);
-  await addAnswers(page, { cause: entry.cause, elapsed: "m10", resume: "unknown" });
+  await finishEntry(page, { cause: entry.cause, elapsed: "m10", resume: "unknown" });
   await openSheet(page, "collapsed");
   await waitForMapReady(page);
   await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(

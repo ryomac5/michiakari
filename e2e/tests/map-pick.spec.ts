@@ -3,8 +3,8 @@ import { fileURLToPath } from "node:url";
 import type { Locator, Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { expectJudgmentOpened } from "../support/add-info.ts";
-import { backToTrip, chooseTrainDirection } from "../support/entry.ts";
+import { finishEntry } from "../support/add-info.ts";
+import { chooseTrainDirection, expectTripCard } from "../support/entry.ts";
 import { waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -115,14 +115,13 @@ for (const viewport of [
       // 福島を地図で押すと行き先が福島になり、選んだ路線と方面のまま判断へ進む
       await waitForMapStill(page);
       await fukushima.click();
-      await backToTrip(page);
+      await expectTripCard(page);
       await expect(page.getByTestId(testIds.start.trip)).toContainText("福島");
       await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("JR環状線");
       await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("天王寺");
 
       // 行程の札の下のボタンで判断を出し直すと、判断も環状線で出る
-      await page.getByTestId(testIds.start.judge).click();
-      await expectJudgmentOpened(page);
+      await finishEntry(page);
       await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible();
       await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("環状線");
     });
@@ -190,7 +189,7 @@ for (const viewport of [
       const temma = await page.getByTestId(testIds.start.mapStop("pick-天満")).boundingBox();
       if (!temma) throw new Error("天満の印がありません");
       await page.mouse.click(temma.x + temma.width / 2, temma.y + temma.height / 2);
-      await backToTrip(page);
+      await expectTripCard(page);
       await expect(page.getByTestId(testIds.start.trip)).toContainText("天満");
       await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("JR環状線");
       await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("鶴橋");
@@ -209,13 +208,12 @@ for (const viewport of [
       // 天満の印の丸の外で、何も無い所を押す
       const point = await findOpenPointNear(page, testIds.start.mapStop("pick-天満"));
       await page.mouse.click(point.x, point.y);
-      await backToTrip(page);
+      await expectTripCard(page);
       await expect(page.getByTestId(testIds.start.trip)).toContainText("天満");
       await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("JR環状線");
       await capture(page, "temma-tap", size);
 
-      await page.getByTestId(testIds.start.judge).click();
-      await expectJudgmentOpened(page);
+      await finishEntry(page);
       await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible();
       await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("環状線");
     });
@@ -241,7 +239,7 @@ test.describe("地図と一覧の同期", () => {
     await expect(page.getByTestId(testIds.start.mapStop("destination-福島"))).toBeVisible();
     // 一覧で福島を選ぶと判断へ進む。戻ると、地図には行き先のピンが出る
     await page.getByTestId(testIds.start.destinationCandidate("福島")).click();
-    await backToTrip(page);
+    await expectTripCard(page);
     await expect(page.getByTestId(testIds.start.destinationPin)).toBeVisible();
 
     // 戻るは行き先、方面、路線の順に 1 段ずつ引く
@@ -273,16 +271,15 @@ test.describe("地図と一覧の同期", () => {
     // 環状線の方面の外の三ノ宮を検索で選ぶと、神戸線と推定する
     await page.getByTestId(testIds.start.destinationSearch).fill("三ノ宮");
     await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-    await backToTrip(page);
+    await expectTripCard(page);
     await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("JR神戸線");
     // 戻って環状線の福島を選ぶと、画面も判断も環状線になる
     await page.getByTestId(testIds.start.back).click();
     await expectStage(page, "destination");
     await page.getByTestId(testIds.start.destinationCandidate("福島")).click();
-    await backToTrip(page);
+    await expectTripCard(page);
     await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("JR環状線");
-    await page.getByTestId(testIds.start.judge).click();
-    await expectJudgmentOpened(page);
+    await finishEntry(page);
     await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("環状線", {
       timeout: 30_000,
     });

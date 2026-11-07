@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { addAnswers, expectJudgmentOpened } from "../support/add-info.ts";
+import { addAnswers, finishEntry } from "../support/add-info.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -31,7 +31,7 @@ async function answerWithStatedTime(
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expectJudgmentOpened(page);
+  await finishEntry(page);
   // 原因は答えず、止まってからの時間と放送で聞いた再開見込みの時刻だけを足す
   // 最初は 0〜10 分先で分岐点より前、最後は 70〜80 分先で分岐点より十分後になる
   // 原因が分からないときも初列車待ちを規則表の区間の値で見込むので、2 つ目は分岐点の近くになる

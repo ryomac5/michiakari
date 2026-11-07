@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import type { JudgmentEvent } from "../../packages/schema/src/index.ts";
-import { addAnswers, expectJudgmentOpened } from "../support/add-info.ts";
+import { finishEntry } from "../support/add-info.ts";
 import { chooseBetweenStations } from "../support/entry.ts";
 import {
   openReplay,
@@ -168,8 +168,7 @@ async function startFromEntry(page: Page, elapsed: "m10" | "unknown"): Promise<v
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
-  await expectJudgmentOpened(page);
-  await addAnswers(page, { cause: "inCar", elapsed, resume: "unknown" });
+  await finishEntry(page, { cause: "inCar", elapsed, resume: "unknown" });
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
 }
 
@@ -182,8 +181,7 @@ async function startBetweenStations(page: Page): Promise<void> {
   await chooseBetweenStations(page, "JR神戸線", "大阪", "塚本");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expectJudgmentOpened(page);
-  await addAnswers(page, {
+  await finishEntry(page, {
     cause: "person",
     protection: "notHeard",
     elapsed: "m10",
