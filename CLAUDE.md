@@ -19,7 +19,6 @@ Built with Claude: Japan 2026 ハッカソン（2026/11/2〜11/8）の提出作�
 | `docs/roadmap.md` | マイルストーン、作業の流れ（WS）の分担、完了条件 |
 | `docs/goals.md` | `/goal` で自律的に作業するときの規則 |
 | `docs/progress.md` | 作業記録。各ターンの終わりに追記する |
-| `knowledge/README.md` | 指令員の知見ナレッジの書式 |
 | `docs/guides/claude-code-usage.html` | Claude Code での作り方。フック、委譲、guard、メモリ |
 
 担当するWSが決まっている場合は、`docs/roadmap.md` の該当箇所を必ず読んでから着手する。
@@ -28,11 +27,13 @@ Built with Claude: Japan 2026 ハッカソン（2026/11/2〜11/8）の提出作�
 
 1. **権利のないデータを使わない。** `docs/data-sources.md` に記載のないデータ源を追加する場合は、実装前にライセンスを確認し、同文書に追記してから使う。
 2. **鉄道事業者の運行情報・列車走行位置を自動取得しない。** スクレイピング、非公式APIの利用は禁止。運行情報は利用者が持ち込む（撮影・貼り付け・選択入力）。
-3. **社内情報を含めない。** 規制値、社内規程、内部手順の数値をコード・ナレッジ・テストデータに書かない。知見は外から観察できる兆候で定義する。
+3. **社内情報を含めない。** 規制値、社内規程、内部手順の数値をコード・文書・テストデータに書かない。規則は外から観察できる兆候で定義する。
 4. **秘密情報をコミットしない。** APIキーは環境変数のみ。`.env*` はコミットしない。キー名だけを書いた `.env.example` は例外としてコミットする。フロントエンドにキーを渡さない。
-5. **`knowledge/` と `scenarios/` は開発者本人が書く。** エージェントは読むだけで、作成・変更しない（フックで遮断される）。内容に問題を見つけたら `docs/progress.md` の「開発者に確認したいこと」に書く。
-6. **シナリオは架空。** 実在の事故記録や公式発表文を転載しない。
-7. **推定であることを隠さない。** 利用者向け出力には、推定である旨と公式発表を優先すべき旨を必ず含める。
+5. **`scenarios/` は開発者本人が書く。** エージェントは読むだけで、作成・変更しない（フックで遮断される）。内容に問題を見つけたら `docs/progress.md` の「開発者に確認したいこと」に書く。
+6. **開発者の知見の材料はリポジトリの外に置く。** 材料はリポジトリに入れず、文をコード・テスト・文書に写さない。材料から得た値は `packages/core` の規則表に「開発者の推定」として置く。
+7. **シナリオは架空。** 実在の事故記録や公式発表文を転載しない。
+8. **推定であることを隠さない。** 利用者向け出力には、推定である旨と公式発表を優先すべき旨を必ず含める。
+9. **利用者に事象の段階の説明を出さない。** 段階の名前も「いまは◯◯の段階です」という説明も出さない。
 
 ## 技術スタック
 
@@ -52,38 +53,36 @@ apps/
   web/            Next.js 画面
   agent/          判断エージェント（Hono + Anthropic SDK）
 packages/
-  schema/         Zod スキーマ（ナレッジ、観測、イベント、判断結果、シナリオ）
-  core/           決定論的な計算（分岐点、到着時刻、運賃、残り時間）
+  schema/         Zod スキーマ（観測、イベント、判断結果、シナリオ）
+  core/           決定論的な計算（分岐点、到着時刻、運賃、残り時間）と事象の振る舞いの規則表
   geo/            路線・駅・徒歩時間の参照
   data/           前処理スクリプトと SQL
-knowledge/        指令員の知見ナレッジ（YAML、開発者が記述）
 scenarios/        リプレイ用の架空シナリオと期待する振る舞い（YAML、開発者が記述）
 infra/            エージェントのコンテナ定義
 docs/             設計文書、作業記録
 .claude/          Claude Code の設定とフック
 ```
 
-テスト用の固定データは各パッケージの `test/fixtures/` に置く。`knowledge/` と `scenarios/` には置かない。
+テスト用の固定データは各パッケージの `test/fixtures/` に置く。`scenarios/` には置かない。
 
 ## よく使うコマンド
 
 ```bash
 pnpm install
 pnpm dev                 # web と agent を同時起動
-pnpm dev:demo            # web と agent をダミーの知見・シナリオと決定論モードで起動
+pnpm dev:demo            # web と agent をダミーのシナリオと決定論モードで起動
 pnpm build               # 全パッケージをビルド
 pnpm test                # 全パッケージの単体テスト
 pnpm test:e2e            # シナリオの振る舞いテスト（Playwright）。決定論モードの agent とダミー内容で動く
 pnpm --filter e2e record # デモ動画を録画。出力は e2e/recordings/（git 管理外）。最初の画面から切り出した demo.webm、場面と結末の静止画、場面ごとの秒の scenes.json も同じ場所に出る
 pnpm lint && pnpm typecheck
 pnpm format              # Biome で整形
-pnpm validate            # knowledge/ と scenarios/ の YAML と雛形の整合を検証
-pnpm validate:dev        # ダミーの知見・シナリオで同じ検証を行う
-pnpm validate --watch    # knowledge/ と scenarios/ の変更を監視し、そのつど検証する
-pnpm knowledge:new <event_id>                         # 開発者専用。雛形から知見を作る。ALLOW_PROTECTED_EDIT=1 が必要
+pnpm validate            # scenarios/ の YAML と雛形の整合を検証
+pnpm validate:dev        # ダミーのシナリオで同じ検証を行う
+pnpm validate --watch    # scenarios/ の変更を監視し、そのつど検証する
 pnpm scenario:new <scenario_id> --event <event_id>    # 開発者専用。雛形からシナリオを作る。ALLOW_PROTECTED_EDIT=1 が必要
 pnpm smoke:claude        # 実 API で claude モードを 1 回動かす確認。pnpm test には含めない。キーが無ければ案内して exit 0
-pnpm guard               # knowledge/ と scenarios/ を承認記録との照合、ブランチ差分、シンボリックリンク、内容検証で確認
+pnpm guard               # scenarios/ を承認記録との照合、ブランチ差分、シンボリックリンク、内容検証で確認。PRIVATE_NOTES_DIR の材料の文が追跡中のファイルに無いことも確かめる
 pnpm guard:approve       # 開発者専用。ALLOW_PROTECTED_EDIT=1 と TTY での確認が必要
 pnpm data:build          # 前処理（国土数値情報から路線・駅・駅間距離の GeoJSON と JSON を生成）
 ```

@@ -56,6 +56,8 @@
 ### 2026-11-07 / guard / knowledge/ を使わない方針に合わせて guard と保護を直した
 - やったこと: PROTECTED_DIRS を scenarios だけにし、knowledge/ の非追跡と非公開の材料の混入の検査を足した。knowledge:new と guard の知見分を外し、compose と Dockerfile と deploy.html の CONTENT_DIR をシナリオだけの意味に直した。hook の修正は staging/A2.patch に分けた。開発者が適用する。
 - 確認結果: pnpm guard、PRIVATE_NOTES_DIR 付きの pnpm guard、pnpm test、pnpm lint、git apply --check staging/A2.patch。
+### 2026-11-07 / 文書 / 知見を非公開の材料にし、判断を規則表と統計値で出す方針に設計文書を書き直す
+- CLAUDE.md、README.md、architecture.md、vision.md、goals.md、roadmap.md、data-sources.md と手順書 3 本を直した。実装は別の作業で行う。
 
 ### 2026-11-07 / 入口 / 線を押して出した駅の間の候補を地図で光らせる
 - 開発者の声は「選べたことが分かりにくい。候補が光ったりしないの」だった。
