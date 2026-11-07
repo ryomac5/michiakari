@@ -3,6 +3,7 @@ import { createGeoProvider } from "./alternatives/geo-provider.ts";
 import { createApp } from "./app.ts";
 import {
   defaultPort,
+  models,
   resolveCorsOrigins,
   resolveJudgeMode,
   resolveRateLimitPerWindow,
@@ -33,6 +34,12 @@ const app = createApp({
   rateLimitPerWindow: resolveRateLimitPerWindow(),
   trustProxy: resolveTrustProxy(),
 });
+
+if (mode === "claude") {
+  console.log(
+    `claude mode: judgment=${models.judgment}, interpretation=${models.interpretation}, apiKey=${Boolean(process.env.ANTHROPIC_API_KEY)}`,
+  );
+}
 
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(

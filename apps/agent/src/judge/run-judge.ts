@@ -11,6 +11,7 @@ import type { RainFetcher } from "../tools/types.ts";
 import { assembleJudgment } from "./assemble.ts";
 import { attachBusChecks } from "./bus-checks.ts";
 import { runClaudeJudgment } from "./claude-judge.ts";
+import { describeError } from "./describe-error.ts";
 import { decideDeterministically } from "./deterministic-decision.ts";
 import type { EventSink, JudgmentEventBody } from "./event-sink.ts";
 import { createJudgeSession, type JudgeSession } from "./session.ts";
@@ -81,9 +82,7 @@ async function interpretNewInput(
     });
   } catch (error) {
     if (signal?.aborted) return null;
-    deps.logWarning(
-      `解釈を決定論モードに切り替えました: ${error instanceof Error ? error.name : "unknown"}`,
-    );
+    deps.logWarning(`解釈を決定論モードに切り替えました: ${describeError(error)}`);
     return deterministic();
   }
 }
@@ -230,9 +229,7 @@ export async function runJudge(
       deps.logWarning(`判断を決定論モードに切り替えました: ${outcome.reason}`);
     } catch (error) {
       if (signal?.aborted) return;
-      deps.logWarning(
-        `判断を決定論モードに切り替えました: ${error instanceof Error ? error.name : "unknown"}`,
-      );
+      deps.logWarning(`判断を決定論モードに切り替えました: ${describeError(error)}`);
     }
   }
   await finishDeterministically(session, sink);
