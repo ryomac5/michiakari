@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import { chooseBetweenStations } from "../support/entry.ts";
+import { backToTrip, chooseBetweenStations } from "../support/entry.ts";
 import { projectOnPage } from "../support/map-view.ts";
 import { waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
@@ -98,7 +98,7 @@ test.describe("方面ごとのまとまり 390x844", () => {
 
     // まとまりの駅を押すと、方面を聞かずに様子へ進む
     await page.getByTestId(testIds.start.destinationCandidate("京橋")).click();
-    await expectStage(page, "cause");
+    await backToTrip(page);
     await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("鶴橋");
   });
 
@@ -117,7 +117,7 @@ test.describe("方面ごとのまとまり 390x844", () => {
 
     // まとまりの駅を押すと、方面を聞かずに様子へ進む
     await page.getByTestId(testIds.start.destinationCandidate("三ノ宮")).click();
-    await expectStage(page, "cause");
+    await backToTrip(page);
   });
 
   test("吹田で阪急千里線を選ぶと、北千里の側と天神橋筋六丁目の側に分かれる", async ({ page }) => {
@@ -144,7 +144,7 @@ test.describe("行き先までの光 1280x800", () => {
     await openStation(page, "大阪");
     await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
     await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-    await expectStage(page, "cause");
+    await backToTrip(page);
     const map = page.getByTestId(testIds.start.map);
     await expect(map).toHaveAttribute("data-route-legs", "1");
     expect(measureMeters(await readPoint(page, "data-route-start"), osaka)).toBeLessThan(300);
@@ -159,7 +159,7 @@ test.describe("行き先までの光 1280x800", () => {
     await openMap(page);
     await chooseBetweenStations(page, "JR神戸線", "塚本", "尼崎");
     await page.getByTestId(testIds.start.destinationCandidate("三ノ宮")).click();
-    await expectStage(page, "cause");
+    await backToTrip(page);
     const start = await readPoint(page, "data-route-start");
     const span = measureMeters(tsukamoto, amagasaki);
     expect(measureMeters(start, tsukamoto)).toBeLessThan(span);
@@ -172,7 +172,7 @@ test.describe("行き先までの光 1280x800", () => {
     await openStation(page, "大阪");
     await page.getByTestId(testIds.start.routeLine(loopLine)).click();
     await page.getByTestId(testIds.start.destinationCandidate("京橋")).click();
-    await expectStage(page, "cause");
+    await backToTrip(page);
     const map = page.getByTestId(testIds.start.map);
     await expect(map).toHaveAttribute("data-route-meters", /\d+/);
     const short = Number(await map.getAttribute("data-route-meters"));
@@ -186,7 +186,7 @@ test.describe("行き先までの光 1280x800", () => {
     await page
       .locator(`[data-testid^='start-direction-${loopLine}>'][data-testid$='.天王寺']`)
       .click();
-    await expectStage(page, "cause");
+    await backToTrip(page);
     await expect(map).not.toHaveAttribute("data-route-meters", String(short));
     const long = Number(await map.getAttribute("data-route-meters"));
     expect(long).toBeGreaterThan(short * 2);
@@ -207,7 +207,7 @@ test.describe("行き先までの光 1280x800", () => {
       .filter({ hasText: "京都" })
       .first()
       .click();
-    await expectStage(page, "cause");
+    await backToTrip(page);
     const map = page.getByTestId(testIds.start.map);
     await expect(map).toHaveAttribute("data-route-legs", /^[2-9]$/);
     await capture(page, "transfer", false);
@@ -218,7 +218,7 @@ test.describe("行き先までの光 1280x800", () => {
     await openStation(page, "大阪");
     await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
     await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-    await expectStage(page, "cause");
+    await backToTrip(page);
     await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-route-legs", "1");
     await capture(page, "reduced-motion");
   });
@@ -239,7 +239,7 @@ for (const viewport of [
       await openStation(page, "大阪");
       await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
       await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-      await expectStage(page, "cause");
+      await backToTrip(page);
       const map = page.getByTestId(testIds.start.map);
       await expect(map).toHaveAttribute("data-route-legs", "1");
       await expect(map).toHaveAttribute("data-moving", "false");
@@ -253,8 +253,8 @@ for (const viewport of [
         expect(point.y, name).toBeGreaterThan(header.y + header.height);
         expect(point.y, name).toBeLessThan(sheet.y);
       }
-      // 選択肢はシートの中で送って選べる
-      await expect(page.getByTestId(testIds.start.cause("unknown"))).toBeAttached();
+      // 行程の札の下のボタンで、判断を出し直せる
+      await expect(page.getByTestId(testIds.start.judge)).toBeAttached();
       await capture(page, `phone-flow-1-${size}`, false);
       await page.waitForTimeout(250);
       await capture(page, `phone-flow-2-${size}`, false);

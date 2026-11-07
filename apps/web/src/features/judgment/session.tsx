@@ -20,8 +20,16 @@ import {
   useRef,
   useState,
 } from "react";
-import type { CauseAnswer, EntryMethod, EntryState } from "@/features/entry/flow";
-import type { ElapsedOption } from "@/features/situation/plain-questions";
+import type { EntryState } from "@/features/entry/flow";
+import {
+  type AddedAnswers,
+  applyAddedAnswers,
+  buildCauseInput,
+  emptyAddedAnswers,
+  resolveAnswerRequestValues,
+} from "@/features/situation/added-answers";
+import { type CauseAnswer, resolveCauseIncidentType } from "@/features/situation/cause-categories";
+import { findElapsedOption } from "@/features/situation/plain-questions";
 import { applyTrainMovement } from "@/features/situation/train-movement";
 import type { NearestStationLabel, StationNames } from "@/features/stations/describe";
 import { JudgmentChangeContext } from "./components/JudgmentChangeCard";
@@ -81,10 +89,19 @@ type JudgmentSession = {
   ) => void;
   // 入口で答えた乗車券の種類。入口に戻ったときに選んだ状態を復元する
   ticketType: TicketType | null;
+  // 判断の画面で足した答え。札に出し、押せば直せる
+  addedAnswers: AddedAnswers;
+  // 答えを足すか直し、同じ観測で判断を出し直す
+  addAnswer: (patch: Partial<AddedAnswers>) => void;
+  // 地図で止まっている区間の両端を選んでいる間の状態。first は先に押した駅
+  sectionPick: SectionPick | null;
+  setSectionPick: (pick: SectionPick | null) => void;
   // startJudgment で預けた判断を流し始める。判断の画面が開いたときに呼ぶ
   resumeJudgment: () => void;
   retry: () => void;
 };
+
+export type SectionPick = { first: string | null };
 
 export type OriginLine = {
   key: string;
@@ -114,18 +131,16 @@ export type TripContext = {
   directionStopNames?: string[];
   // 前の列車の既定の並びを運転パターンから推し量ったか。入口に戻ったときに復元する
   trainsAheadFromPattern?: boolean;
-  // 止まってからの分。分からなければ null。選んで答えたときだけ持つ
+  // 止まってからの分。分からなければ null。情報を追加するで答えたときだけ持つ
   elapsedMinutes?: number | null;
-  // 原因が分からないか、選んだ大分類で種類が決まらない。選んで答えたときだけ持つ
+  // 原因が分からないか、選んだ大分類で種類が決まらない。情報を追加するで答えたときだけ持つ
   causeUnknown?: boolean;
-  // 様子の段で答えたこと。入口に戻ったとき、最後に答えた問いから再開する
+  // 情報を追加するで答えた原因
   entryAnswers?: EntryAnswers;
 };
 
 export type EntryAnswers = {
-  method: EntryMethod | null;
   cause: CauseAnswer | null;
-  elapsed: ElapsedOption["id"] | null;
 };
 
 // 車内の前提のうち、利用者が判断の画面で直した項目と、前の列車の並びの出どころ
@@ -167,6 +182,8 @@ export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
   // 入口で答えた乗車券の種類。原因と同じく、出し直しでも同じものを送る
   const ticketTypeRef = useRef<TicketType | null>(null);
   const [ticketType, setTicketType] = useState<TicketType | null>(null);
+  const [addedAnswers, setAddedAnswers] = useState<AddedAnswers>(emptyAddedAnswers);
+  const [sectionPick, setSectionPick] = useState<SectionPick | null>(null);
 
   useEffect(() => {
     setMockEnabled(isMockRequested(window.location.search));
@@ -255,6 +272,8 @@ export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
       protectionBroadcastRef.current = protectionBroadcast;
       ticketTypeRef.current = ticket;
       setTicketType(ticket);
+      setAddedAnswers(emptyAddedAnswers);
+      setSectionPick(null);
       setObservations(seed);
       pendingRef.current = { input, seed };
       // 新しい行程では前の行程の判断と比べない
@@ -269,6 +288,41 @@ export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
     pendingRef.current = null;
     void runJudgment(pending.input, pending.seed);
   }, [runJudgment]);
+
+  // 足した答えは判断のたびに送る値に映し、観測を直してから判断を出し直す
+  const addAnswer = useCallback(
+    (patch: Partial<AddedAnswers>) => {
+      const next = { ...addedAnswers, ...patch };
+      setAddedAnswers(next);
+      const values = resolveAnswerRequestValues(next);
+      causeRef.current = values.cause;
+      protectionBroadcastRef.current = values.protectionBroadcast;
+      ticketTypeRef.current = values.ticketType;
+      setTicketType(values.ticketType);
+      const known = applyAddedAnswers(observations, next, patch, new Date());
+      setObservations(known);
+      setTripContext((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...("elapsed" in patch
+                ? {
+                    elapsedMinutes: next.elapsed ? findElapsedOption(next.elapsed).minutes : null,
+                  }
+                : {}),
+              ...("cause" in patch
+                ? {
+                    causeUnknown: resolveCauseIncidentType(next.cause) === null,
+                    entryAnswers: { cause: next.cause },
+                  }
+                : {}),
+            }
+          : prev,
+      );
+      void runJudgment("cause" in patch ? buildCauseInput(next.cause) : null, known);
+    },
+    [addedAnswers, observations, runJudgment],
+  );
 
   const retry = useCallback(() => {
     void runJudgment(lastInputRef.current, observations);
@@ -316,6 +370,10 @@ export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
       submitInput,
       startJudgment,
       ticketType,
+      addedAnswers,
+      addAnswer,
+      sectionPick,
+      setSectionPick,
       resumeJudgment,
       retry,
     }),
@@ -337,6 +395,9 @@ export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
       submitInput,
       startJudgment,
       ticketType,
+      addedAnswers,
+      addAnswer,
+      sectionPick,
       resumeJudgment,
       retry,
     ],

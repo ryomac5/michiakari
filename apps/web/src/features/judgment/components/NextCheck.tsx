@@ -67,18 +67,21 @@ function usePremises(): string[] {
   return items;
 }
 
-// 入口で答えた原因の前提。大分類を選んだら呼び名を出し、見込みが無ければ境目の時刻を目安にすると添える
+// 答えた原因の前提。大分類を選んだら呼び名を出し、見込みが無ければ境目の時刻を目安にすると添える
 // 知見が無くても統計値から見込みが出ていれば、呼び名だけを出す。見込みの出どころは説明しない
 function describeCausePremise(
   tripContext: TripContext,
   source: EstimateSource | undefined,
 ): { key: "cause" | "causeNoPattern" | "causeUnknown"; choice: CauseChoiceId | null } | null {
-  if (tripContext.causeUnknown === undefined) return null;
   const answer = tripContext.entryAnswers?.cause;
   const choice = answer ? toCauseChoiceId(answer) : null;
-  if (!tripContext.causeUnknown || source === "statistics") {
+  // 原因を答えていなければ、原因は分からないとみなす
+  const unknown = tripContext.causeUnknown ?? true;
+  if (!unknown || source === "statistics") {
     return choice ? { key: "cause", choice } : null;
   }
+  // 答えていなくても、発表から種類が分かって見込みを出せたなら、未確認とは言わない
+  if (!choice && source === "rule") return null;
   return { key: choice ? "causeNoPattern" : "causeUnknown", choice };
 }
 

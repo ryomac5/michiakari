@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { answerProtection, chooseBetweenStations } from "../support/entry.ts";
+import { addAnswers, type CauseAnswerInput, expectJudgmentOpened } from "../support/add-info.ts";
+import { chooseBetweenStations } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -34,7 +35,7 @@ async function waitForMapReady(page: Page): Promise<void> {
   });
 }
 
-// 塚本から大阪へ向かう途中、塚本と大阪の間で人身事故により止まり、受信の放送を聞いた
+// 塚本から大阪へ向かう途中、塚本と大阪の間で人身事故により止まり、受信の放送を聞いた。判断が出てから足す
 async function startInCarToOsaka(page: Page): Promise<void> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
@@ -43,30 +44,34 @@ async function startInCarToOsaka(page: Page): Promise<void> {
   await chooseBetweenStations(page, "JR神戸線", "塚本", "大阪");
   await page.getByTestId(testIds.start.destinationSearch).fill("きょうと");
   await page.getByTestId(testIds.start.destinationOption("京都")).click();
-  const screen = page.getByTestId(testIds.start.screen);
-  await expect(screen).toHaveAttribute("data-stage", /^(cause|direction)$/);
-  if ((await screen.getAttribute("data-stage")) === "direction")
+  const direction = page.locator(`[data-testid="${testIds.start.screen}"][data-stage="direction"]`);
+  await expect(direction.or(page.getByTestId(testIds.judgment.screen))).toBeVisible({
+    timeout: 30_000,
+  });
+  if (await direction.isVisible())
     await page
       .locator("[data-testid^='start-direction-']:not([data-testid$='.神戸'])")
       .first()
       .click();
-  await expect(screen).toHaveAttribute("data-stage", "cause");
-  await page.getByTestId(testIds.start.cause("person")).click();
-  await answerProtection(page, "heard");
-  await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  await expectJudgmentOpened(page);
+  await addAnswers(page, {
+    cause: "person",
+    protection: "heard",
+    elapsed: "m10",
+    resume: "unknown",
+  });
+  await openSheet(page, "collapsed");
 }
 
 type StationEntry = {
   origin: string;
   destinationQuery: string;
   destination: string;
-  cause: string;
+  cause: CauseAnswerInput;
   action: "wait" | "switch";
 };
 
-// 駅にいる人の入口を答えて判断を出す。止まってから 10 分くらい、見込みは聞いていない
+// 駅にいる人の入口を答えて判断を出し、原因と止まってから 10 分くらいを足す。見込みは聞いていない
 async function startAtStation(page: Page, entry: StationEntry): Promise<void> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
@@ -77,10 +82,9 @@ async function startAtStation(page: Page, entry: StationEntry): Promise<void> {
   await page.getByTestId(testIds.start.originOption(entry.origin)).click();
   await page.getByTestId(testIds.start.destinationSearch).fill(entry.destinationQuery);
   await page.getByTestId(testIds.start.destinationOption(entry.destination)).click();
-  await page.getByTestId(testIds.start.cause(entry.cause)).click();
-  await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  await expectJudgmentOpened(page);
+  await addAnswers(page, { cause: entry.cause, elapsed: "m10", resume: "unknown" });
+  await openSheet(page, "collapsed");
   await waitForMapReady(page);
   await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
     "data-action",

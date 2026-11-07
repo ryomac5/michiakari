@@ -21,6 +21,10 @@ export const mapTestIds = {
   blockedTag: "judgment-map-blocked-tag",
   // 発表に区間が無いときも出さない札。出ないことをテストで確かめるための識別子
   sectionNote: "judgment-map-section-note",
+  // 止まっている区間の両端を地図で選ぶ間の案内と、押せる駅の印
+  sectionPick: "judgment-map-section-pick",
+  sectionPickCancel: "judgment-map-section-pick-cancel",
+  sectionPickStation: (name: string) => `judgment-map-pick-${name}`,
   // 一覧で選んだ経路を描いているときの「表示中」の札
   selectedRoute: "judgment-map-selected-route",
   // 札が地図に収まらないときに、札を移す上端の一覧と、その駅の行

@@ -7,6 +7,7 @@ import en from "../../apps/web/messages/en.json" with { type: "json" };
 import ja from "../../apps/web/messages/ja.json" with { type: "json" };
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
+import { expectJudgmentOpened, waitForJudgmentReady } from "../support/add-info.ts";
 import {
   loadReplayScenarios,
   openReplay,
@@ -62,17 +63,24 @@ test.describe("通常画面の判断の変化", () => {
 
     await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
     await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-    await page.getByTestId(testIds.start.method("paste")).click();
-    await page.getByTestId(testIds.situation.pasteInput).fill("人身事故で運転を見合わせています。");
-    await page.getByTestId(testIds.situation.submit("paste")).click();
-    await expect(page.getByTestId(testIds.judgment.screen)).toBeVisible({ timeout: 30_000 });
-    await expect(page).toHaveURL(/\/judgment$/);
+    await expectJudgmentOpened(page);
+
+    // 最初の発表文も、判断が出てから情報を追加するで貼る
+    await openSheet(page, "full");
+    const addInfo = page.getByTestId(testIds.judgment.addInfo);
+    await addInfo.scrollIntoViewIfNeeded();
+    await addInfo.getByTestId(testIds.situation.tab("paste")).click();
+    await addInfo
+      .getByTestId(testIds.situation.pasteInput)
+      .fill("人身事故で運転を見合わせています。");
+    await addInfo.getByTestId(testIds.situation.submit("paste")).click();
+    await waitForJudgmentReady(page);
     const conclusion = page.getByTestId(testIds.judgment.conclusion);
     await expect(conclusion).toHaveAttribute("data-action", "wait", { timeout: 30_000 });
     await expect(page.getByTestId(testIds.judgment.change)).toHaveCount(0);
 
     await openSheet(page, "full");
-    const addInfo = page.getByTestId(testIds.judgment.addInfo);
+    await addInfo.scrollIntoViewIfNeeded();
     await addInfo.getByTestId(testIds.situation.tab("paste")).click();
     await addInfo.getByTestId(testIds.situation.pasteInput).fill("振替輸送を実施しています。");
     await addInfo.getByTestId(testIds.situation.submit("paste")).click();

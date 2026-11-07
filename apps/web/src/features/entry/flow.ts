@@ -1,23 +1,16 @@
 import type { OriginLine } from "@/features/judgment/session";
-import {
-  type CauseAnswer,
-  type CauseKindId,
-  needsCauseKind,
-} from "@/features/situation/cause-categories";
-import type { ElapsedOption } from "@/features/situation/plain-questions";
-import type { ProtectionAnswer } from "@/features/situation/protection-broadcast";
 import type { EntryArea, EntryPlace } from "./entry-places";
 import type { GpsSegment } from "./gps-candidates";
 
-// 入口の段。駅にいる人は いまどこ → 関西 → エリア → 駅 → 行き先 → 原因 → 経過 → 再開見込み の順に進む
-// 駅と駅の間の人は いまどこ → 駅の間 → 行き先 → 原因 → 経過 → 再開見込み の順に進む。進む向きは行き先から決める
+// 入口で聞くのは、いる所と行き先だけ。答え終えた段が cause で、ここに来たら判断を始める
+// 原因や止まってからの分などは、判断の画面の「情報を追加する」で分かったときに足す
+// 駅にいる人は いまどこ → 関西 → エリア → 駅 → 行き先 → 路線と方面 の順に進む
+// 駅と駅の間の人は いまどこ → 駅の間 → 行き先 の順に進む。進む向きは行き先から決める
 // 車内の人が乗る電車を選び直すときは 路線 → 方面 → 駅間 → 行き先 の順に聞く
-// 原因で人・旅客対応か気象・自然を選んだ人だけ、続けて種類を 1 問聞く
-// 電車の中の人だけ、原因の後に「信号を受信したため緊急停止」の放送を聞いたかを 1 問聞く
 // 現在地から駅を読み取った人は いまどこ → 行き先 へ進む
 // 駅の間を読み取った人は いまどこ → 行き先 へ進み、進む向きは行き先から決める。決まらなければ方面を聞く
 // 駅にいる人は、行き先の段で先に路線を選べる。そのときは 路線 → 方面 → 行き先 の順に進む
-// 路線を先に選んだ人が地図で路線の駅を押したら、方面を自動で決めて 路線 → 原因 へ進む
+// 路線を先に選んだ人が地図で路線の駅を押したら、方面を自動で決めて判断を始める段へ進む
 // history は実際に通った段の答えだけを積む。自動で決めた路線や方面は積まず、戻ると直前の段に戻る
 export type EntryStage =
   | "position"
@@ -28,14 +21,8 @@ export type EntryStage =
   | "direction"
   | "trainPosition"
   | "destination"
-  | "cause"
-  | "causeKind"
-  | "protection"
-  | "elapsed"
-  | "resume"
-  | "input";
-export type EntryMethod = "photo" | "paste";
-export type { CauseAnswer };
+  // 判断を始める段。判断の画面から戻ったときは、行程を確かめて判断を出し直す
+  | "cause";
 
 type EntrySnapshot = {
   stage: EntryStage;
@@ -50,10 +37,6 @@ type EntrySnapshot = {
   routeEditing: boolean;
   // 行き先より先に路線と方面を選んだか。行き先はその方面の先から選ぶ
   routeFirst: boolean;
-  method: EntryMethod | null;
-  cause: CauseAnswer | null;
-  protection: ProtectionAnswer | null;
-  elapsed: ElapsedOption["id"] | null;
 };
 export type EntryState = EntrySnapshot & { history: EntrySnapshot[] };
 export type EntryAction =
@@ -88,11 +71,6 @@ export type EntryAction =
   | { type: "choosePosition"; line?: OriginLine; direction?: string }
   | { type: "editRoute" }
   | { type: "restore"; state: EntryState }
-  | { type: "chooseMethod"; method: EntryMethod }
-  | { type: "chooseCause"; cause: CauseAnswer }
-  | { type: "chooseCauseKind"; kind: CauseKindId }
-  | { type: "chooseProtection"; protection: ProtectionAnswer }
-  | { type: "chooseElapsed"; elapsed: ElapsedOption["id"] }
   | { type: "back" }
   | { type: "backTo"; depth: number }
   | { type: "reset" };
@@ -107,10 +85,6 @@ export const initialEntryState: EntryState = {
   directionAuto: false,
   routeEditing: false,
   routeFirst: false,
-  method: null,
-  cause: null,
-  protection: null,
-  elapsed: null,
   history: [],
 };
 
@@ -142,15 +116,11 @@ export function selectProgressIndex(
   location: EntryState["location"] = null,
   routeFirst = false,
 ): number {
-  if (["cause", "causeKind", "protection", "elapsed", "resume", "input"].includes(stage)) return 3;
+  if (stage === "cause") return 3;
   if (stage === "destination") return 1;
   if (location === "station" && stage === "direction" && routeFirst) return 1;
   if (location === "station" && ["station", "direction"].includes(stage)) return 2;
   return 0;
-}
-// 原因の次の段。電車の中なら放送の問い、駅なら経過の問い
-function selectAfterCause(state: EntryState): EntryStage {
-  return state.location === "train" ? "protection" : "elapsed";
 }
 function advance(state: EntryState, changes: Partial<EntrySnapshot>): EntryState {
   const { history, ...snapshot } = state;
@@ -317,44 +287,6 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
             routeEditing: true,
             routeFirst: false,
           })
-        : state;
-    case "chooseMethod":
-      return state.stage === "cause"
-        ? advance(state, { stage: "input", method: action.method })
-        : state;
-    case "chooseCause": {
-      if (state.stage !== "cause") return state;
-      const category = action.cause.category;
-      return category && needsCauseKind(category)
-        ? advance(state, {
-            stage: "causeKind",
-            cause: { category, kind: null },
-            protection: null,
-            elapsed: null,
-          })
-        : advance(state, {
-            stage: selectAfterCause(state),
-            cause: action.cause,
-            protection: null,
-            elapsed: null,
-          });
-    }
-    case "chooseCauseKind":
-      return state.stage === "causeKind" && state.cause
-        ? advance(state, {
-            stage: selectAfterCause(state),
-            cause: { ...state.cause, kind: action.kind },
-            protection: null,
-            elapsed: null,
-          })
-        : state;
-    case "chooseProtection":
-      return state.stage === "protection" && state.cause
-        ? advance(state, { stage: "elapsed", protection: action.protection, elapsed: null })
-        : state;
-    case "chooseElapsed":
-      return state.stage === "elapsed" && state.cause
-        ? advance(state, { stage: "resume", elapsed: action.elapsed })
         : state;
     case "back":
       return stepBack(state);

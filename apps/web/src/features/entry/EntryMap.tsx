@@ -173,15 +173,8 @@ const sectionMargin = { x: 40, y: 32 };
 const sectionMaxZoom = 14;
 // 何もない所を触ったとき、そのあたりの駅とみなす指の幅（px）。押せる部品の大きさにそろえる
 const tapReachPx = 44;
-// 様子を聞く段。行き先を選び終えているので、行き先までの線路を光らせ、視点は動かさない
-const situationStages = new Set<EntryStage>([
-  "cause",
-  "causeKind",
-  "protection",
-  "elapsed",
-  "resume",
-  "input",
-]);
+// 判断を始める段。行き先を選び終えているので、行き先までの線路を光らせ、視点は動かさない
+const situationStages = new Set<EntryStage>(["cause"]);
 const sourceIds = {
   lines: "entry-lines",
   route: "entry-route",
