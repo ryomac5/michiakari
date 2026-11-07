@@ -14,7 +14,7 @@ import {
   parseYamlFile,
   type YamlPath,
 } from "./loaders.ts";
-import { checkScenarioIntegrity, type Scenario, ScenarioSchema } from "./scenario.ts";
+import { checkScenarioIntegrity, ScenarioSchema } from "./scenario.ts";
 
 // knowledge/ と scenarios/ の内容検証。Node 専用
 
@@ -43,22 +43,25 @@ export function validateContent(rootDir: string): ContentValidationResult {
   const errors: ContentError[] = [];
   const toRelative = (file: string) => relative(rootDir, file);
 
-  const dirs = [KNOWLEDGE_DIR, SCENARIO_DIR].map((d) => join(rootDir, d));
-  for (const dir of dirs) {
-    if (!existsSync(dir)) {
-      errors.push({ file: toRelative(dir), message: "ディレクトリがありません" });
-    }
+  // 知見は判断に使わないので、knowledge/ は任意。あれば書式だけを検査する
+  const knowledgeDir = join(rootDir, KNOWLEDGE_DIR);
+  const scenarioDir = join(rootDir, SCENARIO_DIR);
+  if (!existsSync(scenarioDir)) {
+    return {
+      checkedFiles: [],
+      errors: [{ file: toRelative(scenarioDir), message: "ディレクトリがありません" }],
+    };
   }
-  if (errors.length > 0) return { checkedFiles: [], errors };
-
-  const [knowledgeDir, scenarioDir] = dirs as [string, string];
+  const dirs = existsSync(knowledgeDir) ? [knowledgeDir, scenarioDir] : [scenarioDir];
   for (const dir of dirs) {
     for (const file of listContentFiles(dir).yml) {
       errors.push({ file, message: "拡張子は .yaml にしてください (.yml は使わない)" });
     }
   }
 
-  const knowledge = loadKnowledgeDir(knowledgeDir);
+  const knowledge: LoadDirResult<Knowledge> = existsSync(knowledgeDir)
+    ? loadKnowledgeDir(knowledgeDir)
+    : { files: [], entries: [], errors: [] };
   const scenarios = loadScenarioDir(scenarioDir);
   errors.push(...knowledge.errors, ...scenarios.errors);
 
@@ -67,7 +70,6 @@ export function validateContent(rootDir: string): ContentValidationResult {
   errors.push(...checkIdMatchesFileName(knowledge));
   errors.push(...checkUniqueIds(knowledge, "知見"));
   errors.push(...checkUniqueIds(scenarios, "シナリオ"));
-  errors.push(...checkScenarioRefs(knowledge, scenarios));
 
   return {
     checkedFiles: [...knowledge.files, ...scenarios.files].map(toRelative),
@@ -106,50 +108,6 @@ function checkUniqueIds<T extends { id: string }>(
       message: `${label}の id が複数のファイルで重複しています: ${id} (${files.map((f) => basename(f)).join(", ")})`,
     };
   });
-}
-
-// シナリオから知見への参照を検査する
-function checkScenarioRefs(
-  knowledge: LoadDirResult<Knowledge>,
-  scenarios: LoadDirResult<Scenario>,
-): ContentError[] {
-  const errors: ContentError[] = [];
-  const byId = new Map(knowledge.entries.map((e) => [e.data.id, e.data]));
-
-  for (const { file, data, locateLine } of scenarios.entries) {
-    const k = byId.get(data.event_type);
-    if (!k) {
-      errors.push({
-        file,
-        line: locateLine(["event_type"]),
-        message: `event_type が知見の id に存在しません: ${data.event_type}`,
-      });
-      continue;
-    }
-
-    const phaseIds = new Set(k.phases.map((p) => p.id));
-    const signalIds = new Set(k.phases.flatMap((p) => p.signals.map((s) => s.id)));
-
-    data.expectations.forEach((e, i) => {
-      if (e.phase !== undefined && !phaseIds.has(e.phase)) {
-        errors.push({
-          file,
-          line: locateLine(["expectations", i, "phase"]),
-          message: `expectations[${i}].phase が知見 ${k.id} の phase に存在しません: ${e.phase}`,
-        });
-      }
-      (e.evidence_includes ?? []).forEach((signal, j) => {
-        if (signalIds.has(signal)) return;
-        errors.push({
-          file,
-          line: locateLine(["expectations", i, "evidence_includes", j]),
-          message: `expectations[${i}].evidence_includes が知見 ${k.id} の signal に存在しません: ${signal}`,
-        });
-      });
-    });
-  }
-
-  return errors;
 }
 
 // 雛形とスキーマのキー構造を突き合わせる。値は見ない
@@ -344,7 +302,7 @@ const KNOWLEDGE_HOW_TO: Record<string, string> = {
 const SCENARIO_HOW_TO: Record<string, string> = {
   id: "シナリオを表す id を書いてください。例: person_accident_last_train",
   "title.ja": "どんな状況かが分かる題名を書いてください",
-  event_type: "knowledge/ にある知見の id を書いてください。例: person_accident",
+  event_type: "統計値の種類の id を書いてください。例: person_collision",
   operator: "事業者名を書いてください。例: JR西日本",
   line: "路線名を書いてください。例: JR京都線",
   "blocked_section.from_station": "止まっている区間の端の駅名を書いてください。例: 高槻",
@@ -364,9 +322,9 @@ const SCENARIO_HOW_TO: Record<string, string> = {
   "expectations.*": "action、phase、evidence_includes、break_even_shown のどれかを書いてください",
   "expectations.*.after": "timeline の id を書いてください。例: obs_1",
   "expectations.*.action": "wait、switch、hold から選ぶか、検査しないなら行ごと消してください",
-  "expectations.*.phase": "知見の phases の id を書くか、検査しないなら行ごと消してください",
+  "expectations.*.phase": "phase は検査しません。行ごと消してかまいません",
   "expectations.*.evidence_includes.*":
-    "知見の signals の id を書くか、検査しないなら evidence_includes ごと消してください",
+    "放送の手がかりの id を書くか、検査しないなら evidence_includes ごと消してください。例: resumed",
   "expectations.*.break_even_shown": "true か false を書くか、検査しないなら行ごと消してください",
   "expectations.*.note": "なぜそう振る舞うべきかを書いてください",
   "ground_truth.resume_offset_minutes":
@@ -630,27 +588,6 @@ const MESSAGE_RULES: { pattern: RegExp; explain: (m: RegExpMatchArray) => Explan
     explain: (m) => ({
       explanation: `expectations の after にある ${m[1]} が timeline にありません`,
       hint: "timeline に書いた観測の id を書いてください。例: obs_1",
-    }),
-  },
-  {
-    pattern: /^event_type が知見の id に存在しません: (\S+)/,
-    explain: (m) => ({
-      explanation: `knowledge/ に、検証に通った id が ${m[1]} の知見がありません`,
-      hint: `知見の id に合わせてください。知見が無ければ pnpm knowledge:new ${m[1]} で作り、あればそのエラーを先に直します`,
-    }),
-  },
-  {
-    pattern: /^expectations\[(\d+)\]\.phase が知見 (\S+) の phase に存在しません/,
-    explain: (m) => ({
-      explanation: `期待 ${Number(m[1]) + 1} の phase が、知見 ${m[2]} の段階にありません`,
-      hint: `knowledge/${m[2]}.yaml の phases にある id から選んでください`,
-    }),
-  },
-  {
-    pattern: /^expectations\[(\d+)\]\.evidence_includes が知見 (\S+) の signal に存在しません/,
-    explain: (m) => ({
-      explanation: `期待 ${Number(m[1]) + 1} の evidence_includes が、知見 ${m[2]} の兆候にありません`,
-      hint: `knowledge/${m[2]}.yaml の signals にある id から選んでください`,
     }),
   },
 ];

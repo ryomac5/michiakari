@@ -102,15 +102,25 @@ export const BreakEvenSchema = z.object({
 });
 export type BreakEven = z.infer<typeof BreakEvenSchema>;
 
-// 再開の見込みの出どころ。知見、原因の統計値、どちらも無い。画面には説明の文を出さず、前提の言い方を選ぶのに使う
-export const EstimateSourceSchema = z.enum(["knowledge", "statistics", "none"]);
+// 再開の見込みの出どころ。規則表、原因の統計値、どちらも無い。画面には説明の文を出さず、前提の言い方を選ぶのに使う
+// rule は種類が分かり、規則表の止まり方と目安を使った。発表の時刻や再開の放送で見込んだときも、種類が分かれば rule
+export const ESTIMATE_SOURCES = ["rule", "statistics", "none"] as const;
+
+// 以前の記録の knowledge は境界で rule に読み替える
+export const EstimateSourceSchema = z.preprocess(
+  (value) => (value === "knowledge" ? "rule" : value),
+  z.enum(ESTIMATE_SOURCES),
+);
 export type EstimateSource = z.infer<typeof EstimateSourceSchema>;
 
 // 事象を特定できないときは eventType を null にし、分岐点だけで判断を返す
-// 知見が無くても入口で答えた原因の統計値があれば、remaining を統計値から詰める
+// eventType は統計値の種類の id（packages/core の IncidentTypeId）。照合は core が行う
+// 種類が分からなくても入口で答えた原因の統計値があれば、remaining を統計値から詰める
 export const EstimateSchema = z.object({
   eventType: IdSchema.nullable(),
+  // 事象の段階は使わない。以前の記録との互換のため残し、agent は常に null にする
   phaseId: IdSchema.nullable(),
+  // 発生とみなした時刻からの経過（分）
   elapsedMinutes: NonNegativeIntSchema.nullable(),
   remaining: DurationDistSchema.nullable(),
   confidence: ConfidenceSchema,
@@ -119,8 +129,13 @@ export const EstimateSchema = z.object({
 });
 export type Estimate = z.infer<typeof EstimateSchema>;
 
+// 根拠の種類。signal は発表の引用、cue は放送の手がかり、weather は気象、computation は計算
+// signal の id は統計値の種類の id、cue の id は手がかりの id
+export const EvidenceKindSchema = z.enum(["signal", "cue", "weather", "computation"]);
+export type EvidenceKind = z.infer<typeof EvidenceKindSchema>;
+
 export const EvidenceSchema = z.object({
-  kind: z.enum(["signal", "knowledge", "weather", "computation"]),
+  kind: EvidenceKindSchema,
   id: z.string().min(1),
   description: z.string(),
 });
@@ -151,6 +166,69 @@ export const InCarGuideSchema = z.object({
 });
 export type InCarGuide = z.infer<typeof InCarGuideSchema>;
 
+// 行動を変える放送と発表の手がかり。packages/core の detectAnnouncementCues が拾う
+export const ANNOUNCEMENT_CUE_IDS = [
+  // 運転を再開した
+  "resumed",
+  // まもなく再開する、順次再開する
+  "resume_soon",
+  // 救援の列車や人が向かう
+  "rescue",
+  // 防護無線を受けて止まった
+  "protection_received",
+  // 前の列車がつかえて先へ進めない
+  "queue_ahead",
+  // 線路の安全が確かめられた
+  "track_cleared",
+] as const;
+export const AnnouncementCueIdSchema = z.enum(ANNOUNCEMENT_CUE_IDS);
+export type AnnouncementCueId = z.infer<typeof AnnouncementCueIdSchema>;
+
+// 利用者がいる線路。affected は当該の線路、opposite は反対の線路、unknown は分からない
+export const TRACK_SIDES = ["affected", "opposite", "unknown"] as const;
+export const TrackSideSchema = z.enum(TRACK_SIDES);
+export type TrackSide = z.infer<typeof TrackSideSchema>;
+
+// 防護無線の事象で、支障の無い線路が先に動き出す見込み。いまからの分。packages/core の estimateUnaffectedTrackResume の出力
+// どちら側か分からなければ両方を持つ
+export const UnaffectedTrackSchema = z.object({
+  trackSide: TrackSideSchema,
+  // 当該の線路の再開までの残り。当該の線路にいないと分かれば null。見込みが無くても null
+  affected: DurationDistSchema.nullable(),
+  // 反対の線路と並ぶ同じ会社の線の再開までの残り。当該の線路にいると分かれば null
+  opposite: DurationDistSchema.nullable(),
+});
+export type UnaffectedTrack = z.infer<typeof UnaffectedTrackSchema>;
+
+// 再開後の詰まりの見込み。packages/core の estimateQueueAfterResume の出力
+export const ResumeQueueSchema = z.object({
+  // 事業者が駅間の列車を詰めるか。詰めない事業者では waitRange が null
+  closesUp: z.boolean(),
+  // 自分の前に詰まる列車の本数
+  trainsInQueue: NonNegativeIntSchema,
+  // 自分の番が来るまでの分の範囲
+  waitRange: z
+    .object({ minMinutes: NonNegativeIntSchema, maxMinutes: NonNegativeIntSchema })
+    .nullable(),
+  // 詰まりの放送が聞こえたか
+  queueAnnounced: z.boolean(),
+  // 次の駅で降りて別の手段に乗り換える価値があるか
+  worthAlightingAtNextStation: z.boolean(),
+});
+export type ResumeQueue = z.infer<typeof ResumeQueueSchema>;
+
+// 規則から出した見込みの欄。判断の結果と phase_estimated イベントが同じ欄を持つ。どれも任意
+export const RuleOutlookShape = {
+  // 観測から拾った手がかりの id
+  cues: z.array(AnnouncementCueIdSchema).optional(),
+  // 防護無線の事象か。周りの同じ会社の列車も一斉に止まる
+  protection: z.boolean().optional(),
+  // 支障の無い線路が先に動く見込み。防護無線の事象のときだけ付く
+  unaffectedTrack: UnaffectedTrackSchema.optional(),
+  // 再開後の詰まりの見込み。列車の中にいるときか、詰まりの放送が聞こえたときだけ付く
+  resumeQueue: ResumeQueueSchema.optional(),
+};
+
 export const JudgmentSchema = z.object({
   action: ActionSchema,
   headline: z.string().min(1),
@@ -162,8 +240,9 @@ export const JudgmentSchema = z.object({
   recommendedOptionId: IdSchema.nullable(),
   evidence: z.array(EvidenceSchema),
   disclaimer: z.string().min(1),
-  // 事象のよくある流れ。サーバーが知見から詰める。原因が分からないときは入れない
+  // 事象のよくある流れ。以前の記録との互換のため残す。agent は付けない
   typicalFlow: TypicalFlowSchema.optional(),
+  ...RuleOutlookShape,
   // 近くのバス停の確認候補。判断の確定後にサーバーが決定論で付ける。無ければ画面は欄を出さない
   busChecks: z.array(BusCheckSchema).max(BUS_CHECK_LIMIT).optional(),
   // 駅間の車内の人への案内。駅にいる人には付けない。付いていれば options は空で、action は wait

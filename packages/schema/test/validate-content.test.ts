@@ -1,3 +1,5 @@
+import { rmSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { formatContentError, validateContent } from "../src/validate-content.ts";
 import {
@@ -50,9 +52,8 @@ describe("validateContent", () => {
 
   it("ディレクトリが無ければエラー", () => {
     removeContentRoot(root);
-    expect(validateContent(root).errors.map((e) => e.message)).toEqual([
-      "ディレクトリがありません",
-      "ディレクトリがありません",
+    expect(validateContent(root).errors).toEqual([
+      { file: "scenarios", message: "ディレクトリがありません" },
     ]);
   });
 
@@ -153,52 +154,24 @@ describe("validateContent", () => {
     expect(checkedFiles).not.toContain("scenarios/extra.yml");
   });
 
-  it("event_type の参照切れを返す", () => {
+  it("シナリオは知見を参照しないので、知見の無い event_type、phase、手がかりの id を受け付ける", () => {
     writeValidPair(root);
-    writeContentFile(
-      root,
-      "scenarios/sample_scenario.yaml",
-      editYaml(scenarioText(), ["event_type"], "unknown_event"),
-    );
-    expect(validateContent(root).errors).toEqual([
-      {
-        file: "scenarios/sample_scenario.yaml",
-        line: 6,
-        message: "event_type が知見の id に存在しません: unknown_event",
-      },
-    ]);
+    const edited = [
+      [["event_type"], "person_collision"],
+      [["expectations", 0, "phase"], "unknown_phase"],
+      [["expectations", 0, "evidence_includes"], ["protection_received"]],
+    ] as const;
+    const text = edited.reduce((t, [path, value]) => editYaml(t, [...path], value), scenarioText());
+    writeContentFile(root, "scenarios/sample_scenario.yaml", text);
+    expect(messagesOf()).toEqual([]);
   });
 
-  it("phase の参照切れを返す", () => {
+  it("knowledge/ が無くても、シナリオだけを検証する", () => {
     writeValidPair(root);
-    writeContentFile(
-      root,
-      "scenarios/sample_scenario.yaml",
-      editYaml(scenarioText(), ["expectations", 0, "phase"], "unknown_phase"),
-    );
-    expect(messagesOf()).toEqual([
-      expect.stringMatching(
-        /^scenarios\/sample_scenario\.yaml:\d+: expectations\[0\]\.phase が知見 sample_event の phase に存在しません: unknown_phase$/,
-      ),
-    ]);
-  });
-
-  it("evidence_includes の参照切れを返す", () => {
-    writeValidPair(root);
-    writeContentFile(
-      root,
-      "scenarios/sample_scenario.yaml",
-      editYaml(
-        scenarioText(),
-        ["expectations", 0, "evidence_includes"],
-        ["checking_announced", "unknown_signal"],
-      ),
-    );
-    expect(messagesOf()).toEqual([
-      expect.stringMatching(
-        /^scenarios\/sample_scenario\.yaml:\d+: expectations\[0\]\.evidence_includes が知見 sample_event の signal に存在しません: unknown_signal$/,
-      ),
-    ]);
+    rmSync(join(root, "knowledge"), { recursive: true, force: true });
+    const result = validateContent(root);
+    expect(result.errors).toEqual([]);
+    expect(result.checkedFiles).toEqual(["scenarios/sample_scenario.yaml"]);
   });
 
   it("重複キーを行番号つきで返す", () => {

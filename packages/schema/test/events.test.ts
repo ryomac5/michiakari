@@ -39,7 +39,25 @@ describe("JudgmentEventSchema", () => {
     { type: "break_even_computed", breakEven: null },
     { type: "judgment_ready", judgment: validJudgment },
     { type: "error", message: "タイムアウト", retryable: true },
-    { type: "progress", message: "知見を確かめています", stage: "knowledge" },
+    { type: "progress", message: "雨量を確かめています", stage: "weather" },
+    {
+      type: "phase_estimated",
+      estimate: { ...validJudgment.estimate, source: "rule" },
+      cues: ["protection_received", "queue_ahead"],
+      protection: true,
+      unaffectedTrack: {
+        trackSide: "unknown",
+        affected: { p50: 60, p80: 90 },
+        opposite: { p50: 5, p80: 10 },
+      },
+      resumeQueue: {
+        closesUp: true,
+        trainsInQueue: 2,
+        waitRange: { minMinutes: 6, maxMinutes: 10 },
+        queueAnnounced: true,
+        worthAlightingAtNextStation: true,
+      },
+    },
     { type: "progress", message: "考えています" },
     weatherChecked,
     { ...weatherChecked, source: "jma", readings: [], warnings: [], trend: "unknown" },
@@ -49,6 +67,21 @@ describe("JudgmentEventSchema", () => {
     },
   ])("$type を受け入れる", (event) => {
     expect(JudgmentEventSchema.safeParse({ ...base, ...event }).success).toBe(true);
+  });
+
+  it("知見の段階の progress と未知の手がかりを拒否する", () => {
+    expect(
+      JudgmentEventSchema.safeParse({ ...base, type: "progress", message: "x", stage: "knowledge" })
+        .success,
+    ).toBe(false);
+    expect(
+      JudgmentEventSchema.safeParse({
+        ...base,
+        type: "phase_estimated",
+        estimate: validJudgment.estimate,
+        cues: ["unknown_cue"],
+      }).success,
+    ).toBe(false);
   });
 
   it("未知の type を拒否する", () => {

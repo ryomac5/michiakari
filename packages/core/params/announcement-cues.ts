@@ -1,21 +1,10 @@
 // 行動を変える一般的な放送と発表の手がかり。言い回しの照合規則だけを持ち、実際の発表文は写さない
 // 出典: 開発者の推定。一般に聞かれる言い回しの目安
 
-export const ANNOUNCEMENT_CUE_IDS = [
-  // 運転を再開した
-  "resumed",
-  // まもなく再開する、順次再開する
-  "resume_soon",
-  // 救援の列車や人が向かう
-  "rescue",
-  // 防護無線を受けて止まった
-  "protection_received",
-  // 前の列車がつかえて先へ進めない
-  "queue_ahead",
-  // 線路の安全が確かめられた
-  "track_cleared",
-] as const;
-export type AnnouncementCueId = (typeof ANNOUNCEMENT_CUE_IDS)[number];
+// 手がかりの id の定義は packages/schema が唯一の正
+import type { AnnouncementCueId } from "@repo/schema";
+
+export { ANNOUNCEMENT_CUE_IDS, type AnnouncementCueId } from "@repo/schema";
 
 // 条件付きの文に含まれる語。この語を含む文では、再開に向けた手がかりを数えない
 export const CONDITIONAL_SENTENCE_MARKERS: readonly string[] = ["次第"];

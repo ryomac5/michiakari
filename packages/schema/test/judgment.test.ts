@@ -54,6 +54,52 @@ describe("JudgmentSchema", () => {
     ).toBe(false);
   });
 
+  it("見込みの出どころの knowledge を rule に読み替える", () => {
+    const j = cloneJudgment();
+    const parsed = JudgmentSchema.parse({ ...j, estimate: { ...j.estimate, source: "knowledge" } });
+    expect(parsed.estimate.source).toBe("rule");
+    expect(
+      JudgmentSchema.safeParse({ ...j, estimate: { ...j.estimate, source: "guess" } }).success,
+    ).toBe(false);
+    const { source: _omitted, ...withoutSource } = j.estimate;
+    expect(JudgmentSchema.parse({ ...j, estimate: withoutSource }).estimate.source).toBeUndefined();
+  });
+
+  it("手がかり、防護無線、支障の無い線路、詰まりの欄は任意で、あれば受け入れる", () => {
+    const outlook = {
+      cues: ["protection_received", "queue_ahead"],
+      protection: true,
+      unaffectedTrack: { trackSide: "unknown", affected: null, opposite: { p50: 5, p80: 10 } },
+      resumeQueue: {
+        closesUp: false,
+        trainsInQueue: 1,
+        waitRange: null,
+        queueAnnounced: true,
+        worthAlightingAtNextStation: false,
+      },
+    };
+    expect(JudgmentSchema.safeParse({ ...validJudgment, ...outlook }).success).toBe(true);
+    expect(JudgmentSchema.safeParse({ ...validJudgment, cues: ["knowledge"] }).success).toBe(false);
+    expect(
+      JudgmentSchema.safeParse({
+        ...validJudgment,
+        unaffectedTrack: { ...outlook.unaffectedTrack, trackSide: "up" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("根拠の種類に knowledge を受け付けず、cue を受け付ける", () => {
+    const evidence = (kind: string) => [
+      { kind, id: "resumed", description: "運転を再開しました。" },
+    ];
+    expect(JudgmentSchema.safeParse({ ...validJudgment, evidence: evidence("cue") }).success).toBe(
+      true,
+    );
+    expect(
+      JudgmentSchema.safeParse({ ...validJudgment, evidence: evidence("knowledge") }).success,
+    ).toBe(false);
+  });
+
   it("busChecks は任意で、3 件までを受け入れ、到着時刻を持たない", () => {
     const busCheck = {
       id: "P11-22_27:1",
