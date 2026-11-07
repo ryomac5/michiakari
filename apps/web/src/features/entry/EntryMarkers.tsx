@@ -320,6 +320,7 @@ export function StopMarker({
   side,
   color,
   angle,
+  heading,
   line = false,
   hitRadius,
   labelHidden = false,
@@ -331,6 +332,8 @@ export function StopMarker({
   color: string;
   // 方面の札だけが持つ矢印の向き（度）
   angle: number | null;
+  // 方面ごとに分けた駅の札の、方面の向き（度）。シートの方面の見出しと同じ矢印を名前の前に出す
+  heading?: number;
   // 路線の札。丸を路線色で塗り、札に路線色の印を添える
   line?: boolean;
   hitRadius?: number;
@@ -388,6 +391,30 @@ export function StopMarker({
       >
         {line && (
           <span aria-hidden className="h-3 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+        )}
+        {heading !== undefined && (
+          <span
+            aria-hidden
+            data-heading={Math.round(heading)}
+            className="flex size-4 shrink-0 items-center justify-center rounded-full text-white"
+            style={{ backgroundColor: color }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="size-3"
+              aria-hidden
+              style={{ transform: `rotate(${heading}deg)` }}
+            >
+              <path
+                d="M12 19V5M5 12l7-7 7 7"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
         )}
         {label}
       </span>

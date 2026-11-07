@@ -14,6 +14,7 @@ export function EntrySheet({
   onHeightChange,
   progress,
   compact = false,
+  trip = false,
   fill = false,
   children,
 }: {
@@ -25,6 +26,8 @@ export function EntrySheet({
   progress?: ReactNode;
   // 地図を押して選ぶ段。地図の見える範囲を残すため、シートを低く抑えて中身を送る
   compact?: boolean;
+  // 行き先を選んだ直後の段。光る経路が見える地図の帯を残し、シートを少し低くして中身を送る
+  trip?: boolean;
   // 選択肢が多い段。細い帯の地図は読めないので、スマートフォンでは地図を覆って画面いっぱいに選択肢を並べる
   fill?: boolean;
   children: ReactNode;
@@ -59,7 +62,9 @@ export function EntrySheet({
           ? "max-lg:top-0 max-lg:max-h-none max-lg:rounded-none max-lg:border-0 max-lg:shadow-none"
           : compact
             ? "max-h-[min(42dvh,640px)]"
-            : "max-h-[min(78dvh,640px)]",
+            : trip
+              ? "max-h-[min(55dvh,640px)]"
+              : "max-h-[min(78dvh,640px)]",
       )}
     >
       {!fill && (

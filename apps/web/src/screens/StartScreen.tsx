@@ -1,6 +1,6 @@
 "use client";
 
-import { computeDistanceMeters } from "@repo/geo";
+import { computeDistanceMeters, createRouter } from "@repo/geo";
 import type { IncidentCause, RawInput } from "@repo/schema";
 import { ChevronLeft } from "lucide-react";
 import type { PrefetchKind } from "next/dist/client/components/router-reducer/router-reducer-types";
@@ -9,6 +9,11 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { sheetTopInset } from "@/components/MapSheet";
+import {
+  findGroupDirection,
+  groupDirectionCandidates,
+  groupLineStops,
+} from "@/features/entry/direction-groups";
 import {
   type DirectionStop,
   type EntryDirection,
@@ -107,6 +112,7 @@ import {
   selectRailTapOutcome,
   selectStopDirection,
 } from "@/features/entry/map-pick";
+import { buildRouteGlow, planEntrySpans } from "@/features/entry/route-glow";
 import { buildLineObservation } from "@/features/entry/seed";
 import {
   buildDefaultBetweenPosition,
@@ -324,6 +330,11 @@ export function StartScreen() {
     entry.line !== null;
   const routeLineStops = useMemo(
     () => (lineStopMode ? listLineStops(directions) : []),
+    [lineStopMode, directions],
+  );
+  // 路線の駅を方面ごとにまとめる。上りと下りの駅を混ぜずに見せる
+  const lineStopGroups = useMemo(
+    () => (lineStopMode ? groupLineStops(directions) : []),
     [lineStopMode, directions],
   );
   // 再開見込みの時刻の候補。問いに入った時刻から並べる
@@ -632,8 +643,9 @@ export function StartScreen() {
   }
 
   // 先に選んだ路線の駅を行き先にする。方面は出発の駅からの駅の数が少ない向きにする
-  function chooseLineStop(stop: DirectionStop) {
-    const chosen = selectStopDirection(directions, stop.choice.id);
+  // 方面のまとまりから押したときは、そのまとまりの方面にする。駅の数の少ない向きと同じ方面になる
+  function chooseLineStop(stop: DirectionStop, via?: EntryDirection) {
+    const chosen = via ?? selectStopDirection(directions, stop.choice.id);
     if (!chosen) return;
     rememberStationName(stop.choice.name, stop.choice.nameEn);
     setDestination({ kind: "station", name: stop.choice.name });
@@ -661,9 +673,11 @@ export function StartScreen() {
     dispatch({ type: "chooseDirection", direction: chosen.key });
   }
 
+  // via は方面のまとまりから押したときの、そのまとまりの方面
   function chooseDestination(
     target: StationChoice | string,
     basis: TripContext["destinationBasis"] = "chosen",
+    via?: EntryDirection,
   ) {
     const choice = typeof target === "string" && data ? findStationChoice(data, target) : target;
     if (choice && typeof choice !== "string") {
@@ -691,7 +705,11 @@ export function StartScreen() {
         abandonSegment();
         return;
       }
-      const travel = targetChoice ? inferSegmentTravel(segmentTravels, targetChoice) : null;
+      // 行き先から向きが決まらないときだけ、押した駅のまとまりの方面を使う
+      const travel = targetChoice
+        ? (inferSegmentTravel(segmentTravels, targetChoice) ??
+          (via ? resolveSegmentTravel(segmentTravels, via) : null))
+        : null;
       const applied = travel !== null && applyBetween(travel);
       dispatch({
         type: "chooseDestination",
@@ -882,6 +900,48 @@ export function StartScreen() {
   const candidates = direction
     ? mergeRouteCandidates(routeStops, listDirectionCandidates(direction))
     : mergeDirectionCandidates(suggestedDirections);
+  // 駅の間にいて方面がまだ無い人には、行き先の候補を方面ごとにまとめて出す
+  const destinationGroups =
+    entry.stage === "destination" && onTrain && entry.segment && !direction
+      ? groupDirectionCandidates(stepDirections)
+      : [];
+  // 地図の駅の札に、その駅のまとまりの方面の向きを添える
+  const shownGroups = lineStopMode ? lineStopGroups : destinationGroups;
+  const headingOf = (stationId: string) => {
+    const owner = findGroupDirection(shownGroups, stationId);
+    return owner ? (angles[owner.key] ?? 0) : undefined;
+  };
+  const routeFinder = useMemo(() => (geo ? createRouter(geo.network) : null), [geo]);
+  // 行き先を選んだら、今いる所から行き先までを乗る区間ごとに光らせる
+  const routeGlow = useMemo(() => {
+    if (!data || !askingSituation || !entry.line || !destinationChoice)
+      return buildRouteGlow([], undefined, new Map());
+    const { spans, onDirection } = planEntrySpans({
+      data,
+      router: routeFinder,
+      line: entry.line,
+      direction,
+      loopDirections: isLoopAt(data, entry.line) ? directions : [],
+      destination: destinationChoice,
+      departureTime: new Date().toISOString(),
+    });
+    return buildRouteGlow(
+      spans,
+      geo?.trackShapes,
+      geo?.lineColors ?? new Map(),
+      between && onDirection,
+    );
+  }, [
+    data,
+    geo,
+    routeFinder,
+    askingSituation,
+    entry.line,
+    direction,
+    directions,
+    destinationChoice,
+    between,
+  ]);
   const routeCandidates =
     data && entry.place && destinationChoice
       ? inferEntryRoutes(data, entry.place, destinationChoice)
@@ -945,14 +1005,16 @@ export function StartScreen() {
     entry.segment.to === pickedSection.to.name
       ? pickedSection
       : null;
+  // 行き先までの線路を光らせている間は、駅の間の光りをその光に任せる
+  const routeShown = routeGlow.features.length > 0;
   const sectionGlow = useMemo(
     () =>
       buildSectionGlow(
-        mapPick?.choices ?? (keptSection ? [keptSection] : []),
+        mapPick?.choices ?? (keptSection && !routeShown ? [keptSection] : []),
         focusedChoiceKey,
         geo?.trackShapes,
       ),
-    [mapPick, keptSection, focusedChoiceKey, geo],
+    [mapPick, keptSection, routeShown, focusedChoiceKey, geo],
   );
   // 地図の札で選べる路線。行き先の段では駅の全部の路線、路線の段では一覧と同じ路線
   const pickLines =
@@ -1106,6 +1168,7 @@ export function StartScreen() {
         ...tags,
         ...routeLineStops.map((stop) => ({
           ...toStop(`pick-${stop.choice.id}`, stop),
+          heading: headingOf(stop.choice.id),
           keep: true,
         })),
       ];
@@ -1126,9 +1189,10 @@ export function StartScreen() {
         : candidates;
       return [
         ...lineStops,
-        ...pickSpreadStops(nearCandidates, from).map((stop) =>
-          toStop(`destination-${stop.choice.id}`, stop),
-        ),
+        ...pickSpreadStops(nearCandidates, from).map((stop) => ({
+          ...toStop(`destination-${stop.choice.id}`, stop),
+          heading: headingOf(stop.choice.id),
+        })),
       ];
     }
     // 先に方面を選んだ人には、方面の先の駅を近い順に名前付きで出す
@@ -1214,10 +1278,11 @@ export function StartScreen() {
       if (chosen) chooseDirection(chosen);
     } else if (kind === "pick") {
       const stop = routeLineStops.find((c) => c.choice.id === id);
-      if (stop) chooseLineStop(stop);
+      if (stop) chooseLineStop(stop, findGroupDirection(lineStopGroups, id) ?? undefined);
     } else if (kind === "destination") {
       const stop = candidates.find((c) => c.choice.id === id);
-      if (stop) chooseDestination(stop.choice);
+      const via = findGroupDirection(destinationGroups, id) ?? undefined;
+      if (stop) chooseDestination(stop.choice, "chosen", via);
     } else if (kind === "near") {
       const stop = nearby.find((c) => c.choice.id === id);
       if (stop) chooseNearStop(stop);
@@ -1244,6 +1309,7 @@ export function StartScreen() {
         onSelectSegment={selectMapSegment}
         placeSide={placeSide}
         destination={destinationMarker}
+        route={routeGlow}
         stops={mapStops}
         focus={
           entry.stage === "trainPosition"
@@ -1323,8 +1389,10 @@ export function StartScreen() {
               entry.stage === "between" ||
               routeStops.length > 0
             }
-            // 様子を聞く段は地図を使わないので、地図を覆って選択肢を詰めて並べる
-            fill={situationStages.has(entry.stage)}
+            // 行き先を選んだ直後の段は、光る経路が見えるよう地図の帯を残してシートを低くする
+            trip={entry.stage === "cause" && routeShown}
+            // ほかの様子を聞く段は地図を使わないので、地図を覆って選択肢を詰めて並べる
+            fill={situationStages.has(entry.stage) && !(entry.stage === "cause" && routeShown)}
             progress={progressIndex >= 0 ? <EntryProgress index={progressIndex} /> : null}
           >
             {(entry.stage === "kansai" || entry.stage === "area") && mapPick && (
@@ -1373,7 +1441,7 @@ export function StartScreen() {
                 line={entry.line}
                 directions={stepDirections}
                 angles={angles}
-                stops={routeLineStops}
+                groups={lineStopGroups}
                 onSelect={chooseDirection}
                 onSelectStop={chooseLineStop}
               />
@@ -1384,9 +1452,12 @@ export function StartScreen() {
                 line={entry.line}
                 direction={direction}
                 candidates={candidates}
+                groups={destinationGroups}
+                angles={angles}
                 routeLines={pickLines}
                 allowUndecided={onTrain}
                 onSelect={(station) => chooseDestination(station)}
+                onSelectGroupStop={(stop, via) => chooseDestination(stop.choice, "chosen", via)}
                 onSelectLine={pickRouteLine}
                 onUndecided={chooseUndecided}
                 onFreeText={(text) => chooseDestination(text)}
