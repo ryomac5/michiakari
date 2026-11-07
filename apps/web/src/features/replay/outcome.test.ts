@@ -1,10 +1,8 @@
 import { compareReplayOutcome, type ReplayOutcome } from "@repo/core";
 import type { Judgment, Observation } from "@repo/schema";
 import { describe, expect, it } from "vitest";
-import {
-  buildPersonAccidentEvents,
-  personAccidentCatalog,
-} from "@/features/judgment/fixtures/person-accident";
+import { estimateFirstTrainWait } from "@/features/judgment/break-even-timeline";
+import { buildPersonAccidentEvents } from "@/features/judgment/fixtures/person-accident";
 import { buildTestRequest } from "@/features/judgment/test-helpers";
 import { formatClockTime } from "@/features/judgment/time";
 import ja from "../../../messages/ja.json";
@@ -125,7 +123,7 @@ describe("buildReplayDecision", () => {
 });
 
 describe("selectReplayOutcome", () => {
-  it("記録した判断と知見の初列車待ちで core の計算を呼ぶ", () => {
+  it("記録した判断と仮の初列車待ちで core の計算を呼ぶ", () => {
     const decisions = [
       buildReplayDecision(
         pickJudgment(false, "2026-11-05T22:10:00+09:00"),
@@ -136,8 +134,8 @@ describe("selectReplayOutcome", () => {
         "2026-11-05T22:40:00+09:00",
       ),
     ];
-    const firstTrainWait = personAccidentCatalog[0]?.firstTrainWaitMinutes ?? 0;
-    expect(selectReplayOutcome(scenario, decisions, personAccidentCatalog)).toEqual(
+    const firstTrainWait = estimateFirstTrainWait("person_accident");
+    expect(selectReplayOutcome(scenario, decisions)).toEqual(
       compareReplayOutcome({
         decisions,
         resumeOffsetMinutes: 90,
@@ -155,14 +153,8 @@ describe("selectReplayOutcome", () => {
         "2026-11-05T22:10:00+09:00",
       ),
     ];
-    expect(
-      selectReplayOutcome(
-        { ...scenario, resumeOffsetMinutes: null },
-        decisions,
-        personAccidentCatalog,
-      ),
-    ).toBeNull();
-    expect(selectReplayOutcome(scenario, [], personAccidentCatalog)).toBeNull();
+    expect(selectReplayOutcome({ ...scenario, resumeOffsetMinutes: null }, decisions)).toBeNull();
+    expect(selectReplayOutcome(scenario, [])).toBeNull();
   });
 });
 

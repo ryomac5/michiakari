@@ -10,25 +10,30 @@ import {
   LoaderCircle,
   RotateCcw,
 } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useId, useRef, useState } from "react";
-import { EmptyState } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type SituationTab, testIds } from "@/features/judgment/testids";
-import { type KnowledgeCatalog, pickLocalized } from "@/features/knowledge/catalog";
-import { cn } from "@/lib/utils";
+import {
+  type CauseAnswer,
+  type CauseCategoryId,
+  causeChoiceIds,
+  listCauseKinds,
+  needsCauseKind,
+  resolveIncidentCause,
+  toCauseAnswer,
+} from "./cause-categories";
 import { type PhotoInput, preparePhoto } from "./prepare-photo";
 
 type SituationInputProps = {
-  catalog: KnowledgeCatalog;
   busy: boolean;
   onSubmit: (input: RawInput) => void;
 };
 
 // 状況の入力。撮影する／貼り付ける／選んで答える の 3 通り
-export function SituationInput({ catalog, busy, onSubmit }: SituationInputProps) {
+export function SituationInput({ busy, onSubmit }: SituationInputProps) {
   const t = useTranslations("situation");
   const [tab, setTab] = useState<SituationTab>("photo");
 
@@ -59,7 +64,7 @@ export function SituationInput({ catalog, busy, onSubmit }: SituationInputProps)
         <PastePanel busy={busy} onSubmit={onSubmit} />
       </TabsContent>
       <TabsContent value="select">
-        <SelectPanel catalog={catalog} busy={busy} onSubmit={onSubmit} />
+        <SelectPanel busy={busy} onSubmit={onSubmit} />
       </TabsContent>
     </Tabs>
   );
@@ -215,109 +220,77 @@ export function PastePanel({
   );
 }
 
+// 選んで答える。入口と同じ原因の表から選び、選んだら判断する。雨・風などは種類を続けて選ぶ
 export function SelectPanel({
-  catalog,
   busy,
   onSubmit,
 }: {
-  catalog: KnowledgeCatalog;
   busy: boolean;
   onSubmit: (input: RawInput) => void;
 }) {
   const t = useTranslations("situation.select");
-  const locale = useLocale();
-  const [eventType, setEventType] = useState<string | null>(null);
-  const [signalIds, setSignalIds] = useState<string[]>([]);
-  const selectedEvent = catalog.find((e) => e.id === eventType);
+  const tEntry = useTranslations("entry");
+  const [category, setCategory] = useState<CauseCategoryId | null>(null);
 
-  if (catalog.length === 0) {
-    return (
-      <EmptyState
-        testId={testIds.situation.selectionEmpty}
-        icon={<ListChecks />}
-        title={t("empty")}
-      />
-    );
+  function submitCause(answer: CauseAnswer) {
+    const eventType = selectCauseEventType(answer);
+    if (eventType) onSubmit({ type: "selection", eventType, signalIds: [] });
   }
 
-  if (!selectedEvent) {
+  if (category === null) {
     return (
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-2 text-[13px] font-medium text-muted">{t("eventLabel")}</legend>
-        {catalog.map((event) => (
-          <Button
-            key={event.id}
-            variant="secondary"
-            data-testid={testIds.situation.eventTypeOption(event.id)}
-            onClick={() => {
-              setEventType(event.id);
-              setSignalIds([]);
-            }}
-            className="justify-start"
-          >
-            {pickLocalized(event.name, locale)}
-          </Button>
-        ))}
+        {causeChoiceIds.map((choice) => {
+          const answer = toCauseAnswer(choice);
+          return (
+            <Button
+              key={choice}
+              variant="secondary"
+              disabled={busy}
+              data-testid={testIds.situation.causeOption(choice)}
+              onClick={() =>
+                answer.category && needsCauseKind(answer.category)
+                  ? setCategory(answer.category)
+                  : submitCause(answer)
+              }
+              className="justify-start"
+            >
+              {tEntry(`causes.${choice}`)}
+            </Button>
+          );
+        })}
       </fieldset>
     );
-  }
-
-  const signals = selectedEvent.phases.flatMap((p) => p.signals);
-  function toggleSignal(id: string) {
-    setSignalIds((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <Button variant="ghost" size="sm" onClick={() => setEventType(null)} className="self-start">
+      <Button variant="ghost" size="sm" onClick={() => setCategory(null)} className="self-start">
         <ChevronLeft aria-hidden />
         {t("back")}
       </Button>
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-[13px] font-medium text-muted">
-          {pickLocalized(selectedEvent.name, locale)} — {t("signalLabel")}
-        </legend>
-        {signals.map((signal) => {
-          const checked = signalIds.includes(signal.id);
-          return (
-            <label
-              key={signal.id}
-              className={cn(
-                "flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2.5 ring-1 ring-inset has-focus-visible:outline-3 has-focus-visible:outline-focus",
-                checked ? "bg-foreground/[0.06] ring-foreground" : "ring-border",
-              )}
-            >
-              <input
-                type="checkbox"
-                className="sr-only"
-                checked={checked}
-                data-testid={testIds.situation.signalOption(signal.id)}
-                onChange={() => toggleSignal(signal.id)}
-              />
-              <span
-                className={cn(
-                  "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border-2",
-                  checked ? "border-foreground bg-foreground text-background" : "border-muted",
-                )}
-                aria-hidden
-              >
-                {checked && <Check className="size-3.5" strokeWidth={3} />}
-              </span>
-              {/* 知見の説明の文は出さず、放送で聞こえる言い回しの例を選ぶ札にする */}
-              <span className="text-[14px] font-medium">
-                {signal.example_phrases[0] ? `「${signal.example_phrases[0]}」` : signal.id}
-              </span>
-            </label>
-          );
-        })}
+      <fieldset className="flex flex-col gap-3">
+        <legend className="mb-2 text-[13px] font-medium text-muted">{t("kindLabel")}</legend>
+        {listCauseKinds(category).map((kind) => (
+          <Button
+            key={kind}
+            variant="secondary"
+            disabled={busy}
+            data-testid={testIds.situation.causeKindOption(kind)}
+            onClick={() => submitCause({ category, kind })}
+            className="justify-start"
+          >
+            {tEntry(`causeKinds.${kind}`)}
+          </Button>
+        ))}
       </fieldset>
-      <SubmitButton
-        kind="select"
-        busy={busy}
-        disabled={false}
-        label={t("submit")}
-        onClick={() => onSubmit({ type: "selection", eventType: selectedEvent.id, signalIds })}
-      />
     </div>
   );
+}
+
+// 選んだ原因を判断に送る事象の id にする。種類が無ければ大分類の id を使う
+function selectCauseEventType(answer: CauseAnswer): string | null {
+  const cause = resolveIncidentCause(answer);
+  return cause ? (cause.type ?? cause.group) : null;
 }

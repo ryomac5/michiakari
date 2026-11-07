@@ -1,4 +1,9 @@
-import { type ObservedStopScopeInput, resolveObservedStopScope, type StopScope } from "@repo/core";
+import {
+  INCIDENT_TYPE_IDS,
+  type ObservedStopScopeInput,
+  resolveObservedStopScope,
+  type StopScope,
+} from "@repo/core";
 import type { TrainPosition } from "@repo/schema";
 
 // 止まり方を画面で引く。事象の選び方と止まり方の表は packages/core の 1 か所にあり、agent と同じ関数を呼ぶ
@@ -27,4 +32,9 @@ export function selectStoppedPlace(
     return { kind: "station", name: originStation };
   }
   return null;
+}
+
+// 観測の事象の候補のうち、統計値の種類の id に当たるものだけを数える
+export function isIncidentTypeId(eventType: string): boolean {
+  return (INCIDENT_TYPE_IDS as readonly string[]).includes(eventType);
 }

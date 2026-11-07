@@ -31,7 +31,6 @@ import { selectSwitchStep } from "@/features/judgment/switch-step";
 import { testIds } from "@/features/judgment/testids";
 import { formatClockTime } from "@/features/judgment/time";
 import { useOptionFocus, useOptionSelection } from "@/features/judgment/use-option-focus";
-import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import { MapLegend } from "@/features/map/MapLegend";
 import { MapPanel, selectRouteTone } from "@/features/map/MapPanel";
 import type { ReachSource } from "@/features/map/scene";
@@ -56,12 +55,10 @@ const noOptions: RouteOption[] = [];
 // 1 本のシナリオを再生する。判断の表示は判断画面と同じ部品を使う
 export function ReplayPlayer({
   scenario,
-  catalog,
   initialSpeed,
   onBack,
 }: {
   scenario: ReplayScenario;
-  catalog: KnowledgeCatalog;
   initialSpeed: number;
   onBack: () => void;
 }) {
@@ -113,10 +110,9 @@ export function ReplayPlayer({
         ? selectReplayOutcome(
             scenario,
             history.map((h) => h.decision),
-            catalog,
           )
         : null,
-    [player.status, scenario, history, catalog],
+    [player.status, scenario, history],
   );
 
   // 終わったら結末を見せるためにシートを半分まで開く
@@ -137,7 +133,7 @@ export function ReplayPlayer({
     stale: display.breakEvenStale,
     now,
     judgedAt: display.settled?.at ?? null,
-    timeline: selectTimelineBasis(display.settled, catalog, deadline),
+    timeline: selectTimelineBasis(display.settled, deadline),
     // 時刻ごとの再開の見込み。シナリオでは最初の観測が発生なので「発生から」を出す
     chance: display.breakEven?.resumeChance ?? null,
     showOnset: true,
@@ -160,7 +156,6 @@ export function ReplayPlayer({
       data-observation-id={current?.observationId ?? ""}
       data-pending-observation-id={pendingId}
       data-action={current?.action ?? ""}
-      data-phase-id={current?.phaseId ?? ""}
       data-evidence-ids={current?.evidenceIds.join(" ") ?? ""}
       data-break-even-shown={current ? String(current.breakEvenShown) : ""}
       data-changed={changed}
@@ -168,7 +163,7 @@ export function ReplayPlayer({
       className="flex flex-col gap-3"
     >
       {!started && <ReadyCard scenario={scenario} onStart={player.togglePlay} />}
-      {streaming && <ReasoningProgress state={state} catalog={catalog} />}
+      {streaming && <ReasoningProgress state={state} />}
       {state.status === "error" && state.error && (
         <JudgmentError
           message={state.error.message}
@@ -184,10 +179,8 @@ export function ReplayPlayer({
             display.judgment,
             latestEntry ? pickScenarioText(latestEntry.text, locale) : null,
             selectChangeEvidence({
-              catalog,
               estimate: display.judgment.estimate,
               signals: state.signals,
-              locale,
             }),
           )}
           badge={
@@ -344,15 +337,11 @@ export function ReplayPlayer({
                   </SheetSection>
                 )}
                 <SheetSection className="has-[>[hidden]]:hidden">
-                  <EvidenceSection
-                    estimate={display.estimate}
-                    signals={state.signals}
-                    catalog={catalog}
-                  />
+                  <EvidenceSection estimate={display.estimate} signals={state.signals} />
                 </SheetSection>
                 {state.status === "ready" && (
                   <SheetSection>
-                    <ReasoningLog state={state} catalog={catalog} />
+                    <ReasoningLog state={state} />
                   </SheetSection>
                 )}
               </div>

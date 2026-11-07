@@ -7,77 +7,12 @@ import type {
   RouteOption,
 } from "@repo/schema";
 import { entryLineObservationId } from "@/features/entry/seed";
-import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import { formatClockInSentence, formatIsoWithOffset } from "../time";
 
 // 開発用の架空シナリオ「人身事故・終電間際」。実在の事故記録や発表文ではない
 // 時刻はすべて要求の now からの相対で作る。数値は画面確認用の仮の値で、計算の結果ではない
 
 const eventType = "person_accident";
-
-// モックで使う知見の抜粋。モックの間は knowledge/ に同じ id があってもこちらを優先する
-export const personAccidentCatalog: KnowledgeCatalog = [
-  {
-    id: eventType,
-    name: { ja: "人身事故", en: "Person struck by train" },
-    phases: [
-      {
-        id: "occurrence",
-        name: { ja: "発生直後", en: "Just occurred" },
-        signals: [
-          {
-            id: "accident_announced",
-            description: "人身事故の発生と運転見合わせが案内される",
-            example_phrases: ["人身事故のため、運転を見合わせています"],
-          },
-        ],
-      },
-      {
-        id: "rescue",
-        name: { ja: "救護・確認", en: "Rescue and checks" },
-        signals: [
-          {
-            id: "rescue_announced",
-            description: "救護活動を行っている旨が案内される",
-            example_phrases: ["ただいま救護活動を行っています"],
-          },
-        ],
-      },
-      {
-        id: "on_site",
-        name: { ja: "現場対応", en: "On-site response" },
-        signals: [
-          {
-            id: "site_check_announced",
-            description: "現場の確認が続いている旨が案内される",
-            example_phrases: ["現在、現場の確認を行っています"],
-          },
-          {
-            id: "transfer_started",
-            description: "振替輸送の実施が案内される",
-            example_phrases: ["他の鉄道会社線で振替輸送を行っています"],
-          },
-        ],
-      },
-      {
-        id: "resume_prep",
-        name: { ja: "再開準備", en: "Preparing to resume" },
-        signals: [
-          {
-            id: "resume_time_announced",
-            description: "運転再開の見込み時刻が案内される",
-            example_phrases: ["運転再開は○時○分頃の見込みです"],
-          },
-          {
-            id: "trains_moving",
-            description: "止まっていた列車が動き始める",
-            example_phrases: ["停車中の列車がゆっくり動き出した"],
-          },
-        ],
-      },
-    ],
-  },
-];
 
 function addMinutes(base: Date, minutes: number): Date {
   return new Date(base.getTime() + minutes * 60_000);
@@ -197,7 +132,9 @@ function buildFirstJudgment(request: JudgeRequest, now: Date): Judgment {
       {
         kind: "knowledge",
         id: `${eventType}.on_site`,
-        description: en ? "Service is at the on-site check stage." : "いまは現場の確認の段階です。",
+        description: en
+          ? "Checks continue, so the restart is still a while off."
+          : "確認が続き、再開はまだ先と読めます。",
       },
       {
         kind: "computation",

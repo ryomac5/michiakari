@@ -22,7 +22,6 @@ const tickMs = 100;
 export type ReplayHistoryEntry = {
   observationId: string;
   action: Action;
-  phaseId: string | null;
   evidenceIds: string[];
   breakEvenShown: boolean;
   // 結末の比較に使う、この判断の値
@@ -57,7 +56,6 @@ function buildHistoryEntry(
   return {
     observationId: entry.id,
     action: judgment.action,
-    phaseId: judgment.estimate.phaseId,
     evidenceIds: judgment.evidence.map((e) => e.id),
     breakEvenShown: judgment.breakEven !== null,
     decision: buildReplayDecision(judgment, observedAt, deadline),

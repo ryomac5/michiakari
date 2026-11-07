@@ -90,9 +90,8 @@ export const testIds = {
     photoButton: "situation-photo-button",
     photoPreview: "situation-photo-preview",
     pasteInput: "situation-paste-input",
-    eventTypeOption: (id: string) => `situation-event-type-${id}`,
-    signalOption: (id: string) => `situation-signal-${id}`,
-    selectionEmpty: "situation-selection-empty",
+    causeOption: (id: string) => `situation-cause-${id}`,
+    causeKindOption: (id: string) => `situation-cause-kind-${id}`,
     submit: (kind: SituationTab) => `situation-submit-${kind}`,
     inputError: "situation-input-error",
   },
@@ -134,7 +133,7 @@ export const testIds = {
     changeBefore: "judgment-change-before",
     changeAfter: "judgment-change-after",
     changeAnnouncement: "judgment-change-announcement",
-    // 発表から読めるいまの段階。data-phase-id に段階を出す
+    // 手がかりから読めること。data-cue-id に手がかりの id を出す
     changeReading: "judgment-change-reading",
     changeProbability: "judgment-change-probability",
     disclaimer: "judgment-disclaimer",
@@ -171,11 +170,11 @@ export const testIds = {
     optionFacts: "judgment-option-facts",
     evidence: "judgment-evidence",
     evidenceToggle: "judgment-evidence-toggle",
-    // 根拠の項目。id は兆候か事象の id。data-phase-id と data-current を出す
+    // 根拠の項目。id は兆候の id か "cause"。data-signal-ids と data-cue-id を出す
     evidenceItem: (id: string) => `judgment-evidence-item-${id}`,
     evidenceHeard: "judgment-evidence-heard",
     evidenceReading: "judgment-evidence-reading",
-    // 根拠の欄の、次に聞こえたら判断が変わる放送の言い回し
+    // 表示はやめた。e2e の期待値を直したら外す
     evidenceNext: "judgment-evidence-next",
     // 判断に使った雨量の推移。data-trend と data-reading-count（欠測を含む観測の数）を出す
     weather: "judgment-weather",

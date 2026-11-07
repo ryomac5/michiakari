@@ -13,12 +13,11 @@ import {
   useState,
 } from "react";
 import type { CauseAnswer, EntryMethod, EntryState } from "@/features/entry/flow";
-import { type KnowledgeCatalog, mergeCatalogs } from "@/features/knowledge/catalog";
+import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import type { ElapsedOption } from "@/features/situation/plain-questions";
 import { applyTrainMovement } from "@/features/situation/train-movement";
 import type { NearestStationLabel, StationNames } from "@/features/stations/describe";
 import { JudgmentChangeContext } from "./components/JudgmentChangeCard";
-import { personAccidentCatalog } from "./fixtures/person-accident";
 import { buildJudgmentChange, selectChangeEvidence } from "./judgment-change";
 import { isMockRequested, streamMockJudgment } from "./mock";
 import { buildJudgeRequest } from "./request";
@@ -59,6 +58,7 @@ type JudgmentSession = {
   updateTrainPosition: (position: TrainPosition, meta: TrainPositionMeta) => void;
   observations: Observation[];
   state: JudgmentState;
+  // 知見の抜粋は画面に配らないので常に空。入口が原因の表だけで事象を決めるようになったら外す
   catalog: KnowledgeCatalog;
   mockEnabled: boolean;
   submitInput: (input: RawInput | null) => void;
@@ -131,13 +131,9 @@ export const defaultTrainPositionMeta: TrainPositionMeta = {
 
 const JudgmentSessionContext = createContext<JudgmentSession | null>(null);
 
-export function JudgmentSessionProvider({
-  catalog,
-  children,
-}: {
-  catalog: KnowledgeCatalog;
-  children: ReactNode;
-}) {
+const emptyCatalog: KnowledgeCatalog = [];
+
+export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
   const locale = useLocale();
   const [origin, setOrigin] = useState<Place | null>(null);
   const [destination, setDestination] = useState<Place | null>(null);
@@ -272,12 +268,6 @@ export function JudgmentSessionProvider({
     setStationNames((prev) => (prev[name] === nameEn ? prev : { ...prev, [name]: nameEn }));
   }, []);
 
-  const effectiveCatalog = useMemo(
-    // モックのイベントはモック用の段階 id を使うので、モックの抜粋を優先する
-    () => (mockEnabled ? mergeCatalogs(personAccidentCatalog, catalog) : catalog),
-    [catalog, mockEnabled],
-  );
-
   const value = useMemo<JudgmentSession>(
     () => ({
       origin,
@@ -298,7 +288,7 @@ export function JudgmentSessionProvider({
       updateTrainPosition,
       observations,
       state,
-      catalog: effectiveCatalog,
+      catalog: emptyCatalog,
       mockEnabled,
       submitInput,
       startJudgment,
@@ -319,7 +309,6 @@ export function JudgmentSessionProvider({
       updateTrainPosition,
       observations,
       state,
-      effectiveCatalog,
       mockEnabled,
       submitInput,
       startJudgment,
@@ -334,10 +323,8 @@ export function JudgmentSessionProvider({
     currentJudgment,
     state.observations.at(-1)?.rawText ?? null,
     selectChangeEvidence({
-      catalog: effectiveCatalog,
       estimate: currentJudgment?.estimate ?? null,
       signals: state.signals,
-      locale,
     }),
   );
 

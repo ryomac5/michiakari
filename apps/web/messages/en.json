@@ -62,11 +62,9 @@
       "submit": "Use this text"
     },
     "select": {
-      "eventLabel": "Pick what happened",
-      "signalLabel": "Select all you heard or saw",
-      "empty": "Choices are not ready. Take a photo or paste text.",
-      "back": "Pick what happened again",
-      "submit": "Use these answers"
+      "eventLabel": "Pick the cause",
+      "kindLabel": "Pick the closest one",
+      "back": "Pick another cause"
     },
     "busy": "Thinking"
   },
@@ -79,7 +77,7 @@
       "steps": {
         "reading": "Reading the notice",
         "signals": "Finding signals",
-        "phase": "Estimating the phase",
+        "phase": "Estimating the restart",
         "options": "Checking alternatives",
         "breakEven": "Finding the cutoff time"
       },
@@ -92,7 +90,6 @@
       "detail": {
         "reading": "“{text}”",
         "signals": "{count, plural, one {# signal} other {# signals}}",
-        "phase": "{phase}",
         "options": "{count, plural, one {# option} other {# options}}",
         "breakEven": "{time}",
         "breakEvenNone": "Waiting is surest"
@@ -100,7 +97,7 @@
       "short": {
         "reading": "Read",
         "signals": "Signs",
-        "phase": "Phase",
+        "phase": "Restart",
         "options": "Options",
         "breakEven": "Cutoff"
       },
@@ -251,12 +248,16 @@
       "heard": "What you heard",
       "heardQuote": "“{quote}”",
       "reading": {
-        "label": "What it tells us",
-        "current": "Service is now at the “{phase}” stage.",
-        "entered": "Service had reached the “{phase}” stage.",
-        "unknown": "The stage is not clear yet."
+        "label": "What it tells us"
       },
-      "next": "If you hear “{phrase}”, the restart is getting closer."
+      "cue": {
+        "resumed": "Trains seem to be moving again.",
+        "resume_soon": "The restart seems close.",
+        "track_cleared": "The track check seems done, so the restart seems close.",
+        "queue_ahead": "Even once moving, trains ahead may hold you up.",
+        "protection_received": "Nearby trains have likely stopped too.",
+        "rescue": "A rescue is under way, so this may take a while."
+      }
     },
     "addInfo": {
       "title": "Add information",
@@ -287,7 +288,6 @@
       "resume": "Add the restart time when announced",
       "departSoon": "Stay on board if departure is announced",
       "transfer": "Add any transfer service announcement",
-      "signals": "Update when you see these signs",
       "action": "Update what you see"
     },
     "trainPosition": {
@@ -451,7 +451,7 @@
     "approach": {
       "title": "How we estimate",
       "p1": "We estimate from signs in announcements and notices, and from past cases.",
-      "p2": "We read signals from the notices you bring. We estimate the current phase and a range for the time until service restarts.",
+      "p2": "We read signals from the notices you bring. We estimate a range for the time until service restarts.",
       "p3": "Numbers such as arrival times and the cutoff time are computed by code. The AI interprets and explains them.",
       "p4": "When we are not confident, we focus on the cutoff time instead of a firm estimate."
     },

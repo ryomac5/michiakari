@@ -15,14 +15,10 @@ import type { ReactNode } from "react";
 import { EmptyState } from "@/components/PageShell";
 import { testIds } from "@/features/judgment/testids";
 import { formatClockTime } from "@/features/judgment/time";
-import {
-  findCatalogEvent,
-  type KnowledgeCatalog,
-  pickLocalized,
-} from "@/features/knowledge/catalog";
 import { pickScenarioText, type ReplayScenario } from "../scenario";
+import { findScenarioCause, selectCauseLabelKey } from "../scenario-cause";
 
-// 事象ごとの印。知見に無い事象は列車の印にする
+// 事象ごとの印。ほかの事象は列車の印にする
 const eventIcons: Record<string, ReactNode> = {
   heavy_rain: <CloudRain />,
   in_car_response: <BellRing />,
@@ -33,14 +29,13 @@ const eventIcons: Record<string, ReactNode> = {
 // 再生できるシナリオの格子。1 枚のカードを押すとそのシナリオを開く
 export function ScenarioList({
   scenarios,
-  catalog,
   onSelect,
 }: {
   scenarios: ReplayScenario[];
-  catalog: KnowledgeCatalog;
   onSelect: (id: string) => void;
 }) {
   const t = useTranslations("replay");
+  const tEntry = useTranslations("entry");
   const locale = useLocale();
 
   if (scenarios.length === 0) {
@@ -53,7 +48,8 @@ export function ScenarioList({
       className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
     >
       {scenarios.map((scenario, i) => {
-        const event = findCatalogEvent(catalog, scenario.event_type);
+        const cause = findScenarioCause(scenario.event_type);
+        const causeKey = cause ? selectCauseLabelKey(cause) : null;
         return (
           <li
             key={scenario.id}
@@ -73,9 +69,9 @@ export function ScenarioList({
                 >
                   {eventIcons[scenario.event_type] ?? <TrainFront />}
                 </span>
-                {event && (
+                {causeKey && (
                   <span className="text-[13px] font-semibold text-muted">
-                    {pickLocalized(event.name, locale)}
+                    {tEntry(causeKey as never)}
                   </span>
                 )}
               </span>

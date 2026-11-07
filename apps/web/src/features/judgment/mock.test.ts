@@ -1,6 +1,6 @@
 import { checkJudgmentRefs, type JudgmentEvent, JudgmentEventSchema } from "@repo/schema";
 import { describe, expect, it } from "vitest";
-import { buildPersonAccidentEvents, personAccidentCatalog } from "./fixtures/person-accident";
+import { buildPersonAccidentEvents } from "./fixtures/person-accident";
 import { streamMockJudgment } from "./mock";
 import { buildTestRequest } from "./test-helpers";
 
@@ -54,14 +54,14 @@ describe("人身事故のモック", () => {
     expect(events.some((e) => e.type === "observation_parsed")).toBe(false);
   });
 
-  it("兆候と段階は知見の抜粋にある id を指す", () => {
+  it("兆候は判断と同じ事象を指し、根拠の欄に出す引用を持つ", () => {
     const events = buildPersonAccidentEvents(buildTestRequest());
-    const phases = personAccidentCatalog[0]?.phases ?? [];
-    const signalIds = phases.flatMap((p) => p.signals.map((s) => s.id));
     const judgment = findJudgment(events);
-    expect(phases.map((p) => p.id)).toContain(judgment.estimate.phaseId);
-    for (const e of events) {
-      if (e.type === "signal_detected") expect(signalIds).toContain(e.signal.signalId);
+    const signals = events.flatMap((e) => (e.type === "signal_detected" ? [e.signal] : []));
+    expect(signals.length).toBeGreaterThan(0);
+    for (const s of signals) {
+      expect(s.eventType).toBe(judgment.estimate.eventType);
+      expect(s.quote.trim()).not.toBe("");
     }
   });
 

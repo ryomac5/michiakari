@@ -5,7 +5,7 @@ import {
   selectBestAlternative,
 } from "@repo/core";
 import { type Judgment, resolveDeadline } from "@repo/schema";
-import { findCatalogEvent, type KnowledgeCatalog } from "@/features/knowledge/catalog";
+import { estimateFirstTrainWait } from "@/features/judgment/break-even-timeline";
 import type { ReplayScenario } from "./scenario";
 
 // リプレイの結末に使う値を、agent から受け取った判断だけで組み立てる
@@ -47,20 +47,17 @@ export function buildReplayDecision(
   };
 }
 
-// 初列車待ちは、判断が特定した事象の知見から取る。分岐点の図と同じ求め方
-function resolveFirstTrainWait(
-  decisions: readonly ReplayDecisionRecord[],
-  catalog: KnowledgeCatalog,
-): number {
+// 初列車待ちは、判断が特定した事象から分岐点の図と同じ求め方で引く
+// TODO: packages/core の resolveFirstTrainWait ができたら置き換える
+function selectFirstTrainWait(decisions: readonly ReplayDecisionRecord[]): number {
   const eventType = decisions.findLast((d) => d.eventType !== null)?.eventType ?? null;
-  return findCatalogEvent(catalog, eventType)?.firstTrainWaitMinutes ?? 0;
+  return estimateFirstTrainWait(eventType);
 }
 
 // 結末を求める。正解が無いシナリオや、判断が一つも無いときは null
 export function selectReplayOutcome(
   scenario: ReplayScenario,
   decisions: readonly ReplayDecisionRecord[],
-  catalog: KnowledgeCatalog,
 ): ReplayOutcome | null {
   if (decisions.length === 0) return null;
   const deadline = scenario.user.constraints.deadline;
@@ -68,7 +65,7 @@ export function selectReplayOutcome(
     decisions,
     resumeOffsetMinutes: scenario.resumeOffsetMinutes,
     startTime: scenario.start_time,
-    firstTrainWaitMinutes: resolveFirstTrainWait(decisions, catalog),
+    firstTrainWaitMinutes: selectFirstTrainWait(decisions),
     deadline: deadline ? resolveDeadline(scenario.start_time, deadline) : null,
   });
 }

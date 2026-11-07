@@ -30,7 +30,11 @@ import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { selectFallbackOptionId } from "@/features/judgment/fallback-option";
 import { type OriginLine, type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
-import { selectStoppedPlace, selectStopScope } from "@/features/judgment/stop-scope";
+import {
+  isIncidentTypeId,
+  selectStoppedPlace,
+  selectStopScope,
+} from "@/features/judgment/stop-scope";
 import { selectSwitchStep } from "@/features/judgment/switch-step";
 import { testIds } from "@/features/judgment/testids";
 import { useOptionFocus, useOptionSelection } from "@/features/judgment/use-option-focus";
@@ -76,7 +80,6 @@ export function JudgmentScreen() {
     destination,
     observations,
     state,
-    catalog,
     submitInput,
     retry,
     resumeJudgment,
@@ -133,7 +136,7 @@ export function JudgmentScreen() {
   const stopScope = selectStopScope({
     estimatedEventType: display.estimate?.eventType,
     observations: known,
-    isKnownEvent: (id) => catalog.some((e) => e.id === id),
+    isKnownEvent: isIncidentTypeId,
     cause: selectHeardIncidentCause(tripContext),
   });
   const stoppedPlace = selectStoppedPlace(
@@ -152,7 +155,7 @@ export function JudgmentScreen() {
     known: display.breakEvenKnown,
     stale: display.breakEvenStale,
     judgedAt: display.settled?.at ?? null,
-    timeline: selectTimelineBasis(display.settled, catalog, null),
+    timeline: selectTimelineBasis(display.settled, null),
     // 時刻ごとの再開の見込み。入口で止まってからの時間を答えたときだけ「発生から」を出す
     chance: display.breakEven?.resumeChance ?? null,
     showOnset: typeof tripContext?.elapsedMinutes === "number",
@@ -234,7 +237,7 @@ export function JudgmentScreen() {
           onCollapsedHeightChange={chrome.setCollapsedHeight}
           summary={
             <div className="flex flex-col gap-3">
-              {streaming && <ReasoningProgress state={state} catalog={catalog} />}
+              {streaming && <ReasoningProgress state={state} />}
               {state.status === "error" && state.error && (
                 <JudgmentError
                   message={state.error.message}
@@ -311,7 +314,6 @@ export function JudgmentScreen() {
             <NextCheckSection
               estimate={display.estimate}
               flow={typicalFlow}
-              catalog={catalog}
               onUpdate={() => {
                 chrome.setSnap("full");
                 setFocusAddInfo(true);
@@ -323,13 +325,12 @@ export function JudgmentScreen() {
             <EvidenceSection
               estimate={display.estimate}
               signals={state.signals}
-              catalog={catalog}
               heardCause={heardCause}
             />
           </SheetSection>
           {state.status === "ready" && (
             <SheetSection>
-              <ReasoningLog state={state} catalog={catalog} />
+              <ReasoningLog state={state} />
             </SheetSection>
           )}
           <SheetSection>
@@ -342,7 +343,6 @@ export function JudgmentScreen() {
           >
             <p className="text-[13px] text-muted">{t("addInfo.lead")}</p>
             <SituationInput
-              catalog={catalog}
               busy={streaming}
               onSubmit={(input) => {
                 submitInput(input);
