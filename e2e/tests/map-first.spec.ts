@@ -400,6 +400,44 @@ for (const theme of ["light", "dark"] as const) {
       await capture(page, theme, "section-entered-overview");
     });
 
+    test("入口で全部分からないと答えた保留の判断では、理由と、動かなかったときの経路と、境目の時刻を出す", async ({
+      page,
+    }) => {
+      // 大阪駅から三ノ宮へ。原因も止まってからの分も再開見込みも分からない
+      await page.goto("/");
+      await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
+        timeout: 30_000,
+      });
+      await page.getByTestId(testIds.start.positionStation).click();
+      await page.getByTestId(testIds.start.originSearch).fill("大阪");
+      await page.getByTestId(testIds.start.originOption("大阪")).click();
+      await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
+      await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+      await finishEntry(page);
+      await openSheet(page, "collapsed");
+      await waitForMapReady(page);
+      const conclusion = page.getByTestId(testIds.judgment.conclusion);
+      await expect(conclusion).toHaveAttribute("data-action", "hold");
+      // 閉じたシートの 2 行目に、判断の理由の 1 文目を出す。文は判断の結果の理由からそのまま取る
+      const reason = page.getByTestId(testIds.judgment.summaryReason);
+      await expect(reason).toBeInViewport();
+      const lead = (await page.getByTestId(testIds.judgment.conclusionReason).textContent()) ?? "";
+      expect(lead.length).toBeGreaterThan(0);
+      await expect(reason).toHaveText(lead);
+      // 地図には、動かなかったときに乗る経路を光らせ、その乗る駅に「動かなければ」の吹き出しを出す
+      const map = page.getByTestId(testIds.judgment.map);
+      await expect(map).toHaveAttribute("data-route-glow", "true");
+      const fallback = page.locator("[data-testid^='judgment-map-station-'][data-fallback='true']");
+      await expect(fallback).toHaveCount(1);
+      await expect(fallback.getByTestId(mapTestIds.fallbackTag)).toBeVisible();
+      // 見込みのグラフは出ないので、地図の上の端に運行の状態と境目の時刻だけを小さく出す
+      await expect(page.getByTestId(testIds.judgment.resumeBand)).toHaveCount(0);
+      await expect(page.getByTestId(`map-${testIds.judgment.breakEvenTime}`)).toBeVisible();
+      await expect(page.getByTestId(testIds.judgment.statusChip)).toBeVisible();
+      await expectMapFirst(page);
+      await capture(page, theme, "hold");
+    });
+
     test("駅で待つ判断では、今の路線の行き先までを光らせ、再開の見込みの帯を地図に重ねる", async ({
       page,
     }) => {
