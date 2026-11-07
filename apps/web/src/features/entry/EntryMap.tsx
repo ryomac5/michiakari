@@ -202,9 +202,10 @@ const routeLayers = {
   arrows: "entry-route-arrows",
 } as const;
 const routeArrowImage = "entry-route-arrow";
-// 光が線の始まりから終わりまで流れる時間（ms）と、光の帯の長さ（線の長さに対する割合）
-const routeFlowMs = 2600;
-const routeFlowBand = 0.12;
+// 光の帯が 1 間ぶん進む時間（ms）、線に並べる帯の数、帯の長さ（1 間に対する割合）
+const routeFlowMs = 1600;
+const routeFlowBands = 3;
+const routeFlowBand = 0.4;
 // 押した点の波紋を出しておく時間（ms）
 const tapRippleMs = 650;
 // 線を押したとみなす、押した点からの幅（px）
@@ -318,27 +319,25 @@ function addLayers(map: MapLibreMap, geo: MapGeoData, palette: MapPalette): void
   addRouteLayers(map, palette);
 }
 
-// 光の帯を、線の始まりから progress の位置に置く。帯の前の端ほど明るくし、向きが分かるようにする
+// 線に沿って等しい間をあけた光の帯を並べる。phase が 0 から 1 へ進むと、帯は線の終わりの側へ 1 間ぶん進む
+// 帯は前の端をいちばん明るくし、後ろへ薄くする。どの時点でも帯が見え、進む向きが分かる
 export function buildRouteFlowGradient(
-  progress: number,
-  band = routeFlowBand,
+  phase: number,
+  bands = routeFlowBands,
+  width = routeFlowBand,
 ): ExpressionSpecification {
-  const clear = "rgba(255,255,255,0)";
-  const tail = Math.max(0, progress - band);
-  const head = Math.min(1, progress);
-  const stops: [number, string][] = [
-    [0, clear],
-    [tail, clear],
-    [head, "rgba(255,255,255,0.95)"],
-    [Math.min(1, head + 0.004), clear],
-    [1, clear],
-  ];
-  const ordered = stops.filter((stop, i) => i === 0 || stop[0] > (stops[i - 1]?.[0] ?? -1));
+  const samples = 160;
+  const stops = Array.from({ length: samples + 1 }, (_, i) => {
+    const at = i / samples;
+    const behind = (((phase - at * bands) % 1) + 1) % 1;
+    const alpha = behind < width ? 0.95 * (1 - behind / width) : 0;
+    return [at, `rgba(255,255,255,${alpha.toFixed(3)})`];
+  });
   return [
     "interpolate",
     ["linear"],
     ["line-progress"],
-    ...ordered.flat(),
+    ...stops.flat(),
   ] as unknown as ExpressionSpecification;
 }
 
@@ -821,6 +820,13 @@ export function EntryMap(props: EntryMapProps) {
 
   // 駅の間の候補を光らせる。描けた区間の数と一番強い区間は、e2e が確かめられるよう属性に出す
   const [sectionShown, setSectionShown] = useState({ count: 0, focus: "" });
+  // いちばん強く光らせる区間の両端。e2e が押した駅の間の位置で光るかを確かめる
+  const focusedSection = sections.features.find((f) => f.properties.key === sectionShown.focus);
+  const sectionEnds = focusedSection
+    ? [focusedSection.geometry.coordinates[0], focusedSection.geometry.coordinates.at(-1)]
+        .map((p) => (p ? `${p[0].toFixed(5)},${p[1].toFixed(5)}` : ""))
+        .join(";")
+    : "";
   useEffect(() => {
     if (!map) return;
     map.getSource<GeoJSONSource>(sourceIds.section)?.setData(sections);
@@ -922,7 +928,7 @@ export function EntryMap(props: EntryMapProps) {
       // 光の位置は 30 回/秒ほどで更新し、控えめに動かす
       if (time - last > 33) {
         last = time;
-        const progress = ((time % routeFlowMs) / routeFlowMs) * (1 + routeFlowBand);
+        const progress = (time % routeFlowMs) / routeFlowMs;
         map.setPaintProperty(routeLayers.flow, "line-gradient", buildRouteFlowGradient(progress));
       }
       frame = requestAnimationFrame(tick);
@@ -1409,6 +1415,7 @@ export function EntryMap(props: EntryMapProps) {
       data-moving={moving}
       data-section-count={sectionShown.count}
       data-section-focus={sectionShown.focus}
+      data-section-ends={sectionEnds}
       data-route-start={routeEnds?.start.map((v) => v.toFixed(6)).join(",")}
       data-route-end={routeEnds?.end.map((v) => v.toFixed(6)).join(",")}
       data-route-meters={routeEnds ? Math.round(measurePathMeters(routeCoordinates)) : undefined}

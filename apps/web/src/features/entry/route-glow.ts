@@ -24,6 +24,15 @@ function listStationLines(data: EntryData, choiceId: string): string[] {
   });
 }
 
+// 路線の上の駅の位置。路線に無ければ null
+function findLinePosition(data: EntryData, lineId: string, choiceId: string): Position | null {
+  const group = data.catalog.groupById.get(choiceId);
+  const node = (group?.stationIds ?? [])
+    .map((id) => data.index.getStation(id))
+    .find((n) => n?.lineId === lineId);
+  return node ? [node.lonLat[0], node.lonLat[1]] : null;
+}
+
 // 選んだ方面の先に行き先があれば、出発の駅から行き先までの駅を路線ごとの区間に分ける
 // 直通先の駅に入ったら、そこからは直通先の路線の区間にする。行き先が方面の先に無ければ null
 export function planDirectionSpans(
@@ -53,8 +62,11 @@ export function planDirectionSpans(
       shared[0] ??
       current?.lineId ??
       lineId;
-    if (current && current.lineId === pairLine) current.points.push(to.position);
-    else spans.push({ lineId: pairLine, points: [from.position, to.position] });
+    // 同じ名前の駅をまとめた位置ではなく、乗る路線の駅の位置で切る。千里線の吹田は JR の吹田とずれる
+    const at = (station: { id: string; position: Position }) =>
+      findLinePosition(data, pairLine, station.id) ?? station.position;
+    if (current && current.lineId === pairLine) current.points.push(at(to));
+    else spans.push({ lineId: pairLine, points: [at(from), at(to)] });
   }
   return spans;
 }

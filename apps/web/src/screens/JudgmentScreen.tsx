@@ -211,10 +211,6 @@ export function JudgmentScreen() {
         trainPosition={trainPosition}
         trainOnly={stopScope === "train"}
         insets={chrome.insets}
-        onAddAnnouncement={() => {
-          chrome.setSnap("full");
-          setFocusAddInfo(true);
-        }}
         onReachSourceChange={setReachSource}
         onGuideChange={setGuide}
         onSelectOption={focusOption}

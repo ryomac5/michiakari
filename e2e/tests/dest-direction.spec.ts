@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { chooseBetweenStations } from "../support/entry.ts";
+import { projectOnPage } from "../support/map-view.ts";
 import { waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -148,9 +149,9 @@ test.describe("行き先までの光 1280x800", () => {
     await expect(map).toHaveAttribute("data-route-legs", "1");
     expect(measureMeters(await readPoint(page, "data-route-start"), osaka)).toBeLessThan(300);
     expect(measureMeters(await readPoint(page, "data-route-end"), sannomiya)).toBeLessThan(300);
-    // 時間をずらして 2 枚撮り、光の帯が三ノ宮の側へ進むことを目で確かめる
+    // 0.25 秒ずらして 2 枚撮り、光の帯が三ノ宮の側へ進むことを目で確かめる
     await capture(page, "flow-1", false);
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(250);
     await capture(page, "flow-2", false);
   });
 
@@ -222,3 +223,41 @@ test.describe("行き先までの光 1280x800", () => {
     await capture(page, "reduced-motion");
   });
 });
+
+// スマートフォンでも、行き先を選んだ直後の段で光る経路の全体が地図の帯に入る
+for (const viewport of [
+  { width: 375, height: 667 },
+  { width: 390, height: 844 },
+]) {
+  const size = `${viewport.width}x${viewport.height}`;
+  test.describe(`スマートフォンの光 ${size}`, () => {
+    test.use({ viewport, deviceScaleFactor: 2 });
+
+    test("大阪から三ノ宮を選ぶと、光る経路の両端がシートの上の地図に見え、光が流れる", async ({
+      page,
+    }) => {
+      await openStation(page, "大阪");
+      await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
+      await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
+      await expectStage(page, "cause");
+      const map = page.getByTestId(testIds.start.map);
+      await expect(map).toHaveAttribute("data-route-legs", "1");
+      await expect(map).toHaveAttribute("data-moving", "false");
+      const header = await page.getByTestId("app-header").boundingBox();
+      const sheet = await page.getByTestId(testIds.start.sheet).boundingBox();
+      if (!header || !sheet) throw new Error("上部の帯かシートがありません");
+      for (const name of ["data-route-start", "data-route-end"] as const) {
+        const point = await projectOnPage(page, await readPoint(page, name));
+        expect(point.x, name).toBeGreaterThan(8);
+        expect(point.x, name).toBeLessThan(viewport.width - 8);
+        expect(point.y, name).toBeGreaterThan(header.y + header.height);
+        expect(point.y, name).toBeLessThan(sheet.y);
+      }
+      // 選択肢はシートの中で送って選べる
+      await expect(page.getByTestId(testIds.start.cause("unknown"))).toBeAttached();
+      await capture(page, `phone-flow-1-${size}`, false);
+      await page.waitForTimeout(250);
+      await capture(page, `phone-flow-2-${size}`, false);
+    });
+  });
+}

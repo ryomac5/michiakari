@@ -497,9 +497,7 @@ export function StartScreen() {
     rememberStationName(choice.from.name, choice.from.nameEn);
     rememberStationName(choice.to.name, choice.to.nameEn);
     setPickedSection(choice);
-    setLastBetween(
-      computeMidpoint([choice.from.lon, choice.from.lat], [choice.to.lon, choice.to.lat]),
-    );
+    setLastBetween(computeMidpoint(choice.fromPosition, choice.toPosition));
     setOrigin({ kind: "station", name: choice.from.name });
     setOriginNearest(null);
     setOriginLine(choice.line);
@@ -1391,8 +1389,10 @@ export function StartScreen() {
               entry.stage === "between" ||
               routeStops.length > 0
             }
-            // 様子を聞く段は地図を使わないので、地図を覆って選択肢を詰めて並べる
-            fill={situationStages.has(entry.stage)}
+            // 行き先を選んだ直後の段は、光る経路が見えるよう地図の帯を残してシートを低くする
+            trip={entry.stage === "cause" && routeShown}
+            // ほかの様子を聞く段は地図を使わないので、地図を覆って選択肢を詰めて並べる
+            fill={situationStages.has(entry.stage) && !(entry.stage === "cause" && routeShown)}
             progress={progressIndex >= 0 ? <EntryProgress index={progressIndex} /> : null}
           >
             {(entry.stage === "kansai" || entry.stage === "area") && mapPick && (

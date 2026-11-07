@@ -149,7 +149,7 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   expect(await bubbles.count()).toBeLessThanOrEqual(4);
   await expect(bubbles.first()).toBeVisible();
   await expect(page.getByTestId(mapTestIds.blockedTag)).toHaveCount(0);
-  await expect(page.getByTestId(mapTestIds.sectionNote)).toContainText("区間は発表で確かめる");
+  await expect(page.getByTestId(mapTestIds.sectionNote)).toHaveCount(0);
   await expect(page.getByTestId(mapTestIds.here)).toContainText("本町");
   await expect(page.getByTestId(testIds.judgment.disclaimer)).toBeVisible();
   await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("御堂筋線");
