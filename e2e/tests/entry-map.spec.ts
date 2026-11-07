@@ -194,11 +194,31 @@ test("画面の外にある京都は、縁の札から寄れる", async ({ page 
   await expect(page.getByTestId(testIds.start.place("kyoto"))).toBeVisible();
 });
 
-test("丸の無い所を触っても、そのあたりの駅へ寄る", async ({ page }) => {
+test("丸も線も無い所を触っても、そのあたりの駅へ寄る", async ({ page }) => {
   await openEntry(page);
   const box = await page.getByTestId(testIds.start.map).boundingBox();
-  // 大阪と難波の丸の間より東。どの丸の札とも重ならない点
-  await page.mouse.click((box?.width ?? 390) - 40, (box?.height ?? 844) * 0.6);
+  const width = box?.width ?? 390;
+  const height = box?.height ?? 844;
+  // 大阪と難波の丸の間より東の点から順に試す。線の近くなら駅の間の候補が出るので、閉じて次の点を試す
+  const points = [
+    { x: width - 40, y: height * 0.6 },
+    { x: width - 30, y: height * 0.68 },
+    { x: width - 60, y: height * 0.72 },
+    { x: 40, y: height * 0.68 },
+    { x: 30, y: height * 0.6 },
+    { x: width - 30, y: height * 0.45 },
+  ];
+  for (const point of points) {
+    const tag = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, point);
+    if (tag !== "CANVAS") continue;
+    await page.mouse.click(point.x, point.y);
+    const picked = page.getByTestId(testIds.start.mapPick);
+    const area = page.getByTestId(testIds.start.screen).and(page.locator("[data-stage='area']"));
+    await expect(picked.or(area)).toBeVisible();
+    if ((await picked.count()) === 0) break;
+    await page.getByTestId(testIds.start.back).click();
+    await expect(picked).toHaveCount(0);
+  }
   await expectStage(page, "area");
   await expect(page.locator("[data-testid^='start-area-place-']").first()).toBeVisible();
 });
