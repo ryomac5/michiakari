@@ -65,12 +65,30 @@ describe("塚本〜大阪の間の車内", () => {
       alightStation: "大阪",
       destination: { kind: "station", name: "京都" },
       afterAlight: null,
+      stay: false,
     });
     expect(motion.ride.length).toBeGreaterThanOrEqual(2);
     expect(computeDistanceMeters(motion.ride.at(-1) as Position, osaka)).toBeLessThan(600);
     const after = motion.after[0] ?? [];
     expect(after.length).toBeGreaterThan(5);
     expect(computeDistanceMeters(after.at(-1) as Position, findStation("京都"))).toBeLessThan(600);
+  });
+
+  it("乗り続けるときは、列車が次の駅で止まらず、行き先まで線路に沿って進む", () => {
+    const motion = buildInCarMotion(geo, {
+      here: between,
+      alight: osaka,
+      lineId: tokaido,
+      alightStation: "大阪",
+      destination: { kind: "station", name: "京都" },
+      afterAlight: null,
+      stay: true,
+    });
+    expect(motion.after).toEqual([]);
+    expect(computeDistanceMeters(motion.ride.at(-1) as Position, findStation("京都"))).toBeLessThan(
+      600,
+    );
+    expect(measurePathMeters(motion.ride)).toBeGreaterThan(30_000);
   });
 
   it("乗り換えの一手があれば、乗り換え先の路線で行き先まで光らせる", () => {
@@ -87,6 +105,7 @@ describe("塚本〜大阪の間の車内", () => {
         boardStation: "大阪梅田",
         arrivalTime: "2026-11-07T20:30:00+09:00",
       },
+      stay: false,
     });
     const after = motion.after[0] ?? [];
     expect(after.length).toBeGreaterThan(2);
@@ -112,6 +131,7 @@ describe("塚本〜大阪の間の車内", () => {
         boardStation: null,
         arrivalTime: "2026-11-07T20:30:00+09:00",
       },
+      stay: false,
     });
     expect(motion.after).toEqual([]);
   });
@@ -132,6 +152,20 @@ describe("画面の外の行き先の札", () => {
 
   it("見える範囲の中なら札を出さない", () => {
     expect(placeEdgeMarker({ x: 200, y: 300 }, view, size)).toBeNull();
+  });
+
+  it("縁の点が今いる位置の札に重なるなら、縁に沿ってずらす", () => {
+    const here = { left: 0, right: 160, top: 260, bottom: 340 };
+    const marker = placeEdgeMarker({ x: -500, y: 300 }, view, size, [here]);
+    expect(marker?.x).toBeCloseTo(view.left + size.w / 2, 5);
+    const top = (marker?.y ?? 0) - size.h / 2;
+    const bottom = (marker?.y ?? 0) + size.h / 2;
+    expect(bottom <= here.top || top >= here.bottom).toBe(true);
+  });
+
+  it("縁のどこに置いても重なるなら、札を出さない", () => {
+    const all = { left: -10, right: 400, top: -10, bottom: 610 };
+    expect(placeEdgeMarker({ x: -500, y: 300 }, view, size, [all])).toBeNull();
   });
 
   it("右上の外にあれば、札を範囲の内側の縁に置き、右上を向ける", () => {
