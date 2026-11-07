@@ -13,17 +13,11 @@ import { createAnthropicLlmClient } from "./llm-client.ts";
 import { loadPrompts } from "./prompts/load-prompts.ts";
 import { createAmedasRainFetcher } from "./tools/jma-amedas.ts";
 
-// 起動時に知見とシナリオを読み、判断モードを決めてサーバーを立てる
+// 起動時にシナリオを読み、判断モードを決めてサーバーを立てる
 
 const port = Number(process.env.PORT ?? defaultPort);
 const mode = resolveJudgeMode();
 const content = loadContentStore();
-
-if (content.knowledge.size === 0) {
-  console.warn(
-    "知見が 0 件です。CONTENT_DIR の設定を確かめてください。未設定だとリポジトリの knowledge/ を読みます",
-  );
-}
 
 const app = createApp({
   judge: {
@@ -42,6 +36,6 @@ const app = createApp({
 
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(
-    `agent listening on http://localhost:${info.port} (mode: ${mode}, knowledge: ${content.knowledge.size}, scenarios: ${content.scenarios.size}, content errors: ${content.errorCount})`,
+    `agent listening on http://localhost:${info.port} (mode: ${mode}, scenarios: ${content.scenarios.size}, content errors: ${content.errorCount})`,
   );
 });

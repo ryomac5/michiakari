@@ -2,17 +2,15 @@ import type { BetaTool } from "@anthropic-ai/sdk/resources/beta/messages/message
 import { z } from "zod";
 import { computeBreakEvenDefinition } from "./compute-break-even.ts";
 import { emitJudgmentDefinition } from "./emit-judgment.ts";
-import { estimatePhaseDefinition } from "./estimate-phase.ts";
+import { estimateRemainingDefinition } from "./estimate-remaining.ts";
 import { findAlternativesDefinition } from "./find-alternatives.ts";
 import { getWeatherDefinition } from "./get-weather.ts";
-import { lookupKnowledgeDefinition } from "./lookup-knowledge.ts";
 
 // Claude に渡すツール定義。入力スキーマは Zod から生成する。順序を固定してプロンプトキャッシュを効かせる
 
 const TOOL_DEFINITIONS = [
-  lookupKnowledgeDefinition,
   getWeatherDefinition,
-  estimatePhaseDefinition,
+  estimateRemainingDefinition,
   findAlternativesDefinition,
   computeBreakEvenDefinition,
   emitJudgmentDefinition,

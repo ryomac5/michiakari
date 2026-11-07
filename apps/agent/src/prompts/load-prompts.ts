@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
-import type { Knowledge } from "@repo/schema";
+import { INCIDENT_PHRASES, INCIDENT_TYPE_IDS } from "@repo/core";
 
-// システムプロンプトをファイルから読み、知見のブロックを作る
+// システムプロンプトをファイルから読み、解釈に使う種類の表を作る
 
 export type Prompts = {
   judgmentSystem: string;
@@ -19,29 +19,8 @@ export function loadPrompts(): Prompts {
   };
 }
 
-// id 順に並べ、同じ内容なら同じ文字列になるようにする（プロンプトキャッシュのため）
-function sortKnowledge(knowledge: ReadonlyMap<string, Knowledge>): Knowledge[] {
-  return [...knowledge.values()].sort((a, b) => a.id.localeCompare(b.id));
-}
-
-export function buildKnowledgeBlock(knowledge: ReadonlyMap<string, Knowledge>): string {
-  return `<knowledge>\n${JSON.stringify(sortKnowledge(knowledge), null, 1)}\n</knowledge>`;
-}
-
-// 解釈に必要な部分だけを抜き出したカタログ
-export function buildKnowledgeCatalog(knowledge: ReadonlyMap<string, Knowledge>): string {
-  const catalog = sortKnowledge(knowledge).map((k) => ({
-    id: k.id,
-    name: k.name,
-    identification: k.identification.phrases,
-    signals: k.phases.flatMap((p) =>
-      p.signals.map((s) => ({
-        id: s.id,
-        observable_from: s.observable_from,
-        description: s.description,
-        example_phrases: s.example_phrases,
-      })),
-    ),
-  }));
-  return `<knowledge_catalog>\n${JSON.stringify(catalog, null, 1)}\n</knowledge_catalog>`;
+// 解釈に使う、起きていることの種類と一般的な呼び名の表。core の表から作り、並びは固定する（プロンプトキャッシュのため）
+export function buildIncidentCatalog(): string {
+  const catalog = INCIDENT_TYPE_IDS.map((id) => ({ id, phrases: INCIDENT_PHRASES[id] }));
+  return `<incident_catalog>\n${JSON.stringify(catalog, null, 1)}\n</incident_catalog>`;
 }

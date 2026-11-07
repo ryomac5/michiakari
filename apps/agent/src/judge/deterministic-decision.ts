@@ -1,5 +1,5 @@
 import { computeLateShare, selectKeyTick } from "@repo/core";
-import type { Action, Knowledge } from "@repo/schema";
+import type { Action } from "@repo/schema";
 import { decisionParams } from "../config.ts";
 import type { Decision } from "../tools/emit-judgment.ts";
 import type { BreakEvenToolResult, EstimateToolResult, WeatherToolResult } from "../tools/types.ts";
@@ -24,7 +24,6 @@ export type RuleOutcome = {
 };
 
 export type RuleInput = JudgmentToolResults & {
-  knowledge: Knowledge | null;
   weather: WeatherToolResult | null;
 };
 
@@ -78,8 +77,27 @@ function decideByStatedResume(
   };
 }
 
-// 規則は上から順に当てはめる
+// 再開後に先の列車が詰まり、次の駅で降りて乗り換える価値があれば、待つ・保留の代わりに切り替える
+// 次の駅まで行かせることが優先されるので、いま乗っていなければ駅にいる人が乗り換える形になる
+function applyResumeQueueRule(input: RuleInput, outcome: RuleOutcome): RuleOutcome {
+  const r = input.breakEven.result;
+  if (outcome.action === "switch" || !input.estimate.resumeQueue?.worthAlightingAtNextStation)
+    return outcome;
+  if (r.kind !== "future" && r.kind !== "passed") return outcome;
+  return {
+    action: "switch",
+    reason: "queue_after_resume",
+    recommendedOptionId: r.bestAlternativeId,
+  };
+}
+
+// 規則を当てはめ、最後に再開後の詰まりを見る
 export function applyDecisionRules(input: RuleInput): RuleOutcome {
+  return applyResumeQueueRule(input, applyIncidentRules(input));
+}
+
+// 規則は上から順に当てはめる
+function applyIncidentRules(input: RuleInput): RuleOutcome {
   const { estimate, breakEven } = input;
   const r = breakEven.result;
   // 原因が分からなくても、分岐点を過ぎていれば代替手段のほうが早い。事象は決め打ちしない
@@ -118,13 +136,13 @@ export function applyDecisionRules(input: RuleInput): RuleOutcome {
   const switchTo = { recommendedOptionId: r.bestAlternativeId };
   // 分岐点を過ぎた: いま再開しても代替手段のほうが早い
   if (r.kind === "passed") return { action: "switch", reason: "break_even_passed", ...switchTo };
-  // 気象が原因の事象で雨が続くあいだは、代替経路も同じ雨の影響を受けやすい
-  if (input.knowledge?.external_factors.weather && input.weather?.summary.rainContinuing === true) {
+  // 天気の事象で雨が続くあいだは、代替経路も同じ雨の影響を受けやすい
+  if (estimate.weatherIncident && input.weather?.summary.rainContinuing === true) {
     return { action: "hold", reason: "rain_continuing", recommendedOptionId: null };
   }
-  // 見込みの立てやすい事象は、発生直後から言い切る。知見から見積もった再開の見込みが分岐点より後なら、時間の窓を待たずに切り替える
+  // 規則表で長く止まる種類は、発生直後から言い切る。統計値の再開の見込みが分岐点より後なら、時間の窓を待たずに切り替える
   // 発表された見込みがあるときは、下の規則で発表の時刻と比べる
-  if (estimate.flowOutlook !== null && estimate.remainingBasis === "knowledge") {
+  if (checkLongIncident(estimate) && estimate.remainingBasis === "statistics") {
     const late = decideSwitchInsteadOfHold(r, true);
     if (late) return { action: "switch", reason: late, ...switchTo };
   }
@@ -156,9 +174,15 @@ export function applyDecisionRules(input: RuleInput): RuleOutcome {
   };
 }
 
-// 見込みが立てやすい事象の、短く終わるか長くかかるかの区別。見出しの言い方を選ぶのに使う
+// 規則表で長く止まる種類か。とても長いものも含む
+function checkLongIncident(estimate: EstimateToolResult): boolean {
+  return estimate.flowOutlook === "long" || estimate.flowOutlook === "very_long";
+}
+
+// 規則表の、短く終わるか長くかかるかの区別。見出しの言い方を選ぶのに使う。分からなければ null
 function buildFlowText(estimate: EstimateToolResult): DecisionTextInput["flow"] {
-  return estimate.flowOutlook ? { outlook: estimate.flowOutlook } : null;
+  if (estimate.flowOutlook === "short") return { outlook: "short" };
+  return checkLongIncident(estimate) ? { outlook: "long" } : null;
 }
 
 // 理由と同じ比較時点の確率を添える。期限の判断では早着より期限内到着を優先する
@@ -194,6 +218,7 @@ export function decideDeterministically(
     const text = buildInCarDecisionText({
       language,
       queue: buildTrainQueueText(results.estimate),
+      worthAlighting: results.estimate.resumeQueue?.worthAlightingAtNextStation === true,
     });
     return {
       action: "wait",
@@ -204,12 +229,7 @@ export function decideDeterministically(
       evidence: session.collectEvidenceRefs(),
     };
   }
-  const eventType = results.estimate.estimate.eventType;
-  const outcome = applyDecisionRules({
-    ...results,
-    knowledge: eventType ? (session.ctx.content.knowledge.get(eventType) ?? null) : null,
-    weather: session.state.weather,
-  });
+  const outcome = applyDecisionRules({ ...results, weather: session.state.weather });
   const r = results.breakEven.result;
   const hasBreakEven = r.kind === "future" || r.kind === "passed";
   const bestOption = hasBreakEven
@@ -228,7 +248,11 @@ export function decideDeterministically(
     deadlineBasis: hasBreakEven ? (r.deadlineBasis ?? null) : null,
     bestOption,
     flow: buildFlowText(results.estimate),
-    chance: buildChanceText(results.breakEven, outcome.reason),
+    // 詰まりで切り替えるときは、待つほうが早い確率が理由と食い違うので添えない
+    chance:
+      outcome.reason === "queue_after_resume"
+        ? null
+        : buildChanceText(results.breakEven, outcome.reason),
   });
   return {
     action: outcome.action,

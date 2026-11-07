@@ -2,7 +2,7 @@ import type {
   BetaMessage,
   MessageCreateParamsNonStreaming,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { addMinutesToIso, estimateStatsRemaining } from "@repo/core";
+import { addMinutesToIso, estimateStatsRemaining, resolveFirstTrainWait } from "@repo/core";
 import type {
   IncidentCause,
   JudgeRequest,
@@ -14,12 +14,13 @@ import { describe, expect, it } from "vitest";
 import { models } from "../src/config.ts";
 import { findFlowWording } from "../src/domain/flow-wording.ts";
 import type { LlmClient } from "../src/llm-client.ts";
-import { runEstimatePhase } from "../src/tools/estimate-phase.ts";
+import { runEstimateRemaining } from "../src/tools/estimate-remaining.ts";
 import type { ToolContext } from "../src/tools/types.ts";
 import { createTestApp, createTestDeps, postJudge } from "./helpers.ts";
 
-// 入口で答えた原因の統計値から、知見の無い原因の再開の見込みを出す
-// 知見があれば知見、知見が無く統計値があれば統計値、どちらも無ければ見込みを持たない
+// 入口で答えた原因の統計値から、再開の見込みを出す
+// 種類が分かれば規則表と種類の統計値、大分類だけなら大分類の統計値、どちらも無ければ見込みを持たない
+// 乗れるまでの残りは、再開までの統計値に規則表の初列車待ちを足したもの
 
 const app = createTestApp();
 // 2026-11-06 は金曜。12 時はそれ以外の時間帯、8 時台は通勤時間帯
@@ -65,6 +66,19 @@ function buildRequest(input: {
   };
 }
 
+// 大分類だけのときの初列車待ちは、区間が止まるものとみなした値
+const sectionWait = resolveFirstTrainWait(null);
+
+// 再開までの統計値に初列車待ちを足した、乗れるまでの残り
+function expectStatsBoardable(cause: IncidentCause, onset: string, now: string) {
+  const stats = estimateStatsRemaining(cause, onset, now);
+  if (!stats) throw new Error("統計値が要ります");
+  return {
+    p50: stats.remaining.p50 + sectionWait.p50,
+    p80: stats.remaining.p80 + sectionWait.p80,
+  };
+}
+
 function findJudgment(events: JudgmentEvent[]): Judgment {
   const ready = events.find((e) => e.type === "judgment_ready");
   if (ready?.type !== "judgment_ready") throw new Error("judgment_ready が届きません");
@@ -78,29 +92,33 @@ function expectNoResumeDuration(judgment: Judgment) {
 }
 
 describe("見込みの出どころ", () => {
-  it("知見のある原因は、原因を送っても知見から見込みを出す", async () => {
+  it("種類が分かれば、原因を送っても送らなくても規則表の種類で同じ見込みを出す", async () => {
     const cause: IncidentCause = { group: "passenger", type: "person_collision" };
     const withCause = findJudgment(
-      await postJudge(app, buildRequest({ eventType: "person_accident", cause })),
+      await postJudge(app, buildRequest({ eventType: "person_collision", cause })),
     );
     const without = findJudgment(
-      await postJudge(app, buildRequest({ eventType: "person_accident" })),
+      await postJudge(app, buildRequest({ eventType: "person_collision" })),
     );
-    expect(withCause.estimate.source).toBe("knowledge");
-    expect(withCause.estimate.eventType).toBe("person_accident");
+    expect(withCause.estimate.source).toBe("rule");
+    expect(withCause.estimate.eventType).toBe("person_collision");
     expect(withCause.estimate.remaining).toEqual(without.estimate.remaining);
-    const stats = estimateStatsRemaining(cause, daytime, daytime);
-    expect(withCause.estimate.remaining).not.toEqual(stats?.remaining);
+    expect(withCause.estimate.remaining).toEqual(expectStatsBoardable(cause, daytime, daytime));
   });
 
-  it("知見の無い大分類は、統計値から見込みと時刻ごとの再開の見込みを出す", async () => {
+  it("選択式で大分類の id を送ると、大分類の統計値で見込む", async () => {
+    const judgment = findJudgment(await postJudge(app, buildRequest({ eventType: "signaling" })));
+    expect(judgment.estimate.eventType).toBeNull();
+    expect(judgment.estimate.source).toBe("statistics");
+    expect(judgment.estimate.remaining).toEqual(expectStatsBoardable(signaling, daytime, daytime));
+  });
+
+  it("大分類だけの原因は、統計値から見込みと時刻ごとの再開の見込みを出す", async () => {
     const judgment = findJudgment(await postJudge(app, buildRequest({ cause: signaling })));
     expect(judgment.estimate.source).toBe("statistics");
     expect(judgment.estimate.eventType).toBeNull();
     expect(judgment.estimate.confidence).toBe("low");
-    expect(judgment.estimate.remaining).toEqual(
-      estimateStatsRemaining(signaling, daytime, daytime)?.remaining,
-    );
+    expect(judgment.estimate.remaining).toEqual(expectStatsBoardable(signaling, daytime, daytime));
     expect(judgment.breakEven?.resumeChance?.ticks.length).toBeGreaterThanOrEqual(4);
     expect(judgment.typicalFlow).toBeUndefined();
     expect(["hold", "switch"]).toContain(judgment.action);
@@ -130,9 +148,9 @@ describe("見込みの出どころ", () => {
     const judgment = findJudgment(
       await postJudge(app, buildRequest({ cause: signaling, statedResumeTime: stated })),
     );
-    // 出どころは原因の見込みの元を指す。知見の原因で発表の時刻を使うときと同じく、統計値のまま
+    // 出どころは原因の見込みの元を指すので、発表の時刻を使っても統計値のまま
     expect(judgment.estimate.source).toBe("statistics");
-    expect(judgment.estimate.remaining?.p50).toBe(20);
+    expect(judgment.estimate.remaining?.p50).toBe(20 + sectionWait.p50);
   });
 
   it("発生からの経過を差し引き、止まった時刻の時間帯で値を選ぶ", async () => {
@@ -144,14 +162,13 @@ describe("見込みの出どころ", () => {
       ),
     );
     const onset = addMinutesToIso(commute, -elapsed);
-    const expected = estimateStatsRemaining(signaling, onset, commute);
-    expect(expected?.resolved.period).toBe("commute");
-    expect(atCommute.estimate.remaining).toEqual(expected?.remaining);
+    expect(estimateStatsRemaining(signaling, onset, commute)?.resolved.period).toBe("commute");
+    expect(atCommute.estimate.remaining).toEqual(expectStatsBoardable(signaling, onset, commute));
     const atDaytime = findJudgment(
       await postJudge(app, buildRequest({ elapsedMinutes: elapsed, cause: signaling })),
     );
     expect(atDaytime.estimate.remaining).toEqual(
-      estimateStatsRemaining(signaling, addMinutesToIso(daytime, -elapsed), daytime)?.remaining,
+      expectStatsBoardable(signaling, addMinutesToIso(daytime, -elapsed), daytime),
     );
     expect(atCommute.estimate.remaining).not.toEqual(atDaytime.estimate.remaining);
   });
@@ -181,28 +198,28 @@ describe("放送の再開時刻の前後", () => {
       scenario: null,
       fetchRain: deps.fetchRain,
     };
-    return runEstimatePhase(ctx, { eventType: input.eventType ?? null });
+    return runEstimateRemaining(ctx, { eventType: input.eventType ?? null });
   }
 
   const before = addMinutesToIso(stated, -1);
   const after = addMinutesToIso(stated, 1);
 
-  it("知見のある原因は、放送の時刻の前は放送、ちょうどと後は知見で見積もり、放送の時刻を残す", () => {
-    const input = { eventType: "person_accident" };
+  it("種類が分かる原因は、放送の時刻の前は放送、ちょうどと後は統計値で見積もり、放送の時刻を残す", () => {
+    const input = { eventType: "person_collision" };
     expect(estimateAt(before, input).remainingBasis).toBe("stated");
     for (const now of [stated, after]) {
       const result = estimateAt(now, input);
-      expect(result.remainingBasis).toBe("knowledge");
+      expect(result.remainingBasis).toBe("statistics");
       expect(result.statedResumeTime).toBe(stated);
-      expect(result.estimate.source).toBe("knowledge");
+      expect(result.estimate.source).toBe("rule");
     }
   });
 
-  it("統計値の原因も知見と同じ時点で切り替え、放送の時刻と出どころを保つ", () => {
+  it("大分類の原因も同じ時点で切り替え、放送の時刻と出どころを保つ", () => {
     const input = { cause: signaling };
     const early = estimateAt(before, input);
     expect(early.remainingBasis).toBe("stated");
-    expect(early.estimate.remaining?.p50).toBe(1);
+    expect(early.estimate.remaining?.p50).toBe(1 + sectionWait.p50);
     expect(early.statedResumeTime).toBe(stated);
     expect(early.estimate.source).toBe("statistics");
     for (const now of [stated, after]) {
@@ -210,9 +227,7 @@ describe("放送の再開時刻の前後", () => {
       expect(result.remainingBasis).toBe("statistics");
       expect(result.statedResumeTime).toBe(stated);
       expect(result.estimate.source).toBe("statistics");
-      expect(result.estimate.remaining).toEqual(
-        estimateStatsRemaining(signaling, daytime, now)?.remaining,
-      );
+      expect(result.estimate.remaining).toEqual(expectStatsBoardable(signaling, daytime, now));
       expect(result.remainingSamples?.length).toBeGreaterThan(0);
     }
   });
@@ -257,11 +272,11 @@ describe("claude モードの統計値の見込み", () => {
     evidence: [{ kind: "computation", id: "remaining", description: "再開の見込み" }],
   };
 
-  // Claude が estimate_phase_and_remaining に eventType を渡す台本で判断する
+  // Claude が estimate_remaining に eventType を渡す台本で判断する
   async function judgeWithClaude(request: JudgeRequest, eventType: string | null) {
     const calls: MessageCreateParamsNonStreaming[] = [];
     const script = [
-      replyWithTool("estimate_phase_and_remaining", { eventType }),
+      replyWithTool("estimate_remaining", { eventType }),
       replyWithTool("find_alternatives", {}),
       replyWithTool("compute_break_even", {}),
       replyWithTool("emit_judgment", holdDecision),
@@ -292,32 +307,32 @@ describe("claude モードの統計値の見込み", () => {
     expect(firstUser).toContain("signaling");
   });
 
-  it("観測に無い知見を Claude が指定しても、コードが決めた事象で統計値の見込みを出す", async () => {
+  it("観測に無い種類を Claude が指定しても、コードが決めた原因で統計値の見込みを出す", async () => {
     const request = buildRequest({ cause: signaling });
-    const { judgment: claude } = await judgeWithClaude(request, "person_accident");
+    const { judgment: claude } = await judgeWithClaude(request, "person_collision");
     const deterministic = findJudgment(await postJudge(app, request));
     expect(claude.estimate.eventType).toBeNull();
     expect(claude.estimate.source).toBe("statistics");
     expect(claude.estimate).toEqual(deterministic.estimate);
   });
 
-  it("観測で決まった知見を Claude が null にしても、その知見で見込みを出す", async () => {
+  it("観測で決まった種類を Claude が null にしても、その種類で見込みを出す", async () => {
     const request = buildRequest({
-      eventType: "person_accident",
+      eventType: "person_collision",
       cause: { group: "passenger", type: "person_collision" },
     });
     const { judgment: claude } = await judgeWithClaude(request, null);
     const deterministic = findJudgment(await postJudge(app, request));
-    expect(claude.estimate.eventType).toBe("person_accident");
-    expect(claude.estimate.source).toBe("knowledge");
+    expect(claude.estimate.eventType).toBe("person_collision");
+    expect(claude.estimate.source).toBe("rule");
     expect(claude.estimate).toEqual(deterministic.estimate);
   });
 
-  it("観測と違う知見を Claude が指定しても、観測で決まった知見を使う", async () => {
-    const request = buildRequest({ eventType: "person_accident" });
+  it("観測と違う種類を Claude が指定しても、観測で決まった種類を使う", async () => {
+    const request = buildRequest({ eventType: "person_collision" });
     const { judgment: claude } = await judgeWithClaude(request, "vehicle_failure");
     const deterministic = findJudgment(await postJudge(app, request));
-    expect(claude.estimate.eventType).toBe("person_accident");
+    expect(claude.estimate.eventType).toBe("person_collision");
     expect(claude.estimate).toEqual(deterministic.estimate);
   });
 });

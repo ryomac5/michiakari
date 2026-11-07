@@ -1,7 +1,12 @@
 import { type ConcreteTrainType, getJstMinuteOfDay, type TrainQueueDelay } from "@repo/core";
-import type { Lang, ProgressStage, RouteOption, WeatherTrend } from "@repo/schema";
+import type {
+  AnnouncementCueId,
+  Lang,
+  ProgressStage,
+  RouteOption,
+  WeatherTrend,
+} from "@repo/schema";
 import { headlineLimits, reasonLimits } from "../config.ts";
-import type { FlowOutlook } from "../domain/typical-flow.ts";
 
 // 利用者向けの定型文（ja / en）。数値は呼び出し側がツールの結果から渡す
 
@@ -114,7 +119,9 @@ export type DecisionReason =
   | "resume_before_break_even"
   // 原因が分からず、発表の再開見込みの時刻だけを根拠に分岐点と比べた
   | "stated_resume_after_break_even"
-  | "stated_resume_before_break_even";
+  | "stated_resume_before_break_even"
+  // 再開しても先の列車が詰まって進みにくい。待つより切り替えるほうが確か
+  | "queue_after_resume";
 
 // 1 割単位の確率の表示。0 は 1 割未満、10 は 9 割以上で、0 割と 10 割は書かない
 export function formatChance(tenths: number, language: Lang): string {
@@ -200,8 +207,8 @@ export type DecisionTextInput = {
     | (Pick<RouteOption, "kind" | "label" | "isTransferService"> &
         Partial<Pick<RouteOption, "legs">>)
     | null;
-  // 見込みが立てやすい事象の、短く終わるか長くかかるかの区別。見出しの言い方だけに使う
-  flow?: { outlook: FlowOutlook } | null;
+  // 種類の規則表の、短く終わるか長くかかるかの区別。見出しの言い方だけに使う
+  flow?: { outlook: "short" | "long" } | null;
   // 待ったほうが早く着く確率など。理由の最後に 1 文で添える。無ければ添えない
   chance?: ChanceTextInput | null;
 };
@@ -510,6 +517,10 @@ function buildDecisionReason(input: DecisionTextInput): string {
       return ja
         ? `発表どおり${p50}に再開すれば、待つほうが早く着きます。`
         : `If the announced ${p50} restart holds, waiting is faster.`;
+    case "queue_after_resume":
+      return ja
+        ? `再開しても前の列車が詰まって進みにくい見込みです。${target}のほうが確かです。`
+        : `Even after a restart, trains ahead are backed up. ${capitalize(target)} is more reliable.`;
   }
 }
 
@@ -621,6 +632,7 @@ function buildDecisionHeadline(input: DecisionTextInput): string {
     case "resume_mostly_after_break_even":
     case "deadline_risk":
     case "stated_resume_after_break_even":
+    case "queue_after_resume":
       return buildSwitchHeadline(input);
     case "resume_before_break_even":
     case "stated_resume_before_break_even": {
@@ -659,7 +671,22 @@ export type InCarTextInput = {
   language: Lang;
   // 次の駅が分からなければ null。見出しは「車内で待つ」だけにする
   queue: TrainQueueText | null;
+  // 再開後に先の列車が詰まり、次の駅で降りて乗り換える価値があるか
+  worthAlighting?: boolean;
 };
+
+// 次の駅で降りて乗り換える価値があるときの一文。降りる駅が分からなければ次の駅と言う
+function buildAlightWorthNote(queue: TrainQueueText | null, language: Lang): string {
+  const station = queue?.alightStation ?? null;
+  if (language === "ja") {
+    return station
+      ? `先の列車が詰まっています。${station}で降りて乗り換える手があります。`
+      : "先の列車が詰まっています。次の駅で降りて乗り換える手があります。";
+  }
+  return station
+    ? `Trains ahead are backed up. You can get off at ${station} and change.`
+    : "Trains ahead are backed up. You can get off at the next station and change.";
+}
 
 // 駅間の車内の見出しと理由。切り替えの比較は書かず、次の駅に着く見込みだけを書く
 // 理由は上限に収まる最初の形にする
@@ -667,9 +694,17 @@ export function buildInCarDecisionText(input: InCarTextInput): DecisionText {
   const { language, queue } = input;
   const note = queue ? buildTrainQueueNote(queue, language) : null;
   const short = queue ? buildShortTrainQueueNote(queue, language) : null;
-  const candidates = [note, short, buildInCarFallbackReason(language)].filter(
-    (text): text is string => text !== null,
-  );
+  const glue = language === "ja" ? "" : " ";
+  // 詰まりで降りる価値があれば、着く見込みの後にその一文を添える
+  const alight = input.worthAlighting ? buildAlightWorthNote(queue, language) : null;
+  const withAlight = (text: string | null) => (alight && text ? `${text}${glue}${alight}` : null);
+  const candidates = [
+    withAlight(short),
+    alight,
+    note,
+    short,
+    buildInCarFallbackReason(language),
+  ].filter((text): text is string => text !== null);
   return {
     headline: buildInCarHeadline(queue, language),
     reason: pickFitting(candidates, reasonLimits[language].max),
@@ -702,14 +737,10 @@ export function buildAfterAlightText(
 
 const PROGRESS_MESSAGES: Record<ProgressStage, { ja: string; en: string }> = {
   interpret: { ja: "掲示や発表を読み取っています", en: "Reading the announcement" },
-  knowledge: {
-    ja: "元指令員の知見を確かめています",
-    en: "Checking the former dispatcher’s knowledge",
-  },
   weather: { ja: "雨量と警報を確かめています", en: "Checking rainfall and warnings" },
   phase: {
-    ja: "段階と再開までの時間を見積もっています",
-    en: "Estimating the phase and the time until service restarts",
+    ja: "再開までの見込みを見積もっています",
+    en: "Estimating when service will restart",
   },
   alternatives: { ja: "代わりの手段を探しています", en: "Searching for alternative routes" },
   break_even: { ja: "境目の時刻を計算しています", en: "Computing the cutoff time" },
@@ -752,4 +783,52 @@ export function buildWeatherSummary(input: {
   if (ja) return `${rain}${warnings.join("・")}が出ています。`;
   const hasWarning = warnings.some((w) => w.includes("警報"));
   return `${rain} ${hasWarning ? "A weather warning is in effect." : "A weather advisory is in effect."}`;
+}
+
+// 根拠の説明。発表の引用は利用者が持ち込んだ文をそのまま添える
+
+// 起きていることの呼び名を含む発表の引用
+export function buildSignalEvidence(quote: string, language: Lang): string {
+  return language === "ja" ? `発表に「${quote}」とあります。` : `The notice says: "${quote}".`;
+}
+
+const CUE_MEANINGS: Record<AnnouncementCueId, { ja: string; en: string }> = {
+  resumed: { ja: "運転は再開しています。", en: "Service has restarted." },
+  resume_soon: { ja: "再開が近いとみられます。", en: "A restart looks close." },
+  rescue: { ja: "救援を待つので長引くとみられます。", en: "Waiting for rescue may take long." },
+  protection_received: {
+    ja: "周りの同じ会社の列車もそろって止まっているとみられます。",
+    en: "Other trains of the same company have likely stopped too.",
+  },
+  queue_ahead: { ja: "前の列車が詰まっています。", en: "Trains ahead are backed up." },
+  track_cleared: {
+    ja: "線路の安全が確かめられたとみられます。",
+    en: "The track looks confirmed safe.",
+  },
+};
+
+// 放送の手がかり。引用が無いとき（選んで答えたとき）は意味だけを書く
+export function buildCueEvidence(cue: AnnouncementCueId, quote: string, language: Lang): string {
+  const meaning = CUE_MEANINGS[cue][language];
+  if (quote.trim().length === 0) return meaning;
+  return language === "ja" ? `「${quote}」とあり、${meaning}` : `"${quote}": ${meaning}`;
+}
+
+// 支障の無い線路が先に動く見込み
+export function buildUnaffectedTrackEvidence(language: Lang): string {
+  return language === "ja"
+    ? "反対の線路は、安全が確かめられれば先に動き出すことがあります。"
+    : "The opposite track may restart first once it is checked.";
+}
+
+// 再開後の詰まりの見込み
+export function buildResumeQueueEvidence(worthAlighting: boolean, language: Lang): string {
+  if (language === "ja") {
+    return worthAlighting
+      ? "再開しても前の列車が詰まって先へ進みにくい見込みです。"
+      : "再開しても、前の列車が順に動くまで少し待つ見込みです。";
+  }
+  return worthAlighting
+    ? "Even after a restart, trains ahead may hold you up."
+    : "After a restart, expect a short wait while trains ahead move.";
 }

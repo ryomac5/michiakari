@@ -105,9 +105,9 @@ describe("根拠の説明の検査を除く条件", () => {
   const evidenceRefs = [
     { kind: "signal" as const, id: "sig_quote", description: quote },
     {
-      kind: "knowledge" as const,
-      id: "in_car_response",
-      description: "起きていることは急病人の救護・非常ボタンです。",
+      kind: "cue" as const,
+      id: "resume_soon",
+      description: "再開が近いとみられます。",
     },
   ];
   const judgmentWith = (evidence: { kind: string; id: string; description: string }[]) => ({
@@ -116,7 +116,7 @@ describe("根拠の説明の検査を除く条件", () => {
     reason: "車内では列車が動くのを待ちます。",
     breakEven: null,
     estimate: {
-      eventType: "in_car_response",
+      eventType: "medical_response",
       phaseId: null,
       elapsedMinutes: null,
       remaining: null,
@@ -142,7 +142,7 @@ describe("根拠の説明の検査を除く条件", () => {
   });
 
   it("別の根拠の ID に引用の文を付けても、検査から除かない", () => {
-    const errors = check([{ kind: "knowledge", id: "in_car_response", description: quote }]);
+    const errors = check([{ kind: "cue", id: "resume_soon", description: quote }]);
     expect(errors.some((e) => e.includes("evidence[0].description の「見合わせ」"))).toBe(true);
     expect(errors.some((e) => e.includes("evidence[0].description の「振替」"))).toBe(true);
   });

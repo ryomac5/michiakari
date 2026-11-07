@@ -8,7 +8,7 @@ import type {
 import type { Judgment } from "@repo/schema";
 import { claudeSettings, models } from "../config.ts";
 import type { LlmClient } from "../llm-client.ts";
-import { buildKnowledgeBlock, type Prompts } from "../prompts/load-prompts.ts";
+import type { Prompts } from "../prompts/load-prompts.ts";
 import { buildClaudeTools } from "../tools/definitions.ts";
 import { DecisionSchema } from "../tools/emit-judgment.ts";
 import { assembleJudgment } from "./assemble.ts";
@@ -51,7 +51,7 @@ function buildUserMessage(session: JudgeSession): string {
   ].join("\n");
 }
 
-function buildBaseParams(session: JudgeSession, deps: ClaudeJudgeDeps) {
+function buildBaseParams(deps: ClaudeJudgeDeps) {
   return {
     model: models.judgment,
     max_tokens: claudeSettings.judgmentMaxTokens,
@@ -61,12 +61,7 @@ function buildBaseParams(session: JudgeSession, deps: ClaudeJudgeDeps) {
     thinking: { type: "adaptive", display: claudeSettings.thinkingDisplay },
     output_config: { effort: claudeSettings.judgmentEffort },
     system: [
-      { type: "text", text: deps.prompts.judgmentSystem },
-      {
-        type: "text",
-        text: buildKnowledgeBlock(session.ctx.content.knowledge),
-        cache_control: { type: "ephemeral" },
-      },
+      { type: "text", text: deps.prompts.judgmentSystem, cache_control: { type: "ephemeral" } },
     ],
     tools: buildClaudeTools(),
   } satisfies Omit<MessageCreateParamsNonStreaming, "messages">;
@@ -118,8 +113,7 @@ function handleEmitJudgment(
       outcome: {
         isError: true,
         content: {
-          error:
-            "先に estimate_phase_and_remaining・find_alternatives・compute_break_even を呼んでください",
+          error: "先に estimate_remaining・find_alternatives・compute_break_even を呼んでください",
         },
       },
     };
@@ -162,7 +156,7 @@ export async function runClaudeJudgment(
   session: JudgeSession,
   deps: ClaudeJudgeDeps,
 ): Promise<ClaudeJudgeOutcome> {
-  const base = buildBaseParams(session, deps);
+  const base = buildBaseParams(deps);
   const messages: BetaMessageParam[] = [{ role: "user", content: buildUserMessage(session) }];
   let toolCalls = 0;
   let validationFailures = 0;

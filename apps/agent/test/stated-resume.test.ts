@@ -1,4 +1,4 @@
-import { addMinutesToIso, STATED_RESUME_SLACK_MINUTES } from "@repo/core";
+import { addMinutesToIso, resolveFirstTrainWait, STATED_RESUME_SLACK_MINUTES } from "@repo/core";
 import type { JudgeRequest, Judgment, JudgmentEvent, Observation } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { createTestApp, postJudge } from "./helpers.ts";
@@ -48,8 +48,14 @@ describe("原因が分からず、発表の再開見込みがある判断", () =
     const stated = addMinutesToIso(now, 10);
     const judgment = findJudgment(await postJudge(app, buildRequest(stated)));
     expect(judgment.estimate.eventType).toBeNull();
-    expect(judgment.estimate.remaining).toEqual({ p50: 10, p80: 10 + STATED_RESUME_SLACK_MINUTES });
-    expect(judgment.estimate.confidence).toBe("medium");
+    // 種類が分からないので、初列車待ちは区間が止まるものとみなして足す
+    const wait = resolveFirstTrainWait(null);
+    expect(judgment.estimate.remaining).toEqual({
+      p50: 10 + wait.p50,
+      p80: 10 + STATED_RESUME_SLACK_MINUTES + wait.p80,
+    });
+    // 発表の時刻で見込み、延びていないので確信度は高い
+    expect(judgment.estimate.confidence).toBe("high");
     expect(judgment.breakEven).not.toBeNull();
     expect(Date.parse(judgment.breakEven?.time ?? "")).toBeGreaterThan(Date.parse(stated));
     expect(judgment.action).toBe("wait");

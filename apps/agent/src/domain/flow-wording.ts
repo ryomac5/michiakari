@@ -1,4 +1,4 @@
-import type { Knowledge, Lang } from "@repo/schema";
+import type { Lang } from "@repo/schema";
 
 // 利用者に見せる文の検査。判断の文と、判断の途中に流す進み具合の文の両方に使う
 // 再開の見込みは画面の見込みの図で幅を持たせて示すので、文では再開までの時間を言い切らない
@@ -16,6 +16,8 @@ const APPROX_JA = "(?:ほど|くらい|ぐらい|程度|前後|弱|強|あまり
 const FLOW_WORDING_PATTERNS: Record<Lang, RegExp[]> = {
   ja: [
     /よくある流れ|典型的な流れ|決まった流れ/,
+    // 事象の段階の名前と説明は利用者に出さない
+    /段階/,
     // 修飾の言葉のあと、同じ文の中で再開を語る
     new RegExp(`(?:${MODIFIERS_JA})[^。]*?${RESUME_JA}`),
     // 時間の長さで再開を言い切る。「1時間ほどで運転を再開」
@@ -25,6 +27,7 @@ const FLOW_WORDING_PATTERNS: Record<Lang, RegExp[]> = {
   ],
   en: [
     /typical (?:flow|pattern)/i,
+    /\bphases?\b/i,
     /\b(?:usually|normally|typically|generally|in most cases|most of the time)\b[^.]*?\b(?:resum|restart|start(?:s|ing)? moving|recover|over\b|clear)/i,
     /\b(?:resum|restart|recover)\w*\b[^.]*?\b(?:in|within|after) (?:about |around |roughly )?\d+(?:\s*[–-]\s*\d+)?\s*(?:min|minutes?|h|hours?)\b/i,
     /\btakes? (?:about |around |roughly )?\d+(?:\s*[–-]\s*\d+)?\s*(?:min|minutes?|h|hours?)\b[^.]*?\b(?:resum|restart|recover)/i,
@@ -45,29 +48,4 @@ const INTERNAL_NAME_PATTERN =
 
 export function findInternalWording(text: string): string | null {
   return INTERNAL_NAME_PATTERN.exec(text)?.[0] ?? null;
-}
-
-// 知見の本文は利用者に出さない。文に写していれば、その文を返す
-const MIN_KNOWLEDGE_SENTENCE_LENGTH = 10;
-
-export function collectKnowledgeSentences(knowledge: Iterable<Knowledge>): string[] {
-  const texts: string[] = [];
-  for (const k of knowledge) {
-    texts.push(...Object.values(k.summary), ...k.caveats, k.after_resume.notes);
-    texts.push(k.external_factors.notes, ...Object.values(k.predictability?.basis ?? {}));
-    for (const phase of k.phases) {
-      texts.push(phase.description, ...Object.values(phase.guidance));
-      texts.push(...phase.signals.map((s) => s.description));
-    }
-  }
-  const sentences = texts
-    .filter((t): t is string => typeof t === "string")
-    .flatMap((t) => t.split(/(?<=[。.!?])\s*/))
-    .map((t) => t.trim().replace(/[。.!?]$/, ""))
-    .filter((t) => [...t].length >= MIN_KNOWLEDGE_SENTENCE_LENGTH);
-  return [...new Set(sentences)];
-}
-
-export function findKnowledgeText(text: string, sentences: readonly string[]): string | null {
-  return sentences.find((s) => text.includes(s)) ?? null;
 }
