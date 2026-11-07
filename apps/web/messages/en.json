@@ -558,8 +558,6 @@
     "directionQuestion": "Pick your direction",
     "directionHint": "Pick the direction your train is going.",
     "lineStopQuestion": "Pick a station or direction",
-    "lineStopHint": "Pick a station to set your destination. We choose the direction for you.",
-    "lineStopsLabel": "Stations on this line",
     "directionName": "Toward {names}",
     "destinationHint": "Major stations toward {direction}.",
     "destinationUndecided": "Not sure yet",

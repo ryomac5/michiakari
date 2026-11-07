@@ -20,7 +20,8 @@ export type LinesGeoJson = {
   }[];
 };
 
-export type MapGeoData = MapGeo & { lines: LinesGeoJson };
+// network は入口で行き先までの乗る区間を探すのに使う
+export type MapGeoData = MapGeo & { lines: LinesGeoJson; network: NetworkData };
 
 // 路線ごとの線路の形。地図で路線を描く形と同じもの
 export function buildTrackShapes(lines: LinesGeoJson): Map<string, TrackParts> {
@@ -47,7 +48,7 @@ export function loadMapGeoData(): Promise<MapGeoData> {
   cached ??= Promise.all([
     import("@repo/geo/data/network.json").then((m) => m.default as unknown as NetworkData),
     import("@repo/geo/data/lines.geojson").then((m) => m.default as LinesGeoJson),
-  ]).then(([network, lines]) => ({ ...createMapGeo(network, lines), lines }));
+  ]).then(([network, lines]) => ({ ...createMapGeo(network, lines), lines, network }));
   cached.catch(() => {
     cached = null;
   });
