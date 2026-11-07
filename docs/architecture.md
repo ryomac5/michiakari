@@ -355,11 +355,13 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 |---|---|
 | `own_incident` | 当該列車の 1 本。天気と停電は 0 本 |
 | `protection_received` | 防護無線の事象で、前後 `PROTECTION_RADIUS_KM` の上下の列車。間隔は運転間隔と表定速度から出す |
-| `dispatcher_order` | 防護無線でなく区間を止める事象で、`DISPATCH_SECTION_KM` の上下の列車 |
+| `dispatcher_order` | 区間を止める事象と防護無線の事象で、前後 `DISPATCH_RADIUS_KM` の上下の列車。受信の範囲の本数を引く |
 | `queued_behind` | 止まってからの分を運転間隔で割った本数。当該がいるときだけ数える |
 
 - `protection_received` の手がかりがあれば、防護無線に確定する
 - `queue_ahead` の手がかりがあれば、詰まりの本数に `QUEUE_AHEAD_CUE_WEIGHT` を掛ける
+- 利用者は止まった列車のどれかに乗っているとみなす。当該の割合は 1 ÷ 止まった本数の合計になる
+- 同じ割合なら、受信、指令の指示、詰まり、当該の順に選ぶ
 - 種類も決め手の手がかりも無ければ見込みを出さない
 
 #### 短く終わる事象

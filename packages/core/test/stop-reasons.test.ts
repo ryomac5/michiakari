@@ -11,14 +11,47 @@ function estimate(input: Partial<StopReasonsInput> & Pick<StopReasonsInput, "typ
 }
 
 describe("estimateStopReasons", () => {
-  it("人身事故では防護無線と詰まりが大半で、当該は小さい", () => {
+  it("人身事故では、受信の範囲の外の列車も指令の指示で止まり、当該は小さい", () => {
     const r = estimate({ type: "person_collision" });
     expect(r.trainCounts.own_incident).toBe(1);
     expect(r.trainCounts.protection_received).toBeGreaterThan(1);
-    expect(r.trainCounts.dispatcher_order).toBe(0);
-    expect(r.shares.protection_received + r.shares.queued_behind).toBeGreaterThan(0.75);
-    expect(r.shares.own_incident).toBeLessThan(0.25);
-    expect(r.mostLikely).toBe("queued_behind");
+    expect(r.trainCounts.dispatcher_order).toBeGreaterThan(r.trainCounts.protection_received);
+    expect(r.trainCounts.queued_behind).toBeGreaterThan(3);
+    expect(r.shares.own_incident).toBeLessThan(0.1);
+    expect(r.mostLikely).toBe("dispatcher_order");
+  });
+
+  it("人身事故で止まった直後でも、昼の運転間隔なら当該は 2 割を下回る", () => {
+    const r = estimate({ type: "person_collision", headwayMinutes: 10, stoppedMinutes: 0 });
+    expect(r.trainCounts.queued_behind).toBe(0);
+    expect(r.shares.own_incident).toBeLessThan(0.2);
+    expect(r.mostLikely).toBe("dispatcher_order");
+  });
+
+  it("利用者は止まった列車のどれかに乗っているので、当該の割合は 1 ÷ 止まった本数の合計", () => {
+    for (const [type, stoppedMinutes] of [
+      ["person_collision", 0],
+      ["person_collision", 20],
+      ["vehicle_failure", 7],
+      ["track_intrusion", 3],
+    ] as const) {
+      const counts = countStopReasonTrains({ ...rushJr, type, stoppedMinutes });
+      const total = Object.values(counts).reduce((a, b) => a + b, 0);
+      const r = estimate({ type, stoppedMinutes });
+      expect(r.shares.own_incident).toBeCloseTo(1 / total, 2);
+    }
+  });
+
+  it("防護無線の事象の指令の指示は、止める範囲の本数から受信の範囲の本数を引いた残り", () => {
+    // JR の普通は 35km/h。6 分間隔なら列車の間隔は 3.5km
+    // 止める範囲は前後 10km の上下で 40km ぶん、受信の範囲は前後 1km の上下で 4km ぶん
+    const counts = countStopReasonTrains({
+      ...rushJr,
+      type: "person_collision",
+      stoppedMinutes: 0,
+    });
+    expect(counts.protection_received).toBeCloseTo(4 / 3.5, 5);
+    expect(counts.dispatcher_order).toBeCloseTo(40 / 3.5 - 4 / 3.5, 5);
   });
 
   it("大雨ではほぼ指令の指示で、当該は 0", () => {
@@ -41,6 +74,12 @@ describe("estimateStopReasons", () => {
     });
     expect(r.shares.own_incident).toBeCloseTo(0.33, 2);
     expect(r.shares.queued_behind).toBeCloseTo(0.67, 2);
+  });
+
+  it("同じ割合なら、詰まりを当該より先に選ぶ", () => {
+    const r = estimate({ type: "medical_response", headwayMinutes: 10, stoppedMinutes: 10 });
+    expect(r.shares.own_incident).toBe(r.shares.queued_behind);
+    expect(r.mostLikely).toBe("queued_behind");
   });
 
   it("止まった直後の急病人は当該がいちばん高い", () => {
@@ -82,16 +121,6 @@ describe("estimateStopReasons", () => {
 
   it("種類も決め手の手がかりも無ければ見込みを出さない", () => {
     expect(estimateStopReasons({ ...rushJr, type: null, stoppedMinutes: 10 })).toBeNull();
-  });
-
-  it("防護無線の本数は上下の運転間隔と速度の目安から出す", () => {
-    // JR の普通は 35km/h。6 分間隔なら列車の間隔は 3.5km。前後 1km の上下で 4km ぶん
-    const counts = countStopReasonTrains({
-      ...rushJr,
-      type: "person_collision",
-      stoppedMinutes: 0,
-    });
-    expect(counts.protection_received).toBeCloseTo(4 / 3.5, 5);
   });
 
   it("運転間隔が長い時間帯は、詰まりの本数が減る", () => {

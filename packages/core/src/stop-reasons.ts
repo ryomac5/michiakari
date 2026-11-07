@@ -3,17 +3,19 @@ import type { AnnouncementCueId } from "../params/announcement-cues.ts";
 import { INCIDENT_BEHAVIOR } from "../params/incident-behavior.ts";
 import type { IncidentTypeId } from "../params/incident-durations.ts";
 import {
-  DISPATCH_SECTION_KM,
+  DISPATCH_RADIUS_KM,
   NO_OWN_TRAIN_EXTRA_TYPES,
   PROTECTION_RADIUS_KM,
   QUEUE_AHEAD_CUE_WEIGHT,
+  STOP_REASON_TIE_ORDER,
 } from "../params/stop-reasons.ts";
 import { type LineType, SCHEDULED_SPEED_KMH } from "../params/transit.ts";
 import { checkProtectionIncident, checkWeatherIncident } from "./incident-rules.ts";
 import { normalizeOperatorKey } from "./train-queue.ts";
 
 // 電車の中で止まった利用者の列車が、なぜ止まったかの見込み
-// 理由ごとに止まる列車の本数を見積もり、その比を割合とする。利用者はそのどれかに乗っているとみなす
+// 理由ごとに止まる列車の本数を見積もり、その比を割合とする。利用者は止まった列車のどれかに乗っているとみなす
+// 当該列車は 1 本なので、当該の割合は 1 ÷ 止まった本数の合計になる
 
 export type StopReasonsInput = {
   type: IncidentTypeId | null;
@@ -50,17 +52,19 @@ export function countStopReasonTrains(input: StopReasonsInput): ReasonCounts {
   const protection = checkProtectionIncident({ type: input.type, cues: input.cues });
   const own = checkOwnTrainIncident(input.type) ? 1 : 0;
   const stopKind = input.type ? INCIDENT_BEHAVIOR[input.type].stopKind : "section";
-  const sectionStop = !protection && stopKind === "section";
+  // 発生場所の前後 1km の上下の列車
+  const received = protection
+    ? countTrainsInStretch(2 * PROTECTION_RADIUS_KM, input.headwayMinutes, lineType)
+    : 0;
+  // 区間を止める事象と防護無線の事象では、指令が止める範囲の上下の列車。受信で止まった列車は引く
+  const section =
+    protection || stopKind === "section"
+      ? countTrainsInStretch(2 * DISPATCH_RADIUS_KM, input.headwayMinutes, lineType)
+      : 0;
   return {
     own_incident: own,
-    // 発生場所の前後 1km の上下の列車
-    protection_received: protection
-      ? countTrainsInStretch(2 * PROTECTION_RADIUS_KM, input.headwayMinutes, lineType)
-      : 0,
-    // 区間ごと上下とも止める事象では、止める区間の上下の列車
-    dispatcher_order: sectionStop
-      ? countTrainsInStretch(DISPATCH_SECTION_KM, input.headwayMinutes, lineType)
-      : 0,
+    protection_received: received,
+    dispatcher_order: Math.max(0, section - received),
     // 当該の後ろに、止まってから来た列車
     queued_behind: own > 0 ? Math.max(0, input.stoppedMinutes) / input.headwayMinutes : 0,
   };
@@ -96,7 +100,10 @@ export function estimateStopReasons(input: StopReasonsInput): StopReasons | null
   const weights = weighCountsByCues(counts, input.cues);
   const total = STOP_REASONS.reduce((sum, r) => sum + weights[r], 0);
   if (total <= 0) return null;
-  const mostLikely = STOP_REASONS.reduce((best, r) => (weights[r] > weights[best] ? r : best));
+  // 同じ割合なら、受信、指令の指示、詰まり、当該の順に選ぶ
+  const mostLikely = STOP_REASON_TIE_ORDER.reduce((best, r) =>
+    weights[r] > weights[best] ? r : best,
+  );
   const map = (f: (r: StopReason) => number) =>
     Object.fromEntries(STOP_REASONS.map((r) => [r, f(r)])) as ReasonCounts;
   return {

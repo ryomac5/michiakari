@@ -62,15 +62,25 @@ async function capture(page: Page, name: string): Promise<void> {
 }
 
 test("電車の中の判断に、止まった理由のいちばん高い見込みを 1 行出す", async ({ page }) => {
-  // 人身事故で 30 分止まっている。後ろに続いた列車が多く、詰まりがいちばん高い
-  await startInCar(page, { cause: "person", protection: "notHeard", elapsed: "m30" });
+  // 車内の急病人で 30 分止まっている。後ろに続いた列車が多く、詰まりがいちばん高い
+  await startInCar(page, { cause: "inCar", protection: "notHeard", elapsed: "m30" });
   const line = page.getByTestId(testIds.judgment.stopReason);
   await expect(line).toHaveAttribute("data-reason", "queued_behind");
   await expect(line).toHaveText("前の列車がつかえて止まっている可能性が高いです");
   await expect(page.getByTestId(testIds.judgment.conclusion)).toContainText(
     "前の列車がつかえて止まっている可能性が高いです",
   );
-  await capture(page, "01-person-queued");
+  await capture(page, "01-incar-queued");
+});
+
+test("人身事故で止まった直後でも、この列車で起きたとは出さず、区間ごと止められている見込みを出す", async ({
+  page,
+}) => {
+  await startInCar(page, { cause: "person", protection: "notHeard", elapsed: "now" });
+  const line = page.getByTestId(testIds.judgment.stopReason);
+  await expect(line).toHaveAttribute("data-reason", "dispatcher_order");
+  await expect(line).toHaveText("区間ごと止められている可能性が高いです");
+  await capture(page, "04-person-now");
 });
 
 test("大雨では、区間ごと止められている見込みを出す", async ({ page }) => {

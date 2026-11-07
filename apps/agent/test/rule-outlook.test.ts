@@ -535,8 +535,9 @@ describe("止まった理由の見込み", () => {
     );
     const reasons = judgment.stopReasons;
     expect(reasons?.trainCounts.own_incident).toBe(1);
-    expect(reasons?.mostLikely).toBe("queued_behind");
-    expect(reasons?.shares.own_incident).toBeLessThan(0.4);
+    expect(reasons?.trainCounts.dispatcher_order).toBeGreaterThan(0);
+    expect(reasons?.mostLikely).toBe("dispatcher_order");
+    expect(reasons?.shares.own_incident).toBeLessThan(0.2);
     const estimated = events.find((e) => e.type === "phase_estimated");
     expect(estimated).toMatchObject({ stopReasons: reasons });
   });
@@ -556,6 +557,18 @@ describe("止まった理由の見込み", () => {
     );
     expect(judgment.stopReasons?.mostLikely).toBe("protection_received");
     expect(judgment.stopReasons?.shares.protection_received).toBe(1);
+  });
+
+  it("電車の中の急病人で長く止まっていれば、詰まりがいちばん高い", async () => {
+    const medical = buildObservation({
+      id: "entry-cause",
+      minutesAgo: 40,
+      eventType: "medical_response",
+    });
+    const { judgment } = await judge(
+      buildRequest([medical], { trainPosition: position, origin: "塚本" }),
+    );
+    expect(judgment.stopReasons?.mostLikely).toBe("queued_behind");
   });
 
   it("駅で待つ人には載せない", async () => {

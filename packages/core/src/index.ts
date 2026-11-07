@@ -33,9 +33,10 @@ export {
 export { INCIDENT_PHRASES } from "../params/incident-phrases.ts";
 export * from "../params/routing.ts";
 export {
-  DISPATCH_SECTION_KM,
+  DISPATCH_RADIUS_KM,
   PROTECTION_RADIUS_KM,
   QUEUE_AHEAD_CUE_WEIGHT,
+  STOP_REASON_TIE_ORDER,
   STOP_REASONS_SOURCE,
 } from "../params/stop-reasons.ts";
 export {
