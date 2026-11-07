@@ -52,6 +52,10 @@ export const IncidentCauseSchema = z.object({
 });
 export type IncidentCause = z.infer<typeof IncidentCauseSchema>;
 
+// 入口で、車内で「信号を受信したため緊急停止」の放送を聞いたかの答え
+export const ProtectionBroadcastSchema = z.enum(["heard", "not_heard", "unknown"]);
+export type ProtectionBroadcast = z.infer<typeof ProtectionBroadcastSchema>;
+
 export const JudgeRequestSchema = z.object({
   // これまでに解釈済みの観測
   observations: z.array(ObservationSchema),
@@ -67,5 +71,7 @@ export const JudgeRequestSchema = z.object({
   trainPosition: TrainPositionSchema.optional(),
   // 入口で答えた原因。分からないと答えたときやリプレイでは省く
   cause: IncidentCauseSchema.optional(),
+  // 入口で答えた受信の放送の有無。電車の中で答えたときだけ送る
+  protectionBroadcast: ProtectionBroadcastSchema.optional(),
 });
 export type JudgeRequest = z.infer<typeof JudgeRequestSchema>;

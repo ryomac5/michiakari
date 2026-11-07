@@ -70,6 +70,29 @@ describe("checkProtectionIncident", () => {
       checkProtectionIncident({ type: "animal_collision", cues: ["protection_received"] }),
     ).toBe(true);
   });
+
+  it("入口で受信の放送が聞こえたと答えたら true、聞かなかったと答えても必ず出す種類は true のまま", () => {
+    expect(checkProtectionIncident({ type: null, cues: [], protectionBroadcast: "heard" })).toBe(
+      true,
+    );
+    expect(
+      checkProtectionIncident({
+        type: "person_collision",
+        cues: [],
+        protectionBroadcast: "not_heard",
+      }),
+    ).toBe(true);
+    expect(
+      checkProtectionIncident({
+        type: "animal_collision",
+        cues: [],
+        protectionBroadcast: "not_heard",
+      }),
+    ).toBe(false);
+    expect(checkProtectionIncident({ type: null, cues: [], protectionBroadcast: "unknown" })).toBe(
+      false,
+    );
+  });
 });
 
 describe("decideRuleConfidence", () => {

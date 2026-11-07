@@ -127,7 +127,10 @@ import {
   toCauseChoiceId,
 } from "@/features/situation/cause-categories";
 import { findElapsedOption, listResumeTimeOptions } from "@/features/situation/plain-questions";
-import { buildProtectionObservations } from "@/features/situation/protection-broadcast";
+import {
+  buildProtectionObservations,
+  resolveProtectionBroadcast,
+} from "@/features/situation/protection-broadcast";
 import {
   findNearestChoices,
   type NearestStationChoice,
@@ -811,6 +814,7 @@ export function StartScreen() {
         ...buildProtectionObservations(entry.protection, now, elapsedMinutes),
       ],
       answers?.cause ?? null,
+      resolveProtectionBroadcast(entry.protection),
     );
     setHandingOff(true);
     if (findFocusArea(origin)) await mapApi.current?.zoomToOrigin(handoffZoom);

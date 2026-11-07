@@ -1,4 +1,4 @@
-import type { Confidence, DurationDist, IncidentCause } from "@repo/schema";
+import type { Confidence, DurationDist, IncidentCause, ProtectionBroadcast } from "@repo/schema";
 import type { AnnouncementCueId } from "../params/announcement-cues.ts";
 import {
   INCIDENT_BEHAVIOR,
@@ -80,11 +80,14 @@ export function checkWeatherIncident(type: IncidentTypeId | null): boolean {
 export type ProtectionIncidentInput = {
   type: IncidentTypeId | null;
   cues: readonly AnnouncementCueId[];
+  // 入口で答えた受信の放送の有無。聞かなかったと答えても、必ず出す種類は防護無線の事象のままとする
+  protectionBroadcast?: ProtectionBroadcast | null;
 };
 
 // 防護無線の事象か。必ず出す種類か、受信の放送が聞こえたら true。出すことがある種類は放送で決める
 export function checkProtectionIncident(input: ProtectionIncidentInput): boolean {
-  if (input.cues.includes("protection_received")) return true;
+  if (input.cues.includes("protection_received") || input.protectionBroadcast === "heard")
+    return true;
   return input.type !== null && INCIDENT_BEHAVIOR[input.type].protection === "always";
 }
 
