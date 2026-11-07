@@ -7,6 +7,8 @@ export const testIds = {
   judgment: {
     ...sharedTestIds.judgment,
     conclusionReasonDetail: "judgment-conclusion-reason-detail",
+    // 結論の行動の札。data-label に wait / switch / hold / followStaff を出す
+    actionPill: "judgment-action-pill",
     // 待つ見出しの 2 文目。「動かなければ阪急京都線へ」
     conclusionNext: "judgment-conclusion-next",
     // 見込みの確かさ。data-level に low / medium / high を出す

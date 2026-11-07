@@ -1,5 +1,5 @@
 import type { StopScope } from "@repo/core";
-import { diffMinutes, getJstMinuteOfDay } from "@repo/core";
+import { checkTrackEvacuation, diffMinutes, getJstMinuteOfDay } from "@repo/core";
 import {
   type AnnouncementCueId,
   checkJudgmentRefs,
@@ -80,8 +80,9 @@ export function assembleJudgment(
     action: decision.action,
     headline: decision.headline,
     reason: decision.reason,
+    // 線路に降りる案内が出たら、分岐点の時刻を判断に載せない
     breakEven:
-      r.kind === "future" || r.kind === "passed"
+      (r.kind === "future" || r.kind === "passed") && !checkTrackEvacuation(results.estimate.cues)
         ? {
             time: r.time,
             explanation: decision.breakEvenExplanation,

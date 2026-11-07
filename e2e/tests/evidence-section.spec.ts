@@ -139,6 +139,10 @@ test("線路に降りる案内を貼り付けると、見込みの数字を出�
   await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(0);
   await expect(page.getByTestId(testIds.judgment.breakEvenResume)).toHaveCount(0);
   await expect(page.getByTestId(testIds.judgment.trackLine("opposite"))).toHaveCount(0);
+  await expect(page.getByTestId(testIds.judgment.breakEvenTime)).toHaveCount(0);
+  await expect(
+    page.getByTestId(testIds.judgment.conclusion).getByTestId(testIds.judgment.actionPill),
+  ).toHaveAttribute("data-label", "followStaff");
   await expect(page.getByTestId(testIds.judgment.conclusionReason)).not.toContainText(
     /\d{1,2}:\d{2}/,
   );

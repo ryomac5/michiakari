@@ -106,7 +106,8 @@
     "action": {
       "wait": "待つ",
       "switch": "切り替える",
-      "hold": "いまは待つ"
+      "hold": "いまは待つ",
+      "followStaff": "案内に従う"
     },
     "conclusion": {
       "label": "結論",

@@ -106,7 +106,8 @@
     "action": {
       "wait": "Wait",
       "switch": "Switch",
-      "hold": "Wait for now"
+      "hold": "Wait for now",
+      "followStaff": "Follow staff"
     },
     "conclusion": {
       "label": "Advice",

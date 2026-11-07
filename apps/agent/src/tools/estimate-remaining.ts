@@ -22,6 +22,7 @@ import {
   type IncidentTypeId,
   normalizeTrainType,
   parseIsoToMs,
+  resolveEvacuationCues,
   resolveIncidentDuration,
   resolveOperatorLineType,
   resolveStationPlatform,
@@ -288,9 +289,11 @@ export function runEstimateRemaining(
   const cause = resolveObservedCause(ctx.observations, ctx.request.cause ?? null);
   const inspectionPending =
     checkWaitsForInspection(type, cause) && checkInspectionPending(ctx.observations);
-  const cues = filterCuesDuringInspection(
-    collectObservationCues(ctx.observations),
-    inspectionPending,
+  // 線路に降りる案内と再開の放送が両方あれば、観測の時刻が新しいほうを使う
+  const cues = resolveEvacuationCues(
+    ctx.observations,
+    filterCuesDuringInspection(collectObservationCues(ctx.observations), inspectionPending),
+    (o) => collectObservationCues([o]),
   );
   const evacuation = checkTrackEvacuation(cues);
   const incident = estimateIncidentRemaining({

@@ -166,3 +166,37 @@ describe("地震の後に次の駅へ進む案内", () => {
     expect(Date.parse(plain.inCar?.alightArrival ?? "")).toBeGreaterThan(arrival);
   });
 });
+
+describe("降りる案内と再開の放送の前後", () => {
+  const resumed = (minutesAgo: number) =>
+    buildObservation({
+      id: `resumed-${minutesAgo}`,
+      minutesAgo,
+      eventType: "person_collision",
+      rawText: "運転を再開しました。",
+    });
+  const evacuation = (minutesAgo: number) =>
+    buildObservation({
+      id: `evacuation-${minutesAgo}`,
+      minutesAgo,
+      eventType: "person_collision",
+      rawText: "これから線路に降りて、最寄り駅まで歩いてご案内します。",
+    });
+
+  it("再開の後に降りる案内が出たら、残り時間も分岐点の時刻も出さない", async () => {
+    const judgment = await judge(buildRequest([resumed(10), evacuation(1)]));
+    expect(judgment.cues).toContain("evacuation_on_track");
+    expect(judgment.cues).not.toContain("resumed");
+    expect(judgment.estimate.remaining).toBeNull();
+    expect(judgment.breakEven).toBeNull();
+    expect(judgment.headline).toBe("係員の案内に従う");
+  });
+
+  it("降りる案内より新しい観測で再開が告げられたら、再開を優先する", async () => {
+    const judgment = await judge(buildRequest([evacuation(10), resumed(1)]));
+    expect(judgment.cues).toContain("resumed");
+    expect(judgment.cues).not.toContain("evacuation_on_track");
+    expect(judgment.estimate.remaining).not.toBeNull();
+    expect(judgment.headline).not.toBe("係員の案内に従う");
+  });
+});

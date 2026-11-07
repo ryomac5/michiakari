@@ -99,6 +99,7 @@ export {
   detectAnnouncementCues,
   detectObservationCues,
   filterCuesDuringInspection,
+  resolveEvacuationCues,
 } from "./announcement-cues.ts";
 export { computeArrival, type LegMinutes, sumLegMinutes } from "./arrival.ts";
 export {
