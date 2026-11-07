@@ -342,10 +342,13 @@ export function AlightMarker({
   const t = useTranslations("map");
   return (
     <div data-testid={mapTestIds.alight} className="relative size-4">
-      <span aria-hidden className="absolute -inset-1.5 rounded-full border-2 border-focus/50" />
       <span
         aria-hidden
-        className="absolute inset-0 rounded-full border-[3px] border-focus bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.3)]"
+        className="map-mark absolute -inset-1.5 rounded-full border-2 border-focus/50"
+      />
+      <span
+        aria-hidden
+        className="map-mark absolute inset-0 rounded-full border-[3px] border-focus bg-surface shadow-[0_1px_4px_rgb(0_0_0/0.3)]"
       />
       <p
         hidden={hideLabel}
@@ -385,10 +388,12 @@ export function HereMarker({
 
   return (
     <div data-testid={mapTestIds.here} className="relative size-5">
-      <span aria-hidden className="absolute -inset-3 animate-here-pulse rounded-full bg-focus/30" />
+      <span aria-hidden className="map-mark absolute -inset-3">
+        <span className="block size-full animate-here-pulse rounded-full bg-focus/30" />
+      </span>
       <span
         aria-hidden
-        className="absolute inset-0 rounded-full border-[3px] border-white bg-focus shadow-[0_1px_6px_rgb(0_0_0/0.35)]"
+        className="map-mark absolute inset-0 rounded-full border-[3px] border-white bg-focus shadow-[0_1px_6px_rgb(0_0_0/0.35)]"
       />
       <div
         hidden={hideLabel}

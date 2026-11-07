@@ -37,6 +37,7 @@ import {
   sourceIds,
 } from "./layers";
 import { MapAttribution, mapAttributionHeight } from "./MapAttribution";
+import { installMapScale } from "./map-scale";
 import { fetchReachAreas, type ReachArea } from "./reach";
 import {
   buildReachLabelRect,
@@ -232,6 +233,7 @@ function addDataLayers(map: MapLibreMap, geo: MapGeoData, palette: MapPalette, t
     map.addSource(id, { type: "geojson", data: emptyCollection });
   }
   for (const layer of buildDataLayers(palette, tone)) map.addLayer(layer);
+  installMapScale(map);
 }
 
 function setSourceData(map: MapLibreMap, id: string, data: unknown): void {
@@ -479,9 +481,9 @@ function createPlaceElement(role: "origin" | "destination"): HTMLElement {
   el.setAttribute("aria-hidden", "true");
   if (role === "origin") {
     el.className =
-      "size-[18px] rounded-full border-[3px] border-white bg-foreground shadow-[0_1px_6px_rgb(0_0_0/0.35)]";
+      "map-mark size-[18px] rounded-full border-[3px] border-white bg-foreground shadow-[0_1px_6px_rgb(0_0_0/0.35)]";
   } else {
-    el.className = "text-foreground drop-shadow-[0_2px_4px_rgb(0_0_0/0.3)]";
+    el.className = "map-mark origin-bottom text-foreground drop-shadow-[0_2px_4px_rgb(0_0_0/0.3)]";
     el.innerHTML =
       '<svg width="28" height="36" viewBox="0 0 28 36"><path d="M14 35c-6-8-12-13-12-20a12 12 0 0 1 24 0c0 7-6 12-12 20Z" fill="currentColor" stroke="white" stroke-width="2"/><circle cx="14" cy="14" r="4.5" fill="white"/></svg>';
   }

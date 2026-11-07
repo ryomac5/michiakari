@@ -14,6 +14,7 @@ import { selectMapLabels } from "@/features/map/labels";
 import { buildBaseStyle, type MapPalette, mapPalettes } from "@/features/map/layers";
 import { MapAttribution, mapAttributionHeight } from "@/features/map/MapAttribution";
 import { loadMapLibre, type MapInsets, useMarkerHosts } from "@/features/map/MapPanel";
+import { installMapScale } from "@/features/map/map-scale";
 import { prefersReducedMotion, useDocumentTheme } from "@/lib/use-document-theme";
 import type { LabelSide } from "./areas";
 import {
@@ -680,6 +681,7 @@ export function EntryMap(props: EntryMapProps) {
         // 下地のタイルを待たず、スタイルが読めたら路線を足して準備できたとする
         loaded.once("style.load", () => {
           addLayers(loaded, geo, paletteRef.current);
+          installMapScale(loaded);
           setMap(loaded);
         });
         // 指やキーで地図を動かしたか。動かした後は、シートの高さが変わっただけでは寄せ直さない

@@ -11,6 +11,7 @@ import { loadMapGeoData, type MapGeoData } from "./geo-data";
 import { selectMapLabels } from "./labels";
 import { buildBaseStyle, listPaintValues, mapPalettes, sourceIds } from "./layers";
 import { loadMapLibre, preloadMapLibre } from "./MapPanel";
+import { installMapScale } from "./map-scale";
 import { waitForOwnLayersDrawn } from "./ready";
 import { computeFitBounds, type Position, resolvePlacePosition } from "./scene";
 
@@ -97,6 +98,7 @@ export function BackdropMap({
               "circle-stroke-width": 3,
             },
           });
+          installMapScale(loaded);
           setMap(loaded);
         });
       })
