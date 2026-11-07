@@ -63,6 +63,11 @@ export {
   type TrainQueueParams,
 } from "../params/train-queue.ts";
 export {
+  KANSAI_COMMON_TRANSFER_OPERATORS,
+  TICKET_TRANSFER_ELIGIBLE,
+  TRANSFER_FARE_SOURCES,
+} from "../params/transfer-fare.ts";
+export {
   HEADWAY_MINUTES,
   LINE_TYPES,
   type LineType,
@@ -235,6 +240,13 @@ export {
   type TrainQueueInput,
   type TrainQueueOutcome,
 } from "./train-queue.ts";
+export {
+  type ApplyTransferFaresInput,
+  applyTransferFares,
+  decideTransferFare,
+  resolveLineOperator,
+  type TransferFareInput,
+} from "./transfer-fare.ts";
 export {
   classifyTimeOfDay,
   computeRideMinutes,

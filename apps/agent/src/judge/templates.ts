@@ -205,7 +205,7 @@ export type DecisionTextInput = {
   // 勧める代替手段。legs があれば、見出しに乗る路線と駅を書く
   bestOption:
     | (Pick<RouteOption, "kind" | "label" | "isTransferService"> &
-        Partial<Pick<RouteOption, "legs">>)
+        Partial<Pick<RouteOption, "legs" | "transferFare">>)
     | null;
   // 種類の規則表の、短く終わるか長くかかるかの区別。見出しの言い方だけに使う
   flow?: { outlook: "short" | "long" } | null;
@@ -341,7 +341,9 @@ function describeSwitchTarget(option: DecisionTextInput["bestOption"]): SwitchTa
     line: option?.kind === "transfer" ? ride?.line || null : null,
     station: option?.kind === "transfer" ? ride?.from || null : null,
     walkMinutes,
-    transferService: option?.isTransferService ?? false,
+    // 振替輸送の対象外の乗車券なら、振替と呼ばずに乗り換えとして呼ぶ
+    transferService:
+      (option?.isTransferService ?? false) && option?.transferFare !== "fare_required",
   };
 }
 

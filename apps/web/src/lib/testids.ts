@@ -70,6 +70,8 @@ export const testIds = {
     causeKind: (id: string) => `start-cause-kind-${id}`,
     elapsed: (id: string) => `start-elapsed-${id}`,
     resume: (id: string) => `start-resume-${id}`,
+    // 再開見込みの問いの上で聞く乗車券の種類
+    ticket: (id: string) => `start-ticket-${id}`,
     // 放送で聞いた再開見込みの時刻。id は HHMM
     resumeTime: (id: string) => `start-resume-time-${id}`,
     // 答えたことを示すチップ。押すとその問いへ戻る
@@ -168,6 +170,8 @@ export const testIds = {
     // 選択肢の行の、乗る路線の並びと、徒歩と運賃
     optionLines: "judgment-option-lines",
     optionFacts: "judgment-option-facts",
+    // 乗り換え先の追加の費用。data-fare に covered か fare_required を出す
+    optionFare: "judgment-option-fare",
     evidence: "judgment-evidence",
     evidenceToggle: "judgment-evidence-toggle",
     // 根拠の項目。id は兆候の id か "cause"。data-signal-ids と data-cue-id を出す
