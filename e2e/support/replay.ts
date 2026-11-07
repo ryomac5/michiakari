@@ -3,10 +3,9 @@
 import { join } from "node:path";
 import { expect, type Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import type { Knowledge } from "../../packages/schema/src/knowledge.ts";
+import { checkWeatherIncident, findIncidentType } from "../../packages/core/src/index.ts";
 import {
   findRepoRoot,
-  loadKnowledgeDir,
   loadScenarioDir,
   resolveContentDir,
 } from "../../packages/schema/src/loaders.ts";
@@ -25,27 +24,15 @@ export function loadReplayScenarios(): Scenario[] {
   return result.entries.map((entry) => entry.data);
 }
 
-// 同じ CONTENT_DIR の知見を読む。読めないファイルがあれば止める
-export function loadReplayKnowledge(): Knowledge[] {
-  const root = resolveContentDir({ CONTENT_DIR: contentDir }, findRepoRoot());
-  const result = loadKnowledgeDir(join(root, "knowledge"));
-  if (result.errors.length > 0) {
-    throw new Error(`知見を読めません: ${result.errors.map((e) => e.message).join(" / ")}`);
-  }
-  return result.entries.map((entry) => entry.data);
-}
-
-// 知見の external_factors.weather で、気象を判断に使う事象のシナリオとそれ以外に分ける
-export function splitScenariosByWeather(
-  scenarios: readonly Scenario[],
-  knowledge: readonly Knowledge[],
-): { weather: Scenario[]; other: Scenario[] } {
-  const weatherEvents = new Set(
-    knowledge.filter((k) => k.external_factors.weather).map((k) => k.id),
-  );
+// シナリオの種類が天気の事象かで、気象を判断に使うシナリオとそれ以外に分ける
+export function splitScenariosByWeather(scenarios: readonly Scenario[]): {
+  weather: Scenario[];
+  other: Scenario[];
+} {
+  const usesWeather = (s: Scenario) => checkWeatherIncident(findIncidentType(s.event_type));
   return {
-    weather: scenarios.filter((s) => weatherEvents.has(s.event_type)),
-    other: scenarios.filter((s) => !weatherEvents.has(s.event_type)),
+    weather: scenarios.filter(usesWeather),
+    other: scenarios.filter((s) => !usesWeather(s)),
   };
 }
 
