@@ -15,6 +15,7 @@ import {
   selectValueSides,
   type ValueSide,
 } from "../resume-chance";
+import { useScopedTestId } from "../test-id-scope";
 import { testIds } from "../testids";
 import { formatClockTime } from "../time";
 
@@ -70,6 +71,9 @@ export function ResumeChanceChart({
   // 結論が切り替えか。切り替えでは期限の印と期限の文を出さない
   switching?: boolean;
 }) {
+  const sid = useScopedTestId();
+  // 同じ図を地図の上とシートの中に置くので、見出しの id は図ごとに分ける
+  const titleId = `resume-chance-title-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const t = useTranslations("judgment.resumeChance");
   const locale = useLocale();
   const chart = buildChanceChart({
@@ -103,19 +107,19 @@ export function ResumeChanceChart({
 
   return (
     <section
-      data-testid={testIds.judgment.breakEvenResume}
+      data-testid={sid(testIds.judgment.breakEvenResume)}
       data-kind="chance"
       data-relation={relation ?? undefined}
-      aria-labelledby="resume-chance-title"
+      aria-labelledby={titleId}
       className="flex flex-col gap-1.5"
     >
       <div className="flex items-baseline justify-between gap-2">
-        <h3 id="resume-chance-title" className="text-[13px] font-semibold">
+        <h3 id={titleId} className="text-[13px] font-semibold">
           {t("title")}
         </h3>
         {sinceOnset !== null && (
           <p
-            data-testid={testIds.judgment.resumeChanceOnset}
+            data-testid={sid(testIds.judgment.resumeChanceOnset)}
             className="text-[12px] text-muted tabular-nums"
           >
             {t("onset", { since: formatDuration(t, sinceOnset) })}
@@ -123,7 +127,7 @@ export function ResumeChanceChart({
         )}
       </div>
       <figure
-        data-testid={testIds.judgment.resumeChance}
+        data-testid={sid(testIds.judgment.resumeChance)}
         data-step={chance.stepMinutes}
         data-wait-faster={chance.waitFaster ?? ""}
         data-wait-on-time={chance.waitOnTime ?? ""}
@@ -151,7 +155,7 @@ export function ResumeChanceChart({
             >
               {t("marks.breakEven")}
               <time
-                data-testid={testIds.judgment.breakEvenTime}
+                data-testid={sid(testIds.judgment.breakEvenTime)}
                 dateTime={breakEven.time}
                 className="tabular-nums"
               >
@@ -239,11 +243,11 @@ export function ResumeChanceChart({
           {breakEven && (
             <MarkValue
               mark={breakEven}
-              testId={
+              testId={sid(
                 chance.waitFaster !== null
                   ? testIds.judgment.resumeChanceWaitFaster
-                  : testIds.judgment.resumeChanceWaitOnTime
-              }
+                  : testIds.judgment.resumeChanceWaitOnTime,
+              )}
               label={t(chance.waitFaster !== null ? "waitFaster" : "waitOnTime")}
               side={valueSides.breakEven ?? "right"}
               t={t}
@@ -252,7 +256,7 @@ export function ResumeChanceChart({
           {deadline && (
             <MarkValue
               mark={deadline}
-              testId={testIds.judgment.resumeChanceWaitOnTime}
+              testId={sid(testIds.judgment.resumeChanceWaitOnTime)}
               label={t("waitOnTime")}
               side={valueSides.resumeBy ?? "right"}
               t={t}
@@ -277,7 +281,7 @@ export function ResumeChanceChart({
         {/* 間に合う再開の時刻の意味。到着の期限と取り違えないよう、図の下に文で添える */}
         {deadline && (
           <p
-            data-testid={testIds.judgment.resumeChanceResumeBy}
+            data-testid={sid(testIds.judgment.resumeChanceResumeBy)}
             className="flex items-center gap-1 text-[12px] font-semibold text-danger"
           >
             <Clock className="size-3 shrink-0" aria-hidden />
@@ -298,7 +302,7 @@ export function ResumeChanceChart({
           {chart.points.map((p) => (
             <li
               key={p.tick.time}
-              data-testid={testIds.judgment.resumeChanceTick(toHhmm(p.tick.time))}
+              data-testid={sid(testIds.judgment.resumeChanceTick(toHhmm(p.tick.time)))}
               data-tenths={p.tick.tenths}
               data-since-onset={p.tick.sinceOnsetMinutes ?? ""}
               data-time={p.tick.time}
@@ -315,13 +319,14 @@ export function ResumeChanceChart({
 
 // 境目と期限の縦の印
 function MarkLine({ mark }: { mark: ChartMark }) {
+  const sid = useScopedTestId();
   const deadline = mark.kind === "resumeBy";
   return (
     <span
       aria-hidden
-      data-testid={
-        deadline ? testIds.judgment.resumeChanceDeadline : testIds.judgment.resumeChanceBreakEven
-      }
+      data-testid={sid(
+        deadline ? testIds.judgment.resumeChanceDeadline : testIds.judgment.resumeChanceBreakEven,
+      )}
       data-time={mark.time}
       data-outside={mark.outside ?? ""}
       className={cn(
