@@ -335,6 +335,12 @@
     },
     "rules": {
       "protection": "近くで非常停止があったと読めます",
+      "stopReason": {
+        "own_incident": "この列車で何か起きた可能性があります",
+        "protection_received": "近くの非常停止を受けて止まった可能性が高いです",
+        "dispatcher_order": "区間ごと止められている可能性が高いです",
+        "queued_behind": "前の列車がつかえて止まっている可能性が高いです"
+      },
       "range": "{min}〜{max}分ほど",
       "single": "{minutes}分ほど",
       "track": {

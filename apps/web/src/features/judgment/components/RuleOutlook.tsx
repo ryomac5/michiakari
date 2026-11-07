@@ -1,7 +1,7 @@
 "use client";
 
 import type { Judgment } from "@repo/schema";
-import { ChevronRight, Radio } from "lucide-react";
+import { ChevronRight, Radio, TrainFront } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   checkProtectionReading,
@@ -10,6 +10,7 @@ import {
   type QueueLines,
   type RuleTranslate,
   selectQueueLines,
+  selectStopReasonLine,
   selectTrackLines,
 } from "../rule-outlook";
 import { testIds } from "../testids";
@@ -31,6 +32,27 @@ export function ProtectionReading({ judgment }: { judgment: Pick<Judgment, "prot
     >
       <Radio className="size-4 shrink-0" strokeWidth={2} aria-hidden />
       <NoBreakText text={t("protection")} />
+    </p>
+  );
+}
+
+// 電車の中の判断で、自分の列車が止まった理由のいちばん高い見込みを 1 行だけ出す
+export function StopReasonLine({
+  judgment,
+}: {
+  judgment: Pick<Judgment, "protection" | "stopReasons" | "reason">;
+}) {
+  const t = useRuleTranslate();
+  const reason = selectStopReasonLine(judgment);
+  if (!reason) return null;
+  return (
+    <p
+      data-testid={testIds.judgment.stopReason}
+      data-reason={reason}
+      className="flex items-center gap-1.5 text-[14px] font-medium text-muted"
+    >
+      <TrainFront className="size-4 shrink-0" strokeWidth={2} aria-hidden />
+      <NoBreakText text={t(`stopReason.${reason}`)} />
     </p>
   );
 }

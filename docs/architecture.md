@@ -347,6 +347,26 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 - `queue_ahead` があれば、詰まりの列に入ったとみなし、本数を 1 本以上にする
 - `queue_ahead` があるか、待つ分の上限が `QUEUE_ALIGHT_WORTH_MINUTES` 以上なら、次の駅で降りる価値があるとする
 
+#### 止まった理由
+
+電車の中で止まった利用者の列車が、なぜ止まったかを `estimateStopReasons` が見積もる。理由ごとに止まる列車の本数を数え、その比を割合とする。値は開発者の推定である。
+
+| 理由 | 本数 |
+|---|---|
+| `own_incident` | 当該列車の 1 本。天気と停電は 0 本 |
+| `protection_received` | 防護無線の事象で、前後 `PROTECTION_RADIUS_KM` の上下の列車。間隔は運転間隔と表定速度から出す |
+| `dispatcher_order` | 区間を止める事象と防護無線の事象で、前後 `DISPATCH_RADIUS_KM` の上下の列車。受信の範囲の本数を引く |
+| `queued_behind` | 止まってからの分を運転間隔で割った本数。当該がいるときだけ数える。天気と停電は指令が区間ごと止めるので、後ろの列車も `dispatcher_order` に入れ、0 本とする |
+
+- `protection_received` の手がかりがあれば、防護無線に確定する
+- `queue_ahead` の手がかりがあれば、詰まりの本数に `QUEUE_AHEAD_CUE_WEIGHT` を掛ける
+- 利用者は止まった列車のどれかに乗っているとみなす。当該の割合は 1 ÷ 止まった本数の合計になる
+- 同じ割合なら、受信、指令の指示、詰まり、当該の順に選ぶ
+- 割合は 100 分の 1 に丸める。最大剰余法で、丸めた後の合計をちょうど 1 にする
+- 止まってからの分が有限でないか負なら、0 分として扱う
+- Claude には割合の数値を書かせず、言葉の強さで言い表させる。理由の語と割合が同じ文にあれば検証エラーにする
+- 種類も決め手の手がかりも無ければ見込みを出さない
+
 #### 短く終わる事象
 
 次の事象は、規則表の `ruleRange` で見込みを出す。p80 は仮の値である。
@@ -393,7 +413,7 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `observation_parsed` | `{ observation: Observation }` | 「掲示を読み取りました」 |
 | `signal_detected` | `{ signal: DetectedSignal }` | 手がかりを根拠リストに追加 |
 | `weather_checked` | `{ source, readings, warnings, trend, summary }` | 雨量の推移と警報を出す。readings は 36 件・6 時間まで |
-| `phase_estimated` | `{ estimate: Estimate }` と、規則の欄の `cues`、`protection`、`unaffectedTrack`、`resumeQueue`。名前は以前のまま残す | 見込みの図を更新 |
+| `phase_estimated` | `{ estimate: Estimate }` と、規則の欄の `cues`、`protection`、`unaffectedTrack`、`resumeQueue`、`stopReasons`。名前は以前のまま残す | 見込みの図を更新 |
 | `alternatives_computed` | `{ options: RouteOption[] }` | 地図に経路と到達範囲を描画 |
 | `break_even_computed` | `{ breakEven: BreakEven \| null }` | 分岐点の表示を更新 |
 | `judgment_ready` | `{ judgment: Judgment }` | 結論を確定表示。近くのバス停の確認候補は判断の確定後に決定論で `busChecks` に付け、Claude には渡さない |
@@ -420,7 +440,7 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `recommendedOptionId` | 推奨する代替手段の `id`。null を許すが、`action` が `switch` なら必須 |
 | `evidence` | `{ kind, id, description }` の配列。`kind` は `signal` / `cue` / `weather` / `computation`。`cue` の id は手がかりの id |
 | `disclaimer` | 推定である旨（必須） |
-| `cues`、`protection`、`unaffectedTrack`、`resumeQueue` | 規則から出した見込みの欄。どれも省略できる。`phase_estimated` と同じ形である |
+| `cues`、`protection`、`unaffectedTrack`、`resumeQueue`、`stopReasons` | 規則から出した見込みの欄。どれも省略できる。`phase_estimated` と同じ形である |
 
 `recommendedOptionId` は `options` にある `id` を指す。参照と重複は `checkJudgmentRefs` で検査する。スキーマに refine を付けないのは、Claude のツール定義に変換するためである。
 
@@ -558,7 +578,7 @@ agent は `compute_break_even` で詰め、`break_even_computed` と `judgment_r
 | ツール | 入力 | 出力 | 実装 |
 |---|---|---|---|
 | `get_weather` | 区間の座標、時間幅 | 10分ごとの雨量、警報の発表状況 | 気象庁 |
-| `estimate_remaining` | 事象の種類、観測の列 | 規則表を引き、残り時間の p50 と p80、出どころ、確信度、手がかりの id、防護無線の事象かを返す。防護無線の事象なら支障の無い線路の見込み、詰まりの列なら再開後の詰まりの見込みも返す。事象が null でも発表の見込み時刻があれば残り時間を返す。駅間の車内なら、ホームに着ける駅とそこに着く時刻、動き出す時刻、遅れる理由を `trainQueue` で返す。止まり方を `stopScope` で返す | packages/core |
+| `estimate_remaining` | 事象の種類、観測の列 | 規則表を引き、残り時間の p50 と p80、出どころ、確信度、手がかりの id、防護無線の事象かを返す。防護無線の事象なら支障の無い線路の見込み、詰まりの列なら再開後の詰まりの見込みも返す。事象が null でも発表の見込み時刻があれば残り時間を返す。駅間の車内なら、ホームに着ける駅とそこに着く時刻、動き出す時刻、遅れる理由を `trainQueue` で返す。止まり方を `stopScope` で返す。列車の中なら、止まった理由の割合を `stopReasons` で返す | packages/core |
 | `find_alternatives` | 現在地、行き先、止まっている区間、時刻、制約 | 代替手段の一覧（徒歩・乗車・待ち・運賃）。防護無線の事象なら `rankAlternativesForProtection` で印を付けて並べ替える。駅間の車内なら、次の駅に着く見込みの時刻から探す。その結果はいまの選択肢として示さず、着いた後の次の一手を選ぶ比較にだけ使う。通常の徒歩の上限の中に鉄道の代替が無ければ、上限を広げて探す。バス停は返さない | packages/geo + core |
 | `compute_break_even` | 待つ場合の条件、代替手段の到着時刻、期限 | 分岐点の時刻、勧める代替手段の id、比較表、時刻ごとの再開の見込みと待ったほうが早く着く確率。駅間の車内でも同じ標本から求める | packages/core |
 

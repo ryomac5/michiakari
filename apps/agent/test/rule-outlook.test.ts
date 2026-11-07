@@ -15,7 +15,11 @@ import type {
 import { describe, expect, it } from "vitest";
 import type { AlternativesProvider } from "../src/alternatives/provider.ts";
 import { interpretSelection } from "../src/interpret/deterministic-interpret.ts";
-import { assembleJudgment, extractTextNumbers } from "../src/judge/assemble.ts";
+import {
+  assembleJudgment,
+  checkStopReasonShares,
+  extractTextNumbers,
+} from "../src/judge/assemble.ts";
 import { createEventSink } from "../src/judge/event-sink.ts";
 import { createJudgeSession } from "../src/judge/session.ts";
 import { runComputeBreakEven } from "../src/tools/compute-break-even.ts";
@@ -510,5 +514,167 @@ describe("本数と駅の数の検査", () => {
     const n = extractTextNumbers("2 trains ahead, 3 stations away, and 1 stop.");
     expect(n.counts.map((c) => c.value)).toEqual([2, 3, 1]);
     expect(n.minutes).toEqual([]);
+  });
+});
+
+describe("止まった理由の見込み", () => {
+  const position: TrainPosition = {
+    kind: "between_stations",
+    nextStation: "塚本",
+    previousStation: "大阪",
+    trainsAhead: [],
+    trainsAheadCount: null,
+    ownTrainType: "local",
+    trainsAheadHeadwayMinutes: null,
+  };
+  const personLongAgo = buildObservation({
+    id: "entry-cause",
+    minutesAgo: 20,
+    eventType: "person_collision",
+  });
+
+  it("電車の中の人身事故では、割合といちばん可能性の高い理由を判断と phase_estimated に載せる", async () => {
+    const { judgment, events } = await judge(
+      buildRequest([personLongAgo], { trainPosition: position, origin: "塚本" }),
+    );
+    const reasons = judgment.stopReasons;
+    expect(reasons?.trainCounts.own_incident).toBe(1);
+    expect(reasons?.trainCounts.dispatcher_order).toBeGreaterThan(0);
+    expect(reasons?.mostLikely).toBe("dispatcher_order");
+    expect(reasons?.shares.own_incident).toBeLessThan(0.2);
+    const estimated = events.find((e) => e.type === "phase_estimated");
+    expect(estimated).toMatchObject({ stopReasons: reasons });
+  });
+
+  it("電車の中で大雨なら、指令の指示がいちばん高く、当該は 0", async () => {
+    const rain = buildObservation({ id: "entry-cause", minutesAgo: 10, eventType: "heavy_rain" });
+    const { judgment } = await judge(
+      buildRequest([rain], { trainPosition: position, origin: "塚本" }),
+    );
+    expect(judgment.stopReasons?.mostLikely).toBe("dispatcher_order");
+    expect(judgment.stopReasons?.shares.own_incident).toBe(0);
+  });
+
+  it("受信の放送が聞こえれば、防護無線に確定する", async () => {
+    const { judgment } = await judge(
+      buildRequest([protectionHeard], { trainPosition: position, origin: "塚本" }),
+    );
+    expect(judgment.stopReasons?.mostLikely).toBe("protection_received");
+    expect(judgment.stopReasons?.shares.protection_received).toBe(1);
+  });
+
+  it("電車の中の急病人で長く止まっていれば、詰まりがいちばん高い", async () => {
+    const medical = buildObservation({
+      id: "entry-cause",
+      minutesAgo: 40,
+      eventType: "medical_response",
+    });
+    const { judgment } = await judge(
+      buildRequest([medical], { trainPosition: position, origin: "塚本" }),
+    );
+    expect(judgment.stopReasons?.mostLikely).toBe("queued_behind");
+  });
+
+  it("駅で待つ人には載せない", async () => {
+    const { judgment } = await judge(buildRequest([personLongAgo]));
+    expect(judgment.stopReasons).toBeUndefined();
+  });
+
+  it("止まった理由は言葉の強さだけで書かせ、理由の文の割合は理由の値でも確率の値でも検証エラーにする", async () => {
+    const request = buildRequest([personLongAgo], { trainPosition: position, origin: "塚本" });
+    const session = createJudgeSession(
+      {
+        request,
+        observations: [personLongAgo],
+        content: deps.content,
+        provider: deps.provider,
+        scenario: null,
+        fetchRain: deps.fetchRain,
+      },
+      createEventSink(
+        async () => {},
+        () => now,
+      ),
+    );
+    await session.executeTool("estimate_remaining", { eventType: "person_collision" });
+    await session.executeTool("find_alternatives", {});
+    await session.executeTool("compute_break_even", {});
+    const { estimate, alternatives, breakEven } = session.state;
+    if (!estimate?.stopReasons || !alternatives || !breakEven?.resumeChance)
+      throw new Error("ツールの結果がそろいません");
+    const results = { estimate, alternatives, breakEven };
+    const decide = (reason: string) =>
+      assembleJudgment(
+        results,
+        {
+          action: "wait",
+          headline: "車内で待つ",
+          reason,
+          breakEvenExplanation: "説明",
+          recommendedOptionId: null,
+          evidence: [],
+        },
+        "ja",
+      );
+    const shareErrors = (reason: string) =>
+      session.checkJudgment(decide(reason), results).errors.filter((e) => e.includes("割合"));
+    // 確率の目盛りにある割合。理由の文に流用させない
+    const tick = breakEven.resumeChance.ticks.find((t) => t.tenths >= 1 && t.tenths <= 9);
+    if (!tick) throw new Error("目盛りの割合がありません");
+    const ownTenths = Math.round(estimate.stopReasons.shares.dispatcher_order * 10);
+
+    expect(shareErrors("区間ごと止められている可能性が高いです。")).toEqual([]);
+    expect(shareErrors(`区間ごと止められている見込みが${ownTenths}割です。`)).toHaveLength(1);
+    expect(shareErrors(`指令の指示で止まった見込みが${tick.tenths}割です。`)).toHaveLength(1);
+    expect(shareErrors("この列車で何か起きた見込みは30%です。")).toHaveLength(1);
+  });
+
+  it("受信が聞こえて防護無線が 10 割でも、「9割」と書けば検証エラーになる", async () => {
+    const request = buildRequest([protectionHeard], { trainPosition: position, origin: "塚本" });
+    const session = createJudgeSession(
+      {
+        request,
+        observations: [protectionHeard],
+        content: deps.content,
+        provider: deps.provider,
+        scenario: null,
+        fetchRain: deps.fetchRain,
+      },
+      createEventSink(
+        async () => {},
+        () => now,
+      ),
+    );
+    await session.executeTool("estimate_remaining", { eventType: null });
+    await session.executeTool("find_alternatives", {});
+    await session.executeTool("compute_break_even", {});
+    const { estimate, alternatives, breakEven } = session.state;
+    if (!estimate?.stopReasons || !alternatives || !breakEven)
+      throw new Error("ツールの結果がそろいません");
+    expect(estimate.stopReasons.shares.protection_received).toBe(1);
+    const judgment = assembleJudgment(
+      { estimate, alternatives, breakEven },
+      {
+        action: "wait",
+        headline: "車内で待つ",
+        reason: "近くの非常停止を受けて止まった見込みが9割です。",
+        breakEvenExplanation: "説明",
+        recommendedOptionId: null,
+        evidence: [],
+      },
+      "ja",
+    );
+    const errors = session.checkJudgment(judgment, { estimate, alternatives, breakEven }).errors;
+    expect(errors.some((e) => e.includes("9割"))).toBe(true);
+  });
+
+  it("理由の語の無い文の割合は、止まった理由の検査にかけない", () => {
+    expect(checkStopReasonShares("reason", "21時30分までに動く見込みは3割です。")).toEqual([]);
+    expect(
+      checkStopReasonShares(
+        "reason",
+        "区間ごと止められている可能性が高いです。動く見込みは3割です。",
+      ),
+    ).toEqual([]);
   });
 });

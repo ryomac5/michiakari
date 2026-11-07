@@ -335,6 +335,12 @@
     },
     "rules": {
       "protection": "An emergency stop likely happened nearby",
+      "stopReason": {
+        "own_incident": "Something may have happened on this train",
+        "protection_received": "Likely stopped after an emergency stop nearby",
+        "dispatcher_order": "The whole section is likely being held",
+        "queued_behind": "Likely stopped because trains ahead are backed up"
+      },
       "range": "about {min}–{max} min",
       "single": "about {minutes} min",
       "track": {

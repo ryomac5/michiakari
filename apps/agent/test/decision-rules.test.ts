@@ -69,6 +69,7 @@ function buildInput(input: {
       protection: false,
       unaffectedTrack: null,
       resumeQueue: null,
+      stopReasons: null,
     },
     alternatives: {
       options: [],

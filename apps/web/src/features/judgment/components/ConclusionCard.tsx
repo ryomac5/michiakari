@@ -11,7 +11,7 @@ import { testIds } from "../testids";
 import { ActionPill } from "./ActionPill";
 import { JudgmentChangeCard } from "./JudgmentChangeCard";
 import { NoBreakText } from "./NoBreakText";
-import { ProtectionReading } from "./RuleOutlook";
+import { ProtectionReading, StopReasonLine } from "./RuleOutlook";
 
 export { ActionPill } from "./ActionPill";
 
@@ -20,7 +20,7 @@ export function selectCardReason(judgment: Judgment | null): string | null {
   return judgment?.reason?.match(/^.*?(?:。|[.!?](?=\s|$)|$)/s)?.[0]?.trim() || null;
 }
 
-// ひと目で分かる段。行動の見出し 1 行と、待つときの次の手、防護無線の読み、理由 1 行、数字 1 つだけを出す
+// ひと目で分かる段。行動の見出し 1 行と、待つときの次の手、防護無線の読み、止まった理由、理由 1 行、数字 1 つだけを出す
 export function ConclusionCard({
   judgment,
   badge,
@@ -73,6 +73,7 @@ export function ConclusionCard({
           </p>
         )}
         <ProtectionReading judgment={judgment} />
+        <StopReasonLine judgment={judgment} />
         {cardReason && (
           <p
             data-testid={testIds.judgment.conclusionReason}
