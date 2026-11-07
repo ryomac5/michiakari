@@ -67,6 +67,21 @@ const toTrainDestination: EntryAction[] = [
 ];
 
 describe("reduceEntry", () => {
+  it("関西とエリアの段で線を押して駅の間を選ぶと、車内にいるとして行き先へ進み、戻るとその段に戻る", () => {
+    const kansai = run([{ type: "chooseLocation", location: "station" }]);
+    const opened = run(toCause.slice(0, 2));
+    for (const from of [kansai, opened]) {
+      const located = reduceEntry(from, { type: "locateBetween", line, segment, place, area });
+      expect(located).toMatchObject({ stage: "destination", location: "train", line, segment });
+      expect(reduceEntry(located, { type: "back" })).toMatchObject({ stage: from.stage });
+    }
+  });
+  it("駅を選んで行き先や路線を選ぶ段では、駅の間を答えにしない", () => {
+    const station = run(toCause.slice(0, 3));
+    expect(reduceEntry(station, { type: "locateBetween", line, segment, place, area })).toBe(
+      station,
+    );
+  });
   it("いまどこ・行き先・様子の順に進み、撮る・貼るは原因から入力へ入る", () => {
     const cause = run(toCause);
     expect(cause).toMatchObject({ stage: "cause", line, place, area, direction });
@@ -335,8 +350,8 @@ describe("現在地から読み取った位置", () => {
     expect(cause).toMatchObject({ stage: "cause", line: moved, direction });
     expect(reduceEntry(cause, { type: "back" }).stage).toBe("direction");
   });
-  it("いまどこの段の外では読み取った位置を受け付けず、電車を変えると駅間を捨てる", () => {
-    const station = run([{ type: "chooseLocation", location: "station" }]);
+  it("駅を選んだ後の段では読み取った位置を受け付けず、電車を変えると駅間を捨てる", () => {
+    const station = run(toCause.slice(0, 3));
     expect(reduceEntry(station, locateBetween)).toBe(station);
     const cause = run([
       locateBetween,

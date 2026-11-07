@@ -176,6 +176,32 @@ function GpsLocate({ status, choices, onLocate, onConfirm, onDismiss, onFocusCho
   );
 }
 
+// 関西とエリアの段で線を押して出した、駅の間の候補。選ぶと駅の間の車内にいるとして進む
+export function MapPickStep({
+  choices,
+  onConfirm,
+  onDismiss,
+  onFocusChoice,
+}: {
+  choices: GpsChoice[];
+  onConfirm: (choice: GpsChoice) => void;
+  onDismiss: () => void;
+  onFocusChoice: (key: string | null) => void;
+}) {
+  const t = useTranslations("entry");
+  return (
+    <div className="flex flex-col gap-2" data-testid={testIds.start.mapPick}>
+      <PlaceConfirm
+        choices={choices}
+        pickTitle={t("gpsPickQuestion")}
+        onConfirm={onConfirm}
+        onDismiss={onDismiss}
+        onFocusChoice={onFocusChoice}
+      />
+    </div>
+  );
+}
+
 // 最初の段。駅名の検索、現在地の読み取り、駅にいる、駅と駅の間の順に並べる
 export function LocationStep({
   onSelect,

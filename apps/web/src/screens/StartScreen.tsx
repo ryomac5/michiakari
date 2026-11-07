@@ -23,6 +23,7 @@ import {
 import {
   BetweenStep,
   LocationStep,
+  MapPickStep,
   TrainLineStep,
   TrainPositionStep,
 } from "@/features/entry/EntryLocationSteps";
@@ -69,6 +70,7 @@ import {
   resolveConfiguredArea,
 } from "@/features/entry/entry-places";
 import {
+  betweenPickStages,
   type EntryStage,
   initialEntryState,
   reduceEntry,
@@ -469,7 +471,7 @@ export function StartScreen() {
       };
 
   function confirmGpsChoice(choice: GpsChoice) {
-    if (!data || (entry.stage !== "position" && entry.stage !== "between")) return;
+    if (!data || !betweenPickStages.has(entry.stage)) return;
     if (choice.kind === "station") {
       if (entry.stage !== "position") return;
       const opened = openStationChoice(data, choice.choice);
@@ -546,7 +548,7 @@ export function StartScreen() {
     reachMeters: number,
     label: EntryPlace | null,
   ) {
-    if (!data || !geo || (entry.stage !== "position" && entry.stage !== "between")) return;
+    if (!data || !geo || !betweenPickStages.has(entry.stage)) return;
     const choices = listLineTapChoices(
       data,
       geo.nodes,
@@ -826,7 +828,10 @@ export function StartScreen() {
     router.push("/judgment");
   }
 
-  const showSheet = entry.stage !== "kansai";
+  // 関西の段はシートを出さない。線を押して駅の間の候補が出たときだけ、候補のシートを出す
+  const showSheet = entry.stage !== "kansai" || mapPick !== null;
+  // 関西の段の上部の問いと戻る札。候補のシートを出している間は、地図を見せるため隠す
+  const kansaiPrompt = entry.stage === "kansai" && mapPick === null;
   const introShownOnSheet = entry.stage === "position" && introOpen;
   // 端末の上の余白で帯が下がるぶん、地図の上の余白も広げる
   const mapTop = sheetTopInset + headerShift;
@@ -1261,15 +1266,13 @@ export function StartScreen() {
         // 駅の段と駅の間の段は駅を答えにしないので、駅の印や札の上も線として押させる
         placePickable={entry.stage !== "station" && entry.stage !== "between"}
         onTap={handleTap}
-        onSelectRails={
-          entry.stage === "position" || entry.stage === "between" ? handleRailTap : undefined
-        }
+        onSelectRails={betweenPickStages.has(entry.stage) ? handleRailTap : undefined}
       />
       <AppHeader
         variant="map"
         // 関西の段はシートが無いので、帯のロゴの場所にいまどこの問いへ戻る札を置く
         leading={
-          entry.stage === "kansai" ? (
+          kansaiPrompt ? (
             <button
               type="button"
               data-testid={testIds.start.back}
@@ -1282,7 +1285,7 @@ export function StartScreen() {
           ) : undefined
         }
         below={
-          entry.stage === "kansai" ? (
+          kansaiPrompt ? (
             <>
               <div ref={promptRef} className="flex flex-col gap-2">
                 {introOpen && <StartIntro onClose={closeIntro} />}
@@ -1309,11 +1312,12 @@ export function StartScreen() {
         }
       />
       <main id="main">
-        {entry.stage === "kansai" && !desktop && <DemoDock ref={dockRef} />}
+        {kansaiPrompt && !desktop && <DemoDock ref={dockRef} />}
         {showSheet && (
           <EntrySheet
             stageKey={`${entry.stage}:${entry.area?.id}:${entry.place?.key}:${onTrain}`}
-            onBack={handleBack}
+            // 関西の段の候補のシートは、戻ると候補を閉じて関西の地図に戻る
+            onBack={entry.stage === "kansai" ? () => setMapPick(null) : handleBack}
             onHeightChange={setSheetHeight}
             compact={
               linePickable ||
@@ -1325,6 +1329,14 @@ export function StartScreen() {
             fill={situationStages.has(entry.stage)}
             progress={progressIndex >= 0 ? <EntryProgress index={progressIndex} /> : null}
           >
+            {(entry.stage === "kansai" || entry.stage === "area") && mapPick && (
+              <MapPickStep
+                choices={mapPick.choices}
+                onConfirm={confirmGpsChoice}
+                onDismiss={() => setMapPick(null)}
+                onFocusChoice={setFocusedChoiceKey}
+              />
+            )}
             {entry.stage === "area" && entry.area && (
               <AreaStep
                 area={entry.area}
