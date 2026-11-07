@@ -161,14 +161,14 @@ describe("explainContentErrors", () => {
     expect(e?.hint).toContain("signals");
   });
 
-  it("event_type に知見が無ければ knowledge:new を案内する", () => {
+  it("event_type の形式違反に、統計値の種類の id を書くよう案内する", () => {
     writeContentFile(
       root,
       "scenarios/sample_scenario.yaml",
-      editYaml(scenarioText(), ["event_type"], "unknown_event"),
+      editYaml(scenarioText(), ["event_type"], "Person-Collision"),
     );
-    const e = findByMessage("event_type が知見の id に存在しません");
-    expect(e?.hint).toContain("pnpm knowledge:new unknown_event");
+    const e = findByMessage("event_type");
+    expect(e?.hint).toContain("統計値の種類の id");
   });
 
   it("YAML の構文エラーに確かめる点を示す", () => {

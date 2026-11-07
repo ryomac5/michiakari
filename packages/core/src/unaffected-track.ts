@@ -1,12 +1,11 @@
-import type { DurationDist } from "@repo/schema";
+import type { DurationDist, TrackSide } from "@repo/schema";
 import { UNAFFECTED_TRACK_RESUME } from "../params/incident-behavior.ts";
 
 // 防護無線の事象で、支障の無い線路が先に動き出す見込み
 // 指令は範囲を確かめ、支障の無い線路から順に動かす。当該の線路は長く止まる
 
-// 利用者がいる線路。affected は当該の線路、opposite は反対の線路、unknown は分からない
-export const TRACK_SIDES = ["affected", "opposite", "unknown"] as const;
-export type TrackSide = (typeof TRACK_SIDES)[number];
+// 利用者がいる線路の定義は packages/schema が唯一の正
+export { TRACK_SIDES, type TrackSide } from "@repo/schema";
 
 export type UnaffectedTrackInput = {
   // checkProtectionIncident の結果
