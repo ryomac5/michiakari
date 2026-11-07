@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { chooseBetweenStations, searchStationPair } from "../support/entry.ts";
+import { answerProtection, chooseBetweenStations, searchStationPair } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -145,6 +145,7 @@ async function startBetweenStations(
   await expect(screen).toHaveAttribute("data-stage", "cause");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("塚本");
   await page.getByTestId(testIds.start.cause("person")).click();
+  await answerProtection(page);
   await page.getByTestId(testIds.start.elapsed("m10")).click();
   await page.getByTestId(testIds.start.resume(resume)).click();
   if (resume === "stated") await page.locator("[data-testid^='start-resume-time-']").last().click();
@@ -283,6 +284,7 @@ test("福島〜大阪の車内で急病人により止まり、行き先が大�
   await page.getByTestId(testIds.start.destinationOption("大阪")).click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
   await page.getByTestId(testIds.start.cause("inCar")).click();
+  await answerProtection(page);
   await page.getByTestId(testIds.start.elapsed("now")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });

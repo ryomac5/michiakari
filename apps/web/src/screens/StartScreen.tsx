@@ -46,6 +46,7 @@ import {
   ElapsedStep,
   EntryProgress,
   InputStep,
+  ProtectionStep,
   type ResumeAnswer,
   ResumeStep,
   StationStep,
@@ -126,6 +127,7 @@ import {
   toCauseChoiceId,
 } from "@/features/situation/cause-categories";
 import { findElapsedOption, listResumeTimeOptions } from "@/features/situation/plain-questions";
+import { buildProtectionObservations } from "@/features/situation/protection-broadcast";
 import {
   findNearestChoices,
   type NearestStationChoice,
@@ -199,7 +201,14 @@ function useEntryData(): { geo: MapGeoData | null; data: EntryData | null } {
 
 // 入口。大阪を中心にした地図で駅を選び、同じ地図の上のシートで状況まで入れて判断へ渡す
 // 様子を聞く段。地図で選ぶものが無いので、スマートフォンでは地図を出さない
-const situationStages = new Set<EntryStage>(["cause", "causeKind", "elapsed", "resume", "input"]);
+const situationStages = new Set<EntryStage>([
+  "cause",
+  "causeKind",
+  "protection",
+  "elapsed",
+  "resume",
+  "input",
+]);
 
 export function StartScreen() {
   const t = useTranslations();
@@ -764,6 +773,7 @@ export function StartScreen() {
   // 判断を始め、出発の駅へ寄せてから判断の画面へ移る。地図はそのまま判断の地図に引き継ぐ
   // 問いに答えたときだけ、止まってからの分と原因が分からないかを前提として残し、
   // 放送で聞いた再開見込みの時刻を路線の観測に載せる
+  // 車内で受信の放送を聞いたと答えたら、その放送を観測として足す
   async function submit(
     input: RawInput | null,
     answers: {
@@ -774,6 +784,8 @@ export function StartScreen() {
     } | null = null,
   ) {
     if (!entry.line || !direction || origin === null) return;
+    const now = new Date();
+    const elapsedMinutes = answers?.elapsedMinutes ?? null;
     setTripContext({
       entryState: entry,
       directionKey: direction.key,
@@ -794,12 +806,8 @@ export function StartScreen() {
     startJudgment(
       input,
       [
-        buildLineObservation(
-          entry.line,
-          new Date(),
-          answers?.elapsedMinutes ?? null,
-          answers?.statedResumeTime ?? null,
-        ),
+        buildLineObservation(entry.line, now, elapsedMinutes, answers?.statedResumeTime ?? null),
+        ...buildProtectionObservations(entry.protection, now, elapsedMinutes),
       ],
       answers?.cause ?? null,
     );
@@ -1415,6 +1423,13 @@ export function StartScreen() {
                 answers={answered}
                 category={entry.cause.category}
                 onSelect={(kind) => dispatch({ type: "chooseCauseKind", kind })}
+              />
+            )}
+            {entry.stage === "protection" && entry.cause && (
+              <ProtectionStep
+                trip={tripLine}
+                answers={answered}
+                onSelect={(protection) => dispatch({ type: "chooseProtection", protection })}
               />
             )}
             {entry.stage === "elapsed" && entry.cause && (

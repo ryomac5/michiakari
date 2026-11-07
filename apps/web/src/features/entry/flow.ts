@@ -5,6 +5,7 @@ import {
   needsCauseKind,
 } from "@/features/situation/cause-categories";
 import type { ElapsedOption } from "@/features/situation/plain-questions";
+import type { ProtectionAnswer } from "@/features/situation/protection-broadcast";
 import type { EntryArea, EntryPlace } from "./entry-places";
 import type { GpsSegment } from "./gps-candidates";
 
@@ -12,6 +13,7 @@ import type { GpsSegment } from "./gps-candidates";
 // 駅と駅の間の人は いまどこ → 駅の間 → 行き先 → 原因 → 経過 → 再開見込み の順に進む。進む向きは行き先から決める
 // 車内の人が乗る電車を選び直すときは 路線 → 方面 → 駅間 → 行き先 の順に聞く
 // 原因で人・旅客対応か気象・自然を選んだ人だけ、続けて種類を 1 問聞く
+// 電車の中の人だけ、原因の後に「信号を受信したため緊急停止」の放送を聞いたかを 1 問聞く
 // 現在地から駅を読み取った人は いまどこ → 行き先 へ進む
 // 駅の間を読み取った人は いまどこ → 行き先 へ進み、進む向きは行き先から決める。決まらなければ方面を聞く
 // 駅にいる人は、行き先の段で先に路線を選べる。そのときは 路線 → 方面 → 行き先 の順に進む
@@ -28,6 +30,7 @@ export type EntryStage =
   | "destination"
   | "cause"
   | "causeKind"
+  | "protection"
   | "elapsed"
   | "resume"
   | "input";
@@ -49,6 +52,7 @@ type EntrySnapshot = {
   routeFirst: boolean;
   method: EntryMethod | null;
   cause: CauseAnswer | null;
+  protection: ProtectionAnswer | null;
   elapsed: ElapsedOption["id"] | null;
 };
 export type EntryState = EntrySnapshot & { history: EntrySnapshot[] };
@@ -87,6 +91,7 @@ export type EntryAction =
   | { type: "chooseMethod"; method: EntryMethod }
   | { type: "chooseCause"; cause: CauseAnswer }
   | { type: "chooseCauseKind"; kind: CauseKindId }
+  | { type: "chooseProtection"; protection: ProtectionAnswer }
   | { type: "chooseElapsed"; elapsed: ElapsedOption["id"] }
   | { type: "back" }
   | { type: "backTo"; depth: number }
@@ -104,6 +109,7 @@ export const initialEntryState: EntryState = {
   routeFirst: false,
   method: null,
   cause: null,
+  protection: null,
   elapsed: null,
   history: [],
 };
@@ -136,11 +142,15 @@ export function selectProgressIndex(
   location: EntryState["location"] = null,
   routeFirst = false,
 ): number {
-  if (["cause", "causeKind", "elapsed", "resume", "input"].includes(stage)) return 3;
+  if (["cause", "causeKind", "protection", "elapsed", "resume", "input"].includes(stage)) return 3;
   if (stage === "destination") return 1;
   if (location === "station" && stage === "direction" && routeFirst) return 1;
   if (location === "station" && ["station", "direction"].includes(stage)) return 2;
   return 0;
+}
+// 原因の次の段。電車の中なら放送の問い、駅なら経過の問い
+function selectAfterCause(state: EntryState): EntryStage {
+  return state.location === "train" ? "protection" : "elapsed";
 }
 function advance(state: EntryState, changes: Partial<EntrySnapshot>): EntryState {
   const { history, ...snapshot } = state;
@@ -307,16 +317,31 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
       if (state.stage !== "cause") return state;
       const category = action.cause.category;
       return category && needsCauseKind(category)
-        ? advance(state, { stage: "causeKind", cause: { category, kind: null }, elapsed: null })
-        : advance(state, { stage: "elapsed", cause: action.cause, elapsed: null });
+        ? advance(state, {
+            stage: "causeKind",
+            cause: { category, kind: null },
+            protection: null,
+            elapsed: null,
+          })
+        : advance(state, {
+            stage: selectAfterCause(state),
+            cause: action.cause,
+            protection: null,
+            elapsed: null,
+          });
     }
     case "chooseCauseKind":
       return state.stage === "causeKind" && state.cause
         ? advance(state, {
-            stage: "elapsed",
+            stage: selectAfterCause(state),
             cause: { ...state.cause, kind: action.kind },
+            protection: null,
             elapsed: null,
           })
+        : state;
+    case "chooseProtection":
+      return state.stage === "protection" && state.cause
+        ? advance(state, { stage: "elapsed", protection: action.protection, elapsed: null })
         : state;
     case "chooseElapsed":
       return state.stage === "elapsed" && state.cause

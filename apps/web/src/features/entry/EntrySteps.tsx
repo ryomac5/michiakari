@@ -20,11 +20,13 @@ import {
   MapPin,
   Pencil,
   PlugZap,
+  Radio,
   Siren,
   Snowflake,
   Timer,
   TrafficCone,
   TreePine,
+  VolumeX,
   Wind,
   Wrench,
 } from "lucide-react";
@@ -49,6 +51,10 @@ import {
   type ResumeOptionId,
   type ResumeTimeOption,
 } from "@/features/situation/plain-questions";
+import {
+  type ProtectionAnswer,
+  protectionAnswerIds,
+} from "@/features/situation/protection-broadcast";
 import { PastePanel, PhotoPanel } from "@/features/situation/SituationInput";
 import type { StationChoice } from "@/features/stations/catalog";
 import { StationSearch } from "@/features/stations/components/StationSearch";
@@ -837,6 +843,49 @@ export function CauseKindStep({
               tone={kind === "other" ? "dashed" : "soft"}
               span={kind === "other" && kinds.length % 2 === 1}
               onClick={() => onSelect(kind)}
+            />
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+const protectionIcons: Record<ProtectionAnswer, LucideIcon> = {
+  heard: Radio,
+  notHeard: VolumeX,
+  unsure: HelpCircle,
+};
+
+// 電車の中の人だけに聞く。止まったときに「信号を受信したため緊急停止」の放送を聞いたか
+export function ProtectionStep({
+  trip,
+  answers,
+  onSelect,
+}: {
+  trip: ReactNode;
+  answers: AnsweredItem[];
+  onSelect: (answer: ProtectionAnswer) => void;
+}) {
+  const t = useTranslations("entry");
+  return (
+    <>
+      <SheetTitle
+        eyebrow={<QuestionEyebrow trip={trip} answers={answers} />}
+        title={t("protectionQuestion")}
+      />
+      <div className="grid grid-cols-2 gap-2">
+        {protectionAnswerIds.map((id) => {
+          const Icon = protectionIcons[id];
+          return (
+            <AnswerCard
+              key={id}
+              testId={`start-protection-${id}`}
+              icon={<Icon className="size-5" strokeWidth={1.75} />}
+              label={t(`protection.${id}`)}
+              tone={id === "unsure" ? "dashed" : "soft"}
+              span={id === "unsure"}
+              onClick={() => onSelect(id)}
             />
           );
         })}

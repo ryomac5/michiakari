@@ -563,6 +563,12 @@
       "earthquake": "地震",
       "other": "その他・分からない"
     },
+    "protectionQuestion": "止まったとき「信号を受信したため緊急停止」のような放送はありましたか",
+    "protection": {
+      "heard": "あった",
+      "notHeard": "なかった",
+      "unsure": "覚えていない"
+    },
     "elapsedQuestion": "止まってからの時間を選ぶ",
     "elapsed": {
       "now": "いま止まった",
