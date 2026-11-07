@@ -189,6 +189,24 @@ describe("listLineTapChoices", () => {
     expect(choices.map((c) => (c.kind === "between" ? c.line.lineId : ""))).toEqual([kobe, tozai]);
   });
 
+  it("開いた直後の倍率で、駅を結ぶ直線から大きく曲がった線の上を押しても、その駅の間を出す", () => {
+    // けいはんな線の生駒〜白庭台は、描いた線が駅を結ぶ直線から約1500m 離れる。その頂の点を押す
+    // 開いた直後の倍率 9.3 では、44px は約4500m になる。GPS の精度の上限 1000m では見つからなかった
+    const keihanna = "kintetsu.けいはんな線";
+    const bend = { lon: 135.71796, lat: 34.69478 };
+    const choices = listLineTapChoices(data, geo.nodes, bend, 4500, [keihanna], trackShapes);
+    const [first] = choices;
+    if (first?.kind !== "between") throw new Error("駅の間の候補がありません");
+    expect([first.from.name, first.to.name].sort()).toEqual(["生駒", "白庭台"].sort());
+  });
+
+  it("寄った地図では、描いた線から押した幅より離れた駅の間を出さない", () => {
+    // 曲がりの頂から北へ約300m。寄った地図の 44px（約100m）の半分より遠い
+    const keihanna = "kintetsu.けいはんな線";
+    const away = { lon: 135.71796, lat: 34.69748 };
+    expect(listLineTapChoices(data, geo.nodes, away, 100, [keihanna], trackShapes)).toEqual([]);
+  });
+
   it("押した線から離れた所や、線の無い所では候補を出さない", () => {
     expect(listLineTapChoices(data, geo.nodes, { lat: 34.3, lon: 135.9 }, 120, [kobe])).toEqual([]);
     expect(listLineTapChoices(data, geo.nodes, between, 120, [])).toEqual([]);

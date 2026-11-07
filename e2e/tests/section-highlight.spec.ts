@@ -127,32 +127,53 @@ for (const theme of ["light", "dark"] as const) {
   }
 }
 
+// 描いた環状線の大阪〜福島の頂点のうち、印に掛からずシートの上に見えている点
+async function findLoopPointOnCanvas(page: Page) {
+  const vertices: [number, number][] = [
+    loopMiddle,
+    [135.4923, 34.70039],
+    [135.49026, 34.69914],
+    [135.48743, 34.69759],
+    [135.49456, 34.70144],
+  ];
+  const sheetTop = (await page.getByTestId(testIds.start.sheet).boundingBox())?.y ?? 0;
+  for (const vertex of vertices) {
+    const point = await projectOnPage(page, vertex);
+    if (point.y < 60 || point.y > sheetTop) continue;
+    const tag = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, point);
+    if (tag === "CANVAS") return point;
+  }
+  throw new Error("押せる環状線の点がありません");
+}
+
 test.describe("手で動かさない地図", () => {
   test.use({ viewport: { width: 375, height: 667 } });
   test.beforeEach(async ({ context, baseURL }) => {
     await context.addCookies([{ name: "NEXT_LOCALE", value: "ja", url: baseURL ?? "" }]);
   });
 
-  test("引いた地図の線を押して寄せた後、手で動かさずに線を押しても、倍率を保ち押した点が見える所に残る", async ({
+  test("引いた地図の線を押して寄せた後、手で動かさずに線を押しても、引かずに押した点が見える所に残る", async ({
     page,
   }) => {
     await openMap(page);
-    // 引いた地図で大阪〜福島のあたりの線を押すと、段はそのままで候補の区間を光らせ、駅の印が出る倍率まで寄る
+    // 引いた地図で大阪〜福島のあたりの線を押すと、段はそのままで候補の区間を光らせ、候補が入る所まで寄る
     // キーや指では地図を動かさない
-    expect(await readZoom(page)).toBeLessThan(12.5);
+    const farZoom = await readZoom(page);
+    expect(farZoom).toBeLessThan(12.5);
     const far = await findCanvasPointNear(page, await projectOnPage(page, loopMiddle));
     await page.mouse.click(far.x, far.y);
     await waitForMapStill(page);
     await expectStage(page, "position");
-    await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-detail", "stations");
+    expect(await readZoom(page)).toBeGreaterThanOrEqual(farZoom - 0.01);
     await expect(page.getByTestId(testIds.start.map)).toHaveAttribute(
       "data-section-focus",
       /^between:/,
     );
 
     // 寄せた倍率によっては、押せる幅に入る路線が 3 件になる
+    // 寄せた後も駅の印の倍率に届かなければ、もう一度押したときも候補を収め直す。どちらでも引かない
     const zoom = await readZoom(page);
-    const point = await projectOnPage(page, loopMiddle);
+    const point = await findLoopPointOnCanvas(page);
     const sheetTop = (await page.getByTestId(testIds.start.sheet).boundingBox())?.y ?? 0;
     expect(point.y).toBeLessThan(sheetTop);
     await page.mouse.click(point.x, point.y);
@@ -160,8 +181,9 @@ test.describe("手で動かさない地図", () => {
     await waitForMapStill(page);
     const count = await page.locator(choiceLocator).count();
     await expectSections(page, count, await readChoiceKey(page, 0));
-    // 候補が出てシートが伸びても、段の寄せ方で倍率を変えず、押した点をシートの上に残す
-    expect(await readZoom(page)).toBeCloseTo(zoom, 1);
+    // 候補が出てシートが伸びても、段の寄せ方で引かず、押した点をシートの上に残す
+    if (zoom >= 12.5) expect(await readZoom(page)).toBeCloseTo(zoom, 1);
+    else expect(await readZoom(page)).toBeGreaterThanOrEqual(zoom - 0.01);
     await expectAboveSheet(page);
   });
 });
