@@ -69,7 +69,12 @@ function buildObservation(input: {
 
 function buildRequest(
   observations: Observation[],
-  options: { trainPosition?: TrainPosition; origin?: string; destination?: string } = {},
+  options: {
+    trainPosition?: TrainPosition;
+    origin?: string;
+    destination?: string;
+    protectionBroadcast?: JudgeRequest["protectionBroadcast"];
+  } = {},
 ): JudgeRequest {
   return {
     observations,
@@ -80,6 +85,7 @@ function buildRequest(
     language: "ja",
     now,
     ...(options.trainPosition ? { trainPosition: options.trainPosition } : {}),
+    ...(options.protectionBroadcast ? { protectionBroadcast: options.protectionBroadcast } : {}),
   };
 }
 
@@ -544,6 +550,62 @@ describe("止まった理由の見込み", () => {
     expect(reasons?.shares.own_incident).toBeLessThan(0.2);
     const estimated = events.find((e) => e.type === "phase_estimated");
     expect(estimated).toMatchObject({ stopReasons: reasons });
+  });
+
+  it("入口で受信の放送が無かったと答えたら、人身事故でも受信の本数を 0 にし、防護無線の事象のままにする", async () => {
+    const { judgment, events } = await judge(
+      buildRequest([personLongAgo], {
+        trainPosition: position,
+        origin: "塚本",
+        protectionBroadcast: "not_heard",
+      }),
+    );
+    const reasons = judgment.stopReasons;
+    expect(reasons?.trainCounts.protection_received).toBe(0);
+    expect(reasons?.shares.protection_received).toBe(0);
+    expect(reasons?.mostLikely).toBe("dispatcher_order");
+    expect(judgment.protection).toBe(true);
+    expect(judgment.unaffectedTrack).toBeDefined();
+    const estimated = events.find((e) => e.type === "phase_estimated");
+    expect(estimated).toMatchObject({ stopReasons: reasons });
+  });
+
+  it("claude モードのツールの結果にも、受信の放送が無かった答えを効かせる", async () => {
+    const request = buildRequest([personLongAgo], {
+      trainPosition: position,
+      origin: "塚本",
+      protectionBroadcast: "not_heard",
+    });
+    const session = createJudgeSession(
+      {
+        request,
+        observations: [personLongAgo],
+        content: deps.content,
+        provider: deps.provider,
+        scenario: null,
+        fetchRain: deps.fetchRain,
+      },
+      createEventSink(
+        async () => {},
+        () => now,
+      ),
+    );
+    const outcome = await session.executeTool("estimate_remaining", {
+      eventType: "person_collision",
+    });
+    expect(outcome.isError).toBe(false);
+    expect(outcome.content).toMatchObject({
+      protection: true,
+      stopReasons: { trainCounts: { protection_received: 0 }, mostLikely: "dispatcher_order" },
+    });
+  });
+
+  it("入口で受信の放送が聞こえたと答えたら、観測が無くても防護無線に確定する", async () => {
+    const { judgment } = await judge(
+      buildRequest([], { trainPosition: position, origin: "塚本", protectionBroadcast: "heard" }),
+    );
+    expect(judgment.protection).toBe(true);
+    expect(judgment.stopReasons?.mostLikely).toBe("protection_received");
   });
 
   it("電車の中で大雨なら、指令の指示がいちばん高く、当該は 0", async () => {

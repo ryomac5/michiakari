@@ -136,7 +136,7 @@
   - `rule` は、種類が分かれば medium にする
   - `statistics` は、`resume_soon` か `track_cleared` があれば medium にする
   - それ以外は low にする
-- `checkProtectionIncident`: 事象の種類と手がかりから、防護無線で止まった事象かを返す
+- `checkProtectionIncident`: 事象の種類と手がかりから、防護無線で止まった事象かを返す。入口の答えが `heard` でも true にする
 - `detectAnnouncementCues`: 発表と放送の文から、手がかりの id を返す。観測の列には `detectObservationCues` を使い、`rawText` と `detectedSignals` の `quote` を見る
 - `checkTrackCleared`: 前の列車が詰め始めてよいかを返す。agent から core に移した
 - `estimateUnaffectedTrackResume`: 防護無線の事象で、当該の線路と反対の線路の再開までの残りを返す。防護無線の事象でなければ null を返す
@@ -363,6 +363,10 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `queued_behind` | 止まってからの分を運転間隔で割った本数。当該がいるときだけ数える。天気と停電は指令が区間ごと止めるので、後ろの列車も `dispatcher_order` に入れ、0 本とする |
 
 - `protection_received` の手がかりがあれば、防護無線に確定する
+- 要求の `protectionBroadcast` が `heard` なら、手がかりと同じく防護無線に確定する
+- `not_heard` なら、`protection_received` の本数を 0 にする。その分は指令の指示に数える
+- `not_heard` でも防護無線の事象であることは変えない。反対の線路の見込みは事象の種類で決まる
+- `not_heard` でも、後から持ち込んだ放送に受信の手がかりがあれば、手がかりを採る
 - `queue_ahead` の手がかりがあれば、詰まりの本数に `QUEUE_AHEAD_CUE_WEIGHT` を掛ける
 - 利用者は止まった列車のどれかに乗っているとみなす。当該の割合は 1 ÷ 止まった本数の合計になる
 - 同じ割合なら、受信、指令の指示、詰まり、当該の順に選ぶ
@@ -520,6 +524,7 @@ RouteLeg は `mode`、`from`、`to`、`minutes` を持ち、`line` は省略で�
 | `now` | 判断の基準時刻。リプレイではシナリオ時刻を入れる |
 | `trainPosition` | 車内の位置。任意で、無ければ駅にいるとみなす |
 | `cause` | 入口で答えた原因。統計値の大分類の `group` と種類の `type` を持ち、`type` は null を許す。任意で、分からないときとリプレイでは省く。事象の種類を決めるのに使う |
+| `protectionBroadcast` | 入口で答えた受信の放送の有無。`heard`、`not_heard`、`unknown` のいずれか。任意で、電車の中で答えたときだけ送る |
 | `ticketType` | 入口で答えた乗車券の種類。`ic` / `commuter_pass` / `paper`。任意で、分からないときは省く。乗り換え先の費用を決めるのに使う |
 
 `trainPosition` の項目は次のとおり。駅間のときだけ、次の駅以降の項目に値を入れる。

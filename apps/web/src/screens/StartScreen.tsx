@@ -127,7 +127,10 @@ import {
   toCauseChoiceId,
 } from "@/features/situation/cause-categories";
 import { findElapsedOption, listResumeTimeOptions } from "@/features/situation/plain-questions";
-import { buildProtectionObservations } from "@/features/situation/protection-broadcast";
+import {
+  buildProtectionObservations,
+  resolveProtectionBroadcast,
+} from "@/features/situation/protection-broadcast";
 import { type TicketAnswer, toTicketAnswer, toTicketType } from "@/features/situation/ticket";
 import {
   findNearestChoices,
@@ -815,6 +818,7 @@ export function StartScreen() {
         ...buildProtectionObservations(entry.protection, now, elapsedMinutes),
       ],
       answers?.cause ?? null,
+      resolveProtectionBroadcast(entry.protection),
       toTicketType(ticket),
     );
     setHandingOff(true);
