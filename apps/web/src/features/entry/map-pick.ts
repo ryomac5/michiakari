@@ -422,14 +422,8 @@ export function placeDirectionTag(
   ];
 }
 
-// 最初の段で、線を押して駅の間を決める倍率。駅の印が出る倍率にそろえる
+// 札の下の線を押して駅の間を決める倍率。駅の印が出る倍率にそろえる。札の無い所の線は、倍率にかかわらず駅の間を決める
 export const BETWEEN_PICK_MIN_ZOOM = STATION_LABEL_MIN_ZOOM;
-
-// 最初の段で地図を押したときの動き。線が無ければ今どおり、引いた地図の線はまず寄せ、寄った地図の線は駅の間を尋ねる
-export function selectRailTapAction(zoom: number, railCount: number): "none" | "approach" | "pick" {
-  if (railCount === 0) return "none";
-  return zoom >= BETWEEN_PICK_MIN_ZOOM ? "pick" : "approach";
-}
 
 // 地図を押した点の答え。駅の印か札なら駅、線の上なら駅の間、どちらでもなければ none
 // rail の lineIds は押した点の近くに描いた路線で、近い順に並べる

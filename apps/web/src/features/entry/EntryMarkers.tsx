@@ -92,6 +92,10 @@ function MarkerButton({
   );
 }
 
+// 関西の段の大きな丸の押せる半径（px）。白い丸の大きさにそろえる
+// 丸の外の四角は地図に通し、丸のすぐ横の線を押せば駅の間、何も無ければそのあたりのエリアを開く
+const hubHitRadius = 13;
+
 // 関西の段の大きな丸
 export function HubMarker({
   areaId,
@@ -113,6 +117,7 @@ export function HubMarker({
       slide={slide}
       onClick={onSelect}
       testId={testIds.start.hub(areaId)}
+      hitRadius={hubHitRadius}
       dot={
         <span className="flex size-[26px] items-center justify-center rounded-full bg-surface shadow-[0_2px_10px_rgb(0_0_0/0.22)] transition-transform duration-150 group-hover:scale-110 group-active:scale-90">
           <span className="size-3 rounded-full bg-brand" />
