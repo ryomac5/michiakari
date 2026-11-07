@@ -13,7 +13,6 @@ import {
   useState,
 } from "react";
 import type { CauseAnswer, EntryMethod, EntryState } from "@/features/entry/flow";
-import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import type { ElapsedOption } from "@/features/situation/plain-questions";
 import { applyTrainMovement } from "@/features/situation/train-movement";
 import type { NearestStationLabel, StationNames } from "@/features/stations/describe";
@@ -58,13 +57,11 @@ type JudgmentSession = {
   updateTrainPosition: (position: TrainPosition, meta: TrainPositionMeta) => void;
   observations: Observation[];
   state: JudgmentState;
-  // 知見の抜粋は画面に配らないので常に空。入口が原因の表だけで事象を決めるようになったら外す
-  catalog: KnowledgeCatalog;
   mockEnabled: boolean;
   submitInput: (input: RawInput | null) => void;
   // 新しい行程として判断を始める。これまでの観測は捨て、seed（利用者が選んだ路線など）から始める
   // 原因が分からないまま進んだときは input を null にし、seed だけで判断する
-  // cause は入口で答えた原因。この行程の判断のたびに送り、知見の無い原因の見込みに使う
+  // cause は入口で答えた原因。この行程の判断のたびに送り、種類の無い原因の見込みに使う
   startJudgment: (
     input: RawInput | null,
     seed: Observation[],
@@ -105,7 +102,7 @@ export type TripContext = {
   trainsAheadFromPattern?: boolean;
   // 止まってからの分。分からなければ null。選んで答えたときだけ持つ
   elapsedMinutes?: number | null;
-  // 原因が分からないか、選んだ大分類に知見が無い。選んで答えたときだけ持つ
+  // 原因が分からないか、選んだ大分類で種類が決まらない。選んで答えたときだけ持つ
   causeUnknown?: boolean;
   // 様子の段で答えたこと。入口に戻ったとき、最後に答えた問いから再開する
   entryAnswers?: EntryAnswers;
@@ -130,8 +127,6 @@ export const defaultTrainPositionMeta: TrainPositionMeta = {
 };
 
 const JudgmentSessionContext = createContext<JudgmentSession | null>(null);
-
-const emptyCatalog: KnowledgeCatalog = [];
 
 export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
   const locale = useLocale();
@@ -288,7 +283,6 @@ export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
       updateTrainPosition,
       observations,
       state,
-      catalog: emptyCatalog,
       mockEnabled,
       submitInput,
       startJudgment,

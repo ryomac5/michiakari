@@ -1,9 +1,8 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { INCIDENT_GROUP_IDS, INCIDENT_TYPE_IDS, resolveIncidentDuration } from "@repo/core";
 import { findRepoRoot } from "@repo/schema/loaders";
 import { describe, expect, it } from "vitest";
-import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import {
   type CauseCategoryId,
   type CauseChoiceId,
@@ -12,18 +11,13 @@ import {
   causeChoiceIds,
   listCauseKinds,
   needsCauseKind,
-  resolveCauseEventType,
+  resolveCauseIncidentType,
   resolveIncidentCause,
   toCauseAnswer,
   toCauseChoiceId,
 } from "./cause-categories";
 
-// 大分類と知見の事象の対応を、ダミー知見の 4 事象で確かめる（読むだけで変更しない）
 const root = findRepoRoot();
-const devKnowledgeDir = join(root, "packages/schema/test/fixtures/dev-content/knowledge");
-const devCatalog: KnowledgeCatalog = readdirSync(devKnowledgeDir)
-  .filter((f) => f.endsWith(".yaml"))
-  .map((f) => ({ id: f.replace(/\.yaml$/, ""), name: { ja: f }, phases: [] }));
 
 const taxonomy = JSON.parse(
   readFileSync(join(root, "docs/research/rail-suspensions/taxonomy.json"), "utf8"),
@@ -35,16 +29,7 @@ describe("causeCategoryIds", () => {
   });
 });
 
-describe("resolveCauseEventType", () => {
-  it("ダミー知見は人身事故、大雨、車両故障、車内対応の 4 事象", () => {
-    expect(devCatalog.map((e) => e.id).sort()).toEqual([
-      "heavy_rain",
-      "in_car_response",
-      "person_accident",
-      "vehicle_failure",
-    ]);
-  });
-
+describe("resolveCauseIncidentType", () => {
   const expected: Record<Exclude<CauseCategoryId, "passenger" | "weather">, string | null> = {
     vehicle: "vehicle_failure",
     signaling: null,
@@ -53,26 +38,25 @@ describe("resolveCauseEventType", () => {
     infrastructure: null,
     major_accident: null,
   };
-  for (const [category, eventType] of Object.entries(expected)) {
-    it(`${category} は ${eventType ?? "知見なし"} に対応する`, () => {
+  for (const [category, incidentType] of Object.entries(expected)) {
+    it(`${category} は ${incidentType ?? "種類なし"} に対応する`, () => {
       const id = category as CauseCategoryId;
       expect(needsCauseKind(id)).toBe(false);
-      expect(resolveCauseEventType({ category: id, kind: null }, devCatalog)).toBe(eventType);
+      expect(resolveCauseIncidentType({ category: id, kind: null })).toBe(incidentType);
     });
   }
 
-  it("人身事故と車内の急病人は別の選択肢で、それぞれの知見に対応し、種類を続けて聞かない", () => {
+  it("人身事故と車内の急病人は別の選択肢で、それぞれの種類に対応し、種類を続けて聞かない", () => {
     expect(causeChoiceIds.slice(0, 2)).toEqual(["person", "inCar"]);
     expect(needsCauseKind("passenger")).toBe(false);
-    const resolve = (choice: CauseChoiceId) =>
-      resolveCauseEventType(toCauseAnswer(choice), devCatalog);
-    expect(resolve("person")).toBe("person_accident");
-    expect(resolve("inCar")).toBe("in_car_response");
+    const resolve = (choice: CauseChoiceId) => resolveCauseIncidentType(toCauseAnswer(choice));
+    expect(resolve("person")).toBe("person_collision");
+    expect(resolve("inCar")).toBe("medical_response");
     expect(toCauseAnswer("person")).toEqual({ category: "passenger", kind: "person" });
     expect(toCauseAnswer("inCar")).toEqual({ category: "passenger", kind: "inCar" });
-    // 選択肢に無い人・旅客対応は、分からないと同じ知見なしになる
-    expect(resolveCauseEventType({ category: "passenger", kind: "other" }, devCatalog)).toBeNull();
-    expect(resolveCauseEventType({ category: "passenger", kind: null }, devCatalog)).toBeNull();
+    // 選択肢に無い人・旅客対応は、分からないと同じ種類なしになる
+    expect(resolveCauseIncidentType({ category: "passenger", kind: "other" })).toBeNull();
+    expect(resolveCauseIncidentType({ category: "passenger", kind: null })).toBeNull();
   });
 
   it("選択肢と答えは行き来でき、選択肢は人・旅客対応を除く大分類をすべて含む", () => {
@@ -84,24 +68,31 @@ describe("resolveCauseEventType", () => {
     expect(new Set(categories)).toEqual(new Set(causeCategoryIds));
   });
 
-  it("気象・自然は種類を聞き、雨だけが大雨の事象に対応する", () => {
+  it("気象・自然は種類を聞き、その他を除く種類がそれぞれの種類に対応する", () => {
     expect(needsCauseKind("weather")).toBe(true);
     const kinds = listCauseKinds("weather");
     expect(kinds).toEqual(["rain", "wind", "snow", "lightning", "earthquake", "other"]);
     // その他を除く種類は、調査の分類の気象・自然の種類と同じ数にする
     expect(kinds.length - 1).toBe(taxonomy.types.filter((t) => t.group_id === "weather").length);
-    const resolve = (kind: CauseKindId) =>
-      resolveCauseEventType({ category: "weather", kind }, devCatalog);
+    const resolve = (kind: CauseKindId) => resolveCauseIncidentType({ category: "weather", kind });
     expect(resolve("rain")).toBe("heavy_rain");
-    for (const kind of ["wind", "snow", "lightning", "earthquake", "other"] as const) {
-      expect(resolve(kind)).toBeNull();
-    }
+    expect(resolve("wind")).toBe("strong_wind");
+    expect(resolve("snow")).toBe("snow_ice");
+    expect(resolve("lightning")).toBe("lightning");
+    expect(resolve("earthquake")).toBe("earthquake");
+    expect(resolve("other")).toBeNull();
   });
 
-  it("分からないと、知見に無い事象は知見なしになる", () => {
-    expect(resolveCauseEventType(null, devCatalog)).toBeNull();
-    expect(resolveCauseEventType({ category: null, kind: null }, devCatalog)).toBeNull();
-    expect(resolveCauseEventType({ category: "vehicle", kind: null }, [])).toBeNull();
+  it("分からないは種類なしになる", () => {
+    expect(resolveCauseIncidentType(null)).toBeNull();
+    expect(resolveCauseIncidentType({ category: null, kind: null })).toBeNull();
+  });
+
+  it("返す種類は、すべて統計値にある id", () => {
+    for (const choice of causeChoiceIds) {
+      const type = resolveCauseIncidentType(toCauseAnswer(choice));
+      if (type) expect(INCIDENT_TYPE_IDS).toContain(type);
+    }
   });
 });
 
@@ -135,11 +126,11 @@ describe("resolveIncidentCause", () => {
     }
   });
 
-  // 見込みの出どころは、知見があれば知見、無ければ統計値、統計値も無ければなし
-  it("ダミー知見では、知見のある 4 つは知見、ほかの大分類は統計値、分からないはなし", () => {
+  // 見込みの出どころは、種類が決まれば規則、無ければ統計値、統計値も無ければなし
+  it("種類の決まる答えは規則、ほかの大分類は統計値、分からないはなし", () => {
     const stoppedAt = "2026-11-06T12:00:00+09:00";
     const decideSource = (answer: Parameters<typeof resolveIncidentCause>[0]) => {
-      if (resolveCauseEventType(answer, devCatalog)) return "knowledge";
+      if (resolveCauseIncidentType(answer)) return "rule";
       const cause = resolveIncidentCause(answer);
       return cause && resolveIncidentDuration(cause, stoppedAt) ? "statistics" : "none";
     };
@@ -147,9 +138,9 @@ describe("resolveIncidentCause", () => {
       causeChoiceIds.map((choice) => [choice, decideSource(toCauseAnswer(choice))]),
     );
     expect(sources).toEqual({
-      person: "knowledge",
-      inCar: "knowledge",
-      vehicle: "knowledge",
+      person: "rule",
+      inCar: "rule",
+      vehicle: "rule",
       signaling: "statistics",
       power: "statistics",
       obstruction: "statistics",
@@ -157,10 +148,8 @@ describe("resolveIncidentCause", () => {
       weather: "statistics",
       major_accident: "statistics",
     });
-    expect(decideSource({ category: "weather", kind: "rain" })).toBe("knowledge");
-    for (const kind of ["wind", "snow", "lightning", "earthquake", "other"] as const) {
-      expect(decideSource({ category: "weather", kind })).toBe("statistics");
-    }
+    expect(decideSource({ category: "weather", kind: "rain" })).toBe("rule");
+    expect(decideSource({ category: "weather", kind: "other" })).toBe("statistics");
     expect(decideSource(null)).toBe("none");
   });
 });

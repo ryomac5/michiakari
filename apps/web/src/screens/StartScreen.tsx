@@ -122,7 +122,7 @@ import { findFocusArea } from "@/features/map/station-guide";
 import {
   type CauseAnswer,
   isAskedKind,
-  resolveCauseEventType,
+  resolveCauseIncidentType,
   resolveIncidentCause,
   toCauseChoiceId,
 } from "@/features/situation/cause-categories";
@@ -229,7 +229,6 @@ export function StartScreen() {
     setTrainPosition,
     rememberStationName,
     stationNames,
-    catalog,
     state: judgment,
     startJudgment,
   } = session;
@@ -1037,9 +1036,9 @@ export function StartScreen() {
       : []),
   ];
 
-  // 3 問目の答えで判断を始める。原因が分からないか、大分類に知見が無ければ事象の無い観測で判断する
+  // 3 問目の答えで判断を始める。原因が分からないか、種類が決まらなければ事象の無い観測で判断する
   function submitAnswers(answer: ResumeAnswer) {
-    const eventType = resolveCauseEventType(entry.cause, catalog);
+    const eventType = resolveCauseIncidentType(entry.cause);
     const elapsed = entry.elapsed ? findElapsedOption(entry.elapsed) : null;
     setPendingResume(answer.time?.id ?? answer.id);
     void submit(eventType ? { type: "selection", eventType, signalIds: [] } : null, {

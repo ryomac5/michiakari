@@ -1,5 +1,6 @@
 "use client";
 
+import { type IncidentTypeId, resolveIncidentType } from "@repo/core";
 import {
   BellRing,
   Clock,
@@ -18,13 +19,18 @@ import { formatClockTime } from "@/features/judgment/time";
 import { pickScenarioText, type ReplayScenario } from "../scenario";
 import { findScenarioCause, selectCauseLabelKey } from "../scenario-cause";
 
-// 事象ごとの印。ほかの事象は列車の印にする
-const eventIcons: Record<string, ReactNode> = {
+// 事象の種類ごとの印。ほかの種類は列車の印にする
+const eventIcons: Partial<Record<IncidentTypeId, ReactNode>> = {
   heavy_rain: <CloudRain />,
-  in_car_response: <BellRing />,
-  person_accident: <TriangleAlert />,
+  medical_response: <BellRing />,
+  person_collision: <TriangleAlert />,
   vehicle_failure: <Wrench />,
 };
+
+function selectEventIcon(eventType: string): ReactNode {
+  const type = resolveIncidentType({ eventType });
+  return (type && eventIcons[type]) ?? <TrainFront />;
+}
 
 // 再生できるシナリオの格子。1 枚のカードを押すとそのシナリオを開く
 export function ScenarioList({
@@ -67,7 +73,7 @@ export function ScenarioList({
                   aria-hidden
                   className="flex size-10 shrink-0 items-center justify-center rounded-[14px] bg-foreground/[0.06] [&>svg]:size-5 [&>svg]:stroke-[1.75]"
                 >
-                  {eventIcons[scenario.event_type] ?? <TrainFront />}
+                  {selectEventIcon(scenario.event_type)}
                 </span>
                 {causeKey && (
                   <span className="text-[13px] font-semibold text-muted">

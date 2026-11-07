@@ -3,7 +3,13 @@ import { findScenarioCause, selectCauseLabelKey } from "./scenario-cause";
 
 describe("findScenarioCause", () => {
   it("シナリオの事象を入口の原因の表の答えにする", () => {
+    expect(findScenarioCause("person_collision")).toEqual({
+      category: "passenger",
+      kind: "person",
+    });
+    // 以前の事象の id も core が種類に読み替える
     expect(findScenarioCause("person_accident")).toEqual({ category: "passenger", kind: "person" });
+    expect(findScenarioCause("vehicle_failure")).toEqual({ category: "vehicle", kind: null });
     expect(findScenarioCause("heavy_rain")).toEqual({ category: "weather", kind: "rain" });
     expect(findScenarioCause("medical_response")).toEqual({ category: "passenger", kind: "inCar" });
     expect(findScenarioCause("strong_wind")).toEqual({ category: "weather", kind: "wind" });

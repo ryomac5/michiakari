@@ -1,23 +1,15 @@
+import { resolveIncidentType } from "@repo/core";
 import {
   type CauseAnswer,
   causeChoiceIds,
   isAskedKind,
   listCauseKinds,
-  resolveIncidentCause,
+  resolveCauseIncidentType,
   toCauseAnswer,
   toCauseChoiceId,
 } from "@/features/situation/cause-categories";
 
-// シナリオの事象を、入口と同じ原因の表の呼び名にする。知見の事象名は使わない
-
-// 事象の id が統計値の種類の id にそろうまでの読み替え
-// TODO: シナリオの event_type が IncidentTypeId にそろったら外す
-const causeByLegacyEventType: Readonly<Record<string, CauseAnswer>> = {
-  person_accident: toCauseAnswer("person"),
-  in_car_response: toCauseAnswer("inCar"),
-  vehicle_failure: toCauseAnswer("vehicle"),
-  heavy_rain: { category: "weather", kind: "rain" },
-};
+// シナリオの事象を、入口と同じ原因の表の呼び名にする。事象の id は core の resolveIncidentType で種類にそろえる
 
 // 原因の表の答えをすべて並べる。種類を聞く大分類は種類ごとに分ける
 function listCauseAnswers(): CauseAnswer[] {
@@ -28,11 +20,11 @@ function listCauseAnswers(): CauseAnswer[] {
   });
 }
 
-// 事象の id から原因の表の答えを引く。種類の id と一致する答えを先に使う
+// 事象の id から原因の表の答えを引く。種類が決まらなければ null
 export function findScenarioCause(eventType: string): CauseAnswer | null {
-  const legacy = causeByLegacyEventType[eventType];
-  if (legacy) return legacy;
-  return listCauseAnswers().find((a) => resolveIncidentCause(a)?.type === eventType) ?? null;
+  const type = resolveIncidentType({ eventType });
+  if (type === null) return null;
+  return listCauseAnswers().find((a) => resolveCauseIncidentType(a) === type) ?? null;
 }
 
 // 原因の答えを、入口の訳の鍵にする。種類を聞いた答えは種類の呼び名を使う

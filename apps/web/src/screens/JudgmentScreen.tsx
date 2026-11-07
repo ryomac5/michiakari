@@ -30,11 +30,7 @@ import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { selectFallbackOptionId } from "@/features/judgment/fallback-option";
 import { type OriginLine, type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
-import {
-  isIncidentTypeId,
-  selectStoppedPlace,
-  selectStopScope,
-} from "@/features/judgment/stop-scope";
+import { selectStoppedPlace, selectStopScope } from "@/features/judgment/stop-scope";
 import { selectSwitchStep } from "@/features/judgment/switch-step";
 import { testIds } from "@/features/judgment/testids";
 import { useOptionFocus, useOptionSelection } from "@/features/judgment/use-option-focus";
@@ -136,7 +132,6 @@ export function JudgmentScreen() {
   const stopScope = selectStopScope({
     estimatedEventType: display.estimate?.eventType,
     observations: known,
-    isKnownEvent: isIncidentTypeId,
     cause: selectHeardIncidentCause(tripContext),
   });
   const stoppedPlace = selectStoppedPlace(

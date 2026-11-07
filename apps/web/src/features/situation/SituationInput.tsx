@@ -22,7 +22,7 @@ import {
   causeChoiceIds,
   listCauseKinds,
   needsCauseKind,
-  resolveIncidentCause,
+  resolveCauseIncidentType,
   toCauseAnswer,
 } from "./cause-categories";
 import { type PhotoInput, preparePhoto } from "./prepare-photo";
@@ -221,6 +221,7 @@ export function PastePanel({
 }
 
 // 選んで答える。入口と同じ原因の表から選び、選んだら判断する。雨・風などは種類を続けて選ぶ
+// 送るのは事象の種類の id。種類が決まらない選択肢は並べない
 export function SelectPanel({
   busy,
   onSubmit,
@@ -233,7 +234,7 @@ export function SelectPanel({
   const [category, setCategory] = useState<CauseCategoryId | null>(null);
 
   function submitCause(answer: CauseAnswer) {
-    const eventType = selectCauseEventType(answer);
+    const eventType = resolveCauseIncidentType(answer);
     if (eventType) onSubmit({ type: "selection", eventType, signalIds: [] });
   }
 
@@ -241,7 +242,7 @@ export function SelectPanel({
     return (
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-2 text-[13px] font-medium text-muted">{t("eventLabel")}</legend>
-        {causeChoiceIds.map((choice) => {
+        {selectableChoiceIds.map((choice) => {
           const answer = toCauseAnswer(choice);
           return (
             <Button
@@ -272,25 +273,28 @@ export function SelectPanel({
       </Button>
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-2 text-[13px] font-medium text-muted">{t("kindLabel")}</legend>
-        {listCauseKinds(category).map((kind) => (
-          <Button
-            key={kind}
-            variant="secondary"
-            disabled={busy}
-            data-testid={testIds.situation.causeKindOption(kind)}
-            onClick={() => submitCause({ category, kind })}
-            className="justify-start"
-          >
-            {tEntry(`causeKinds.${kind}`)}
-          </Button>
-        ))}
+        {listCauseKinds(category)
+          .filter((kind) => resolveCauseIncidentType({ category, kind }) !== null)
+          .map((kind) => (
+            <Button
+              key={kind}
+              variant="secondary"
+              disabled={busy}
+              data-testid={testIds.situation.causeKindOption(kind)}
+              onClick={() => submitCause({ category, kind })}
+              className="justify-start"
+            >
+              {tEntry(`causeKinds.${kind}`)}
+            </Button>
+          ))}
       </fieldset>
     </div>
   );
 }
 
-// 選んだ原因を判断に送る事象の id にする。種類が無ければ大分類の id を使う
-function selectCauseEventType(answer: CauseAnswer): string | null {
-  const cause = resolveIncidentCause(answer);
-  return cause ? (cause.type ?? cause.group) : null;
-}
+// 種類が決まるか、種類を続けて聞く選択肢だけを並べる
+const selectableChoiceIds = causeChoiceIds.filter((choice) => {
+  const answer = toCauseAnswer(choice);
+  if (answer.category && needsCauseKind(answer.category)) return true;
+  return resolveCauseIncidentType(answer) !== null;
+});
