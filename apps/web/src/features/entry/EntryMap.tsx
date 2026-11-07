@@ -3,7 +3,12 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { computeDistanceMeters } from "@repo/geo";
 import { ArrowUp } from "lucide-react";
-import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
+import type {
+  ExpressionSpecification,
+  GeoJSONSource,
+  Map as MapLibreMap,
+  Marker,
+} from "maplibre-gl";
 import { useLocale, useTranslations } from "next-intl";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -14,6 +19,7 @@ import { selectMapLabels } from "@/features/map/labels";
 import { buildBaseStyle, type MapPalette, mapPalettes } from "@/features/map/layers";
 import { MapAttribution, mapAttributionHeight } from "@/features/map/MapAttribution";
 import { loadMapLibre, type MapInsets, useMarkerHosts } from "@/features/map/MapPanel";
+import { installMapScale } from "@/features/map/map-scale";
 import { prefersReducedMotion, useDocumentTheme } from "@/lib/use-document-theme";
 import type { LabelSide } from "./areas";
 import {
@@ -38,6 +44,7 @@ import {
   type SectionGlow,
   selectMapTapTarget,
 } from "./map-pick";
+import { measurePathMeters, type RouteGlow, readRouteEnds } from "./route-glow";
 import {
   buildEdgeHubRect,
   type EdgeHub,
@@ -59,7 +66,7 @@ import {
   selectVisibleStops,
 } from "./visible-stops";
 
-// 入口の地図。関西 → エリア → 駅の順に寄り、行き先を選んだら出発と行き先を結ぶ
+// 入口の地図。関西 → エリア → 駅の順に寄り、行き先を選んだら行き先までの線路を光らせる
 // 段ごとに出す印を絞り、地図そのものは淡く沈める
 
 export type EntryMapApi = {
@@ -78,6 +85,8 @@ export type MapStop = {
   side: LabelSide;
   // 路線の札。路線色の太い印を添える
   kind?: "line";
+  // 方面ごとに分けた駅の札が持つ、その方面の向き（度）。札の名前の前に小さな矢印を出す
+  heading?: number;
   // 名前が収まらなくても印を残す駅
   keep?: boolean;
   labelHidden?: boolean;
@@ -137,6 +146,8 @@ type EntryMapProps = {
   // 選んだ駅の名前の札の向き。地図に出す札を避ける向きにする。null なら設定の向き
   placeSide: LabelSide | null;
   destination: { position: Position; label: string } | null;
+  // 今いる所から行き先までの乗る区間。線路の形に沿って光らせ、進む向きへ光を流す
+  route: RouteGlow;
   stops: MapStop[];
   // 札は出さずに視点だけに含める点。いまどこの段で前後の駅まで収める
   focus: Position[];
@@ -162,7 +173,7 @@ const sectionMargin = { x: 40, y: 32 };
 const sectionMaxZoom = 14;
 // 何もない所を触ったとき、そのあたりの駅とみなす指の幅（px）。押せる部品の大きさにそろえる
 const tapReachPx = 44;
-// 様子を聞く段。行き先を選び終えているので、出発と行き先を弧で結び、視点は動かさない
+// 様子を聞く段。行き先を選び終えているので、行き先までの線路を光らせ、視点は動かさない
 const situationStages = new Set<EntryStage>([
   "cause",
   "causeKind",
@@ -173,7 +184,7 @@ const situationStages = new Set<EntryStage>([
 ]);
 const sourceIds = {
   lines: "entry-lines",
-  trip: "entry-trip",
+  route: "entry-route",
   segment: "entry-segment",
   section: "entry-section",
 } as const;
@@ -183,6 +194,19 @@ const sectionLayers = {
   casing: "entry-section-casing",
   line: "entry-section-line",
 } as const;
+// 行き先までの線路の層。外側のぼかし、縁、路線色の線、流れる光、止めたときの矢印の順に重ねる
+const routeLayers = {
+  glow: "entry-route-glow",
+  casing: "entry-route-casing",
+  line: "entry-route-line",
+  flow: "entry-route-flow",
+  arrows: "entry-route-arrows",
+} as const;
+const routeArrowImage = "entry-route-arrow";
+// 光の帯が 1 間ぶん進む時間（ms）、線に並べる帯の数、帯の長さ（1 間に対する割合）
+const routeFlowMs = 1600;
+const routeFlowBands = 3;
+const routeFlowBand = 0.4;
 // 押した点の波紋を出しておく時間（ms）
 const tapRippleMs = 650;
 // 線を押したとみなす、押した点からの幅（px）
@@ -247,7 +271,7 @@ function applyPaint(
   set("entry-line-focus", "line-opacity", dim);
   set("entry-line-casing", "line-color", palette.routeCasing);
   set(sectionLayers.casing, "line-color", palette.routeCasing);
-  set("entry-trip", "line-color", palette.text);
+  set(routeLayers.casing, "line-color", palette.routeCasing);
   set("entry-segment", "line-color", palette.text);
   const ids = focus && !all ? focus.lineIds : [];
   const filter = ["in", ["get", "lineId"], ["literal", ids]];
@@ -259,10 +283,6 @@ function applyPaint(
 
 function addLayers(map: MapLibreMap, geo: MapGeoData, palette: MapPalette): void {
   map.addSource(sourceIds.lines, { type: "geojson", data: geo.lines });
-  map.addSource(sourceIds.trip, {
-    type: "geojson",
-    data: { type: "FeatureCollection", features: [] },
-  });
   const width = ["interpolate", ["linear"], ["zoom"], 9, 1, 12, 2, 15, 3.5];
   map.addLayer({
     id: "entry-rail",
@@ -297,12 +317,106 @@ function addLayers(map: MapLibreMap, geo: MapGeoData, palette: MapPalette): void
     layout: { "line-cap": "round", "line-join": "round" },
     paint: { "line-color": palette.text, "line-width": 4, "line-dasharray": [1, 1.4] },
   });
+  addRouteLayers(map, palette);
+}
+
+// 線に沿って等しい間をあけた光の帯を並べる。phase が 0 から 1 へ進むと、帯は線の終わりの側へ 1 間ぶん進む
+// 帯は前の端をいちばん明るくし、後ろへ薄くする。どの時点でも帯が見え、進む向きが分かる
+export function buildRouteFlowGradient(
+  phase: number,
+  bands = routeFlowBands,
+  width = routeFlowBand,
+): ExpressionSpecification {
+  const samples = 160;
+  const stops = Array.from({ length: samples + 1 }, (_, i) => {
+    const at = i / samples;
+    const behind = (((phase - at * bands) % 1) + 1) % 1;
+    const alpha = behind < width ? 0.95 * (1 - behind / width) : 0;
+    return [at, `rgba(255,255,255,${alpha.toFixed(3)})`];
+  });
+  return [
+    "interpolate",
+    ["linear"],
+    ["line-progress"],
+    ...stops.flat(),
+  ] as unknown as ExpressionSpecification;
+}
+
+// 線の向きに沿って置く矢印の絵。右向きに描き、線の向きへ回して置く
+function createArrowImage(): ImageData | null {
+  const size = 24;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.strokeStyle = "white";
+  context.lineWidth = 3.5;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.beginPath();
+  context.moveTo(8, 5);
+  context.lineTo(16, 12);
+  context.lineTo(8, 19);
+  context.stroke();
+  return context.getImageData(0, 0, size, size);
+}
+
+function addRouteLayers(map: MapLibreMap, palette: MapPalette): void {
+  // 光を流すには線の始まりからの割合が要るので、lineMetrics を付ける
+  map.addSource(sourceIds.route, {
+    type: "geojson",
+    lineMetrics: true,
+    data: { type: "FeatureCollection", features: [] },
+  });
+  const layout = { "line-cap": "round", "line-join": "round" } as const;
+  const color = ["get", "color"] as unknown as string;
   map.addLayer({
-    id: "entry-trip",
+    id: routeLayers.glow,
     type: "line",
-    source: sourceIds.trip,
-    layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": palette.text, "line-width": 2.5, "line-dasharray": [1.2, 1.8] },
+    source: sourceIds.route,
+    layout,
+    paint: { "line-color": color, "line-width": 22, "line-blur": 12, "line-opacity": 0.55 },
+  });
+  map.addLayer({
+    id: routeLayers.casing,
+    type: "line",
+    source: sourceIds.route,
+    layout,
+    paint: { "line-color": palette.routeCasing, "line-width": 10, "line-opacity": 0.9 },
+  });
+  map.addLayer({
+    id: routeLayers.line,
+    type: "line",
+    source: sourceIds.route,
+    layout,
+    paint: { "line-color": color, "line-width": 6 },
+  });
+  map.addLayer({
+    id: routeLayers.flow,
+    type: "line",
+    source: sourceIds.route,
+    layout,
+    paint: {
+      "line-width": 4,
+      "line-gradient": buildRouteFlowGradient(0),
+    },
+  });
+  const arrow = createArrowImage();
+  if (arrow) map.addImage(routeArrowImage, arrow, { pixelRatio: 2 });
+  map.addLayer({
+    id: routeLayers.arrows,
+    type: "symbol",
+    source: sourceIds.route,
+    layout: {
+      "symbol-placement": "line",
+      "symbol-spacing": 56,
+      "icon-image": routeArrowImage,
+      "icon-allow-overlap": true,
+      "icon-ignore-placement": true,
+      "icon-rotation-alignment": "map",
+      visibility: "none",
+    },
   });
 }
 
@@ -349,20 +463,6 @@ function addSectionLayers(map: MapLibreMap, palette: MapPalette): void {
       "line-width": scale(2, 5),
       "line-opacity": scale(0.4, 0.6),
     },
-  });
-}
-
-// 出発と行き先をゆるい弧で結ぶ。経路ではなく、どこからどこへ行くかだけを示す
-export function buildTripArc(from: Position, to: Position, steps = 32): Position[] {
-  const [dx, dy] = [to[0] - from[0], to[1] - from[1]];
-  const control: Position = [from[0] + dx / 2 - dy * 0.18, from[1] + dy / 2 + dx * 0.18];
-  return Array.from({ length: steps + 1 }, (_, i) => {
-    const t = i / steps;
-    const u = 1 - t;
-    return [
-      u * u * from[0] + 2 * u * t * control[0] + t * t * to[0],
-      u * u * from[1] + 2 * u * t * control[1] + t * t * to[1],
-    ];
   });
 }
 
@@ -614,6 +714,7 @@ export function EntryMap(props: EntryMapProps) {
     place,
     lineFocus,
     destination,
+    route,
     stops,
     segments,
     sections,
@@ -680,6 +781,7 @@ export function EntryMap(props: EntryMapProps) {
         // 下地のタイルを待たず、スタイルが読めたら路線を足して準備できたとする
         loaded.once("style.load", () => {
           addLayers(loaded, geo, paletteRef.current);
+          installMapScale(loaded);
           setMap(loaded);
         });
         // 指やキーで地図を動かしたか。動かした後は、シートの高さが変わっただけでは寄せ直さない
@@ -710,13 +812,23 @@ export function EntryMap(props: EntryMapProps) {
     };
   }, [geo]);
 
-  const dimmed = sections.features.length > 0;
+  // 区間を光らせている間は、ほかの線を薄くする
+  const dimmed =
+    sections.features.length > 0 ||
+    (situationStages.has(stage) && destination !== null && route.features.length > 0);
   useEffect(() => {
     if (map) applyPaint(map, palette, lineFocus, dimmed);
   }, [map, palette, lineFocus, dimmed]);
 
   // 駅の間の候補を光らせる。描けた区間の数と一番強い区間は、e2e が確かめられるよう属性に出す
   const [sectionShown, setSectionShown] = useState({ count: 0, focus: "" });
+  // いちばん強く光らせる区間の両端。e2e が押した駅の間の位置で光るかを確かめる
+  const focusedSection = sections.features.find((f) => f.properties.key === sectionShown.focus);
+  const sectionEnds = focusedSection
+    ? [focusedSection.geometry.coordinates[0], focusedSection.geometry.coordinates.at(-1)]
+        .map((p) => (p ? `${p[0].toFixed(5)},${p[1].toFixed(5)}` : ""))
+        .join(";")
+    : "";
   useEffect(() => {
     if (!map) return;
     map.getSource<GeoJSONSource>(sourceIds.section)?.setData(sections);
@@ -784,27 +896,48 @@ export function EntryMap(props: EntryMapProps) {
       ?.setData({ type: "FeatureCollection", features });
   }, [map, selectedSegment]);
 
-  // 行き先を選んだら、出発と行き先を弧で結ぶ
+  // 行き先を選んだら、行き先までの線路を光らせ、進む向きへ光を流す
+  // 動きを減らす設定では光を流さず、線の上に向きの矢印を置く
   const origin = place?.position ?? null;
   const showTrip = situationStages.has(stage) && destination !== null;
   const destinationPosition = destination?.position ?? null;
+  const shownRoute = useMemo<RouteGlow>(
+    () => (showTrip ? route : { type: "FeatureCollection", features: [] }),
+    [showTrip, route],
+  );
+  const routeEnds = readRouteEnds(shownRoute);
+  const routeCoordinates = shownRoute.features.flatMap((f) => f.geometry.coordinates);
+  const routeKey = routeEnds
+    ? `${routeEnds.start.join(",")}>${routeEnds.end.join(",")}:${routeCoordinates.length}`
+    : "";
   useEffect(() => {
     if (!map) return;
-    const features =
-      showTrip && origin && destinationPosition
-        ? [
-            {
-              type: "Feature" as const,
-              geometry: {
-                type: "LineString" as const,
-                coordinates: buildTripArc(origin, destinationPosition),
-              },
-              properties: {},
-            },
-          ]
-        : [];
-    map.getSource<GeoJSONSource>(sourceIds.trip)?.setData({ type: "FeatureCollection", features });
-  }, [map, showTrip, origin, destinationPosition]);
+    map.getSource<GeoJSONSource>(sourceIds.route)?.setData(shownRoute);
+    const still = prefersReducedMotion();
+    const hasRoute = shownRoute.features.length > 0;
+    if (map.getLayer(routeLayers.arrows))
+      map.setLayoutProperty(
+        routeLayers.arrows,
+        "visibility",
+        still && hasRoute ? "visible" : "none",
+      );
+    if (map.getLayer(routeLayers.flow))
+      map.setLayoutProperty(routeLayers.flow, "visibility", still ? "none" : "visible");
+    if (still || !hasRoute) return;
+    let frame = 0;
+    let last = 0;
+    const tick = (time: number) => {
+      // 光の位置は 30 回/秒ほどで更新し、控えめに動かす
+      if (time - last > 33) {
+        last = time;
+        const progress = (time % routeFlowMs) / routeFlowMs;
+        map.setPaintProperty(routeLayers.flow, "line-gradient", buildRouteFlowGradient(progress));
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [map, shownRoute]);
 
   // 段が変わるたびに視点を寄せる
   const { top, right, bottom, left } = insets;
@@ -818,6 +951,7 @@ export function EntryMap(props: EntryMapProps) {
     origin,
     stopKey,
     showTrip ? destinationPosition : null,
+    showTrip ? routeKey : null,
     stage === "between" ? betweenFocus : null,
   ]);
   const tapKey = tapPoint?.join(",") ?? "";
@@ -887,7 +1021,7 @@ export function EntryMap(props: EntryMapProps) {
       return;
     }
     if (showTrip && origin && destinationPosition) {
-      const bounds = computeBounds(buildTripArc(origin, destinationPosition));
+      const bounds = computeBounds([origin, destinationPosition, ...routeCoordinates]);
       if (bounds) {
         map.fitBounds(bounds, {
           padding: buildPadding(map, current, narrow ? { x: 56, y: 64 } : { x: 120, y: 80 }),
@@ -1283,6 +1417,11 @@ export function EntryMap(props: EntryMapProps) {
       data-moving={moving}
       data-section-count={sectionShown.count}
       data-section-focus={sectionShown.focus}
+      data-section-ends={sectionEnds}
+      data-route-start={routeEnds?.start.map((v) => v.toFixed(6)).join(",")}
+      data-route-end={routeEnds?.end.map((v) => v.toFixed(6)).join(",")}
+      data-route-meters={routeEnds ? Math.round(measurePathMeters(routeCoordinates)) : undefined}
+      data-route-legs={shownRoute.features.length}
       aria-label={t("mapLabel")}
       className="fixed inset-0 z-0 bg-background"
     >
@@ -1366,6 +1505,7 @@ export function EntryMap(props: EntryMapProps) {
               side={target.side}
               color={target.color}
               angle={target.angle}
+              heading={target.heading}
               line={target.kind === "line"}
               hitRadius={stopRadii[target.key]}
               labelHidden={target.labelHidden}

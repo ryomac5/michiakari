@@ -10,7 +10,7 @@ import type {
   Section,
   TrainPosition,
 } from "@repo/schema";
-import { ArrowRight, ChevronRight, LocateFixed, RotateCcw, Route } from "lucide-react";
+import { ArrowRight, LocateFixed, RotateCcw, Route } from "lucide-react";
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -50,6 +50,7 @@ import {
   sourceIds,
 } from "./layers";
 import { MapAttribution, mapAttributionHeight } from "./MapAttribution";
+import { installMapScale } from "./map-scale";
 import {
   buildInCarMotion,
   FLOW_DASH_FRAMES,
@@ -116,10 +117,6 @@ export type MapPanelProps = {
   // その列車だけが止まる事象。止まった区間の線と「運転見合わせ」の札を描かない
   trainOnly?: boolean;
   insets: MapInsets;
-  // 発表に区間が無いとき「区間は発表で確かめる」を出すか。リプレイの再生前は出さない
-  showSectionNote?: boolean;
-  // 発表を貼る欄へ移る。渡したときだけ、区間の札の下に案内の文を出す
-  onAddAnnouncement?: () => void;
   onReachSourceChange?: (source: ReachSource | null) => void;
   // 現在地のまわりの案内。シートの選択肢の行に同じ印を添えるのに使う
   onGuideChange?: (guide: StationGuide | null) => void;
@@ -171,8 +168,6 @@ const destinationEdgeSize = { w: 136, h: 44 } as const;
 const replayButtonBox = { left: 12, bottom: 40, size: 44, margin: 6 } as const;
 // 流れる模様の破線を次へ進める間隔。単位は ms
 const flowStepMs = 70;
-// 「区間は発表で確かめる」の札の高さと上下の余白。案内の文があれば 1 行ぶん足す
-const sectionNoteSpace = { plain: 44, withAction: 52 } as const;
 
 // 「全体を見る」のボタンが動き終えたあとの矩形。地図の左上が原点
 // 下の余白が変わるとボタンは 200ms かけて動く。動いている途中の矩形は測らず、余白から求める
@@ -270,6 +265,7 @@ function addDataLayers(map: MapLibreMap, geo: MapGeoData, palette: MapPalette, t
     map.addImage(ROUTE_ARROW_IMAGE, drawRouteArrow(), { pixelRatio: 2 });
   for (const layer of buildDataLayers(palette, tone)) map.addLayer(layer);
   setArrowsVisible(map, false);
+  installMapScale(map);
 }
 
 function setSourceData(map: MapLibreMap, id: string, data: unknown): void {
@@ -569,13 +565,13 @@ function createPlaceElement(role: "origin" | "destination", label: string): HTML
   if (role === "origin") {
     el.setAttribute("aria-hidden", "true");
     el.className =
-      "size-[18px] rounded-full border-[3px] border-white bg-foreground shadow-[0_1px_6px_rgb(0_0_0/0.35)]";
+      "map-mark size-[18px] rounded-full border-[3px] border-white bg-foreground shadow-[0_1px_6px_rgb(0_0_0/0.35)]";
   } else {
     el.setAttribute("data-testid", mapTestIds.destination);
     el.className = "relative text-foreground";
     const pin = document.createElement("div");
     pin.setAttribute("aria-hidden", "true");
-    pin.className = "drop-shadow-[0_2px_4px_rgb(0_0_0/0.3)]";
+    pin.className = "map-mark origin-bottom drop-shadow-[0_2px_4px_rgb(0_0_0/0.3)]";
     pin.innerHTML =
       '<svg width="28" height="36" viewBox="0 0 28 36"><path d="M14 35c-6-8-12-13-12-20a12 12 0 0 1 24 0c0 7-6 12-12 20Z" fill="currentColor" stroke="white" stroke-width="2"/><circle cx="14" cy="14" r="4.5" fill="white"/></svg>';
     const tag = document.createElement("p");
@@ -1082,14 +1078,8 @@ export function MapPanel(props: MapPanelProps) {
       ? (guide?.stations.find((s) => s.recommended)?.key ?? null)
       : null;
   const floatingTag = chosenOption !== undefined && shownStationKey === null;
-  // 発表に区間が無いときは区間を描かず、発表で確かめるよう地図の上端に添える
-  const sectionNote = (props.showSectionNote ?? true) && scene?.sectionUnconfirmed === true;
-  const { onAddAnnouncement } = props;
-  const sectionNoteHeight = sectionNote
-    ? sectionNoteSpace[onAddAnnouncement ? "withAction" : "plain"]
-    : 0;
   const { right, bottom, left } = props.insets;
-  const top = props.insets.top + (floatingTag ? selectedRouteTagSpace : 0) + sectionNoteHeight;
+  const top = props.insets.top + (floatingTag ? selectedRouteTagSpace : 0);
   const [measuredSizes, setMeasuredSizes] = useState<Record<string, BoxSize>>({});
   // 「全体を見る」のボタン。止まっている路線の札と到達範囲の札は、このボタンを避けて置く
   const viewToggleRef = useRef<HTMLButtonElement>(null);
@@ -1586,7 +1576,6 @@ export function MapPanel(props: MapPanelProps) {
       data-selected-option={focusOptionId ?? ""}
       data-route-tone={tone}
       data-blocked={scene ? scene.blocked.features.length > 0 : false}
-      data-section-note={sectionNote}
       data-blocked-points={blockedPath?.length ?? 0}
       data-reach-source={scene?.reachSource ?? ""}
       data-motion={motionPhase}
@@ -1686,32 +1675,6 @@ export function MapPanel(props: MapPanelProps) {
           </span>
           <span className="truncate">{chosenOption.label}</span>
         </p>
-      )}
-      {sectionNote && (
-        // 区間が分からないことを 1 行の札で示す。押せるときは、発表を貼る欄へ移る
-        <div
-          data-testid={mapTestIds.sectionNote}
-          className="glass absolute z-10 flex items-center rounded-full text-[13px] font-semibold text-foreground"
-          style={{
-            top: props.insets.top + 8 + (floatingTag ? selectedRouteTagSpace : 0),
-            left: left + 12,
-            maxWidth: `calc(100% - ${left + right + 24}px)`,
-          }}
-        >
-          {onAddAnnouncement ? (
-            <button
-              type="button"
-              data-testid={mapTestIds.sectionNoteAction}
-              onClick={onAddAnnouncement}
-              className="flex min-h-11 items-center gap-1 rounded-full pr-2 pl-3.5 text-left"
-            >
-              {t("sectionUnconfirmed")}
-              <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
-            </button>
-          ) : (
-            <p className="px-3.5 py-2">{t("sectionUnconfirmed")}</p>
-          )}
-        </div>
       )}
       {view === "focus" && guide && dockedRows && (
         <div

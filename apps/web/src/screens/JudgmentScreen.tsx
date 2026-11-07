@@ -235,10 +235,6 @@ export function JudgmentScreen() {
         insets={mapInsets}
         afterAlight={inCarGuide?.afterAlight ?? null}
         motionKey={ready ? (state.judgedAt ?? null) : null}
-        onAddAnnouncement={() => {
-          chrome.setSnap("full");
-          setFocusAddInfo(true);
-        }}
         onReachSourceChange={setReachSource}
         onGuideChange={setGuide}
         onSelectOption={focusOption}

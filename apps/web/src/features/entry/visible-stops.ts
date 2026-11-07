@@ -15,6 +15,8 @@ export type StopLabel = {
   angle: number | null;
   // 路線の札は文字が大きく、路線色の印のぶん幅が広い
   kind?: "line";
+  // 方面ごとに分けた駅の札の、方面の向き（度）。名前の前の矢印のぶん幅が広い
+  heading?: number;
   // 名前が収まらなくても印を残す駅。路線を選んだ直後の路線の駅に使う
   keep?: boolean;
   // 名前を隠した印
@@ -23,6 +25,8 @@ export type StopLabel = {
 
 // 路線の札の路線色の印と隙間の幅（px）
 const lineSwatchWidth = 12;
+// 方面の向きの小さな矢印と、名前との間の幅（px）
+const headingWidth = 22;
 // 路線の札は文字が大きいぶん背が高い（px）
 const lineLabelHeight = 29;
 
@@ -59,10 +63,11 @@ export function buildStopLabelRect(
   label: string,
   side: LabelSide,
   line = false,
+  heading = false,
 ): Rect {
-  const text = line
-    ? lineSwatchWidth + estimateTextWidth(label, 14, 8)
-    : estimateTextWidth(label, 13, 7.5);
+  const text =
+    (line ? lineSwatchWidth + estimateTextWidth(label, 14, 8) : estimateTextWidth(label, 13, 7.5)) +
+    (heading ? headingWidth : 0);
   return placeBox(
     {
       key: label,
@@ -100,7 +105,16 @@ export function selectVisibleStops<T extends StopLabel>(input: {
     const dot = buildDotRect(point, isDirection ? directionDotRadius : stopDotRadius);
     const sides = [stop.side, ...sideOrder.filter((side) => side !== stop.side)];
     const rectOf = (side: LabelSide) =>
-      expandRect(buildStopLabelRect(point, stop.label, side, stop.kind === "line"), margin);
+      expandRect(
+        buildStopLabelRect(
+          point,
+          stop.label,
+          side,
+          stop.kind === "line",
+          stop.heading !== undefined,
+        ),
+        margin,
+      );
     const side = sides.find(
       (s) =>
         (!stop.keep || isInside(rectOf(s))) &&
