@@ -5,7 +5,7 @@ import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import type { Scenario } from "../../packages/schema/src/scenario.ts";
 import { webUrl } from "../servers.ts";
 import { findDemoScene, sceneMarkName, scenesEndMark } from "../support/demo-scenes.ts";
-import { chooseBetweenStations } from "../support/entry.ts";
+import { answerProtection, chooseBetweenStations } from "../support/entry.ts";
 import { findCanvasPointNear, panTo } from "../support/map-view.ts";
 import {
   createRecordingMarks,
@@ -361,6 +361,7 @@ async function showInCarJudgment(page: Page): Promise<void> {
     .click();
   await expectStage(page, "cause");
   await page.getByTestId(testIds.start.cause("inCar")).click();
+  await answerProtection(page);
   await page.getByTestId(testIds.start.elapsed("now")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await waitForLiveJudgment(page);

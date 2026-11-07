@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { chooseBetweenStations } from "../support/entry.ts";
+import { answerProtection, chooseBetweenStations } from "../support/entry.ts";
 import { expect, test } from "../support/test.ts";
 
 // 止まり方の区別。車内の急病人や非常ボタンはその列車だけが止まり、人身事故は区間を止める
@@ -27,6 +27,7 @@ async function startOnLoopLine(page: Page, kind: "inCar" | "person" | "vehicle")
     .click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
   await page.getByTestId(testIds.start.cause(kind)).click();
+  await answerProtection(page);
   await page.getByTestId(testIds.start.elapsed("now")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });

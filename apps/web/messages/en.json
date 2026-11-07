@@ -563,6 +563,12 @@
       "earthquake": "Earthquake",
       "other": "Other or not sure"
     },
+    "protectionQuestion": "When the train stopped, did you hear an announcement like “emergency stop after receiving a signal”?",
+    "protection": {
+      "heard": "Yes",
+      "notHeard": "No",
+      "unsure": "Not sure"
+    },
     "elapsedQuestion": "Pick how long you have been stopped",
     "elapsed": {
       "now": "Just stopped",

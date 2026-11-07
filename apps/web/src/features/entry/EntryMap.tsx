@@ -165,7 +165,14 @@ const betweenZoom = 13.5;
 // 何もない所を触ったとき、そのあたりの駅とみなす指の幅（px）。押せる部品の大きさにそろえる
 const tapReachPx = 44;
 // 様子を聞く段。行き先を選び終えているので、出発と行き先を弧で結び、視点は動かさない
-const situationStages = new Set<EntryStage>(["cause", "causeKind", "elapsed", "resume", "input"]);
+const situationStages = new Set<EntryStage>([
+  "cause",
+  "causeKind",
+  "protection",
+  "elapsed",
+  "resume",
+  "input",
+]);
 const sourceIds = {
   lines: "entry-lines",
   trip: "entry-trip",

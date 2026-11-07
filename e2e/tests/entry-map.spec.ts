@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { chooseTrainDirection, searchStationPair } from "../support/entry.ts";
+import { answerProtection, chooseTrainDirection, searchStationPair } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -112,6 +112,7 @@ test("全部「分からない」で進めても判断が出て、前提と次�
 
   // どの問いにも分からないがあり、押せばそのまま次へ進む
   await page.getByTestId(testIds.start.cause("unknown")).click();
+  await answerProtection(page, "unsure");
   await expectStage(page, "elapsed");
   await page.getByTestId(testIds.start.elapsed("unknown")).click();
   await expectStage(page, "resume");
