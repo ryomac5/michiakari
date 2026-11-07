@@ -30,6 +30,11 @@ describe("splitUnbreakableRuns", () => {
     ]);
   });
 
+  it("分の幅をひとまとまりにする", () => {
+    expect(listKept("先へ進むまで6〜10分ほどかかる見込みです")).toEqual(["6〜10分ほど"]);
+    expect(listKept("may take about 6–10 min to clear")).toEqual(["6–10 min"]);
+  });
+
   it("元の文をそのまま並べ直せる", () => {
     const text = "阪急京都線で振替。0時14分に京都に着き、0時25分の乗り継ぎに間に合います。";
     expect(
