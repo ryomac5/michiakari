@@ -421,7 +421,6 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `evidence` | `{ kind, id, description }` の配列。`kind` は `signal` / `cue` / `weather` / `computation`。`cue` の id は手がかりの id |
 | `disclaimer` | 推定である旨（必須） |
 | `cues`、`protection`、`unaffectedTrack`、`resumeQueue` | 規則から出した見込みの欄。どれも省略できる。`phase_estimated` と同じ形である |
-| `typicalFlow` | 以前の記録との互換のため残す。agent は付けない |
 
 `recommendedOptionId` は `options` にある `id` を指す。参照と重複は `checkJudgmentRefs` で検査する。スキーマに refine を付けないのは、Claude のツール定義に変換するためである。
 
