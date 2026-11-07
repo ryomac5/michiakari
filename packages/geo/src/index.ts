@@ -32,6 +32,7 @@ export {
 export {
   type BetweenPositionCandidate,
   findPositionCandidates,
+  listBetweenCandidatesWithin,
   POSITION_THRESHOLDS,
   type PositionCandidate,
   type PositionNetwork,

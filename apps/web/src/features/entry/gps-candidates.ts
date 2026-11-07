@@ -1,8 +1,9 @@
 import {
   type BetweenPositionCandidate,
+  computeDistanceMeters,
   findPositionCandidates,
   type LonLat,
-  POSITION_THRESHOLDS,
+  listBetweenCandidatesWithin,
   type PositionCandidate,
   removeDuplicatedStubs,
   type StationNode,
@@ -95,23 +96,24 @@ export function listLineTapChoices(
   const lines = removeDuplicatedStubs(data.index.listLines(), nodes).filter((l) =>
     lineIds.includes(l.lineId),
   );
+  // 探す幅は GPS と分ける。押した幅（22px を地図の距離にした値）に、線が駅を結ぶ直線から離れる分を足す
+  // 曲がりは駅の間の長さの半分までとみなし、短い駅の間でも TRACK_GAP_METERS は見込む
   const lonLat: LonLat = [point.lon, point.lat];
-  const accuracy = Math.min(
-    Math.max(reachMeters, TRACK_GAP_METERS),
-    POSITION_THRESHOLDS.maxAccuracyMeters,
-  );
-  const between = findPositionCandidates(
+  const tapMeters = reachMeters / 2;
+  const between = listBetweenCandidatesWithin(
     { nodes, lines },
-    { lonLat, accuracyMeters: accuracy },
-  ).filter((c): c is BetweenPositionCandidate => c.kind === "between");
-  // 描いた線路の形で、押した点から 2 駅の間の線までの距離を測る。形が無ければ駅を結ぶ直線の距離を使う
+    lonLat,
+    (from, to) =>
+      tapMeters + Math.max(TRACK_GAP_METERS, computeDistanceMeters(from.lonLat, to.lonLat) / 2),
+  );
+  // 描いた線路の形で、押した点から 2 駅の間の線までの距離を測り、押した幅の内だけを残す
+  // 形が無ければ駅を結ぶ直線の距離を使い、曲がりの分だけ広く残す
   const measured = between.flatMap((c) => {
     const parts = trackShapes?.get(c.line.lineId);
     const sliced = parts ? sliceTrackBetween(parts, [...c.from.lonLat], [...c.to.lonLat]) : null;
-    if (!sliced) return [{ candidate: c, meters: c.distanceMeters }];
-    const meters = measurePathDistance([point.lon, point.lat], sliced);
-    // 線を押したとみなす幅は、押せる大きさの半分。地図で線を拾う幅にそろえる
-    return meters <= reachMeters / 2 ? [{ candidate: c, meters }] : [];
+    const meters = sliced ? measurePathDistance([point.lon, point.lat], sliced) : c.distanceMeters;
+    const limit = sliced ? tapMeters : tapMeters + TRACK_GAP_METERS;
+    return meters <= limit ? [{ candidate: c, meters }] : [];
   });
   // 並べる順は、描いた線路の形が押した点に近い順。同じ近さなら、画面で拾った線の近い順にする
   // 引いた地図の画面の線は形を間引いて描くので、近さは線路の形で測る。駅を結ぶ直線は描いた線から離れるので、順には使わない

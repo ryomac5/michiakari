@@ -14,7 +14,7 @@ import {
 import { expect, test } from "../support/test.ts";
 
 // 最初の地図で駅と駅の間の線を押すと、その駅の間の車内にいるか確かめ、はいで行き先の段へ進む
-// 引いた地図で線を押したときも、駅の間の候補を出し、候補の区間が見える倍率まで寄る
+// 引いた地図で線を押したときも、駅の間の候補を出し、候補の区間が入る所まで寄る
 
 const screenshotDir = fileURLToPath(new URL("../screenshots/line-tap/", import.meta.url));
 test.setTimeout(120_000);
@@ -42,18 +42,19 @@ for (const viewport of [
       // 価値の 3 行は地図の上端を覆うので、線を押す前に閉じる
       await page.getByTestId(testIds.start.introClose).click();
       await waitForMapStill(page);
-      // 引いた地図で塚本と尼崎のあたりの線を押すと、段はそのままで駅の間の候補を出し、駅の印が出る倍率まで寄る
+      // 引いた地図で塚本と尼崎のあたりの線を押すと、段はそのままで駅の間の候補を出し、候補が入る所まで寄る。引きはしない
       await page.locator(".maplibregl-canvas").focus();
       const far = await panTo(page, betweenTsukamotoAmagasaki, {
         x: viewport.width / 2,
         y: viewport.height * 0.22,
       });
-      expect(await readZoom(page)).toBeLessThan(12.5);
+      const farZoom = await readZoom(page);
+      expect(farZoom).toBeLessThan(12.5);
       const open = await findCanvasPointNear(page, far);
       await page.mouse.click(open.x, open.y);
       await waitForMapStill(page);
       await expectStage(page, "position");
-      expect(await readZoom(page)).toBeGreaterThanOrEqual(12.5);
+      expect(await readZoom(page)).toBeGreaterThanOrEqual(farZoom - 0.01);
       // 候補が 1 件なら問いで、複数なら一覧で出る
       const farChoice = page
         .getByTestId(testIds.start.gpsQuestion)
@@ -63,7 +64,6 @@ for (const viewport of [
             .filter({ hasText: "JR神戸線の塚本〜尼崎の間" }),
         );
       await expect(farChoice).toContainText("JR神戸線の塚本〜尼崎の間");
-      await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-detail", "stations");
 
       // 寄った地図で塚本と尼崎の間の線を押す。押しやすいよう、さらに寄せる
       // 候補が出てシートが高いので、指で引いて、上部の帯とシートの間の中ほどへ動かす

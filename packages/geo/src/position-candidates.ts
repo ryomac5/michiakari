@@ -130,6 +130,16 @@ function listBetweenCandidates(
   lonLat: LonLat,
   radius: number,
 ): BetweenPositionCandidate[] {
+  return listBetweenCandidatesWithin(network, lonLat, () => radius);
+}
+
+// 2 駅を結ぶ直線までの距離が、駅の間ごとの半径の内にある駅の間を返す
+// 地図で線を押したときのように、駅の間の長さや線の曲がりで探す幅を変えたいときに使う。GPS の精度の上限は掛けない
+export function listBetweenCandidatesWithin(
+  network: PositionNetwork,
+  lonLat: LonLat,
+  radiusOf: (from: StationNode, to: StationNode) => number,
+): BetweenPositionCandidate[] {
   const stationById = new Map(network.nodes.map((n) => [n.stationId, n]));
   const found = new Map<string, BetweenPositionCandidate>();
   for (const line of network.lines) {
@@ -138,7 +148,7 @@ function listBetweenCandidates(
       const to = stationById.get(toId);
       if (!from || !to) continue;
       const distance = measureToSegment(lonLat, from.lonLat, to.lonLat);
-      if (distance > radius) continue;
+      if (distance > radiusOf(from, to)) continue;
       const key = `${line.lineId}|${[fromId, toId].sort().join("|")}`;
       const known = found.get(key);
       if (!known || distance < known.distanceMeters)
