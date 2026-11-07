@@ -51,7 +51,7 @@ describe("規則表から出す見込み", () => {
       phaseId: null,
       source: "rule",
     });
-    expect(judgment.typicalFlow).toBeUndefined();
+    expect(judgment).not.toHaveProperty("typicalFlow");
     expect(judgment.protection).toBe(true);
     // 理由は待つ場合との比較で書き、再開までの時間を事象の流れとして言い切らない
     expect(judgment.reason).toMatch(
@@ -64,7 +64,7 @@ describe("規則表から出す見込み", () => {
     const judgment = findJudgment(await postJudge(app, buildSelectionRequest(null)));
     expect(judgment.estimate.eventType).toBeNull();
     expect(judgment.estimate.phaseId).toBeNull();
-    expect(judgment.typicalFlow).toBeUndefined();
+    expect(judgment).not.toHaveProperty("typicalFlow");
   });
 
   it("入口で急病人の救護を選ぶと、短い事象の目安で待つと言い切り、安心させる言葉を使う", async () => {
@@ -179,7 +179,7 @@ describe("claude モードの数値の検査", () => {
     expect(results.estimate.flowOutlook).toBe("long");
     const ok = assembleJudgment(results, buildDecision("このまま待つほうが早く着きます。"), "ja");
     expect(session.checkJudgment(ok, results).errors).toEqual([]);
-    expect(ok.typicalFlow).toBeUndefined();
+    expect(ok).not.toHaveProperty("typicalFlow");
     expect(ok.protection).toBe(true);
 
     for (const reason of [

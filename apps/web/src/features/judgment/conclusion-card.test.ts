@@ -16,7 +16,7 @@ function buildJudgment(reason?: string): Judgment {
     headline: "このまま待つ",
     reason,
     estimate: {
-      eventType: "in_car_response",
+      eventType: "medical_response",
       phaseId: null,
       elapsedMinutes: 0,
       remaining: null,
@@ -27,18 +27,6 @@ function buildJudgment(reason?: string): Judgment {
     recommendedOptionId: null,
     evidence: [],
     disclaimer: "推定です。公式発表を優先する。",
-    typicalFlow: {
-      eventType: "in_car_response",
-      predictability: {
-        level: "high",
-        source: "knowledge",
-        basis: { ja: "短く終わることが多い", en: "Usually short" },
-      },
-      phases: [{ id: "check", name: { ja: "確認", en: "Check" }, duration: { p50: 5, p80: 10 } }],
-      untilResume: { p50: 5, p80: 10 },
-      firstTrainWait: { p50: 0, p80: 0 },
-      typicalFloorMinutes: null,
-    },
   };
 }
 
@@ -87,11 +75,8 @@ describe("結論カードの理由", () => {
     },
   );
 
-  it("流れが無くても、見込みの確かさが高くなくても、先頭の1文を要約にする", () => {
-    const judgment = {
-      ...buildJudgment("運転再開を待ちます。境目は21時05分です。"),
-      typicalFlow: undefined,
-    };
+  it("見込みの確かさが高くなくても、先頭の1文を要約にする", () => {
+    const judgment = buildJudgment("運転再開を待ちます。境目は21時05分です。");
     expect(selectCardReason(judgment)).toBe("運転再開を待ちます。");
     const html = renderToStaticMarkup(createElement(ConclusionDetail, { judgment }));
     expect(html).toContain(`data-testid="${testIds.judgment.conclusionReasonDetail}"`);

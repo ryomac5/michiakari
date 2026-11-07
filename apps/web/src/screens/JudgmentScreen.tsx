@@ -141,7 +141,6 @@ export function JudgmentScreen() {
   );
   const blockedSection = known.findLast((o) => o.section !== null)?.section ?? null;
   const options = display.options ?? noOptions;
-  const typicalFlow = display.settled?.judgment.typicalFlow ?? null;
   const heardChoice = selectHeardCauseChoice(tripContext);
   const heardCause = heardChoice ? tEntry(`causes.${heardChoice}`) : null;
   // 近くのバス停の確認候補。確定した判断に載ったものだけを出す
@@ -318,7 +317,6 @@ export function JudgmentScreen() {
           {state.status === "ready" && display.estimate && (
             <NextCheckSection
               estimate={display.estimate}
-              flow={typicalFlow}
               onUpdate={() => {
                 chrome.setSnap("full");
                 setFocusAddInfo(true);

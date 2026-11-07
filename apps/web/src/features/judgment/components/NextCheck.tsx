@@ -1,7 +1,7 @@
 "use client";
 
-import { classifyFlowOutlook } from "@repo/core";
-import type { Estimate, EstimateSource, TypicalFlow } from "@repo/schema";
+import { resolveFlowOutlook, resolveIncidentType } from "@repo/core";
+import type { Estimate, EstimateSource } from "@repo/schema";
 import { Eye, Info, RotateCcw } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { SheetSection } from "@/components/SheetSection";
@@ -100,18 +100,21 @@ export function PremiseSection() {
   );
 }
 
+// 短く終わる事象か。core の規則表の見込みで決める
+function checkShortIncident(eventType: string | null): boolean {
+  return resolveFlowOutlook(resolveIncidentType({ eventType })) === "short";
+}
+
 export function NextCheckSection({
   estimate,
-  flow,
   onUpdate,
 }: {
   estimate: Estimate;
-  flow: TypicalFlow | null;
   onUpdate: () => void;
 }) {
   const t = useTranslations("judgment.nextCheck");
   if (estimate.confidence === "high") return null;
-  const short = flow?.eventType === estimate.eventType && classifyFlowOutlook(flow) === "short";
+  const short = checkShortIncident(estimate.eventType);
   const items = [
     ...(estimate.eventType === null ? [t("cause")] : []),
     short ? t("departSoon") : t("resume"),

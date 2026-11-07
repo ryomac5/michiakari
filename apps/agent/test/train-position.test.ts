@@ -158,7 +158,7 @@ describe("駅間の車内の 3 つの場面", () => {
     expect(judgment.reason).toMatch(/^塚本には\d{1,2}時\d{2}分ごろに着く見込みです。/);
     expect(findFlowWording(judgment.reason ?? "", "ja")).toBeNull();
     // 人身事故は防護無線の事象。区間が分からないので詰まりの本数は 0 で、降りる価値は無い
-    expect(judgment.typicalFlow).toBeUndefined();
+    expect(judgment).not.toHaveProperty("typicalFlow");
     expect(judgment.protection).toBe(true);
     expect(judgment.resumeQueue?.worthAlightingAtNextStation).toBe(false);
   });

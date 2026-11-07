@@ -120,7 +120,7 @@ describe("見込みの出どころ", () => {
     expect(judgment.estimate.confidence).toBe("low");
     expect(judgment.estimate.remaining).toEqual(expectStatsBoardable(signaling, daytime, daytime));
     expect(judgment.breakEven?.resumeChance?.ticks.length).toBeGreaterThanOrEqual(4);
-    expect(judgment.typicalFlow).toBeUndefined();
+    expect(judgment).not.toHaveProperty("typicalFlow");
     expect(["hold", "switch"]).toContain(judgment.action);
     expectNoResumeDuration(judgment);
     expect(judgment.disclaimer).toContain("公式発表");
