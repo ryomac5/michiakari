@@ -2,13 +2,12 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import { backToTrip } from "../support/entry.ts";
+import { expectTripCard } from "../support/entry.ts";
 import {
   betweenTsukamotoAmagasaki,
   expectStage,
   projectOnPage,
   waitForMapStill,
-  zoomOn,
 } from "../support/map-view.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -172,13 +171,10 @@ const cases: StageCase[] = [
     reach: async (page) => {
       await openOsakaStation(page);
       await page.getByTestId(testIds.start.destinationCandidate("高槻")).click();
-      await backToTrip(page);
+      await expectTripCard(page);
       await page.getByTestId(testIds.start.routeSummary).click();
       await expectStage(page, "station");
       await waitForMapStill(page);
-      // 判断から戻った地図は引いていて、環状線の線が駅の印に隠れやすい。環状線の東側へ 1 段寄せる
-      await page.locator(".maplibregl-canvas").focus();
-      await zoomOn(page, loopEast[0] as [number, number], 11);
     },
     vertices: [...loopOsakaTemma, ...loopEast],
     outcome: { kind: "stage", stage: /^direction$/, text: /JR環状線/ },
@@ -219,14 +215,6 @@ async function expectBetween(page: Page, outcome: Extract<Outcome, { kind: "betw
   };
 }
 
-// 押した点で行き先まで決まると、自動で判断の画面へ移る。そのときは行程の札へ戻って確かめる
-async function returnIfJudged(page: Page): Promise<void> {
-  const judgment = page.getByTestId(testIds.judgment.screen);
-  const destination = page.locator("[data-testid='start-screen'][data-stage='destination']");
-  await expect(judgment.or(destination)).toBeVisible({ timeout: 30_000 });
-  if (await judgment.isVisible()) await backToTrip(page);
-}
-
 for (const viewport of [
   { width: 375, height: 667 },
   { width: 390, height: 844 },
@@ -248,7 +236,6 @@ for (const viewport of [
           await choose();
           return;
         }
-        if (c.outcome.stage.test("cause")) await returnIfJudged(page);
         await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute(
           "data-stage",
           c.outcome.stage,

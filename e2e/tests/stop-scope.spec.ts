@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { addAnswers, expectJudgmentOpened } from "../support/add-info.ts";
+import { finishEntry } from "../support/add-info.ts";
 import { chooseBetweenStations } from "../support/entry.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -26,8 +26,7 @@ async function startOnLoopLine(page: Page, kind: "inCar" | "person" | "vehicle")
     .locator("[data-testid^='start-direction-']")
     .filter({ hasText: "京橋・鶴橋方面" })
     .click();
-  await expectJudgmentOpened(page);
-  await addAnswers(page, {
+  await finishEntry(page, {
     cause: kind,
     protection: "notHeard",
     elapsed: "now",
@@ -87,8 +86,7 @@ test("駅で待つ人には、車内の急病人・非常ボタンを後続の�
   await page.getByTestId(testIds.start.originOption("京橋")).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
-  await expectJudgmentOpened(page);
-  await addAnswers(page, { cause: "inCar", elapsed: "now", resume: "unknown" });
+  await finishEntry(page, { cause: "inCar", elapsed: "now", resume: "unknown" });
   const status = page.getByTestId(testIds.judgment.statusChip);
   await expect(status).toHaveAttribute("data-scope", "train");
   await expect(status).toContainText("後続に遅れ");
@@ -105,8 +103,7 @@ test("駅で待つ人には、信号の不具合を後続の遅れとして伝�
   await page.getByTestId(testIds.start.originOption("京橋")).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
-  await expectJudgmentOpened(page);
-  await addAnswers(page, { cause: "signaling", elapsed: "now", resume: "unknown" });
+  await finishEntry(page, { cause: "signaling", elapsed: "now", resume: "unknown" });
   const status = page.getByTestId(testIds.judgment.statusChip);
   await expect(status).toHaveAttribute("data-scope", "train");
   await expect(status).toContainText("後続に遅れ");

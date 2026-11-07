@@ -77,16 +77,8 @@ type JudgmentSession = {
   submitInput: (input: RawInput | null) => void;
   // 新しい行程として判断を始める。これまでの観測は捨て、seed（利用者が選んだ路線など）から始める
   // 原因が分からないまま進んだときは input を null にし、seed だけで判断する
-  // cause は入口で答えた原因。この行程の判断のたびに送り、種類の無い原因の見込みに使う
-  // protectionBroadcast は入口で答えた受信の放送の有無。原因と同じく判断のたびに送る
-  // ticketType は入口で答えた乗車券の種類。分からなければ null
-  startJudgment: (
-    input: RawInput | null,
-    seed: Observation[],
-    cause?: IncidentCause | null,
-    protectionBroadcast?: ProtectionBroadcast | null,
-    ticketType?: TicketType | null,
-  ) => void;
+  // answers は入口で答えたこと。情報を追加するの札に出し、判断のたびに原因・受信の放送・乗車券を送る
+  startJudgment: (input: RawInput | null, seed: Observation[], answers?: AddedAnswers) => void;
   // 入口で答えた乗車券の種類。入口に戻ったときに選んだ状態を復元する
   ticketType: TicketType | null;
   // 判断の画面で足した答え。札に出し、押せば直せる
@@ -260,22 +252,19 @@ export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
   // 移る途中で判断のイベントが続くと画面の切り替えが遅れ、推論の過程が見えないまま終わるため
   const pendingRef = useRef<{ input: RawInput | null; seed: Observation[] } | null>(null);
   const startJudgment = useCallback(
-    (
-      input: RawInput | null,
-      seed: Observation[],
-      cause: IncidentCause | null = null,
-      protectionBroadcast: ProtectionBroadcast | null = null,
-      ticket: TicketType | null = null,
-    ) => {
+    (input: RawInput | null, seed: Observation[], answers: AddedAnswers = emptyAddedAnswers) => {
       controllerRef.current?.abort();
-      causeRef.current = cause;
-      protectionBroadcastRef.current = protectionBroadcast;
-      ticketTypeRef.current = ticket;
-      setTicketType(ticket);
-      setAddedAnswers(emptyAddedAnswers);
+      const values = resolveAnswerRequestValues(answers);
+      causeRef.current = values.cause;
+      protectionBroadcastRef.current = values.protectionBroadcast;
+      ticketTypeRef.current = values.ticketType;
+      setTicketType(values.ticketType);
+      setAddedAnswers(answers);
       setSectionPick(null);
-      setObservations(seed);
-      pendingRef.current = { input, seed };
+      // 答えた止まってからの分、再開見込み、受信の放送を観測に映す
+      const known = applyAddedAnswers(seed, answers, answers, new Date());
+      setObservations(known);
+      pendingRef.current = { input, seed: known };
       // 新しい行程では前の行程の判断と比べない
       setState(startJudgmentRun(createJudgmentState()));
     },

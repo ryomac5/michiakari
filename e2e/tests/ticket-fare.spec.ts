@@ -2,12 +2,7 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import {
-  addAnswers,
-  expectJudgmentOpened,
-  openAddInfo,
-  waitForJudgmentReady,
-} from "../support/add-info.ts";
+import { addAnswers, finishEntry, openAddInfo, waitForJudgmentReady } from "../support/add-info.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -31,8 +26,7 @@ async function openJudgment(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expectJudgmentOpened(page);
-  await addAnswers(page, { cause: "person", elapsed: "m10" });
+  await finishEntry(page, { cause: "person", elapsed: "m10" });
 }
 
 async function judgeWithTicket(page: Page, ticket: "ic" | "commuter_pass"): Promise<void> {

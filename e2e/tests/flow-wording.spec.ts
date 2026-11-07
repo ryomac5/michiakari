@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { addAnswers, expectJudgmentOpened, openAddInfo } from "../support/add-info.ts";
+import { addAnswers, finishEntry, openAddInfo } from "../support/add-info.ts";
 import { openReplay, openSheet, waitForJudged } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -117,7 +117,7 @@ test("情報を追加するで「車内の急病人・非常ボタン」を足�
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
-  await expectJudgmentOpened(page);
+  await finishEntry(page);
 
   // 原因は情報を追加するで足す。車内の急病人・非常ボタンは人身事故と別の選択肢で、種類の問いは続かない
   const addInfo = await openAddInfo(page);

@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Page, Route } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import { addAnswers, expectJudgmentAfterDirection } from "../support/add-info.ts";
+import { chooseDirectionIfAsked, finishEntry } from "../support/add-info.ts";
 import { chooseBetweenStations } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
@@ -24,8 +24,8 @@ async function startWithProtectionHeard(page: Page): Promise<void> {
   await chooseBetweenStations(page, "JR神戸線", "大阪", "塚本");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expectJudgmentAfterDirection(page, "神戸");
-  await addAnswers(page, { protection: "heard", elapsed: "now", resume: "unknown" });
+  await chooseDirectionIfAsked(page, "神戸");
+  await finishEntry(page, { protection: "heard", elapsed: "now", resume: "unknown" });
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
 }
 

@@ -1,31 +1,25 @@
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import { expectJudgmentOpened } from "./add-info.ts";
 import { expect } from "./test.ts";
 
 function expectStage(page: Page, stage: string) {
   return expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", stage);
 }
 
-// 行き先まで答えると判断の画面へ移る。判断が出たら戻るで、判断を始める段の行程の札へ戻る
-// 入口で決めた路線と方面を確かめるときや、乗る電車を選び直すときに使う
-export async function backToTrip(page: Page): Promise<void> {
-  await expectJudgmentOpened(page);
-  await page.getByTestId(testIds.judgment.backButton).click();
+// 電車の中の人に原因の後で聞く、受信の放送の問いに答える。既定は判断に何も足さない「なかった」
+export async function answerProtection(
+  page: Page,
+  answer: "heard" | "notHeard" | "unsure" = "notHeard",
+): Promise<void> {
+  await expectStage(page, "protection");
+  await page.getByTestId(`start-protection-${answer}`).click();
+}
+
+// 行き先まで答えると、原因の問いの上に行程の札が出る。入口で決めた路線と方面を確かめるときや、
+// 乗る電車を選び直すときに使う
+export async function expectTripCard(page: Page): Promise<void> {
   await expectStage(page, "cause");
   await expect(page.getByTestId(testIds.start.trip)).toBeVisible();
-  // 戻った段と端末の履歴の深さがそろうまで待つ。そろう前に戻ると、入口の段が動かない
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const depth = (window.history.state as { entryDepth?: number } | null)?.entryDepth;
-        return typeof depth === "number";
-      }),
-    )
-    .toBe(true);
-  await page.evaluate(
-    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-  );
 }
 
 // 駅の間の段で、両側の 2 つの駅名から駅の間を出す。確かめる前で止める
@@ -72,7 +66,7 @@ export async function chooseTrainDirection(
   await chooseBetweenStations(page, "JR神戸線", "塚本", "尼崎");
   await page.getByTestId(testIds.start.destinationSearch).fill("三ノ宮");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await backToTrip(page);
+  await expectTripCard(page);
   await page.getByTestId(testIds.start.routeSummary).click();
   await expectStage(page, "station");
   const line = page.locator("[data-testid^='start-line-']").filter({ hasText: lineId });

@@ -688,7 +688,35 @@
     "betweenChangeStation": "Change {station}",
     "betweenPairNone": "No line runs through both stations. Search with other station names.",
     "betweenPickQuestion": "Choose the stations you are between",
-    "judge": "Judge this trip"
+    "judge": "Judge this trip",
+    "withText": "Have a notice or sign?",
+    "methods": {
+      "photo": {
+        "title": "Photo",
+        "heading": "Take a photo of the sign or screen"
+      },
+      "paste": {
+        "title": "Paste",
+        "heading": "Paste the announcement text"
+      }
+    },
+    "causeQuestion": "Pick the cause you heard",
+    "causeKindQuestion": "Pick the closest one",
+    "protectionQuestion": "When the train stopped, did you hear an announcement like “emergency stop after receiving a signal”?",
+    "elapsedQuestion": "Pick how long you have been stopped",
+    "ticketQuestion": "Your ticket",
+    "resumeQuestion": "Pick the restart outlook you heard",
+    "resume": {
+      "stated": "Yes, they gave a time",
+      "statedNote": "Tap to pick the time",
+      "undecided": "They said it is undecided",
+      "unknown": "Nothing said or not sure"
+    },
+    "resumeTimeQuestion": "Pick the announced time",
+    "answers": {
+      "cause": "Announcement",
+      "elapsed": "Stopped for"
+    }
   },
   "status": {
     "notFound": {
