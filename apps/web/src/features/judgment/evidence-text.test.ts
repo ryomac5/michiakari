@@ -106,6 +106,53 @@ describe("selectEvidenceEntries", () => {
     ).toEqual([{ id: "cause", heard: "人身事故", signalIds: [], cueId: null }]);
     expect(selectEvidenceEntries({ estimate: null, signals: [] })).toEqual([]);
   });
+
+  it("引用も原因も無ければ、いちばん新しい観測の最初の 1 文を聞いた言葉にする", () => {
+    const observation = (id: string, rawText?: string): Observation => ({
+      id,
+      observedAt: "2026-11-07T22:00:00+09:00",
+      source: "text",
+      kind: "announcement",
+      rawText,
+      eventTypeCandidates: [],
+      operator: null,
+      line: null,
+      section: null,
+      statedResumeTime: null,
+      transferServiceActive: null,
+      detectedSignals: [],
+    });
+    const observations = [
+      observation("a", "古い発表です。"),
+      observation("b", "人身事故のため、運転を見合わせています。現在、確認を行っています。"),
+      observation("c"),
+    ];
+    expect(selectEvidenceEntries({ estimate: estimate(null), signals: [], observations })).toEqual([
+      {
+        id: "observation",
+        heard: "人身事故のため、運転を見合わせています。",
+        signalIds: [],
+        cueId: null,
+      },
+    ]);
+    // 前置きの文より、事象の名前を含む文を選ぶ
+    const preface = observation(
+      "d",
+      "お客様にお知らせします。車内で急病のお客様の救護を行っているため、停車しております。",
+    );
+    expect(
+      selectEvidenceEntries({ estimate: null, signals: [], observations: [preface] })[0]?.heard,
+    ).toBe("車内で急病のお客様の救護を行っているため、停車しております。");
+    // 入口で選んだ原因があれば、そちらを先に使う
+    expect(
+      selectEvidenceEntries({
+        estimate: estimate(null),
+        signals: [],
+        heardCause: "人身事故",
+        observations,
+      })[0]?.id,
+    ).toBe("cause");
+  });
 });
 
 describe("判断の結果の手がかり", () => {

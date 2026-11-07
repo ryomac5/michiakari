@@ -1,4 +1,4 @@
-import { detectAnnouncementCues } from "@repo/core";
+import { detectAnnouncementCues, findIncidentTypeByPhrase } from "@repo/core";
 import type { AnnouncementCueId, DetectedSignal, Estimate, Observation } from "@repo/schema";
 
 // 根拠の欄の項目。利用者が聞いた言葉と、手がかりがあればそこから読める一般的な読みを組にする
@@ -96,10 +96,23 @@ export function selectEvidenceEntries(context: {
     cueId: index === cueIndex ? cue : null,
   }));
   if (cue !== null && cueIndex === -1) return addCueEntry(entries, cue, context);
-  if (entries.length > 0 || !context.heardCause) return entries;
+  if (entries.length > 0) return entries;
 
   // 発表の引用が無く原因だけを選んだときは、選んだ原因を聞いた言葉にする
-  return [{ id: "cause", signalIds: [], heard: context.heardCause, cueId: null }];
+  if (context.heardCause) {
+    return [{ id: "cause", signalIds: [], heard: context.heardCause, cueId: null }];
+  }
+  // 手がかりを含まない発表だけのときは、いちばん新しい観測の文を聞いた言葉にする
+  const latest = findLatestQuote(context.observations ?? []);
+  return latest === null ? [] : [{ id: "observation", signalIds: [], heard: latest, cueId: null }];
+}
+
+// 文のある観測のうち、いちばん新しいものから 1 文を選ぶ。事象の名前を含む文を先に選ぶ。無ければ null
+function findLatestQuote(observations: readonly Observation[]): string | null {
+  const text = observations.map((o) => o.rawText?.trim() ?? "").findLast((t) => t.length > 0);
+  if (!text) return null;
+  const sentences = text.match(/[^。]+。?/g)?.map((s) => s.trim()) ?? [];
+  return sentences.find((s) => findIncidentTypeByPhrase(s) !== null) ?? shortenQuote(text);
 }
 
 // 引用に無い手がかりの読みを足す。手がかりを含む観測の文があれば先頭の項目にする
