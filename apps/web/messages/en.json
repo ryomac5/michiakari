@@ -116,7 +116,9 @@
       "confidence": "Outlook certainty: {level}",
       "live": "Advice: {action}. {headline}",
       "next": "Next step",
-      "reasonTitle": "Why"
+      "reasonTitle": "Why",
+      "arriveAt": "Arrive at {station} around {time}",
+      "arrive": "Arrive around {time}"
     },
     "confidence": {
       "low": "low",
@@ -159,6 +161,16 @@
       },
       "untilLabel": "until cutoff",
       "detailTitle": "Reading the cutoff"
+    },
+    "resumeBand": {
+      "inCarTitle": "Train moves",
+      "range": "{from}–{to}",
+      "arrival": "{station} {time}",
+      "inCarLabel": "Train moves {range}. Arrive at {station} around {time}",
+      "inCarLabelNoArrival": "Train moves {range}",
+      "title": "Restart outlook",
+      "breakEven": "Cutoff",
+      "label": "Restart outlook. Service becomes likely between {from} and {to}. Cutoff {breakEven}"
     },
     "resumeChance": {
       "title": "Chance service is running",
@@ -470,7 +482,10 @@
     "sectionUnconfirmed": "Check the section in the announcement",
     "between": "between {from} and {to}",
     "alight": "Get off at",
-    "walkShort": "{minutes} min walk"
+    "walkShort": "{minutes} min walk",
+    "destination": "To",
+    "train": "Your train",
+    "replay": "Play the move again"
   },
   "about": {
     "title": "About Michiakari",

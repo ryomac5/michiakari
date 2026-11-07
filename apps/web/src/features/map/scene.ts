@@ -250,7 +250,8 @@ export function findStationPathOnLine(
   return path;
 }
 
-function buildPathCoordinates(
+// 同じ路線の 2 駅の間を、駅の並びに沿って線路の形から切り出す。並びが引けなければ 2 駅を結ぶ
+export function buildPathCoordinates(
   geo: MapGeo,
   lineId: string,
   from: StationNode,
@@ -258,14 +259,7 @@ function buildPathCoordinates(
 ): Position[] {
   const ids = findStationPathOnLine(geo.graph, lineId, from.stationId, to.stationId);
   if (ids === null) return [toPosition(from.lonLat), toPosition(to.lonLat)];
-  return buildCoordinates(geo, ids);
-}
-
-function buildCoordinates(geo: MapGeo, stationIds: readonly string[]): Position[] {
-  return stationIds.flatMap((id) => {
-    const node = geo.index.getStation(id);
-    return node ? [toPosition(node.lonLat)] : [];
-  });
+  return buildTrackThroughStations(geo, lineId, ids);
 }
 
 type ResolvedSection = { lineId: string; coordinates: Position[] };

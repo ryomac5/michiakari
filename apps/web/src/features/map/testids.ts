@@ -27,4 +27,10 @@ export const mapTestIds = {
   // 札が地図に収まらないときに、札を移す上端の一覧と、その駅の行
   labelList: "judgment-map-label-list",
   labelListRow: (key: string) => `judgment-map-label-list-row-${key}`,
+  // 車内の判断で、次の駅まで動く列車の印と、動きをもう一度見るボタン
+  motionTrain: "judgment-map-motion-train",
+  motionReplay: "judgment-map-motion-replay",
+  // 行き先の印と、行き先が画面の外にあるときに縁に出す札
+  destination: "judgment-map-destination",
+  destinationEdge: "judgment-map-destination-edge",
 } as const;

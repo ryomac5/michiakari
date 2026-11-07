@@ -116,7 +116,9 @@
       "confidence": "見込みの確かさ {level}",
       "live": "結論: {action}。{headline}",
       "next": "次の手",
-      "reasonTitle": "理由"
+      "reasonTitle": "理由",
+      "arriveAt": "{station}に{time}ごろ着く見込み",
+      "arrive": "{time}ごろ着く見込み"
     },
     "confidence": {
       "low": "低",
@@ -159,6 +161,16 @@
       },
       "untilLabel": "境目まで",
       "detailTitle": "境目の見方"
+    },
+    "resumeBand": {
+      "inCarTitle": "動き出す見込み",
+      "range": "{from}〜{to}",
+      "arrival": "{station}着 {time}",
+      "inCarLabel": "動き出す見込みは{range}。{station}に{time}ごろ着く見込み",
+      "inCarLabelNoArrival": "動き出す見込みは{range}",
+      "title": "再開の見込み",
+      "breakEven": "境目",
+      "label": "再開の見込み。{from}から{to}にかけて動く見込みが高まる。境目は{breakEven}"
     },
     "resumeChance": {
       "title": "動いている見込み",
@@ -470,7 +482,10 @@
     "sectionUnconfirmed": "区間は発表で確かめる",
     "between": "{from}〜{to}の間",
     "alight": "降りる駅",
-    "walkShort": "徒歩{minutes}分"
+    "walkShort": "徒歩{minutes}分",
+    "destination": "行き先",
+    "train": "乗っている列車",
+    "replay": "動きをもう一度見る"
   },
   "about": {
     "title": "このアプリについて",
