@@ -51,6 +51,12 @@ function checkDeadlineRisk(breakEven: BreakEvenToolResult, bestAlternativeId: st
   return waitRow?.deadline?.onTime === false && bestRow?.deadline?.onTime === true;
 }
 
+// 切り替えを勧めるのに要る、分岐点からの遅れの分
+// 発表の時刻は利用者が見ている数字なので、余裕を取らない。分岐点より後なら待つと言わない
+function selectSwitchMargin(estimate: EstimateToolResult): number {
+  return estimate.remainingBasis === "stated" ? 0 : decisionParams.switchMarginMinutes;
+}
+
 // 原因が分からなくても、発表の再開見込みがあれば、その時刻と分岐点を比べて待つか切り替えるかを言い切る
 // 見込みは発表の時刻どおりを p50、延びる余地を p80 とする。保留にはしない
 function decideByStatedResume(
@@ -63,7 +69,7 @@ function decideByStatedResume(
     if (input.estimate.statedExtended && outlook.marginP80Minutes < 0) {
       return { action: "switch", reason: "estimate_extended", ...switchTo };
     }
-    if (outlook.marginP50Minutes < -decisionParams.switchMarginMinutes) {
+    if (outlook.marginP50Minutes < -selectSwitchMargin(input.estimate)) {
       return { action: "switch", reason: "stated_resume_after_break_even", ...switchTo };
     }
   }
@@ -164,8 +170,8 @@ function applyIncidentRules(input: RuleInput): RuleOutcome {
   if (estimate.statedExtended && r.resumeOutlook && r.resumeOutlook.marginP80Minutes < 0) {
     return { action: "switch", reason: "estimate_extended", ...switchTo };
   }
-  // 再開して乗れる見込み（p50）が分岐点より十分に遅い
-  if (r.resumeOutlook && r.resumeOutlook.marginP50Minutes < -decisionParams.switchMarginMinutes) {
+  // 再開して乗れる見込み（p50）が分岐点より十分に遅い。発表の時刻なら少しでも遅い
+  if (r.resumeOutlook && r.resumeOutlook.marginP50Minutes < -selectSwitchMargin(estimate)) {
     return { action: "switch", reason: "resume_after_break_even", ...switchTo };
   }
   // 待つと期限に間に合わず、代替手段なら間に合う

@@ -158,19 +158,26 @@ describe("保留より先に切り替えを返す規則", () => {
   });
 
   it("長く止まる種類でも、発表の見込みがあれば発表の時刻で比べる", () => {
-    // 発表の見込みが分岐点をわずかに過ぎるだけなら、乗り換えるほどの差がないので待つ
-    const result = buildResult({ minutesFromNow: 36, marginP50Minutes: -3, marginP80Minutes: -18 });
-    const outcome = applyDecisionRules(
+    // 発表の時刻が分岐点より前なら、長く止まる種類でも統計値で切り替えず待つ
+    const before = buildResult({ minutesFromNow: 36, marginP50Minutes: 3, marginP80Minutes: -7 });
+    const input = (result: typeof before) =>
       buildInput({
         eventType: "person_collision",
         confidence: "high",
         result,
         flowOutlook: "long",
         remainingBasis: "stated",
-      }),
-    );
-    expect(outcome.action).toBe("wait");
-    expect(outcome.reason).toBe("resume_before_break_even");
+      });
+    expect(applyDecisionRules(input(before))).toMatchObject({
+      action: "wait",
+      reason: "resume_before_break_even",
+    });
+    // 発表の時刻が分岐点をわずかでも過ぎれば、見出しの時刻と食い違わないよう切り替える
+    const after = buildResult({ minutesFromNow: 36, marginP50Minutes: -3, marginP80Minutes: -18 });
+    expect(applyDecisionRules(input(after))).toMatchObject({
+      action: "switch",
+      reason: "resume_after_break_even",
+    });
   });
 
   it("原因が分からず見込みが無いときは、これまでどおり保留する", () => {
@@ -212,6 +219,66 @@ describe("原因が分からず、発表の再開見込みがある規則", () =
     expect(outcome).toEqual({
       action: "switch",
       reason: "stated_resume_after_break_even",
+      recommendedOptionId: "alt_1",
+    });
+  });
+
+  it("発表の時刻が分岐点より少しでも後なら、乗り換えの余裕の分を見ずに切り替える", () => {
+    const result = buildResult({
+      minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
+      marginP50Minutes: -1,
+      marginP80Minutes: -11,
+    });
+    const outcome = applyDecisionRules(
+      buildInput({ eventType: null, confidence: "medium", result, statedResumeTime: stated }),
+    );
+    expect(outcome).toEqual({
+      action: "switch",
+      reason: "stated_resume_after_break_even",
+      recommendedOptionId: "alt_1",
+    });
+  });
+
+  it("発表の時刻が分岐点と同じなら待つ", () => {
+    const result = buildResult({
+      minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
+      marginP50Minutes: 0,
+      marginP80Minutes: -10,
+    });
+    const outcome = applyDecisionRules(
+      buildInput({ eventType: null, confidence: "medium", result, statedResumeTime: stated }),
+    );
+    expect(outcome.action).toBe("wait");
+  });
+
+  it("原因が分かっていても、発表の時刻が分岐点より後なら待つと言わない", () => {
+    const result = buildResult({
+      minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
+      marginP50Minutes: -3,
+      marginP80Minutes: -13,
+    });
+    const stays = applyDecisionRules(
+      buildInput({
+        eventType: "person_collision",
+        confidence: "high",
+        result,
+        remainingBasis: "statistics",
+      }),
+    );
+    // 統計値の見込みなら、乗り換えの手間の分だけ余裕を見て待つ
+    expect(stays.action).toBe("wait");
+    const outcome = applyDecisionRules(
+      buildInput({
+        eventType: "person_collision",
+        confidence: "high",
+        result,
+        remainingBasis: "stated",
+        statedResumeTime: stated,
+      }),
+    );
+    expect(outcome).toEqual({
+      action: "switch",
+      reason: "resume_after_break_even",
       recommendedOptionId: "alt_1",
     });
   });
