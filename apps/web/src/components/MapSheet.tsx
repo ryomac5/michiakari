@@ -31,6 +31,11 @@ export const sheetTopInset = 76;
 // 上限は、駅間の前提のチップが並んでも注意書きが切れない高さにする
 const collapsedRange = { min: 160, max: 300, maxShare: 0.55, maxPx: 520 } as const;
 
+// 閉じた状態の高さ。要点に余白と端末の下の余白を足し、下限と上限の間に収める
+function computeCollapsedHeight(summary: number, viewport: number, min: number): number {
+  return clamp(Math.ceil(summary), min, computeCollapsedMax(viewport));
+}
+
 function computeCollapsedMax(viewport: number): number {
   return clamp(
     Math.round(viewport * collapsedRange.maxShare),
@@ -43,15 +48,29 @@ const flingMs = 160;
 const dragThresholdPx = 6;
 const desktopQuery = "(min-width: 1024px)";
 
-type Layout = { viewport: number; collapsed: number; top: number };
+// 半分の段で下端まで見せる部品の印。詳細の中にこの属性を持つ部品があれば、半分の段をその下端まで伸ばす
+export const sheetHalfEndAttribute = "data-sheet-half-end";
+// 半分の段で、印の部品の下に残す余白
+const halfEndGapPx = 12;
+
+// half は半分の段で見せたい高さ。印の部品が無ければ 0
+type Layout = { viewport: number; collapsed: number; top: number; half: number };
 
 function computeSnapHeight(snap: SheetSnap, layout: Layout): number {
   const full = layout.viewport - layout.top;
   if (snap === "full") return full;
   if (snap === "half") {
-    return Math.min(full, Math.max(layout.collapsed + 200, layout.viewport * 0.5));
+    return Math.min(full, Math.max(layout.collapsed + 200, layout.viewport * 0.5, layout.half));
   }
   return layout.collapsed;
+}
+
+// 印の部品の下端までを見せるシートの高さ。取っ手と要点の高さに、詳細の先頭から下端までを足す
+function measureHalfReveal(summaryEl: HTMLElement, contentEl: HTMLElement | null): number {
+  const end = contentEl?.querySelector(`[${sheetHalfEndAttribute}]`);
+  if (!contentEl || !end) return 0;
+  const bottom = end.getBoundingClientRect().bottom - contentEl.getBoundingClientRect().top;
+  return Math.ceil(20 + summaryEl.offsetHeight + bottom + halfEndGapPx);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -78,6 +97,7 @@ export function MapSheet({
   onSnapChange,
   onCollapsedHeightChange,
   topInset = sheetTopInset,
+  collapsedMin = collapsedRange.min,
   summary,
   children,
 }: {
@@ -88,6 +108,8 @@ export function MapSheet({
   onCollapsedHeightChange?: (height: number) => void;
   // 全部開いたときに上に残す高さ。リプレイは再生バーのぶん広げる
   topInset?: number;
+  // 閉じた状態の高さの下限。要点が短い画面では下げて、地図を広く残す
+  collapsedMin?: number;
   summary: ReactNode;
   children: ReactNode;
 }) {
@@ -97,6 +119,7 @@ export function MapSheet({
   const sectionRef = useRef<HTMLElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const suppressClickRef = useRef(false);
   const [layout, setLayout] = useState<Layout | null>(null);
@@ -113,26 +136,32 @@ export function MapSheet({
     function measure() {
       if (!summaryEl) return;
       // 取っ手の 20px と端末の下の余白を足す。要点の下の余白は要点の中に含む
-      const collapsed = clamp(
-        Math.ceil(summaryEl.offsetHeight + 20 + safeBottom),
-        collapsedRange.min,
-        computeCollapsedMax(window.innerHeight),
+      const collapsed = computeCollapsedHeight(
+        summaryEl.offsetHeight + 20 + safeBottom,
+        window.innerHeight,
+        collapsedMin,
       );
+      const half = measureHalfReveal(summaryEl, contentRef.current);
       setLayout((prev) =>
-        prev?.viewport === window.innerHeight && prev.collapsed === collapsed && prev.top === top
+        prev?.viewport === window.innerHeight &&
+        prev.collapsed === collapsed &&
+        prev.top === top &&
+        prev.half === half
           ? prev
-          : { viewport: window.innerHeight, collapsed, top },
+          : { viewport: window.innerHeight, collapsed, top, half },
       );
     }
     measure();
+    // 詳細の中身が判断の到着で変わったら、半分の段の高さを測り直す
     const observer = new ResizeObserver(measure);
     observer.observe(summaryEl);
+    if (contentRef.current) observer.observe(contentRef.current);
     window.addEventListener("resize", measure);
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [top, safeBottom]);
+  }, [top, safeBottom, collapsedMin]);
 
   useEffect(() => {
     if (layout) onCollapsedHeightChange?.(layout.collapsed);
@@ -308,7 +337,7 @@ export function MapSheet({
           snap !== "collapsed" ? "overflow-y-auto" : "overflow-hidden",
         )}
       >
-        {children}
+        <div ref={contentRef}>{children}</div>
       </div>
     </section>
   );

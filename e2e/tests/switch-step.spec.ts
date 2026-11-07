@@ -85,7 +85,8 @@ test.describe("通常画面の判断の変化", () => {
     await addInfo.getByTestId(testIds.situation.pasteInput).fill("振替輸送を実施しています。");
     await addInfo.getByTestId(testIds.situation.submit("paste")).click();
     await expect(conclusion).toHaveAttribute("data-action", "switch", { timeout: 30_000 });
-    await openSheet(page, "collapsed");
+    // 判断の変化は開いたシートの先頭に出す。閉じたシートは見出しと時刻と注意書きだけにする
+    await openSheet(page, "half");
     const change = page.getByTestId(testIds.judgment.change);
     await expect(change).toHaveAttribute("data-from", "wait");
     await expect(change).toHaveAttribute("data-to", "switch");
@@ -102,10 +103,8 @@ test.describe("通常画面の判断の変化", () => {
     // 振替輸送の発表は行動を変える手がかりではないので、読みの行は出さない
     await expect(page.getByTestId(testIds.judgment.changeReading)).toHaveCount(0);
     expect(
-      await conclusion.evaluate((element) =>
-        element.nextElementSibling?.getAttribute("data-testid"),
-      ),
-    ).toBe(testIds.judgment.change);
+      await change.evaluate((element) => element.parentElement?.getAttribute("data-testid")),
+    ).toBe(testIds.judgment.conclusionLead);
     await waitForFiniteAnimations(page);
     for (const locator of [conclusion, change, page.getByTestId(testIds.judgment.disclaimer)]) {
       await expect(locator).toBeInViewport({ ratio: 1 });

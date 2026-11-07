@@ -50,8 +50,6 @@ export type MapScene = {
   blockedLineIds: string[];
   // 止まっている区間。発表で区間が分かったときだけ、線路の形に沿って描く
   blocked: FeatureCollection<LineStringGeometry, { label: string }>;
-  // 区間を描けず、発表で確かめるよう添えるとき true。その列車だけが止まる事象では false
-  sectionUnconfirmed: boolean;
   // 止まった列車が走っていた線路の路線と道筋。その列車だけが止まるときも、現在地の印を置くのに使う
   trackLineIds: string[];
   trackPath: Position[] | null;
@@ -250,7 +248,8 @@ export function findStationPathOnLine(
   return path;
 }
 
-function buildPathCoordinates(
+// 同じ路線の 2 駅の間を、駅の並びに沿って線路の形から切り出す。並びが引けなければ 2 駅を結ぶ
+export function buildPathCoordinates(
   geo: MapGeo,
   lineId: string,
   from: StationNode,
@@ -258,14 +257,7 @@ function buildPathCoordinates(
 ): Position[] {
   const ids = findStationPathOnLine(geo.graph, lineId, from.stationId, to.stationId);
   if (ids === null) return [toPosition(from.lonLat), toPosition(to.lonLat)];
-  return buildCoordinates(geo, ids);
-}
-
-function buildCoordinates(geo: MapGeo, stationIds: readonly string[]): Position[] {
-  return stationIds.flatMap((id) => {
-    const node = geo.index.getStation(id);
-    return node ? [toPosition(node.lonLat)] : [];
-  });
+  return buildTrackThroughStations(geo, lineId, ids);
 }
 
 type ResolvedSection = { lineId: string; coordinates: Position[] };
@@ -902,7 +894,6 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
     blocked: buildFeatureCollection(
       blockedPath ? [buildLineFeature(blockedPath.coordinates, { label: blockedLabel })] : [],
     ),
-    sectionUnconfirmed: !input.trainOnly && blockedPath === null,
     reach: buildFeatureCollection(reach?.features ?? []),
     reachSource: reach?.source ?? null,
     reachableStations: buildFeatureCollection(

@@ -2,8 +2,15 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 import { formatStationName } from "@repo/geo";
-import type { Action, Place, RouteOption, Section, TrainPosition } from "@repo/schema";
-import { ChevronRight, LocateFixed, Route } from "lucide-react";
+import type {
+  Action,
+  AfterAlightStep,
+  Place,
+  RouteOption,
+  Section,
+  TrainPosition,
+} from "@repo/schema";
+import { ArrowRight, LocateFixed, RotateCcw, Route } from "lucide-react";
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -12,6 +19,7 @@ import { selectOptionTone } from "@/features/judgment/action-style";
 import { testIds } from "@/features/judgment/testids";
 import { prefersReducedMotion, useDocumentTheme } from "@/lib/use-document-theme";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { cn } from "@/lib/utils";
 import { buildAutoFocusArea } from "./auto-focus";
 import {
   type BoxSize,
@@ -23,20 +31,36 @@ import {
   projectToWorld,
   type Rect,
 } from "./bubble-layout";
+import { type EdgeMarker, placeEdgeMarker } from "./edge-marker";
 import type { BubblePlacement } from "./focus-areas";
 import { loadMapGeoData, type MapGeoData } from "./geo-data";
 import { selectMapLabels } from "./labels";
 import {
+  arrowLayerIds,
   buildBaseStyle,
   buildDataLayers,
+  drawRouteArrow,
+  flowLayerIds,
   listPaintValues,
   type MapMode,
   type MapPalette,
   type MapView,
   mapPalettes,
+  ROUTE_ARROW_IMAGE,
   sourceIds,
 } from "./layers";
 import { MapAttribution, mapAttributionHeight } from "./MapAttribution";
+import { installMapScale } from "./map-scale";
+import {
+  buildInCarMotion,
+  FLOW_DASH_FRAMES,
+  FLOW_DURATION_MS,
+  findPointAtFraction,
+  type InCarMotion,
+  type MotionPhase,
+  selectMotionPhase,
+  slicePathToFraction,
+} from "./motion";
 import { fetchReachAreas, type ReachArea } from "./reach";
 import {
   buildReachLabelRect,
@@ -94,15 +118,15 @@ export type MapPanelProps = {
   // その列車だけが止まる事象。止まった区間の線と「運転見合わせ」の札を描かない
   trainOnly?: boolean;
   insets: MapInsets;
-  // 発表に区間が無いとき「区間は発表で確かめる」を出すか。リプレイの再生前は出さない
-  showSectionNote?: boolean;
-  // 発表を貼る欄へ移る。渡したときだけ、区間の札の下に案内の文を出す
-  onAddAnnouncement?: () => void;
   onReachSourceChange?: (source: ReachSource | null) => void;
   // 現在地のまわりの案内。シートの選択肢の行に同じ印を添えるのに使う
   onGuideChange?: (guide: StationGuide | null) => void;
   // 吹き出しを押したとき。シートのその選択肢へ移る
   onSelectOption?: (optionId: string) => void;
+  // 駅間の車内の人が次の駅に着いた後の一手。降りた後に光らせる経路を引くのに使う
+  afterAlight?: AfterAlightStep | null;
+  // 判断が出た印。変わるたびに、車内の人の動きを 1 回再生する。判断が出る前は null
+  motionKey?: string | null;
   // 止まっている区間の両端を選んでいる間だけ渡す。路線の駅を押せる印にし、ほかの札は隠す
   sectionPick?: MapSectionPick | null;
 };
@@ -141,8 +165,12 @@ const viewToggleBox = { right: 12, bottom: 40, w: 140, h: 44, margin: 6 } as con
 const markRadius = 20;
 // 「表示中」の札の高さと上下の余白。駅の吹き出しで選んだ経路を示せないときだけ地図の上端に出す
 const selectedRouteTagSpace = 44;
-// 「区間は発表で確かめる」の札の高さと上下の余白。案内の文があれば 1 行ぶん足す
-const sectionNoteSpace = { plain: 44, withAction: 52 } as const;
+// 画面の外の行き先の札のおおよその大きさ。単位は px
+const destinationEdgeSize = { w: 136, h: 44 } as const;
+// 動きをもう一度見るボタンの置き場所。単位は px。地図の左下で、出典の行より上に置く
+const replayButtonBox = { left: 12, bottom: 40, size: 44, margin: 6 } as const;
+// 流れる模様の破線を次へ進める間隔。単位は ms
+const flowStepMs = 70;
 
 // 「全体を見る」のボタンが動き終えたあとの矩形。地図の左上が原点
 // 下の余白が変わるとボタンは 200ms かけて動く。動いている途中の矩形は測らず、余白から求める
@@ -231,14 +259,55 @@ function addDataLayers(map: MapLibreMap, geo: MapGeoData, palette: MapPalette, t
     sourceIds.guideWalkLabels,
     sourceIds.guideStations,
     sourceIds.reachLabels,
+    sourceIds.motionRide,
+    sourceIds.motionAfter,
   ]) {
     map.addSource(id, { type: "geojson", data: emptyCollection });
   }
+  if (!map.hasImage(ROUTE_ARROW_IMAGE))
+    map.addImage(ROUTE_ARROW_IMAGE, drawRouteArrow(), { pixelRatio: 2 });
   for (const layer of buildDataLayers(palette, tone)) map.addLayer(layer);
+  setArrowsVisible(map, false);
+  installMapScale(map);
 }
 
 function setSourceData(map: MapLibreMap, id: string, data: unknown): void {
   map.getSource<GeoJSONSource>(id)?.setData(data as Parameters<GeoJSONSource["setData"]>[0]);
+}
+
+function buildLineCollection(paths: readonly Position[][]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: paths
+      .filter((path) => path.length >= 2)
+      .map((coordinates) => ({
+        type: "Feature" as const,
+        geometry: { type: "LineString" as const, coordinates },
+        properties: {},
+      })),
+  };
+}
+
+// 向きの矢印を出すか。流れる模様を止めたあとと、動きを減らす設定のときに出す
+function setArrowsVisible(map: MapLibreMap, visible: boolean): void {
+  for (const id of arrowLayerIds) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+  }
+  for (const id of flowLayerIds) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visible ? "none" : "visible");
+  }
+}
+
+// 列車の印。乗っている列車を丸い札で示し、尾で線路の上の点を指す
+function createTrainElement(label: string): HTMLElement {
+  const el = document.createElement("div");
+  el.setAttribute("data-testid", mapTestIds.motionTrain);
+  el.setAttribute("role", "img");
+  el.setAttribute("aria-label", label);
+  el.className = "pointer-events-none flex flex-col items-center";
+  el.innerHTML =
+    '<span class="flex size-8 items-center justify-center rounded-full border-2 border-white bg-focus text-white shadow-[0_2px_8px_rgb(0_0_0/0.35)]"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3.1V7a4 4 0 0 0 8 0V3.1"/><path d="m9 15-1-1"/><path d="m15 15 1-1"/><path d="M9 19c-2.8 0-5-2.2-5-5v-4a8 8 0 0 1 16 0v4c0 2.8-2.2 5-5 5Z"/><path d="m8 19-2 3"/><path d="m16 19 2 3"/></svg></span><span class="-mt-0.5 size-0 border-x-[5px] border-t-[6px] border-x-transparent border-t-white"></span>';
+  return el;
 }
 
 function applyMapScene(map: MapLibreMap, scene: MapScene): void {
@@ -467,7 +536,24 @@ function layoutAutoPlacements(
       const { x, y } = toScreen(p);
       return { left: x - 40, right: x + 40, top: y - 11, bottom: y + 11 };
     }),
-    blockers: [toggle],
+    // 駅間の車内では、左下に動きをもう一度見るボタンがある
+    blockers: guide.alight
+      ? [
+          toggle,
+          {
+            left: insets.left + replayButtonBox.left - replayButtonBox.margin,
+            right:
+              insets.left + replayButtonBox.left + replayButtonBox.size + replayButtonBox.margin,
+            top:
+              height -
+              insets.bottom -
+              replayButtonBox.bottom -
+              replayButtonBox.size -
+              replayButtonBox.margin,
+            bottom: height - insets.bottom - replayButtonBox.bottom + replayButtonBox.margin,
+          },
+        ]
+      : [toggle],
   });
   return chooseStationLabelLayout(
     buildInput(false),
@@ -476,17 +562,26 @@ function layoutAutoPlacements(
   );
 }
 
-// 出発は丸、行き先はピン。色はテーマの文字色に合わせる
-function createPlaceElement(role: "origin" | "destination"): HTMLElement {
+// 出発は丸、行き先はピンと駅名の札。色はテーマの文字色に合わせる
+function createPlaceElement(role: "origin" | "destination", label: string): HTMLElement {
   const el = document.createElement("div");
-  el.setAttribute("aria-hidden", "true");
   if (role === "origin") {
+    el.setAttribute("aria-hidden", "true");
     el.className =
-      "size-[18px] rounded-full border-[3px] border-white bg-foreground shadow-[0_1px_6px_rgb(0_0_0/0.35)]";
+      "map-mark size-[18px] rounded-full border-[3px] border-white bg-foreground shadow-[0_1px_6px_rgb(0_0_0/0.35)]";
   } else {
-    el.className = "text-foreground drop-shadow-[0_2px_4px_rgb(0_0_0/0.3)]";
-    el.innerHTML =
+    el.setAttribute("data-testid", mapTestIds.destination);
+    el.className = "relative text-foreground";
+    const pin = document.createElement("div");
+    pin.setAttribute("aria-hidden", "true");
+    pin.className = "map-mark origin-bottom drop-shadow-[0_2px_4px_rgb(0_0_0/0.3)]";
+    pin.innerHTML =
       '<svg width="28" height="36" viewBox="0 0 28 36"><path d="M14 35c-6-8-12-13-12-20a12 12 0 0 1 24 0c0 7-6 12-12 20Z" fill="currentColor" stroke="white" stroke-width="2"/><circle cx="14" cy="14" r="4.5" fill="white"/></svg>';
+    const tag = document.createElement("p");
+    tag.className =
+      "absolute top-1 left-[30px] flex w-max items-center gap-1 rounded-full bg-foreground px-2 py-0.5 text-[12px] font-bold text-background shadow-[0_1px_6px_rgb(0_0_0/0.3)]";
+    tag.textContent = label;
+    el.append(pin, tag);
   }
   return el;
 }
@@ -574,6 +669,110 @@ export function useMarkerHosts(
   }, [entries]);
 
   return hosts;
+}
+
+// 車内の人の判断の動きを再生する。列車の印が次の駅まで動き、降りる印が出て、その先の経路が伸びる
+// 動きを減らす設定では、動かさずに最後の状態を出す。返す段は地図の枠の data-motion に出す
+function useInCarMotion(
+  map: MapLibreMap | null,
+  markerClass: typeof Marker | null,
+  motion: InCarMotion | null,
+  playKey: string | null,
+  trainLabel: string,
+): MotionPhase {
+  const [phase, setPhase] = useState<MotionPhase>("idle");
+
+  useEffect(() => {
+    if (!map) return;
+    if (!markerClass || !motion || playKey === null) {
+      setSourceData(map, sourceIds.motionRide, emptyCollection);
+      setSourceData(map, sourceIds.motionAfter, emptyCollection);
+      setPhase("idle");
+      return;
+    }
+    const start = motion.ride[0] as Position;
+    const marker = new markerClass({
+      element: createTrainElement(trainLabel),
+      anchor: "bottom",
+      offset: [0, -4],
+    })
+      .setLngLat(start)
+      .addTo(map);
+    // 列車の印は次の駅に着くまで出し、降りる印が出たら消す
+    const trainElement = marker.getElement();
+    trainElement.classList.add("transition-opacity", "duration-300");
+    const draw = (ride: Position[], after: Position[][], at: Position | null, arrived: boolean) => {
+      setSourceData(map, sourceIds.motionRide, buildLineCollection([ride]));
+      setSourceData(map, sourceIds.motionAfter, buildLineCollection(after));
+      if (at) marker.setLngLat(at);
+      trainElement.style.opacity = arrived ? "0" : "1";
+      trainElement.dataset.arrived = String(arrived);
+    };
+    if (prefersReducedMotion()) {
+      draw(motion.ride, motion.after, motion.ride.at(-1) ?? null, true);
+      setPhase("done");
+      return () => {
+        marker.remove();
+      };
+    }
+    let frame = 0;
+    const startedAt = performance.now();
+    const tick = (now: number) => {
+      const { phase: next, progress } = selectMotionPhase(now - startedAt);
+      const rideProgress = next === "ride" ? progress : 1;
+      const afterProgress = next === "route" ? progress : next === "done" ? 1 : 0;
+      draw(
+        slicePathToFraction(motion.ride, rideProgress),
+        afterProgress > 0 ? motion.after.map((p) => slicePathToFraction(p, afterProgress)) : [],
+        findPointAtFraction(motion.ride, rideProgress),
+        next !== "ride",
+      );
+      setPhase(next);
+      if (next !== "done") frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      marker.remove();
+    };
+  }, [map, markerClass, motion, playKey, trainLabel]);
+
+  return phase;
+}
+
+// 勧める動きの線に、進む向きへ流れる模様を付ける。しばらく流したら止め、向きは矢印で示す
+// 動きを減らす設定では流さず、はじめから矢印を出す
+function useRouteFlow(map: MapLibreMap | null, active: boolean, playKey: string): boolean {
+  const [flowing, setFlowing] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: playKey が変わるたびに流し直す
+  useEffect(() => {
+    if (!map) return;
+    if (!active || prefersReducedMotion()) {
+      setArrowsVisible(map, active);
+      setFlowing(false);
+      return;
+    }
+    setArrowsVisible(map, false);
+    setFlowing(true);
+    let step = 0;
+    const timer = window.setInterval(() => {
+      step = (step + 1) % FLOW_DASH_FRAMES.length;
+      for (const id of flowLayerIds) {
+        if (map.getLayer(id))
+          map.setPaintProperty(id, "line-dasharray", [...(FLOW_DASH_FRAMES[step] as number[])]);
+      }
+    }, flowStepMs);
+    const stop = window.setTimeout(() => {
+      window.clearInterval(timer);
+      setArrowsVisible(map, true);
+      setFlowing(false);
+    }, FLOW_DURATION_MS);
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(stop);
+    };
+  }, [map, active, playKey]);
+  return flowing;
 }
 
 // 地図を画面全体に敷く。大阪駅などでは現在地のまわりに寄せ、乗り換え候補の駅を吹き出しで出す
@@ -729,6 +928,12 @@ export function MapPanel(props: MapPanelProps) {
     ],
   );
 
+  const destinationName =
+    scene?.keyStations.features.find((f) => f.properties.role === "destination")?.properties.name ??
+    labels.destination;
+  const destinationLabel =
+    destination.kind === "station" ? `${t("destination")} ${destinationName}` : t("destination");
+
   // 手で整えた範囲が無い駅では、駅データと路線データから乗り換え候補を選ぶ
   const configuredArea = useMemo(() => findFocusArea(origin), [origin]);
   const sceneDestination = scene?.destination ?? null;
@@ -806,6 +1011,39 @@ export function MapPanel(props: MapPanelProps) {
   );
   const view: MapView = guide ? viewChoice : "overview";
 
+  // 駅間の車内の人の動き。いまの位置から次の駅まで動き、降りた後の経路を光らせる
+  const { afterAlight = null, motionKey = null } = props;
+  const builtMotion = useMemo(
+    () =>
+      geo && scene && guide?.alight && inCar && origin.kind === "station"
+        ? buildInCarMotion(geo, {
+            here: guide.here.position,
+            alight: guide.alight.position,
+            lineId: scene.trackLineIds[0] ?? null,
+            alightStation: origin.name,
+            destination,
+            afterAlight,
+          })
+        : null,
+    [geo, scene, guide, inCar, origin, destination, afterAlight],
+  );
+  // 地図の組み立てが繰り返されても、道筋が同じなら動きを再生し直さない
+  const motionSignature = builtMotion ? JSON.stringify(builtMotion) : "";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 道筋の中身が変わったときだけ作り直す
+  const motion = useMemo(() => builtMotion, [motionSignature]);
+  const [replayCount, setReplayCount] = useState(0);
+  const playKey = motionKey === null ? null : `${motionKey}#${replayCount}`;
+  const motionPhase = useInCarMotion(map, markerClass, motion, playKey, t("train"));
+  const routeGlow =
+    (scene?.route.features.some((f) => f.properties.mode === "ride") ?? false) ||
+    (motion !== null && motion.after.length > 0);
+  const flowActive = routeGlow || motion !== null;
+  const flowing = useRouteFlow(
+    map,
+    flowActive && (motion === null || motionPhase !== "idle"),
+    `${playKey ?? ""}|${scene?.route.features.length ?? 0}|${focusOptionId ?? ""}`,
+  );
+
   const { onReachSourceChange, onGuideChange, onSelectOption } = props;
   const reachSource = scene?.reachSource ?? null;
   useEffect(() => {
@@ -845,15 +1083,8 @@ export function MapPanel(props: MapPanelProps) {
       ? (guide?.stations.find((s) => s.recommended)?.key ?? null)
       : null;
   const floatingTag = chosenOption !== undefined && shownStationKey === null;
-  // 発表に区間が無いときは区間を描かず、発表で確かめるよう地図の上端に添える
-  const sectionNote =
-    !picking && (props.showSectionNote ?? true) && scene?.sectionUnconfirmed === true;
-  const { onAddAnnouncement } = props;
-  const sectionNoteHeight = sectionNote
-    ? sectionNoteSpace[onAddAnnouncement ? "withAction" : "plain"]
-    : 0;
   const { right, bottom, left } = props.insets;
-  const top = props.insets.top + (floatingTag ? selectedRouteTagSpace : 0) + sectionNoteHeight;
+  const top = props.insets.top + (floatingTag ? selectedRouteTagSpace : 0);
   const [measuredSizes, setMeasuredSizes] = useState<Record<string, BoxSize>>({});
   // 「全体を見る」のボタン。止まっている路線の札と到達範囲の札は、このボタンを避けて置く
   const viewToggleRef = useRef<HTMLButtonElement>(null);
@@ -1038,30 +1269,72 @@ export function MapPanel(props: MapPanelProps) {
     };
   }, [map, geo, scene, guide, mode, reachLabelCandidates, top, right, bottom, left]);
 
-  // 全体を見るときの出発と行き先のピン
+  // 全体を見るときの出発のピンと、いつも出す行き先のピンと駅名
   useEffect(() => {
     if (!map || !scene || !markerClass) return;
-    const entries: ["origin" | "destination", Position | null][] = [
-      ["origin", view === "overview" ? scene.origin : null],
-      ["destination", scene.destination],
+    const entries: ["origin" | "destination", Position | null, string][] = [
+      ["origin", view === "overview" ? scene.origin : null, ""],
+      ["destination", scene.destination, destinationLabel],
     ];
-    for (const [role, position] of entries) {
+    for (const [role, position, label] of entries) {
       const current = markersRef.current[role];
-      if (position === null) {
+      const stale = current && current.getElement().dataset.label !== label;
+      if (position === null || stale) {
         current?.remove();
         markersRef.current[role] = null;
-      } else if (current) {
-        current.setLngLat(position);
-      } else {
-        markersRef.current[role] = new markerClass({
-          element: createPlaceElement(role),
-          anchor: role === "origin" ? "center" : "bottom",
-        })
-          .setLngLat(position)
-          .addTo(map);
       }
+      if (position === null) continue;
+      const kept = markersRef.current[role];
+      if (kept) {
+        kept.setLngLat(position);
+        continue;
+      }
+      const element = createPlaceElement(role, label);
+      element.dataset.label = label;
+      markersRef.current[role] = new markerClass({
+        element,
+        anchor: role === "origin" ? "center" : "bottom",
+      })
+        .setLngLat(position)
+        .addTo(map);
     }
-  }, [map, scene, markerClass, view]);
+  }, [map, scene, markerClass, view, destinationLabel]);
+
+  // 行き先が画面の外にあれば、見える範囲の縁に向きと駅名の札を出す
+  const [destinationEdge, setDestinationEdge] = useState<EdgeMarker | null>(null);
+  useEffect(() => {
+    const target = scene?.destination ?? null;
+    if (!map || !target) {
+      setDestinationEdge(null);
+      return;
+    }
+    const place = () => {
+      const canvas = map.getCanvas();
+      const point = map.project(target);
+      const view = {
+        left: left + 8,
+        top: top + 8,
+        right: canvas.clientWidth - right - 8,
+        bottom: canvas.clientHeight - bottom - mapAttributionHeight - 8,
+      };
+      const next = placeEdgeMarker(point, view, destinationEdgeSize);
+      setDestinationEdge((previous) => {
+        if (next === null || previous === null) return next;
+        const same =
+          Math.abs(previous.x - next.x) < 1 &&
+          Math.abs(previous.y - next.y) < 1 &&
+          Math.abs(previous.angle - next.angle) < 1;
+        return same ? previous : next;
+      });
+    };
+    place();
+    map.on("move", place);
+    map.on("resize", place);
+    return () => {
+      map.off("move", place);
+      map.off("resize", place);
+    };
+  }, [map, scene, top, right, bottom, left]);
 
   useEffect(() => {
     if (map) applyMapStyle(map, palette, tone, mode);
@@ -1351,9 +1624,11 @@ export function MapPanel(props: MapPanelProps) {
       data-selected-option={focusOptionId ?? ""}
       data-route-tone={tone}
       data-blocked={scene ? scene.blocked.features.length > 0 : false}
-      data-section-note={sectionNote}
       data-blocked-points={blockedPath?.length ?? 0}
       data-reach-source={scene?.reachSource ?? ""}
+      data-motion={motionPhase}
+      data-route-glow={routeGlow}
+      data-flow={flowing ? "flowing" : flowActive ? "arrows" : "none"}
       aria-label={t("title")}
       className="fixed inset-0 z-0 bg-background"
     >
@@ -1403,13 +1678,21 @@ export function MapPanel(props: MapPanelProps) {
           );
         }
         if (key === "alight" && guide?.alight) {
+          // 列車が動いている間は隠し、次の駅に着いたところで出す
           return createPortal(
-            <AlightMarker
-              alight={guide.alight}
-              hideLabel={autoPlacements?.docked?.includes("alight")}
-              placement={autoPlacements?.placements.alight ?? "bottom"}
-              slide={autoPlacements?.slides.alight ?? 0}
-            />,
+            <div
+              className={cn(
+                "transition-[opacity,scale] duration-300 ease-out motion-reduce:transition-none",
+                motionPhase === "ride" ? "scale-50 opacity-0" : "scale-100 opacity-100",
+              )}
+            >
+              <AlightMarker
+                alight={guide.alight}
+                hideLabel={autoPlacements?.docked?.includes("alight")}
+                placement={autoPlacements?.placements.alight ?? "bottom"}
+                slide={autoPlacements?.slides.alight ?? 0}
+              />
+            </div>,
             element,
             key,
           );
@@ -1452,32 +1735,6 @@ export function MapPanel(props: MapPanelProps) {
           </span>
           <span className="truncate">{chosenOption.label}</span>
         </p>
-      )}
-      {sectionNote && (
-        // 区間が分からないことを 1 行の札で示す。押せるときは、発表を貼る欄へ移る
-        <div
-          data-testid={mapTestIds.sectionNote}
-          className="glass absolute z-10 flex items-center rounded-full text-[13px] font-semibold text-foreground"
-          style={{
-            top: props.insets.top + 8 + (floatingTag ? selectedRouteTagSpace : 0),
-            left: left + 12,
-            maxWidth: `calc(100% - ${left + right + 24}px)`,
-          }}
-        >
-          {onAddAnnouncement ? (
-            <button
-              type="button"
-              data-testid={mapTestIds.sectionNoteAction}
-              onClick={onAddAnnouncement}
-              className="flex min-h-11 items-center gap-1 rounded-full pr-2 pl-3.5 text-left"
-            >
-              {t("sectionUnconfirmed")}
-              <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
-            </button>
-          ) : (
-            <p className="px-3.5 py-2">{t("sectionUnconfirmed")}</p>
-          )}
-        </div>
       )}
       {sectionPick && (
         <div
@@ -1570,6 +1827,48 @@ export function MapPanel(props: MapPanelProps) {
           className="glass absolute z-10 flex size-11 items-center justify-center rounded-full text-foreground transition-[bottom] duration-200 disabled:opacity-0"
         >
           <LocateFixed className="size-5" strokeWidth={1.75} aria-hidden />
+        </button>
+      )}
+      {!picking && destinationEdge && view === "focus" && (
+        // 行き先が画面の外にあるとき、縁に向きと駅名を出す。押すと行き先まで収めた全体を見る
+        <button
+          type="button"
+          data-testid={mapTestIds.destinationEdge}
+          onClick={() => {
+            fittedRef.current = null;
+            setViewChoice("overview");
+          }}
+          className="glass absolute z-10 flex h-11 -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full px-3 text-[12px] font-bold whitespace-nowrap text-foreground"
+          style={{
+            left: destinationEdge.x,
+            top: destinationEdge.y,
+            maxWidth: destinationEdgeSize.w,
+          }}
+        >
+          <span className="truncate">{destinationLabel}</span>
+          <ArrowRight
+            className="size-3.5 shrink-0"
+            strokeWidth={2.5}
+            style={{ rotate: `${destinationEdge.angle}deg` }}
+            aria-hidden
+          />
+        </button>
+      )}
+      {!picking && motion && view === "focus" && (
+        <button
+          type="button"
+          data-testid={mapTestIds.motionReplay}
+          aria-label={t("replay")}
+          title={t("replay")}
+          disabled={motionKey === null}
+          onClick={() => setReplayCount((n) => n + 1)}
+          style={{
+            bottom: bottom + replayButtonBox.bottom,
+            left: left + replayButtonBox.left,
+          }}
+          className="glass absolute z-10 flex size-11 items-center justify-center rounded-full text-foreground transition-[bottom] duration-200 disabled:opacity-0 motion-reduce:hidden"
+        >
+          <RotateCcw className="size-5" strokeWidth={1.75} aria-hidden />
         </button>
       )}
       <MapAttribution

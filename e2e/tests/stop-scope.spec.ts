@@ -64,7 +64,7 @@ test("車両の故障では、その列車から止まるので、上部の札�
   await expect(page.getByTestId(testIds.judgment.screen)).not.toContainText("見合わせ");
 });
 
-test("人身事故では、上部の札に運転見合わせを出し、発表に区間が無ければ区間は発表で確かめると添える", async ({
+test("人身事故では、上部の札に運転見合わせを出し、発表に区間が無ければ区間も札も出さない", async ({
   page,
 }) => {
   await startOnLoopLine(page, "person");
@@ -72,7 +72,7 @@ test("人身事故では、上部の札に運転見合わせを出し、発表�
   await expect(status).toHaveAttribute("data-scope", "section");
   await expect(status).toContainText("見合わせ");
   await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "false");
-  await expect(page.getByTestId(mapTestIds.sectionNote)).toContainText("区間は発表で確かめる");
+  await expect(page.getByTestId(mapTestIds.sectionNote)).toHaveCount(0);
 });
 
 test("駅で待つ人には、車内の急病人・非常ボタンを後続の遅れとして伝え、見合わせと言わない", async ({

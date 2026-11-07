@@ -44,6 +44,8 @@ export const testIds = {
     // 進み具合の印。data-step に今の段の番号（0 から）を出す
     progress: "start-progress",
     direction: (key: string) => `start-direction-${key}`,
+    // 行き先の候補を方面ごとにまとめた塊。data-direction に方面の呼び名を出す
+    directionGroup: (key: string) => `start-group-direction-${key}`,
     // 地図の上の、方面・行き先・近い駅の札
     mapStop: (key: string) => `start-map-stop-${key}`,
     destinationUndecided: "start-destination-undecided",

@@ -1,6 +1,6 @@
 "use client";
 
-import { computeDistanceMeters } from "@repo/geo";
+import { computeDistanceMeters, createRouter } from "@repo/geo";
 import { Check, ChevronLeft, LoaderCircle } from "lucide-react";
 import type { PrefetchKind } from "next/dist/client/components/router-reducer/router-reducer-types";
 import { useRouter } from "next/navigation";
@@ -9,6 +9,11 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { AppHeader } from "@/components/AppHeader";
 import { sheetTopInset } from "@/components/MapSheet";
 import { Button } from "@/components/ui/button";
+import {
+  findGroupDirection,
+  groupDirectionCandidates,
+  groupLineStops,
+} from "@/features/entry/direction-groups";
 import {
   type DirectionStop,
   type EntryDirection,
@@ -98,6 +103,7 @@ import {
   selectRailTapOutcome,
   selectStopDirection,
 } from "@/features/entry/map-pick";
+import { buildRouteGlow, planEntrySpans } from "@/features/entry/route-glow";
 import { buildLineObservation } from "@/features/entry/seed";
 import {
   buildDefaultBetweenPosition,
@@ -214,8 +220,6 @@ export function StartScreen() {
   const mapStations = useMemo(() => (data ? listMapStations(data) : []), [data]);
   const hubs = useMemo(() => (data ? listEntryHubs(data) : []), [data]);
   const [entry, dispatch] = useReducer(reduceEntry, initialEntryState);
-  // 判断の画面から戻って判断を始める段に復元したときは、判断を自動で始めない
-  const skipAutoJudgeRef = useRef(false);
   // 様子を聞く段に入ったら判断の画面を JS まで先に読み、答えた後の切り替えを待たせない
   // PrefetchKind は公開されていないので、Link の prefetch={true} と同じ "full" を型だけ借りて渡す
   const askingSituation = situationStages.has(entry.stage);
@@ -241,6 +245,8 @@ export function StartScreen() {
     setIntroOpen(false);
   }, []);
   const depth = stageDepth(entry);
+  // 前の描画の段の深さ。進む操作で判断を始める段に着いたかを見分ける
+  const lastDepthRef = useRef(depth);
   const getDepth = (stage: Parameters<typeof stageDepth>[1]) => stageDepth(entry, stage);
   const [restored, setRestored] = useState(false);
   const goToDepth = useEntryHistory(depth, dispatch, restored);
@@ -294,13 +300,19 @@ export function StartScreen() {
     () => (lineStopMode ? listLineStops(directions) : []),
     [lineStopMode, directions],
   );
+  // 路線の駅を方面ごとにまとめる。上りと下りの駅を混ぜずに見せる
+  const lineStopGroups = useMemo(
+    () => (lineStopMode ? groupLineStops(directions) : []),
+    [lineStopMode, directions],
+  );
 
   // 判断から戻る際は、実際に通った分岐と履歴をそのまま復元する。
   useEffect(() => {
     if (!data || restored) return;
     setRestored(true);
     if (!tripContext?.entryState || !originLine) return;
-    skipAutoJudgeRef.current = true;
+    // 判断の画面から戻って復元した段では、判断を自動で始めない
+    lastDepthRef.current = stageDepth(tripContext.entryState);
     dispatch({ type: "restore", state: tripContext.entryState });
     setDestinationBasis(tripContext.destinationBasis);
     setBetweenFromPattern(tripContext.trainsAheadFromPattern ?? false);
@@ -449,9 +461,7 @@ export function StartScreen() {
     rememberStationName(choice.from.name, choice.from.nameEn);
     rememberStationName(choice.to.name, choice.to.nameEn);
     setPickedSection(choice);
-    setLastBetween(
-      computeMidpoint([choice.from.lon, choice.from.lat], [choice.to.lon, choice.to.lat]),
-    );
+    setLastBetween(computeMidpoint(choice.fromPosition, choice.toPosition));
     setOrigin({ kind: "station", name: choice.from.name });
     setOriginNearest(null);
     setOriginLine(choice.line);
@@ -597,8 +607,9 @@ export function StartScreen() {
   }
 
   // 先に選んだ路線の駅を行き先にする。方面は出発の駅からの駅の数が少ない向きにする
-  function chooseLineStop(stop: DirectionStop) {
-    const chosen = selectStopDirection(directions, stop.choice.id);
+  // 方面のまとまりから押したときは、そのまとまりの方面にする。駅の数の少ない向きと同じ方面になる
+  function chooseLineStop(stop: DirectionStop, via?: EntryDirection) {
+    const chosen = via ?? selectStopDirection(directions, stop.choice.id);
     if (!chosen) return;
     rememberStationName(stop.choice.name, stop.choice.nameEn);
     setDestination({ kind: "station", name: stop.choice.name });
@@ -626,9 +637,11 @@ export function StartScreen() {
     dispatch({ type: "chooseDirection", direction: chosen.key });
   }
 
+  // via は方面のまとまりから押したときの、そのまとまりの方面
   function chooseDestination(
     target: StationChoice | string,
     basis: TripContext["destinationBasis"] = "chosen",
+    via?: EntryDirection,
   ) {
     const choice = typeof target === "string" && data ? findStationChoice(data, target) : target;
     if (choice && typeof choice !== "string") {
@@ -656,7 +669,11 @@ export function StartScreen() {
         abandonSegment();
         return;
       }
-      const travel = targetChoice ? inferSegmentTravel(segmentTravels, targetChoice) : null;
+      // 行き先から向きが決まらないときだけ、押した駅のまとまりの方面を使う
+      const travel = targetChoice
+        ? (inferSegmentTravel(segmentTravels, targetChoice) ??
+          (via ? resolveSegmentTravel(segmentTravels, via) : null))
+        : null;
       const applied = travel !== null && applyBetween(travel);
       dispatch({
         type: "chooseDestination",
@@ -768,15 +785,15 @@ export function StartScreen() {
 
   // 行き先まで答えて判断を始める段に着いたら、そのまま判断を始める
   const readyToJudge = entry.stage === "cause" && direction !== null && origin !== null;
+  // 進む操作で着いたときだけ始める。戻る操作や復元で着いたときは始めない
   // biome-ignore lint/correctness/useExhaustiveDependencies: 段に着いたときだけ始める。submit は描画ごとに作り直される
   useEffect(() => {
-    if (!restored || !readyToJudge) return;
-    if (skipAutoJudgeRef.current) {
-      skipAutoJudgeRef.current = false;
-      return;
-    }
+    if (!restored) return;
+    const advanced = depth > lastDepthRef.current;
+    lastDepthRef.current = depth;
+    if (!readyToJudge || !advanced) return;
     void submit();
-  }, [restored, readyToJudge]);
+  }, [restored, readyToJudge, depth]);
 
   // 関西の段はシートを出さない。線を押して駅の間の候補が出たときだけ、候補のシートを出す
   const showSheet = entry.stage !== "kansai" || mapPick !== null;
@@ -834,6 +851,48 @@ export function StartScreen() {
   const candidates = direction
     ? mergeRouteCandidates(routeStops, listDirectionCandidates(direction))
     : mergeDirectionCandidates(suggestedDirections);
+  // 駅の間にいて方面がまだ無い人には、行き先の候補を方面ごとにまとめて出す
+  const destinationGroups =
+    entry.stage === "destination" && onTrain && entry.segment && !direction
+      ? groupDirectionCandidates(stepDirections)
+      : [];
+  // 地図の駅の札に、その駅のまとまりの方面の向きを添える
+  const shownGroups = lineStopMode ? lineStopGroups : destinationGroups;
+  const headingOf = (stationId: string) => {
+    const owner = findGroupDirection(shownGroups, stationId);
+    return owner ? (angles[owner.key] ?? 0) : undefined;
+  };
+  const routeFinder = useMemo(() => (geo ? createRouter(geo.network) : null), [geo]);
+  // 行き先を選んだら、今いる所から行き先までを乗る区間ごとに光らせる
+  const routeGlow = useMemo(() => {
+    if (!data || !askingSituation || !entry.line || !destinationChoice)
+      return buildRouteGlow([], undefined, new Map());
+    const { spans, onDirection } = planEntrySpans({
+      data,
+      router: routeFinder,
+      line: entry.line,
+      direction,
+      loopDirections: isLoopAt(data, entry.line) ? directions : [],
+      destination: destinationChoice,
+      departureTime: new Date().toISOString(),
+    });
+    return buildRouteGlow(
+      spans,
+      geo?.trackShapes,
+      geo?.lineColors ?? new Map(),
+      between && onDirection,
+    );
+  }, [
+    data,
+    geo,
+    routeFinder,
+    askingSituation,
+    entry.line,
+    direction,
+    directions,
+    destinationChoice,
+    between,
+  ]);
   const routeCandidates =
     data && entry.place && destinationChoice
       ? inferEntryRoutes(data, entry.place, destinationChoice)
@@ -897,14 +956,16 @@ export function StartScreen() {
     entry.segment.to === pickedSection.to.name
       ? pickedSection
       : null;
+  // 行き先までの線路を光らせている間は、駅の間の光りをその光に任せる
+  const routeShown = routeGlow.features.length > 0;
   const sectionGlow = useMemo(
     () =>
       buildSectionGlow(
-        mapPick?.choices ?? (keptSection ? [keptSection] : []),
+        mapPick?.choices ?? (keptSection && !routeShown ? [keptSection] : []),
         focusedChoiceKey,
         geo?.trackShapes,
       ),
-    [mapPick, keptSection, focusedChoiceKey, geo],
+    [mapPick, keptSection, routeShown, focusedChoiceKey, geo],
   );
   // 地図の札で選べる路線。行き先の段では駅の全部の路線、路線の段では一覧と同じ路線
   const pickLines =
@@ -1008,6 +1069,7 @@ export function StartScreen() {
         ...tags,
         ...routeLineStops.map((stop) => ({
           ...toStop(`pick-${stop.choice.id}`, stop),
+          heading: headingOf(stop.choice.id),
           keep: true,
         })),
       ];
@@ -1028,9 +1090,10 @@ export function StartScreen() {
         : candidates;
       return [
         ...lineStops,
-        ...pickSpreadStops(nearCandidates, from).map((stop) =>
-          toStop(`destination-${stop.choice.id}`, stop),
-        ),
+        ...pickSpreadStops(nearCandidates, from).map((stop) => ({
+          ...toStop(`destination-${stop.choice.id}`, stop),
+          heading: headingOf(stop.choice.id),
+        })),
       ];
     }
     // 先に方面を選んだ人には、方面の先の駅を近い順に名前付きで出す
@@ -1116,10 +1179,11 @@ export function StartScreen() {
       if (chosen) chooseDirection(chosen);
     } else if (kind === "pick") {
       const stop = routeLineStops.find((c) => c.choice.id === id);
-      if (stop) chooseLineStop(stop);
+      if (stop) chooseLineStop(stop, findGroupDirection(lineStopGroups, id) ?? undefined);
     } else if (kind === "destination") {
       const stop = candidates.find((c) => c.choice.id === id);
-      if (stop) chooseDestination(stop.choice);
+      const via = findGroupDirection(destinationGroups, id) ?? undefined;
+      if (stop) chooseDestination(stop.choice, "chosen", via);
     } else if (kind === "near") {
       const stop = nearby.find((c) => c.choice.id === id);
       if (stop) chooseNearStop(stop);
@@ -1146,6 +1210,7 @@ export function StartScreen() {
         onSelectSegment={selectMapSegment}
         placeSide={placeSide}
         destination={destinationMarker}
+        route={routeGlow}
         stops={mapStops}
         focus={
           entry.stage === "trainPosition"
@@ -1225,8 +1290,10 @@ export function StartScreen() {
               entry.stage === "between" ||
               routeStops.length > 0
             }
-            // 様子を聞く段は地図を使わないので、地図を覆って選択肢を詰めて並べる
-            fill={situationStages.has(entry.stage)}
+            // 行き先を選んだ直後の段は、光る経路が見えるよう地図の帯を残してシートを低くする
+            trip={entry.stage === "cause" && routeShown}
+            // ほかの様子を聞く段は地図を使わないので、地図を覆って選択肢を詰めて並べる
+            fill={situationStages.has(entry.stage) && !(entry.stage === "cause" && routeShown)}
             progress={progressIndex >= 0 ? <EntryProgress index={progressIndex} /> : null}
           >
             {(entry.stage === "kansai" || entry.stage === "area") && mapPick && (
@@ -1275,7 +1342,7 @@ export function StartScreen() {
                 line={entry.line}
                 directions={stepDirections}
                 angles={angles}
-                stops={routeLineStops}
+                groups={lineStopGroups}
                 onSelect={chooseDirection}
                 onSelectStop={chooseLineStop}
               />
@@ -1286,9 +1353,12 @@ export function StartScreen() {
                 line={entry.line}
                 direction={direction}
                 candidates={candidates}
+                groups={destinationGroups}
+                angles={angles}
                 routeLines={pickLines}
                 allowUndecided={onTrain}
                 onSelect={(station) => chooseDestination(station)}
+                onSelectGroupStop={(stop, via) => chooseDestination(stop.choice, "chosen", via)}
                 onSelectLine={pickRouteLine}
                 onUndecided={chooseUndecided}
                 onFreeText={(text) => chooseDestination(text)}

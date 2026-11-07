@@ -17,7 +17,7 @@ import {
   listNearbyStops,
   pickFallbackStop,
 } from "./directions";
-import { type EntryData, type EntryLine, listGroupLines } from "./entry-places";
+import { type EntryData, type EntryLine, listGroupLines, type Position } from "./entry-places";
 import { measurePathDistance } from "./map-pick";
 
 // 現在地から読み取った候補を、入口で 1 回押せば確定できる形にする。位置は端末の外へ出さない
@@ -37,6 +37,9 @@ export type GpsChoice =
       line: EntryLine;
       from: StationChoice;
       to: StationChoice;
+      // その路線の 2 駅の位置。同じ名前の駅をまとめた from と to の位置は、別の会社の駅のことがある
+      fromPosition: Position;
+      toPosition: Position;
       distanceMeters: number;
     };
 
@@ -228,6 +231,8 @@ function convertCandidates(data: EntryData, candidates: PositionCandidate[]): Gp
         line,
         from,
         to,
+        fromPosition: [c.from.lonLat[0], c.from.lonLat[1]],
+        toPosition: [c.to.lonLat[0], c.to.lonLat[1]],
         distanceMeters: c.distanceMeters,
       });
   }

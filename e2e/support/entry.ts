@@ -14,6 +14,18 @@ export async function backToTrip(page: Page): Promise<void> {
   await page.getByTestId(testIds.judgment.backButton).click();
   await expectStage(page, "cause");
   await expect(page.getByTestId(testIds.start.trip)).toBeVisible();
+  // 戻った段と端末の履歴の深さがそろうまで待つ。そろう前に戻ると、入口の段が動かない
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const depth = (window.history.state as { entryDepth?: number } | null)?.entryDepth;
+        return typeof depth === "number";
+      }),
+    )
+    .toBe(true);
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
 }
 
 // 駅の間の段で、両側の 2 つの駅名から駅の間を出す。確かめる前で止める

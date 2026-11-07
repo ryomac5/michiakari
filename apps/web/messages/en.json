@@ -148,7 +148,9 @@
       "confidence": "Outlook certainty: {level}",
       "live": "Advice: {action}. {headline}",
       "next": "Next step",
-      "reasonTitle": "Why"
+      "reasonTitle": "Why",
+      "arriveAt": "Arrive at {station} around {time}",
+      "arrive": "Arrive around {time}"
     },
     "confidence": {
       "low": "low",
@@ -191,6 +193,16 @@
       },
       "untilLabel": "until cutoff",
       "detailTitle": "Reading the cutoff"
+    },
+    "resumeBand": {
+      "inCarTitle": "Train moves",
+      "range": "{from}–{to}",
+      "arrival": "{station} {time}",
+      "inCarLabel": "Train moves {range}. Arrive at {station} around {time}",
+      "inCarLabelNoArrival": "Train moves {range}",
+      "title": "Restart outlook",
+      "breakEven": "Cutoff",
+      "label": "Restart outlook. Service becomes likely between {from} and {to}. Cutoff {breakEven}"
     },
     "resumeChance": {
       "title": "Chance service is running",
@@ -499,7 +511,6 @@
     "viewFocus": "Around you",
     "changeAt": "change at {station}",
     "transferShort": "Transfer",
-    "sectionUnconfirmed": "Check the section in the announcement",
     "between": "between {from} and {to}",
     "alight": "Get off at",
     "walkShort": "{minutes} min walk",
@@ -507,7 +518,10 @@
       "first": "Tap a station at one end of the suspended section",
       "second": "Tap the station at the other end",
       "cancel": "Cancel"
-    }
+    },
+    "destination": "To",
+    "train": "Your train",
+    "replay": "Play the move again"
   },
   "about": {
     "title": "About Michiakari",
@@ -584,8 +598,6 @@
     "directionQuestion": "Pick your direction",
     "directionHint": "Pick the direction your train is going.",
     "lineStopQuestion": "Pick a station or direction",
-    "lineStopHint": "Pick a station to set your destination. We choose the direction for you.",
-    "lineStopsLabel": "Stations on this line",
     "directionName": "Toward {names}",
     "destinationHint": "Major stations toward {direction}.",
     "destinationUndecided": "Not sure yet",

@@ -262,7 +262,6 @@ export function ReplayPlayer({
         blockedSection={started ? (lastWithSection?.section ?? null) : null}
         blockedLine={blockedLine}
         trainOnly={stopScope === "train"}
-        showSectionNote={started}
         insets={chrome.insets}
         onReachSourceChange={setReachSource}
         onGuideChange={setGuide}
