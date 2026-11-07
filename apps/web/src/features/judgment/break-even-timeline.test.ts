@@ -1,3 +1,4 @@
+import { resolveFirstTrainWait } from "@repo/core";
 import type { JudgmentEvent } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import {
@@ -125,7 +126,7 @@ describe("期限と判断からの値の選び方", () => {
     expect(timeline.positions.deadline).toBeNull();
   });
 
-  it("分岐点と残り時間があるときだけ図の値を作り、初列車待ちは仮の目安から引く", () => {
+  it("分岐点と残り時間があるときだけ図の値を作り、初列車待ちは core の規則表から引く", () => {
     const ready = applyEvents(startJudgmentRun(createJudgmentState()), events);
     const display = selectJudgmentDisplay(ready);
     const judgment = display.settled?.judgment;
@@ -138,9 +139,14 @@ describe("期限と判断からの値の選び方", () => {
       deadline: null,
       action: judgment.action,
     });
-    expect(estimateFirstTrainWait("person_accident")).toBe(10);
-    expect(estimateFirstTrainWait("unknown_event")).toBe(0);
-    expect(estimateFirstTrainWait(null)).toBe(0);
+    expect(estimateFirstTrainWait("person_collision")).toBe(
+      resolveFirstTrainWait("person_collision").p50,
+    );
+    expect(estimateFirstTrainWait("medical_response")).toBe(
+      resolveFirstTrainWait("medical_response").p50,
+    );
+    expect(estimateFirstTrainWait("unknown_event")).toBe(resolveFirstTrainWait(null).p50);
+    expect(estimateFirstTrainWait(null)).toBe(resolveFirstTrainWait(null).p50);
     const noRemaining = {
       at: at("22:00"),
       judgment: { ...judgment, estimate: { ...judgment.estimate, remaining: null } },

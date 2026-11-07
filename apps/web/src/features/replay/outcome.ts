@@ -47,8 +47,7 @@ export function buildReplayDecision(
   };
 }
 
-// 初列車待ちは、判断が特定した事象から分岐点の図と同じ求め方で引く
-// TODO: packages/core の resolveFirstTrainWait ができたら置き換える
+// 初列車待ちは、判断が特定した事象から分岐点の図と同じく core の規則表で引く
 function selectFirstTrainWait(decisions: readonly ReplayDecisionRecord[]): number {
   const eventType = decisions.findLast((d) => d.eventType !== null)?.eventType ?? null;
   return estimateFirstTrainWait(eventType);

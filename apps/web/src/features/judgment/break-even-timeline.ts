@@ -1,3 +1,4 @@
+import { resolveFirstTrainWait, resolveIncidentType } from "@repo/core";
 import type { Action, DurationDist, Judgment } from "@repo/schema";
 
 // 分岐点の時間軸の図に使う表示用の値。判断の数値は agent の値をそのまま使い、位置と区間だけを求める
@@ -97,18 +98,10 @@ function selectDeadlineOnAxis(
   return ms >= startMs && ms <= coreEndMs + maxDeadlineReachMinutes * MS_PER_MINUTE ? ms : null;
 }
 
-// 再開から乗れる列車が来るまでの仮の目安（分）。知見の抜粋をやめる前と同じ値を置く
-// TODO: packages/core の resolveFirstTrainWait ができたら置き換える
-const provisionalFirstTrainWaitMinutes: Readonly<Record<string, number>> = {
-  person_accident: 10,
-  in_car_response: 2,
-  vehicle_failure: 5,
-  heavy_rain: 15,
-};
-
-// 事象が分からなければ 0 とみなす。図の説明に「おおよそ」と添える
+// 再開から乗れる列車が来るまでの分。core の規則表の中央値を使う
+// 事象が分からなければ、区間が止まるものとみなす core の値になる
 export function estimateFirstTrainWait(eventType: string | null): number {
-  return eventType === null ? 0 : (provisionalFirstTrainWaitMinutes[eventType] ?? 0);
+  return resolveFirstTrainWait(resolveIncidentType({ eventType })).p50;
 }
 
 export function selectTimelineBasis(
