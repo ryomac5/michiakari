@@ -69,28 +69,56 @@ test("再開見込みの問いの上で乗車券の種類を聞き、既定は�
   await page.screenshot({ path: `${screenshotDir}question-pass.png` });
 });
 
-test("IC カードなら乗り換え先に運賃がかかると出し、定期券なら振替の対象と出す", async ({
+// 判断の画面で発表の文を貼り、判断を出し直す
+async function pasteAnnouncement(page: Page, text: string): Promise<void> {
+  const addInfo = page.getByTestId(testIds.judgment.addInfo);
+  await addInfo.scrollIntoViewIfNeeded();
+  // 貼る欄が開いたままなら、そのまま貼る
+  const input = addInfo.getByTestId(testIds.situation.pasteInput);
+  if (!(await input.isVisible())) await addInfo.getByTestId(testIds.situation.tab("paste")).click();
+  await input.fill(text);
+  await addInfo.getByTestId(testIds.situation.submit("paste")).click();
+  await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready", {
+    timeout: 30_000,
+  });
+}
+
+async function expectFares(page: Page, fare: string, text: string): Promise<void> {
+  const fares = page.getByTestId(testIds.judgment.optionFare);
+  await expect(fares.first()).toBeVisible();
+  for (const item of await fares.all()) {
+    await expect(item).toHaveAttribute("data-fare", fare);
+    await expect(item).toHaveText(text);
+  }
+}
+
+test("IC カードなら乗り換え先に運賃がかかると出し、定期券は振替の発表を見てから振替の対象と出す", async ({
   page,
 }) => {
   await judgeWithTicket(page, "ic");
-  const icFares = page.getByTestId(testIds.judgment.optionFare);
-  await expect(icFares.first()).toBeVisible();
-  for (const fare of await icFares.all()) {
-    await expect(fare).toHaveAttribute("data-fare", "fare_required");
-    await expect(fare).toHaveText("運賃がかかります");
-  }
+  await expectFares(page, "fare_required", "運賃がかかります");
   // 推定である旨の注意書きは残る
   await expect(page.getByTestId(testIds.judgment.screen)).toContainText("推定");
-  await icFares.first().scrollIntoViewIfNeeded();
+  await page.getByTestId(testIds.judgment.optionFare).first().scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${screenshotDir}judgment-ic.png` });
 
+  // 定期券は、振替輸送の実施が分からないうちは費用を出さない
   await judgeWithTicket(page, "commuter_pass");
-  const passFares = page.getByTestId(testIds.judgment.optionFare);
-  await expect(passFares.first()).toBeVisible();
-  for (const fare of await passFares.all()) {
-    await expect(fare).toHaveAttribute("data-fare", "covered");
-    await expect(fare).toHaveText("振替の対象");
-  }
-  await passFares.first().scrollIntoViewIfNeeded();
+  await expect(page.getByTestId(testIds.judgment.option("wait"))).toBeVisible();
+  await expect(page.getByTestId(testIds.judgment.optionFare)).toHaveCount(0);
+
+  // 振替先が書かれていない発表なら、振替の対象になりうるにとどめる
+  await pasteAnnouncement(page, "振替輸送を行っています。");
+  await expectFares(page, "possibly_covered", "振替の対象になりえます");
+
+  // 振替先に阪急と阪神が書かれた発表なら、振替の対象と出す
+  await pasteAnnouncement(page, "阪急線、阪神線で振替輸送を行っています。");
+  await expectFares(page, "covered", "振替の対象");
+  await openSheet(page, "full");
+  await page.getByTestId(testIds.judgment.optionFare).first().scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${screenshotDir}judgment-pass.png` });
+
+  // 振替輸送を行わないとあれば、定期券でも運賃がかかる
+  await pasteAnnouncement(page, "振替輸送は行っておりません。");
+  await expectFares(page, "fare_required", "運賃がかかります");
 });

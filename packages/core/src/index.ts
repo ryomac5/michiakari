@@ -249,6 +249,7 @@ export {
   type ApplyTransferFaresInput,
   applyTransferFares,
   decideTransferFare,
+  findOperatorKeysInText,
   resolveLineOperator,
   type TransferFareInput,
 } from "./transfer-fare.ts";

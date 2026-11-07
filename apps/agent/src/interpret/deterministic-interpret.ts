@@ -13,6 +13,7 @@ import {
   parseLine,
   parseSection,
   parseStatedResumeTime,
+  parseTransferOperators,
   parseTransferServiceActive,
 } from "./parse-text.ts";
 import { matchCueSentences, matchIncidentPhrase } from "./text-match.ts";
@@ -57,6 +58,7 @@ export function interpretText(input: TextInput, ctx: InterpretContext): Observat
     section: parseSection(input.text),
     statedResumeTime: parseStatedResumeTime(input.text, ctx.observedAt),
     transferServiceActive: parseTransferServiceActive(input.text),
+    transferOperators: parseTransferOperators(input.text),
     detectedSignals: buildCueSignals(input.text, eventType),
   };
 }

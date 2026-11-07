@@ -224,6 +224,7 @@
       "transferService": "Transfer service",
       "transferFare": {
         "covered": "Transfer service applies",
+        "possibly_covered": "Transfer service may apply",
         "fare_required": "Fare required"
       },
       "pending": "Checking",

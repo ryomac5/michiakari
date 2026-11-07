@@ -14,7 +14,10 @@ function findJudgment(events: JudgmentEvent[]): Judgment {
   return ready.judgment;
 }
 
-function buildObservation(transferServiceActive: boolean | null): Observation {
+function buildObservation(
+  transferServiceActive: boolean | null,
+  transferOperators: string[] = [],
+): Observation {
   return {
     id: "entry-line",
     observedAt: addMinutesToIso(now, -10),
@@ -25,6 +28,7 @@ function buildObservation(transferServiceActive: boolean | null): Observation {
     section: { fromStation: "大阪", toStation: "三ノ宮" },
     statedResumeTime: null,
     transferServiceActive,
+    transferOperators,
     detectedSignals: [],
   };
 }
@@ -32,9 +36,10 @@ function buildObservation(transferServiceActive: boolean | null): Observation {
 function buildRequest(
   ticketType: TicketType | null,
   transferServiceActive: boolean | null = null,
+  transferOperators: string[] = [],
 ): JudgeRequest {
   return {
-    observations: [buildObservation(transferServiceActive)],
+    observations: [buildObservation(transferServiceActive, transferOperators)],
     newInput: { type: "selection", eventType: "person_accident", signalIds: [] },
     origin: { kind: "station", name: "塚本" },
     destination: { kind: "station", name: "三ノ宮" },
@@ -56,11 +61,25 @@ function listFares(judgment: Judgment) {
 }
 
 describe("乗車券の種類と乗り換え先の費用", () => {
-  it("定期券なら、他社の線への乗り換えは振替の対象になる", async () => {
+  it("振替輸送の実施が分からなければ、定期券には何も出さない", async () => {
     const judgment = findJudgment(await postJudge(app, buildRequest("commuter_pass")));
+    expect(listFares(judgment)).toEqual([]);
+  });
+
+  it("発表の振替先に乗り換え先の会社が書かれていれば、定期券は振替の対象", async () => {
+    const judgment = findJudgment(
+      await postJudge(app, buildRequest("commuter_pass", true, ["阪急", "阪神"])),
+    );
     const fares = listFares(judgment);
     expect(fares.length).toBeGreaterThan(0);
     expect(fares.every((fare) => fare === "covered")).toBe(true);
+  });
+
+  it("発表に振替先が書かれていなければ、定期券は振替の対象になりうるにとどめる", async () => {
+    const judgment = findJudgment(await postJudge(app, buildRequest("paper", true)));
+    const fares = listFares(judgment);
+    expect(fares.length).toBeGreaterThan(0);
+    expect(fares.every((fare) => fare === "possibly_covered")).toBe(true);
   });
 
   it("IC カードなら、他社の線への乗り換えに運賃がかかる", async () => {
@@ -70,21 +89,25 @@ describe("乗車券の種類と乗り換え先の費用", () => {
     expect(fares.every((fare) => fare === "fare_required")).toBe(true);
   });
 
-  it("乗車券が分からなければ、費用の印を付けない", async () => {
+  it("乗車券が分からず振替なしの発表も無ければ、費用の印を付けない", async () => {
     const judgment = findJudgment(await postJudge(app, buildRequest(null)));
     expect(listFares(judgment)).toEqual([]);
   });
 
-  it("発表に振替輸送を行わないとあれば、定期券でも運賃がかかる", async () => {
-    const judgment = findJudgment(await postJudge(app, buildRequest("commuter_pass", false)));
-    const fares = listFares(judgment);
-    expect(fares.length).toBeGreaterThan(0);
-    expect(fares.every((fare) => fare === "fare_required")).toBe(true);
+  it("発表に振替輸送を行わないとあれば、乗車券によらず運賃がかかる", async () => {
+    for (const ticket of ["commuter_pass", null] as const) {
+      const judgment = findJudgment(await postJudge(app, buildRequest(ticket, false)));
+      const fares = listFares(judgment);
+      expect(fares.length).toBeGreaterThan(0);
+      expect(fares.every((fare) => fare === "fare_required")).toBe(true);
+    }
   });
 
   it("振替輸送の実施中なら、定期券は振替の対象で、IC カードは振替の選択肢でも運賃がかかる", async () => {
-    const pass = findJudgment(await postJudge(app, buildRequest("commuter_pass", true)));
-    const ic = findJudgment(await postJudge(app, buildRequest("ic", true)));
+    const pass = findJudgment(
+      await postJudge(app, buildRequest("commuter_pass", true, ["阪急", "阪神"])),
+    );
+    const ic = findJudgment(await postJudge(app, buildRequest("ic", true, ["阪急", "阪神"])));
     const passPick = pass.options.find((o) => o.id === pass.recommendedOptionId);
     const icPick = ic.options.find((o) => o.id === ic.recommendedOptionId);
     expect(passPick?.isTransferService).toBe(true);

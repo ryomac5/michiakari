@@ -1,4 +1,8 @@
-import { applyTransferFares, rankAlternativesForProtection } from "@repo/core";
+import {
+  applyTransferFares,
+  normalizeOperatorKey,
+  rankAlternativesForProtection,
+} from "@repo/core";
 import type { Observation, RouteOption, Section } from "@repo/schema";
 import { SectionSchema } from "@repo/schema";
 import { z } from "zod";
@@ -62,10 +66,25 @@ function buildAssumedTrainSection(ctx: ToolContext): Section | null {
   return toStation ? { fromStation: position.previousStation, toStation } : null;
 }
 
-// 待つ選択肢が乗る路線。止まっている会社を決めるのに使う
-function findWaitLineId(options: readonly RouteOption[], waitOptionId: string): string | null {
-  const wait = options.find((o) => o.id === waitOptionId);
-  return wait?.legs.find((leg) => leg.mode === "ride" && leg.lineId)?.lineId ?? null;
+// 振替の費用に使う、止まっている路線の事業者名。観測の事業者を優先し、無ければ止まっている路線の名前から引く
+// 待つ経路の最初の乗車からは取らない。最初に乗る線が止まっている線とは限らないため
+function resolveBlockedOperator(ctx: ToolContext, blockedLine: string | null): string | null {
+  const observed = findLatest(ctx.observations, (o) =>
+    normalizeOperatorKey(o.operator) ? o.operator : null,
+  );
+  if (observed) return observed;
+  if (!blockedLine) return null;
+  const name = blockedLine.normalize("NFKC");
+  return ctx.provider.listLines().find((l) => l.name.normalize("NFKC") === name)?.operator ?? null;
+}
+
+// 振替輸送の実施を書いたいちばん新しい観測から、振替先の事業者名を取る
+function findTransferOperators(observations: readonly Observation[]): string[] {
+  return (
+    findLatest(observations, (o) =>
+      o.transferServiceActive === null ? null : (o.transferOperators ?? []),
+    ) ?? []
+  );
 }
 
 // 防護無線の事象では、待つ選択肢を先頭に残し、残りを上げる・そのまま・下げるの順に並べる
@@ -76,7 +95,8 @@ function rankForProtection(
   operator: string | null,
 ): { options: RouteOption[]; loweredOptionIds: string[] } {
   const wait = options.filter((o) => o.id === waitOptionId);
-  const blockedLineId = findWaitLineId(options, waitOptionId);
+  const blockedLineId =
+    wait[0]?.legs.find((leg) => leg.mode === "ride" && leg.lineId)?.lineId ?? null;
   const ranked = rankAlternativesForProtection({
     options: options.filter((o) => o.id !== waitOptionId),
     protection: true,
@@ -131,8 +151,9 @@ export async function runFindAlternatives(
       options: found.options,
       ticketType: ctx.request.ticketType ?? null,
       transferServiceActive,
-      blockedLineId: findWaitLineId(found.options, found.waitOptionId),
-      blockedOperatorName: operator,
+      transferOperators: findTransferOperators(ctx.observations),
+      blockedLineId: null,
+      blockedOperatorName: resolveBlockedOperator(ctx, blockedLine),
     }),
   };
   if (!estimate.protection) return { ...result, blockedLine };
