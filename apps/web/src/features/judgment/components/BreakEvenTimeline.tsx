@@ -10,6 +10,7 @@ import {
   type BreakEvenTimeline as Timeline,
   type TimelineBasis,
 } from "../break-even-timeline";
+import { useScopedTestId } from "../test-id-scope";
 import { testIds } from "../testids";
 import { formatClockInSentence, formatClockTime } from "../time";
 
@@ -232,12 +233,13 @@ export function ResumeCaption({ basis, now }: { basis: TimelineBasis; now: Date 
   const t = useTranslations("judgment.breakEven.timeline");
   const locale = useLocale();
   const timeline = buildBreakEvenTimeline({ ...basis, now });
+  const sid = useScopedTestId();
   const clock = (ms: number) => formatClockTime(new Date(ms).toISOString(), locale);
   const range = { from: clock(timeline.resumeP50Ms), to: clock(timeline.resumeP80Ms) };
 
   return (
     <p
-      data-testid={testIds.judgment.breakEvenResume}
+      data-testid={sid(testIds.judgment.breakEvenResume)}
       data-relation={timeline.relation}
       className="flex items-center gap-1.5 text-[13px] leading-5 text-muted"
     >

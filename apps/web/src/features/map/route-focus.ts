@@ -28,8 +28,10 @@ export function selectRouteGuide(
   destination: Position | null,
   // 印は出さないが、寄せる範囲に含める点。乗り続けるときの次の駅など
   extraPoints: readonly Position[] = [],
+  // 動かなかったときに乗る駅も残すか。勧める選択肢の無い保留の判断で、その経路を描くときに使う
+  keepFallback = false,
 ): RouteGuide {
-  const stations = guide.stations.filter((s) => s.recommended);
+  const stations = guide.stations.filter((s) => s.recommended || (keepFallback && s.fallback));
   const keys = new Set(stations.map((s) => s.key));
   const near = [
     guide.here.position,

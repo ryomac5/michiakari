@@ -202,6 +202,14 @@ export function JudgmentScreen() {
   const inCarBandGuide =
     ready && inCar && inCarBandSource && buildInCarBand(inCarBandSource) ? inCarBandSource : null;
   // 止まっている区間を地図で選んでいる間は、上端を選び方の案内に譲るため帯を出さない
+  // 原因が分からず見込みのグラフが出ないときは、地図の上の端に境目の時刻だけを添える。区間を選ぶ間は隠す
+  const showBreakEvenOnly =
+    ready &&
+    !inCar &&
+    display.breakEven !== null &&
+    resumeChance === null &&
+    chrome.snap !== "full" &&
+    sectionPick === null;
   const showBand =
     (resumeChance !== null || inCarBandGuide !== null) &&
     chrome.snap !== "full" &&
@@ -303,9 +311,9 @@ export function JudgmentScreen() {
         </section>
       )}
 
-      {!showBand && status && (
+      {!showBand && (status || showBreakEvenOnly) && (
         <div
-          className="pointer-events-none fixed z-30 flex justify-center"
+          className="pointer-events-none fixed z-30 flex flex-wrap items-center justify-center gap-1.5"
           style={{
             top: `calc(${chrome.insets.top - floatHeaderInset}px + 24px)`,
             left: 72,
@@ -313,6 +321,15 @@ export function JudgmentScreen() {
           }}
         >
           {status}
+          {/* 見込みのグラフが出せないときは、境目の時刻だけをシートの図と同じ部品で小さく添える */}
+          {showBreakEvenOnly && (
+            <div className="glass flex h-6 items-center rounded-full px-2 [&_p]:text-[11px]">
+              {/* 時間軸を渡さず、境目の時刻の 1 行だけを出す */}
+              <TestIdScope scope="map">
+                <ResumeOutlook {...breakEvenProps} timeline={null} />
+              </TestIdScope>
+            </div>
+          )}
         </div>
       )}
 
