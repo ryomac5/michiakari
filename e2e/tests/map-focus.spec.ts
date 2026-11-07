@@ -46,14 +46,13 @@ async function expectLabelsApart(labels: Locator): Promise<void> {
     .poll(() =>
       labels.evaluateAll((elements) => elements.filter((el) => el.checkVisibility()).length),
     )
-    .toBeGreaterThan(1);
+    .toBeGreaterThanOrEqual(1);
   await expect
     .poll(() =>
       labels.evaluateAll((elements) => {
         const boxes = elements
           .filter((el) => el.checkVisibility())
           .map((el) => ({ name: el.textContent, rect: el.getBoundingClientRect() }));
-        if (boxes.length < 2) return ["表示中の札が2枚未満"];
         return boxes.flatMap((a, i) =>
           boxes.slice(i + 1).flatMap((b) => {
             const width = Math.min(a.rect.right, b.rect.right) - Math.max(a.rect.left, b.rect.left);
@@ -109,7 +108,7 @@ for (const viewport of [
           await expectLabelsApart(
             page.locator(
               // ボタンの 44px のタップ領域ではなく、表示している札の面を測る
-              '[data-testid="judgment-map-here"] > [data-placement], [data-testid="judgment-map-alight"] > [data-placement], button[data-testid^="judgment-map-station-"] > span, div[data-testid^="judgment-map-station-"], [data-testid="judgment-map-blocked-tag"]',
+              '[data-testid="judgment-map-here"] > [data-placement], [data-testid="judgment-map-alight"] > [data-placement], button[data-testid^="judgment-map-station-"] > span, div[data-testid^="judgment-map-station-"], [data-testid="judgment-map-blocked-tag"], [data-testid="judgment-map-destination-edge"]',
             ),
           );
         }
@@ -142,7 +141,9 @@ for (const viewport of [
   });
 }
 
-test("大阪駅では現在地のまわりに寄せ、乗り換え候補の駅を吹き出しで出す", async ({ page }) => {
+test("大阪駅では、勧める経路で乗る駅だけを吹き出しで出し、選び直すとその駅に切り替える", async ({
+  page,
+}) => {
   if (!osaka) throw new Error("大阪駅のシナリオがありません");
   // 切り替え以外の判断になる最初の観測と、そのあとで切り替えに変わる観測
   // 発生直後から切り替えを言い切るシナリオもあるので、最初の観測とは限らない
@@ -162,17 +163,11 @@ test("大阪駅では現在地のまわりに寄せ、乗り換え候補の駅�
   await expect(map).toHaveAttribute("data-view", "focus");
   await expect(map).toHaveAttribute("data-focus-area", "umeda");
 
-  // 現在地と、徒歩の分数・運行の状態を持つ候補の駅が出る
+  // 現在地は出す。切り替えない判断では、乗り換え候補の駅の吹き出しを出さない。候補はシートの一覧に残す
   await expect(page.getByTestId(mapTestIds.here)).toBeVisible();
   await expect(page.getByTestId(mapTestIds.here)).toContainText("大阪駅");
-  await expect.poll(() => stations(page).count()).toBeGreaterThanOrEqual(3);
-  for (const station of await stations(page).all()) {
-    await expect(station).toBeVisible();
-    await expect(station).toHaveAttribute("data-walk-minutes", /^\d+$/);
-    await expect(station).toHaveAttribute("data-status", /^(running|suspended)$/);
-  }
-  // 推奨が無いうちは、おすすめの印は付かない
-  await expect(stations(page).and(page.locator("[data-recommended='true']"))).toHaveCount(0);
+  await expect(map).toHaveAttribute("data-station-marks", "0");
+  await expect(stations(page)).toHaveCount(0);
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}map-focus-first-390x844.png` });
 
@@ -186,6 +181,10 @@ test("大阪駅では現在地のまわりに寄せ、乗り換え候補の駅�
   const recommended = stations(page).and(page.locator("[data-recommended='true']"));
   await expect(recommended).toHaveCount(1);
   await expect(recommended).toBeVisible();
+  // 吹き出しは勧める経路で乗る駅の 1 つだけにする
+  await expect(stations(page)).toHaveCount(1);
+  await expect(recommended).toHaveAttribute("data-walk-minutes", /^\d+$/);
+  await expect(recommended).toHaveAttribute("data-status", /^(running|suspended)$/);
   await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}map-focus-switch-390x844.png` });
@@ -230,12 +229,10 @@ test("大阪駅では現在地のまわりに寄せ、乗り換え候補の駅�
   await expect(page.getByTestId(mapTestIds.legend)).toHaveAttribute("data-tone", otherTone);
   const selected = page.getByTestId(mapTestIds.station(otherKey));
   await expect(selected).toHaveAttribute("data-recommended", "true");
-  // おすすめの星は推奨の選択肢の駅に残す
   await expect(selected).toHaveAttribute("data-starred", "false");
-  await expect(page.getByTestId(mapTestIds.station(key ?? ""))).toHaveAttribute(
-    "data-starred",
-    "true",
-  );
+  // 地図はその選択肢の経路と駅だけに切り替え、前の推奨の駅の吹き出しは消す
+  await expect(stations(page)).toHaveCount(1);
+  await expect(page.getByTestId(mapTestIds.station(key ?? ""))).toHaveCount(0);
   await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}map-focus-selected-390x844.png` });
@@ -253,6 +250,7 @@ test("大阪駅では現在地のまわりに寄せ、乗り換え候補の駅�
   const tag = page.getByTestId(mapTestIds.selectedRoute);
   await expect(tag).toBeVisible();
   await expect(waitOption).toContainText((await tag.locator("span").nth(1).textContent()) ?? "");
+  await expect(stations(page)).toHaveCount(0);
   await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}map-focus-selected-wait-390x844.png` });
@@ -281,13 +279,13 @@ test("「全体を見る」で経路の全体に切り替え、もう一度押�
 
   await toggle.click();
   await expect(map).toHaveAttribute("data-view", "focus");
-  // 吹き出しは見せ方が切り替わった次の描画で付くので、出そろうまで待つ
-  await expect.poll(() => stations(page).count()).toBeGreaterThanOrEqual(3);
+  // 吹き出しは見せ方が切り替わった次の描画で付くので、出そろうまで待つ。勧める経路で乗る駅だけを出す
+  const marks = Number(await map.getAttribute("data-station-marks"));
+  expect(marks).toBeLessThanOrEqual(1);
+  await expect.poll(() => stations(page).count()).toBe(marks);
 });
 
-test("手で整えた範囲の外の駅でも、駅データから選んだ乗り換え候補を吹き出しで出す", async ({
-  page,
-}) => {
+test("手で整えた範囲の外の駅でも、勧める経路で乗る駅だけを吹き出しで出す", async ({ page }) => {
   if (!elsewhere) throw new Error("大阪駅以外のシナリオがありません");
   const first = elsewhere.timeline[0];
   if (!first) throw new Error("観測がありません");
@@ -300,8 +298,8 @@ test("手で整えた範囲の外の駅でも、駅データから選んだ乗�
   await expect(map).toHaveAttribute("data-focus-area", /^auto:/);
   await expect(page.getByTestId(mapTestIds.here)).toBeVisible();
   const count = await stations(page).count();
-  expect(count).toBeGreaterThanOrEqual(1);
-  expect(count).toBeLessThanOrEqual(4);
+  expect(count).toBeLessThanOrEqual(1);
+  await expect(map).toHaveAttribute("data-station-marks", String(count));
   for (const station of await stations(page).all()) {
     await expect(station).toHaveAttribute("data-walk-minutes", /^\d+$/);
   }

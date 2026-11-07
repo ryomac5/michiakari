@@ -109,7 +109,7 @@ test.describe("通常画面の判断の変化", () => {
 test.describe("リプレイの地図と見込みの図", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test("切り替えでは期限の印を出さず、待つでは動かなかったときに乗る駅に吹き出しを出す", async ({
+  test("切り替えでは期限の印を出さず、待つでは動かなかったときに乗る駅を地図に出さない", async ({
     page,
   }) => {
     if (!scenario || !switchAfter || !waitAfter) {
@@ -140,9 +140,10 @@ test.describe("リプレイの地図と見込みの図", () => {
       "wait",
     );
     await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
-    await expect(fallback).toHaveCount(1);
-    await expect(fallback).toBeVisible();
-    await expect(fallback.getByTestId(mapTestIds.fallbackTag)).toHaveText(ja.map.fallback);
+    // 動かなかったときに乗る駅は地図に出さない。動かなければの手は見出しの 2 文目と一覧が示す
+    await expect(fallback).toHaveCount(0);
+    await expect(page.getByTestId(mapTestIds.fallbackTag)).toHaveCount(0);
+    await expect(page.getByTestId(testIds.judgment.conclusionNext)).toContainText(ja.map.fallback);
     await capture(page, variants[0] as Variant, `replay-${scenario.id}-${waitAfter}-fallback`);
   });
 });

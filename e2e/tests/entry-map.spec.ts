@@ -144,10 +144,11 @@ test("全部「分からない」で進めても判断が出て、前提と次�
   await expect(map).toHaveAttribute("data-view", "focus");
   await expect(map).toHaveAttribute("data-focus-area", /^auto:/);
   await expect(map).toHaveAttribute("data-blocked", "false");
+  // 駅の吹き出しは、勧める経路で乗る駅だけにする。待つ判断なら出さない
   const bubbles = page.locator(`[data-testid^="judgment-map-station-"]`);
-  await expect.poll(() => bubbles.count()).toBeGreaterThanOrEqual(1);
-  expect(await bubbles.count()).toBeLessThanOrEqual(4);
-  await expect(bubbles.first()).toBeVisible();
+  const marks = Number(await map.getAttribute("data-station-marks"));
+  expect(marks).toBeLessThanOrEqual(1);
+  await expect.poll(() => bubbles.count()).toBe(marks);
   await expect(page.getByTestId(mapTestIds.blockedTag)).toHaveCount(0);
   await expect(page.getByTestId(mapTestIds.sectionNote)).toHaveCount(0);
   await expect(page.getByTestId(mapTestIds.here)).toContainText("本町");

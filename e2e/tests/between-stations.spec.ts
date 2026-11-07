@@ -48,6 +48,7 @@ async function listMapLabelOverlaps(page: Page): Promise<string[]> {
       alightLabel: one("[data-testid='judgment-map-alight'] > p"),
       alightDot: one("[data-testid='judgment-map-alight']"),
       toggle: one("[data-testid='judgment-map-view-toggle']"),
+      edge: one("[data-testid='judgment-map-destination-edge']"),
       stations: [...document.querySelectorAll("[data-testid^='judgment-map-station-']")].map(
         (el): StationBox => ({
           ...box(el),
@@ -57,9 +58,9 @@ async function listMapLabelOverlaps(page: Page): Promise<string[]> {
       ),
     };
   });
-  const { hereLabel, hereDot, alightLabel, alightDot, toggle } = read;
-  if (!hereLabel || !hereDot || !alightLabel || !alightDot || !toggle)
-    return ["地図の札が見つからない"];
+  // 降りる駅の札は、次の駅で降りるときだけ出る。行き先の縁の札は、行き先が画面の外のときだけ出る
+  const { hereLabel, hereDot, alightLabel, alightDot, toggle, edge } = read;
+  if (!hereLabel || !hereDot || !toggle) return ["地図の札が見つからない"];
 
   const overlaps = (a: Box, b: Box) =>
     Math.min(a.r, b.r) > Math.max(a.l, b.l) && Math.min(a.b, b.b) > Math.max(a.t, b.t);
@@ -80,17 +81,29 @@ async function listMapLabelOverlaps(page: Page): Promise<string[]> {
   };
   const marks: [string, Box][] = [
     ["現在地の印", hereDot],
-    // 降りる駅の印は、外側の輪（6px）までを印とする
-    ["降りる駅の印", around((alightDot.l + alightDot.r) / 2, (alightDot.t + alightDot.b) / 2, 14)],
+    // 降りる駅の印は、外側の輪の 6px までを印とする
+    ...(alightDot
+      ? [
+          [
+            "降りる駅の印",
+            around((alightDot.l + alightDot.r) / 2, (alightDot.t + alightDot.b) / 2, 14),
+          ] as [string, Box],
+        ]
+      : []),
     ...read.stations.map((s): [string, Box] => [`${s.id} の印`, stationMark(s)]),
   ];
   const labels: [string, Box][] = [
     ["「いま」の札", hereLabel],
-    ["「降りる駅」の札", alightLabel],
+    ...(alightLabel ? [["「降りる駅」の札", alightLabel] as [string, Box]] : []),
+    ...(edge ? [["行き先の縁の札", edge] as [string, Box]] : []),
   ];
 
   const found: string[] = [];
-  if (overlaps(hereLabel, alightLabel)) found.push("「いま」の札と「降りる駅」の札が重なっている");
+  for (const [i, [name, label]] of labels.entries()) {
+    for (const [otherName, other] of labels.slice(i + 1)) {
+      if (overlaps(label, other)) found.push(`${name}と${otherName}が重なっている`);
+    }
+  }
   for (const [name, label] of labels) {
     for (const [markName, mark] of marks) {
       if (overlaps(label, mark)) found.push(`${name}が${markName}に重なっている`);
@@ -242,7 +255,8 @@ for (const theme of ["light", "dark"] as const) {
       await expect(reason).toHaveText(/^.+には\d{1,2}時\d{2}分ごろに着く見込みです。$/);
       await expect(reason).not.toContainText(/仮定|ふだん|入れない/);
 
-      // 利用者は大阪と塚本の間にいる。上部の帯と現在地の札は駅の間にいることを出し、塚本は降りる駅として目立たせる
+      // 利用者は大阪と塚本の間にいる。上部の帯と現在地の札は駅の間にいることを出す
+      // 三ノ宮まで乗り続ける判断なので、塚本を降りる駅として出さない
       await expect(page.getByTestId(testIds.judgment.tripSummary)).toContainText("大阪〜塚本");
       // 人身事故は区間を止めるので、上部の札は見合わせにする
       // 発表に区間が無いので、駅の間の位置から区間を作って描かず、札も添えない
@@ -251,8 +265,12 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByTestId(mapTestIds.blockedTag)).toHaveCount(0);
       await expect(page.getByTestId(mapTestIds.sectionNote)).toHaveCount(0);
       await expect(page.getByTestId(mapTestIds.here)).toContainText("大阪〜塚本の間");
-      await expect(page.getByTestId(mapTestIds.alight)).toContainText("塚本");
-      // 「いま」の札と「降りる駅」の札は、互いにも、駅の印にも、「全体を見る」のボタンにも重ならない
+      await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute(
+        "data-in-car-plan",
+        "stay",
+      );
+      await expect(page.getByTestId(mapTestIds.alight)).toHaveCount(0);
+      // 「いま」の札は、駅の印にも、「全体を見る」のボタンにも重ならない
       await expect.poll(() => listMapLabelOverlaps(page), { timeout: 15_000 }).toEqual([]);
       await capture(page, theme, "02-judgment-closed");
 

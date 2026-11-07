@@ -34,27 +34,41 @@ async function waitForMapReady(page: Page): Promise<void> {
   });
 }
 
-// 塚本から大阪へ向かう途中、塚本と大阪の間で人身事故により止まり、受信の放送を聞いた
-async function startInCarToOsaka(page: Page): Promise<void> {
+type InCarEntry = {
+  line: string;
+  from: string;
+  to: string;
+  destinationQuery: string;
+  destination: string;
+  cause: string;
+  // 方面を聞かれたときに選ぶ方面の終わりの駅
+  terminal?: string;
+  // 再開の見込みの時刻の候補から選ぶ位置
+  resumeAt: "first" | "last";
+};
+
+// 駅と駅の間の車内から、行き先と様子を答えて判断を出す。止まってから 10 分くらいで、再開の見込みは放送で聞いた
+async function startInCar(page: Page, entry: InCarEntry): Promise<void> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
   });
-  await chooseBetweenStations(page, "JR神戸線", "塚本", "大阪");
-  await page.getByTestId(testIds.start.destinationSearch).fill("きょうと");
-  await page.getByTestId(testIds.start.destinationOption("京都")).click();
+  await chooseBetweenStations(page, entry.line, entry.from, entry.to);
+  await page.getByTestId(testIds.start.destinationSearch).fill(entry.destinationQuery);
+  await page.getByTestId(testIds.start.destinationOption(entry.destination)).click();
   const screen = page.getByTestId(testIds.start.screen);
   await expect(screen).toHaveAttribute("data-stage", /^(cause|direction)$/);
   if ((await screen.getAttribute("data-stage")) === "direction")
     await page
-      .locator("[data-testid^='start-direction-']:not([data-testid$='.神戸'])")
-      .first()
+      .locator(`[data-testid^='start-direction-'][data-testid$='.${entry.terminal}']`)
       .click();
   await expect(screen).toHaveAttribute("data-stage", "cause");
-  await page.getByTestId(testIds.start.cause("person")).click();
-  await answerProtection(page, "heard");
+  await page.getByTestId(testIds.start.cause(entry.cause)).click();
+  await answerProtection(page);
   await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
+  await page.getByTestId(testIds.start.resume("stated")).click();
+  const times = page.locator("[data-testid^='start-resume-time-']");
+  await (entry.resumeAt === "first" ? times.first() : times.last()).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
 }
 
@@ -88,6 +102,29 @@ async function startAtStation(page: Page, entry: StationEntry): Promise<void> {
   );
 }
 
+// 印が、上の帯と見込みの帯の下から、閉じたシートの上までの見える範囲に入っているか
+async function expectInMapView(page: Page, testId: string): Promise<void> {
+  const box = await page.getByTestId(testId).boundingBox();
+  const band = await page.getByTestId(testIds.judgment.resumeBand).boundingBox();
+  const header = await page.locator("header").first().boundingBox();
+  const sheet = await page.getByTestId(testIds.judgment.sheet).boundingBox();
+  expect(box, `${testId} が地図に無い`).not.toBeNull();
+  const top = Math.max(
+    (header?.y ?? 0) + (header?.height ?? 0),
+    (band?.y ?? 0) + (band?.height ?? 0),
+  );
+  const width = page.viewportSize()?.width ?? 0;
+  expect(box?.y ?? -1).toBeGreaterThanOrEqual(top);
+  expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(sheet?.y ?? 0);
+  expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
+}
+
+// 地図に出す駅の吹き出しの数。勧める経路で乗る駅だけにしぼったので、多くても 1 つ
+async function countStationBubbles(page: Page): Promise<number> {
+  return page.locator("[data-testid^='judgment-map-station-']").count();
+}
+
 // 閉じたシートは見出しと時刻の 1 行と注意書きだけで、地図が画面の半分以上を占める
 async function expectMapFirst(page: Page): Promise<void> {
   const sheet = page.getByTestId(testIds.judgment.sheet);
@@ -117,16 +154,27 @@ for (const theme of ["light", "dark"] as const) {
       ]);
     });
 
-    test("塚本〜大阪の間の車内では、列車が大阪まで動き、降りる印が出て、その先が光る", async ({
+    test("大阪〜塚本の間の車内で次の駅で降りる判断では、列車が塚本まで動き、降りる印が出て、乗り換えの経路が光る", async ({
       page,
     }) => {
-      await startInCarToOsaka(page);
+      // 大阪から西宮北口へ。塚本に着いてから乗り換えるほうが早い
+      await startInCar(page, {
+        line: "JR神戸線",
+        from: "大阪",
+        to: "塚本",
+        destinationQuery: "西宮北口",
+        destination: "西宮北口",
+        cause: "person",
+        terminal: "神戸",
+        resumeAt: "last",
+      });
       await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute(
         "data-status",
         "ready",
         { timeout: 60_000 },
       );
       const map = page.getByTestId(testIds.judgment.map);
+      await expect(map).toHaveAttribute("data-in-car-plan", "alight");
       await expect(map).toHaveAttribute("data-motion", /^(ride|alight|route|done)$/, {
         timeout: 30_000,
       });
@@ -138,18 +186,27 @@ for (const theme of ["light", "dark"] as const) {
       await capture(page, theme, "incar-2-alight", false);
       await expect(map).toHaveAttribute("data-motion", "done", { timeout: 15_000 });
       await expect(page.getByTestId(mapTestIds.alight)).toBeVisible();
+      await expect(page.getByTestId(mapTestIds.alight)).toContainText("塚本");
+      await expect(map).toHaveAttribute("data-route-glow", "true");
       await capture(page, theme, "incar-3-route");
       await expectMapFirst(page);
-      await expect(page.getByTestId(mapTestIds.here)).toContainText("塚本〜大阪の間");
+      await expect(page.getByTestId(mapTestIds.here)).toContainText("大阪〜塚本の間");
       await expect(page.getByTestId(testIds.judgment.timeLine)).toHaveText(
-        /^大阪に\d{1,2}時\d{2}分ごろ着く見込み$/,
+        /^塚本に\d{1,2}時\d{2}分ごろ着く見込み$/,
       );
-      // 駅の間の車内でも、動き出す見込みの幅と大阪に着く時刻の帯を地図に重ねる
+      // 動き出す見込みの幅と塚本に着く時刻の帯を地図に重ねる
       const band = page.getByTestId(testIds.judgment.resumeBand);
       await expect(band).toHaveAttribute("data-kind", "in-car");
       await expect(band).toBeInViewport();
-      await expect(band).toContainText(/\d{2}:\d{2}〜\d{2}:\d{2}/);
-      await expect(band).toContainText(/大阪着 \d{2}:\d{2}/);
+      // 幅の両端が同じ時刻なら、1 つの時刻だけを出す
+      await expect(band).toContainText(/動き出す見込み\d{2}:\d{2}(〜\d{2}:\d{2})?/);
+      await expect(band).toContainText(/塚本着 \d{2}:\d{2}/);
+      // 今いる位置と降りる駅を収める。乗り換え候補の駅は出さず、塗るのは乗っている路線と乗り換え先だけ
+      await expectInMapView(page, mapTestIds.here);
+      await expectInMapView(page, mapTestIds.alight);
+      expect(await countStationBubbles(page)).toBe(0);
+      expect(Number(await map.getAttribute("data-colored-lines"))).toBeLessThanOrEqual(2);
+      await expect(map).toHaveAttribute("data-walk-reach", "false");
       // もう一度再生できる
       await page.getByTestId(mapTestIds.motionReplay).click();
       await expect(map).toHaveAttribute("data-motion", /^(ride|alight|route)$/);
@@ -168,6 +225,59 @@ for (const theme of ["light", "dark"] as const) {
           testIds.judgment.addInfo,
         );
       expect(legendAfterAddInfo).toBe(true);
+    });
+
+    test("桜ノ宮〜天満の間の車内で乗り続ける判断では、天満に降りる印を出さず、西九条まで列車が進んで光る", async ({
+      page,
+    }) => {
+      // 車内の非常ボタンで止まり、10 分ほどで動く見込み。西九条まで乗り続ける
+      await startInCar(page, {
+        line: "JR環状線",
+        from: "桜ノ宮",
+        to: "天満",
+        destinationQuery: "にしくじょう",
+        destination: "西九条",
+        cause: "inCar",
+        resumeAt: "first",
+      });
+      await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute(
+        "data-status",
+        "ready",
+        { timeout: 60_000 },
+      );
+      const map = page.getByTestId(testIds.judgment.map);
+      await expect(map).toHaveAttribute("data-in-car-plan", "stay");
+      await expect(map).toHaveAttribute("data-motion", /^(ride|alight|route|done)$/, {
+        timeout: 30_000,
+      });
+      await capture(page, theme, "stay-1-open", false);
+      await expect(map).toHaveAttribute("data-motion", "done", { timeout: 15_000 });
+      await capture(page, theme, "stay-2-done");
+      // 天満は次の駅だが、降りる駅の札を出さない
+      await expect(page.getByTestId(mapTestIds.alight)).toHaveCount(0);
+      // 列車は次の駅で止まらず、行き先の西九条まで線路に沿って進み、その道筋が光る
+      await expect(map).toHaveAttribute("data-route-glow", "true");
+      expect(Number(await map.getAttribute("data-motion-end-meters"))).toBeLessThan(600);
+      // 最初に見える所には次の駅の名前を出さない。時刻の 1 行は動く時刻にする
+      await expect(page.getByTestId(testIds.judgment.timeLine)).toHaveText(
+        /^\d{1,2}時\d{2}分ごろ動く見込み$/,
+      );
+      const band = page.getByTestId(testIds.judgment.resumeBand);
+      await expect(band).toBeInViewport();
+      await expect(band).not.toContainText("天満");
+      await expectMapFirst(page);
+      expect(await countStationBubbles(page)).toBe(0);
+      // 次の駅の名前は詳細に残す
+      await openSheet(page, "half");
+      await expect(page.getByTestId(testIds.judgment.trainPositionChip("next"))).toContainText(
+        "次は天満",
+      );
+      await openSheet(page, "collapsed");
+      // 全体を見ると、行き先まで光る道筋を収める
+      await page.getByTestId(mapTestIds.viewToggle).click();
+      await expect(map).toHaveAttribute("data-view", "overview");
+      await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+      await capture(page, theme, "stay-3-overview");
     });
 
     test("駅にいて乗り換える判断では、乗り換えの経路を光らせ、再開の見込みの帯を地図に重ねる", async ({
@@ -191,6 +301,19 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByTestId(testIds.judgment.resumeBand)).toBeInViewport();
       await capture(page, theme, "switch");
       await expectMapFirst(page);
+      // 前は乗り換え候補の 4 駅に吹き出しと徒歩の分を出していた。今は勧める経路で乗る駅だけにする
+      const map = page.getByTestId(testIds.judgment.map);
+      expect(await countStationBubbles(page)).toBe(1);
+      await expect(map).toHaveAttribute("data-station-marks", "1");
+      await expect(
+        page.locator("[data-recommended='true'][data-testid^='judgment-map-station-']"),
+      ).toHaveCount(1);
+      // 歩いて乗りに行く経路なので、徒歩の範囲の円を出す
+      await expect(map).toHaveAttribute("data-walk-reach", "true");
+      // 三ノ宮は遠いので、今いる位置と乗る駅を収め、行き先は縁の札で示す
+      await expect(map).toHaveAttribute("data-fit-scope", "near");
+      await expect(page.getByTestId(mapTestIds.destinationEdge)).toBeVisible();
+      await expectInMapView(page, mapTestIds.here);
     });
 
     test("駅で待つ判断では、今の路線の行き先までを光らせ、再開の見込みの帯を地図に重ねる", async ({
@@ -211,6 +334,15 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByTestId(testIds.judgment.resumeBand)).toBeInViewport();
       await capture(page, theme, "wait");
       await expectMapFirst(page);
+      // 乗り続ける判断では駅の候補を出さず、歩かないので徒歩の範囲の円も出さない
+      const map = page.getByTestId(testIds.judgment.map);
+      expect(await countStationBubbles(page)).toBe(0);
+      await expect(map).toHaveAttribute("data-walk-reach", "false");
+      // 天王寺は近いので、今いる位置と行き先がぎりぎり入る倍率に寄せる
+      await expect(map).toHaveAttribute("data-fit-scope", "destination");
+      await expect(page.getByTestId(mapTestIds.destinationEdge)).toHaveCount(0);
+      await expectInMapView(page, mapTestIds.here);
+      await expectInMapView(page, mapTestIds.destination);
     });
   });
 }
@@ -219,7 +351,16 @@ test.describe("動きを減らす設定", () => {
   test.use({ reducedMotion: "reduce" });
 
   test("車内の判断は動かさずに最後の状態を出し、向きは矢印で示す", async ({ page }) => {
-    await startInCarToOsaka(page);
+    await startInCar(page, {
+      line: "JR神戸線",
+      from: "大阪",
+      to: "塚本",
+      destinationQuery: "西宮北口",
+      destination: "西宮北口",
+      cause: "person",
+      terminal: "神戸",
+      resumeAt: "last",
+    });
     const map = page.getByTestId(testIds.judgment.map);
     await expect(map).toHaveAttribute("data-motion", "done", { timeout: 60_000 });
     await expect(map).toHaveAttribute("data-flow", "arrows");
