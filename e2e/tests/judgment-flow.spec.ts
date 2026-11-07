@@ -144,7 +144,9 @@ async function captureMap(page: Page, fileName: string): Promise<void> {
   await page.screenshot({ path: `${screenshotDir}${fileName}` });
 }
 
-test("情報を追加すると判断が更新され、根拠に段階と兆候が出る", async ({ page }) => {
+test("情報を追加すると判断が更新され、根拠に聞いた言葉が出て段階の名前は出ない", async ({
+  page,
+}) => {
   await startWithPastedText(page);
   await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
     "data-action",
@@ -152,20 +154,19 @@ test("情報を追加すると判断が更新され、根拠に段階と兆候�
     { timeout: 15_000 },
   );
 
-  // 根拠は既定で閉じていて、シートを開いてから根拠を開くと、聞いた言葉といまの段階が見える
+  // 根拠は既定で閉じていて、シートを開いてから根拠を開くと、聞いた言葉が見える
+  // 手がかりでない言葉には読みを付けず、事象の段階の名前も出さない
   const siteCheck = page.getByTestId(testIds.judgment.evidenceItem("site_check_announced"));
   await expect(siteCheck).toBeHidden();
   await openSheet(page, "full");
   await page.getByTestId(testIds.judgment.evidenceToggle).click();
   await expect(siteCheck).toBeVisible();
-  await expect(siteCheck).toHaveAttribute("data-phase-id", "on_site");
-  await expect(siteCheck).toHaveAttribute("data-current", "true");
+  await expect(siteCheck).not.toHaveAttribute("data-phase-id");
   await expect(siteCheck.getByTestId(testIds.judgment.evidenceHeard)).toHaveText(
     "「現場の確認を行っています」",
   );
-  await expect(siteCheck.getByTestId(testIds.judgment.evidenceReading)).toHaveText(
-    "いまは現場対応の段階です。",
-  );
+  await expect(siteCheck.getByTestId(testIds.judgment.evidenceReading)).toHaveCount(0);
+  await expect(page.getByTestId(testIds.judgment.evidence)).not.toContainText(/の段階/);
 
   const addInfo = page.getByTestId(testIds.judgment.addInfo);
   await addInfo.getByTestId(testIds.situation.tab("paste")).click();

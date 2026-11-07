@@ -145,8 +145,9 @@ for (const theme of ["light", "dark"] as const) {
         "data-action",
         "wait",
       );
+      // 急病人の目安は開発者の推定で p80 を長めに取るので、待ったほうが早い見込みは 7 割以上とする
       const waitFaster = page.getByTestId(testIds.judgment.resumeChanceWaitFaster);
-      expect(Number(await waitFaster.getAttribute("data-tenths"))).toBeGreaterThanOrEqual(9);
+      expect(Number(await waitFaster.getAttribute("data-tenths"))).toBeGreaterThanOrEqual(7);
       await expect(page.getByTestId(testIds.judgment.resumeChanceOnset)).toContainText("発生から");
       await waitForMapReady(page);
       await page.screenshot({ path: `${screenshotDir}resume-chance-in-car-${theme}-390x844.png` });

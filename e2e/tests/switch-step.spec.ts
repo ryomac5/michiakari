@@ -91,9 +91,8 @@ test.describe("通常画面の判断の変化", () => {
     // 確率が無ければ行ごと出さず、「未算出」は出さない
     await expect(change).not.toContainText("未算出");
     await expect(page.getByTestId(testIds.judgment.changeProbability)).toHaveCount(0);
-    await expect(page.getByTestId(testIds.judgment.changeReading)).toContainText(
-      ja.judgment.evidence.reading.label,
-    );
+    // 振替輸送の発表は行動を変える手がかりではないので、読みの行は出さない
+    await expect(page.getByTestId(testIds.judgment.changeReading)).toHaveCount(0);
     expect(
       await conclusion.evaluate((element) =>
         element.nextElementSibling?.getAttribute("data-testid"),

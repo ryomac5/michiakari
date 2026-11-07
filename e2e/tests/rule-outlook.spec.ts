@@ -50,7 +50,8 @@ test("受信の放送を「あった」と答えると、判断の見出しの�
   );
 });
 
-// 画面の画像のための見込みの欄。agent が付けていない欄だけを足す
+// 画面の画像のための見込みの欄。支障の無い線路と詰まりは決まった値で上書きする
+// 止まった区間が分からないと agent は詰まりの本数を数えないので、画像のために値を置く
 const outlookFields = {
   cues: ["protection_received"],
   protection: true,
@@ -68,7 +69,7 @@ const outlookFields = {
   },
 };
 
-// 判断の SSE の judgment_ready に、無い欄だけを足して返す
+// 判断の SSE の judgment_ready に、画像のための欄を上書きして返す
 async function fillOutlookFields(route: Route): Promise<void> {
   const response = await route.fetch();
   const body = (await response.text())
@@ -77,7 +78,7 @@ async function fillOutlookFields(route: Route): Promise<void> {
       if (!line.startsWith("data: ")) return line;
       const event = JSON.parse(line.slice(6)) as { type: string; judgment?: object };
       if (event.type !== "judgment_ready" || !event.judgment) return line;
-      return `data: ${JSON.stringify({ ...event, judgment: { ...outlookFields, ...event.judgment } })}`;
+      return `data: ${JSON.stringify({ ...event, judgment: { ...event.judgment, ...outlookFields } })}`;
     })
     .join("\n");
   await route.fulfill({ response, body });

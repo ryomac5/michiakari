@@ -16,7 +16,7 @@ const nonDecisive =
   /まだ判断できません|判断できません|分かりません|わかりません|情報が足りません|材料が不足|見込みが立ちません/;
 
 // 大阪から JR 神戸線で三ノ宮へ向かう途中で止まった想定。原因は聞き取れず、再開見込みの時刻だけを選ぶ
-async function answerWithStatedTime(page: Page, pickTime: "second" | "last"): Promise<string> {
+async function answerWithStatedTime(page: Page, pickTime: "first" | "last"): Promise<string> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
     timeout: 30_000,
@@ -35,8 +35,9 @@ async function answerWithStatedTime(page: Page, pickTime: "second" | "last"): Pr
   await page.getByTestId(testIds.start.resume("stated")).click();
   const times = page.locator("[data-testid^='start-resume-time-']");
   await expect(times).toHaveCount(8);
-  // 2 つ目は 10〜20 分先で分岐点より十分前、最後は 70〜80 分先で分岐点より十分後になる
-  const chosen = pickTime === "second" ? times.nth(1) : times.last();
+  // 最初は 0〜10 分先で分岐点より前、最後は 70〜80 分先で分岐点より十分後になる
+  // 原因が分からないときも初列車待ちを規則表の区間の値で見込むので、2 つ目は分岐点の近くになる
+  const chosen = pickTime === "first" ? times.first() : times.last();
   const label = (await chosen.textContent()) ?? "";
   await chosen.click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
@@ -54,7 +55,7 @@ test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
 test.setTimeout(120_000);
 
 test("原因が聞き取れなくても、放送の再開時刻が分岐点より前なら待つと言い切る", async ({ page }) => {
-  const statedLabel = await answerWithStatedTime(page, "second");
+  const statedLabel = await answerWithStatedTime(page, "first");
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   await expect(conclusion).toHaveAttribute("data-action", "wait", { timeout: 30_000 });
   // 境目の時刻まで待つと言い切り、動かなければ乗る路線を次の手として添える

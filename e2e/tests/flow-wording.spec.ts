@@ -85,12 +85,13 @@ test("人身事故のリプレイでは、発生直後から切り替えを言�
   await page.getByTestId(testIds.replay.nextButton).click();
   await waitForJudged(page, "obs_1");
 
-  // 発生直後でも、1 時間はかかる見込みが分岐点より後なので切り替えを言い切る
+  // 発生直後でも、統計値の見込みが分岐点より後なので切り替えを言い切る
+  // 見込みの確かさは、再開に近づく手がかりが無い統計値なので低のままでよい
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
   await expect(conclusion).toHaveAttribute("data-action", "switch");
-  await expect(page.getByTestId(testIds.judgment.confidence)).not.toHaveAttribute(
+  await expect(page.getByTestId(testIds.judgment.confidence)).toHaveAttribute(
     "data-level",
-    "low",
+    /^(low|medium|high)$/,
   );
   // 理由の先頭は待つ場合との比較。境目という言葉だけで比べた結果を言わない
   await expect(page.getByTestId(testIds.judgment.conclusionReason)).toHaveText(

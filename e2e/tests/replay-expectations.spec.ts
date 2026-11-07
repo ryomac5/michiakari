@@ -61,20 +61,13 @@ async function checkExpectation(page: Page, expectation: Expectation): Promise<v
       expectation.action,
     );
   }
-  if (expectation.phase !== undefined) {
-    await expect(judgment, label).toHaveAttribute("data-phase-id", expectation.phase);
-    // 根拠の欄の先頭の項目が、いまの段階を読む
-    const firstItem = page.getByTestId(testIds.judgment.evidence).locator("li").first();
-    await expect(firstItem, label).toHaveAttribute("data-phase-id", expectation.phase);
-    await expect(firstItem, label).toHaveAttribute("data-current", "true");
-    await expect(firstItem.getByTestId(testIds.judgment.evidenceReading), label).toBeVisible();
-  }
+  // phase は段階の名前を出さなくなったので検査しない
   for (const id of expectation.evidence_includes ?? []) {
     await expect(judgment, label).toHaveAttribute(
       "data-evidence-ids",
       new RegExp(`(^| )${id}( |$)`),
     );
-    // 同じ段階の言葉は 1 項目にまとまる。その兆候をまとめた項目が見えることを確かめる
+    // 同じ引用の言葉は 1 項目にまとまる。その手がかりをまとめた項目が見えることを確かめる
     const item = page
       .getByTestId(testIds.judgment.evidence)
       .locator(`li[data-signal-ids~="${id}"]`);
@@ -174,17 +167,23 @@ for (const scenario of scenarios) {
           await expect(change).toHaveAttribute("data-from", previousAction);
           await expect(change).toHaveAttribute("data-to", currentAction ?? "");
           // 放送、そこから読めること、判断の前後の順に並ぶ
+          // 読めることは手がかりのあるときだけ出し、段階の名前は出さない
           const reading = page.getByTestId(testIds.judgment.changeReading);
-          await expect(reading).toBeVisible();
-          await expect(reading).toContainText(ja.judgment.evidence.reading.label);
-          await expect(reading).toHaveAttribute("data-phase-id", /.+/);
           const order = await change.evaluate((el) =>
             [...el.querySelectorAll("[data-testid]")].map((c) => c.getAttribute("data-testid")),
           );
+          if ((await reading.count()) > 0) {
+            await expect(reading).toContainText(ja.judgment.evidence.reading.label);
+            await expect(reading).toHaveAttribute("data-cue-id", /.+/);
+            await expect(reading).not.toContainText(/の段階/);
+            expect(order.indexOf(testIds.judgment.changeAnnouncement)).toBeLessThan(
+              order.indexOf(testIds.judgment.changeReading),
+            );
+            expect(order.indexOf(testIds.judgment.changeReading)).toBeLessThan(
+              order.indexOf(testIds.judgment.changeBefore),
+            );
+          }
           expect(order.indexOf(testIds.judgment.changeAnnouncement)).toBeLessThan(
-            order.indexOf(testIds.judgment.changeReading),
-          );
-          expect(order.indexOf(testIds.judgment.changeReading)).toBeLessThan(
             order.indexOf(testIds.judgment.changeBefore),
           );
           // 前の値が無ければ後の値だけを出し、「未算出」は出さない
@@ -273,9 +272,6 @@ for (const scenario of scenarios) {
         const label = `${expectation.after}: ${expectation.note}`;
         if (expectation.action !== undefined) {
           await expect(item, label).toHaveAttribute("data-action", expectation.action);
-        }
-        if (expectation.phase !== undefined) {
-          await expect(item, label).toHaveAttribute("data-phase-id", expectation.phase);
         }
         for (const id of expectation.evidence_includes ?? []) {
           await expect(item, label).toHaveAttribute(
