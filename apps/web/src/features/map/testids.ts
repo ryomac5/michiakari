@@ -22,6 +22,10 @@ export const mapTestIds = {
   // 発表に区間が無いときの「区間は発表で確かめる」と、発表を貼る欄へ移るボタン
   sectionNote: "judgment-map-section-note",
   sectionNoteAction: "judgment-map-section-note-action",
+  // 止まっている区間の両端を地図で選ぶ間の案内と、押せる駅の印
+  sectionPick: "judgment-map-section-pick",
+  sectionPickCancel: "judgment-map-section-pick-cancel",
+  sectionPickStation: (name: string) => `judgment-map-pick-${name}`,
   // 一覧で選んだ経路を描いているときの「表示中」の札
   selectedRoute: "judgment-map-selected-route",
   // 札が地図に収まらないときに、札を移す上端の一覧と、その駅の行

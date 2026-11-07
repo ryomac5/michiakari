@@ -42,6 +42,7 @@ import type { StationGuide } from "@/features/map/station-guide";
 import { useLineLabel } from "@/features/map/use-line-label";
 import { resolveIncidentCause, toCauseChoiceId } from "@/features/situation/cause-categories";
 import { SituationInput } from "@/features/situation/SituationInput";
+import { useSectionPick } from "@/features/situation/use-section-pick";
 
 // 選択肢がまだ無いときの空の配列。描画のたびに新しい配列を作ると地図の組み立てが繰り返される
 const noOptions: RouteOption[] = [];
@@ -109,6 +110,7 @@ export function JudgmentScreen() {
   const known = [...observations, ...state.observations];
   const blockedLine = known.findLast((o) => o.line !== null)?.line ?? null;
   const lineLabel = useLineLabel(blockedLine);
+  const sectionPick = useSectionPick();
 
   // 入口で選んだ路線と方面。発表に区間が無いあいだ、地図は利用者のいる路線として薄く示す
   const blockedDirection = useMemo(
@@ -218,6 +220,7 @@ export function JudgmentScreen() {
         onReachSourceChange={setReachSource}
         onGuideChange={setGuide}
         onSelectOption={focusOption}
+        sectionPick={sectionPick}
       />
 
       <main id="main">
@@ -353,6 +356,7 @@ export function JudgmentScreen() {
                 submitInput(input);
                 chrome.setSnap("collapsed");
               }}
+              onAnswered={() => chrome.setSnap("collapsed")}
             />
           </SheetSection>
         </MapSheet>
