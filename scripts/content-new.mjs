@@ -1,8 +1,7 @@
-// 雛形から knowledge/ と scenarios/ の新しいファイルを作る。開発者が端末で実行する
-// 使い方: pnpm knowledge:new <event_id> / pnpm scenario:new <scenario_id> --event <event_id>
+// 雛形から scenarios/ の新しいファイルを作る。開発者が端末で実行する
+// 使い方: pnpm scenario:new <scenario_id> --event <event_id>
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   buildNextSteps,
@@ -14,7 +13,8 @@ import {
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const [kind, ...argv] = process.argv.slice(2);
-const command = CONTENT_KINDS[kind]?.command ?? "pnpm knowledge:new | pnpm scenario:new";
+const command =
+  CONTENT_KINDS[kind]?.command ?? "pnpm scenario:new <scenario_id> --event <event_id>";
 
 const reject = (message) => {
   console.error(`${kind ?? "content"}:new: ${message}`);
@@ -43,13 +43,7 @@ if (process.env.ALLOW_PROTECTED_EDIT !== "1") {
 try {
   const args = parseContentArgs(kind, argv);
   const { relPath } = createContentFile(rootDir, kind, args);
-  const knowledgeExists =
-    args.eventId !== undefined && existsSync(join(rootDir, "knowledge", `${args.eventId}.yaml`));
-  const steps = buildNextSteps(kind, relPath, {
-    eventId: args.eventId,
-    knowledgeExists,
-    branch: readBranch(),
-  });
+  const steps = buildNextSteps(relPath, { branch: readBranch() });
   for (const line of steps) console.log(line);
 } catch (error) {
   if (error instanceof ContentNewError) reject(error.message);

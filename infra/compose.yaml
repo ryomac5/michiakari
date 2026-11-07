@@ -15,9 +15,8 @@ services:
       JUDGE_MODE: ${JUDGE_MODE:-deterministic}
       # 値はホストの環境変数から渡す。このファイルには書かない
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      # 知見とシナリオの置き場所。/app からの相対。既定は開発用のダミー内容
-      # CONTENT_DIR= と空で渡すと、リポジトリの knowledge/ と scenarios/ を読む
-      CONTENT_DIR: ${CONTENT_DIR-packages/schema/test/fixtures/dev-content}
+      # シナリオの置き場所。/app からの相対。未設定なら /app 直下の scenarios/ を読む
+      CONTENT_DIR: ${CONTENT_DIR:-}
       # 画面のオリジン。カンマ区切りで複数指定できる
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       # 1 分あたりに 1 クライアントへ許す /judge の回数
