@@ -560,6 +560,8 @@ export function StartScreen() {
     gps.reset();
     setFocusedChoiceKey(null);
     setMapPick({ point, choices });
+    // 価値の 3 行は地図の上を覆うので、地図で線を押したら閉じ、候補の区間を見せる
+    if (introOpen) closeIntro();
   }
 
   // 方面が 1 つしか無い路線（起点の駅など）は、方面を聞かずに決める
@@ -1253,10 +1255,6 @@ export function StartScreen() {
         onSelectRails={
           entry.stage === "position" || entry.stage === "between" ? handleRailTap : undefined
         }
-        onApproachRails={(point, reachMeters) => {
-          // 段は最初のまま、エリアや何も無い所を押したときと同じ寄せ方で、そのあたりへ寄せる
-          if (data) mapApi.current?.approach(findAreaAt(data, point, reachMeters), point);
-        }}
       />
       <AppHeader
         variant="map"
