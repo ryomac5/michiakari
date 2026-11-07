@@ -6,6 +6,15 @@ function expectStage(page: Page, stage: string) {
   return expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", stage);
 }
 
+// 電車の中の人に原因の後で聞く、受信の放送の問いに答える。既定は判断に何も足さない「なかった」
+export async function answerProtection(
+  page: Page,
+  answer: "heard" | "notHeard" | "unsure" = "notHeard",
+): Promise<void> {
+  await expectStage(page, "protection");
+  await page.getByTestId(`start-protection-${answer}`).click();
+}
+
 // 駅の間の段で、両側の 2 つの駅名から駅の間を出す。確かめる前で止める
 export async function searchStationPair(page: Page, first: string, second: string): Promise<void> {
   await page.getByTestId(testIds.start.betweenFirstSearch).fill(first);

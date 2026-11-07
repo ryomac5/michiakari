@@ -21,6 +21,10 @@ export const DEFAULT_TRAIN_QUEUE_PARAMS: TrainQueueParams = {
   minutesPerTrainAhead: { p50: 4, p80: 5 },
 };
 
+// 前の列車 1 本が信号の区間を空けるまでの短いほうの目安（分）。3〜5 分の幅の下端
+// 出典: 開発者の推定
+export const MIN_MINUTES_PER_TRAIN_AHEAD = 3;
+
 // キーは路線 ID の先頭と同じ事業者キー
 // 詰める動きは、まず JR西日本だけを対象にする
 export const TRAIN_QUEUE_PARAMS_BY_OPERATOR: Readonly<Record<string, Partial<TrainQueueParams>>> = {
@@ -30,6 +34,25 @@ export const TRAIN_QUEUE_PARAMS_BY_OPERATOR: Readonly<Record<string, Partial<Tra
 // 観測の事業者名の表記の揺れ。空白、ハイフン、大文字小文字を除いてから比べる
 export const OPERATOR_KEY_ALIASES: Readonly<Record<string, readonly string[]>> = {
   "jr-west": ["jr-west", "JR西日本", "JR西", "JR West", "西日本旅客鉄道"],
+  // 以下は packages/data/config/operators.ts の事業者名と表示名にそろえる。data は core に頼るので表を写す
+  hankyu: ["hankyu", "阪急", "阪急電鉄", "阪急電車", "Hankyu"],
+  hanshin: ["hanshin", "阪神", "阪神電気鉄道", "阪神電車", "Hanshin"],
+  keihan: ["keihan", "京阪", "京阪電気鉄道", "京阪電車", "Keihan"],
+  kintetsu: ["kintetsu", "近鉄", "近畿日本鉄道", "Kintetsu"],
+  nankai: ["nankai", "南海", "南海電気鉄道", "南海電鉄", "泉北高速鉄道", "Nankai"],
+  "osaka-metro": [
+    "osaka-metro",
+    "Osaka Metro",
+    "大阪メトロ",
+    "大阪市高速電気軌道",
+    "大阪市営地下鉄",
+  ],
+  kitakyu: ["kitakyu", "北大阪急行", "北大阪急行電鉄", "北急"],
+  "osaka-monorail": ["osaka-monorail", "大阪モノレール", "大阪高速鉄道"],
+  sanyo: ["sanyo", "山陽電車", "山陽電気鉄道"],
+  "kobe-subway": ["kobe-subway", "神戸市営地下鉄", "神戸市", "北神急行電鉄"],
+  "kyoto-subway": ["kyoto-subway", "京都市営地下鉄", "京都市"],
+  shintetsu: ["shintetsu", "神戸電鉄", "神鉄"],
 };
 
 // 次の駅までの走行時間を路線データから引けないときの代わりの分。関西の都市部の駅間を控えめに丸めた値

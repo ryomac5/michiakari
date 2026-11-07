@@ -17,10 +17,10 @@
 
 - モノレポの雛形（pnpm、Turborepo、TypeScript strict、Vitest、Playwright、lint）
 - `packages/schema` の全スキーマ（architecture.md 4章）
-- `knowledge/` と `scenarios/` の YAML をスキーマで検証する仕組み
-- `pnpm guard`（`knowledge/` と `scenarios/` の変更を検出して失敗する）
+- `scenarios/` の YAML をスキーマで検証する仕組み
+- `pnpm guard`（`scenarios/` の変更と、非公開の材料の文の写し込みを検出して失敗する）
 
-**完了条件:** `pnpm typecheck`、`pnpm test`、`pnpm guard` が exit 0。`knowledge/` と `scenarios/` の YAML がすべて検証を通る。
+**完了条件:** `pnpm typecheck`、`pnpm test`、`pnpm guard` が exit 0。`scenarios/` の YAML がすべて検証を通る。
 
 ### M1 一気通貫（11/3）
 
@@ -68,13 +68,13 @@
 | WS7 リプレイ | シナリオ再生、振る舞いテスト、録画スクリプト | `apps/web`, `e2e/` | WS4、WS5 |
 | WS8 公開 | デプロイ、環境変数、監視 | `infra/` | M2 |
 
-**開発者本人の担当（エージェントに任せない）:** 知見ナレッジの記述、シナリオと期待する振る舞いの作成、判断結果の確認、動画のナレーション。
+**開発者本人の担当（エージェントに任せない）:** 規則表に落とす知見の答え、シナリオと期待する振る舞いの作成、判断結果の確認、動画のナレーション。
 
 ## 4. 並列開発のルール
 
 - スキーマ（`packages/schema`）の変更は一つの WS で行い、マージしてから他の WS に取り込む
-- Knowledge と Scenario のスキーマは、M0 以降は任意項目の追加だけを許す。既存の YAML を壊す変更をしない
-- `knowledge/` と `scenarios/` の更新と承認は main ブランチで行う。WS のブランチで承認すると、guard のブランチ差分の検査で失敗する
+- Scenario のスキーマは、M0 以降は任意項目の追加だけを許す。既存の YAML を壊す変更をしない
+- `scenarios/` の更新と承認は main ブランチで行う。WS のブランチで承認すると、guard のブランチ差分の検査で失敗する
 - 各 WS は自分の担当ディレクトリ以外を変更しない。必要な場合は計画に明記する
 - WS 間の受け渡しは、スキーマで定義された型とテスト用の固定データ（各パッケージの `test/fixtures/`）で行い、相手の実装の完成を待たずに進める
 - `/goal` で自律的に作業する場合は `docs/goals.md` に従う

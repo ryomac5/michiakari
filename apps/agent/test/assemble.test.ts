@@ -24,10 +24,8 @@ async function prepareSession() {
   const entry = scenario?.timeline[0];
   if (!scenario || !entry) throw new Error("シナリオがありません");
   const request = buildScenarioRequest(scenario, entry, []);
+  // 発表の引用の根拠は、種類の id で、種類の呼び名を含む原文の文から作る
   const eventType = scenario.event_type;
-  const knowledge = deps.content.knowledge.get(eventType);
-  const signal = knowledge?.phases[0]?.signals[0];
-  if (!knowledge || !signal) throw new Error("知見がありません");
   const observation = {
     id: entry.id,
     observedAt: request.now,
@@ -39,7 +37,7 @@ async function prepareSession() {
     section: null,
     statedResumeTime: null,
     transferServiceActive: null,
-    detectedSignals: [{ eventType, signalId: signal.id, quote: "引用" }],
+    detectedSignals: [],
   };
   const session = createJudgeSession(
     {
@@ -55,12 +53,12 @@ async function prepareSession() {
       () => request.now,
     ),
   );
-  await session.executeTool("estimate_phase_and_remaining", { eventType });
+  await session.executeTool("estimate_remaining", { eventType });
   await session.executeTool("find_alternatives", {});
   await session.executeTool("compute_break_even", {});
   const { estimate, alternatives, breakEven } = session.state;
   if (!estimate || !alternatives || !breakEven) throw new Error("ツールの結果がそろいません");
-  return { session, results: { estimate, alternatives, breakEven }, signalId: signal.id, request };
+  return { session, results: { estimate, alternatives, breakEven }, signalId: eventType, request };
 }
 
 describe("assembleJudgment", () => {

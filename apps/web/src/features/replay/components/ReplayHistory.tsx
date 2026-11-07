@@ -43,7 +43,6 @@ export function ReplayHistory({
               data-testid={testIds.replay.historyItem(entry.id)}
               data-observation-id={entry.id}
               data-action={judged?.action ?? ""}
-              data-phase-id={judged?.phaseId ?? ""}
               data-evidence-ids={judged?.evidenceIds.join(" ") ?? ""}
               data-break-even-shown={judged ? String(judged.breakEvenShown) : ""}
               className="flex flex-col gap-1 rounded-2xl bg-foreground/[0.03] px-3 py-2.5"

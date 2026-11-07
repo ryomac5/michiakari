@@ -1,14 +1,28 @@
 // 決定論的な計算。Claude を呼ばない
 
 export {
+  ANNOUNCEMENT_CUE_IDS,
+  ANNOUNCEMENT_CUE_PATTERNS,
+  type AnnouncementCueId,
+} from "../params/announcement-cues.ts";
+export {
   COMMUTE_HOUR_RANGES,
   MONTE_CARLO_SAMPLE_COUNT,
   MONTE_CARLO_SEED,
-  PREDICTABILITY_HIGH_MAX_RATIO,
-  PREDICTABILITY_MEDIUM_MAX_RATIO,
-  SHORT_FLOW_MAX_MINUTES,
   STATED_RESUME_SLACK_MINUTES,
 } from "../params/estimation.ts";
+export {
+  FIRST_TRAIN_WAIT_BY_STOP_KIND,
+  INCIDENT_BEHAVIOR,
+  INCIDENT_BEHAVIOR_SOURCE,
+  INCIDENT_FLOW_OUTLOOKS,
+  type IncidentBehavior,
+  type IncidentFlowOutlook,
+  PROTECTION_LEVELS,
+  type ProtectionLevel,
+  STOP_KINDS,
+  UNAFFECTED_TRACK_RESUME,
+} from "../params/incident-behavior.ts";
 export {
   type DurationPeriod,
   INCIDENT_GROUP_IDS,
@@ -16,6 +30,7 @@ export {
   type IncidentGroupId,
   type IncidentTypeId,
 } from "../params/incident-durations.ts";
+export { INCIDENT_PHRASES } from "../params/incident-phrases.ts";
 export * from "../params/routing.ts";
 export {
   OSAKA_CITY_TAXI_FARE,
@@ -30,6 +45,7 @@ export {
   DEFAULT_TRAIN_QUEUE_PARAMS,
   FALLBACK_RIDE_MINUTES_TO_NEXT_STATION,
   type LineOperationPattern,
+  MIN_MINUTES_PER_TRAIN_AHEAD,
   OPERATION_PATTERNS,
   type OperationPattern,
   STATION_PLATFORMS_BY_LINE,
@@ -40,6 +56,7 @@ export {
   type TrainQueueParams,
 } from "../params/train-queue.ts";
 export {
+  HEADWAY_MINUTES,
   LINE_TYPES,
   type LineType,
   TIMES_OF_DAY,
@@ -56,6 +73,19 @@ export {
   type StayOn,
   selectAfterAlightStep,
 } from "./after-alight.ts";
+export {
+  ALTERNATIVE_STANDINGS,
+  type AlternativeStanding,
+  type ProtectionRankingInput,
+  type RankableAlternative,
+  type RankedAlternative,
+  rankAlternativesForProtection,
+} from "./alternative-ranking.ts";
+export {
+  checkTrackCleared,
+  detectAnnouncementCues,
+  detectObservationCues,
+} from "./announcement-cues.ts";
 export { computeArrival, type LegMinutes, sumLegMinutes } from "./arrival.ts";
 export {
   type AlternativeArrival,
@@ -87,6 +117,25 @@ export {
   sampleRemainingDuration,
 } from "./duration-model.ts";
 export {
+  estimateIncidentRemaining,
+  INCIDENT_ESTIMATE_BASES,
+  type IncidentEstimateBasis,
+  type IncidentRemaining,
+  type IncidentRemainingInput,
+} from "./incident-estimate.ts";
+export {
+  checkProtectionIncident,
+  checkWeatherIncident,
+  decideRuleConfidence,
+  findIncidentTypeByPhrase,
+  type IncidentTypeInput,
+  type ProtectionIncidentInput,
+  type RuleConfidenceInput,
+  resolveFirstTrainWait,
+  resolveFlowOutlook,
+  resolveIncidentType,
+} from "./incident-rules.ts";
+export {
   classifyDurationPeriod,
   estimateStatsRemaining,
   type IncidentDurationTables,
@@ -105,28 +154,8 @@ export {
   type ReplayOutcomeVerdict,
 } from "./outcome.ts";
 export { createMulberry32, type Random } from "./random.ts";
-export {
-  computeQuantile,
-  computeResumeFloorRemaining,
-  estimateRemaining,
-  findPhaseIndex,
-  getFirstTrainWait,
-  type RemainingOptions,
-  sampleDurationDist,
-  sampleRemaining,
-  summarizeSamples,
-} from "./remaining.ts";
-export {
-  type BranchAwareOptions,
-  type BranchAwareRemaining,
-  enumeratePhasePaths,
-  estimateBranchAwareRemaining,
-  estimateStatedRemaining,
-  estimateStatedRemainingWithoutKnowledge,
-  findPhasePaths,
-  mergeBranchSamples,
-  type PhasePaths,
-} from "./remaining-paths.ts";
+export { computeQuantile, sampleDurationDist, summarizeSamples } from "./remaining.ts";
+export { estimateStatedRemainingWithoutKnowledge } from "./remaining-paths.ts";
 export {
   CHANCE_FLOOR,
   CHANCE_NEARLY_CERTAIN,
@@ -144,10 +173,18 @@ export {
   selectKeyTick,
 } from "./resume-chance.ts";
 export {
+  estimateQueueAfterResume,
+  type ResumeQueueInput,
+  type ResumeQueueOutlook,
+} from "./resume-queue.ts";
+export {
+  findIncidentType,
+  INCIDENT_TYPE_BY_EVENT_TYPE,
   type ObservedStopScopeInput,
   resolveObservedStopScope,
   resolveStopKind,
   resolveStopScope,
+  STOP_KIND_BY_INCIDENT_TYPE,
   type StopKind,
   type StopScope,
   type StopScopeInput,
@@ -192,12 +229,12 @@ export {
   computeWaitMinutes,
 } from "./transit.ts";
 export {
-  classifyFlowOutlook,
-  describeTypicalFlow,
-  estimateUntilResume,
-  type FlowOutlook,
-  inferPredictabilityLevel,
-} from "./typical-flow.ts";
+  estimateUnaffectedTrackResume,
+  TRACK_SIDES,
+  type TrackSide,
+  type UnaffectedTrackInput,
+  type UnaffectedTrackOutlook,
+} from "./unaffected-track.ts";
 export {
   computeHaversineMeters,
   computeWalkMinutesFromMeters,

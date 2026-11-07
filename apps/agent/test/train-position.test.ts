@@ -61,7 +61,7 @@ function buildRequest(input: RequestInput): JudgeRequest {
     ],
     newInput: {
       type: "selection",
-      eventType: input.eventType ?? "person_accident",
+      eventType: input.eventType ?? "person_collision",
       signalIds: input.signalIds ?? [],
     },
     origin: { kind: "station", name: input.origin ?? "塚本" },
@@ -123,7 +123,7 @@ describe("駅間の車内の 3 つの場面", () => {
           trainPosition: position,
           origin: "大阪",
           destination: "大阪",
-          eventType: "in_car_response",
+          eventType: "medical_response",
           line: "JR大阪環状線",
         }),
       ),
@@ -157,7 +157,10 @@ describe("駅間の車内の 3 つの場面", () => {
     // 理由は着く見込みだけにし、再開までの時間を事象の流れとして言い切らない
     expect(judgment.reason).toMatch(/^塚本には\d{1,2}時\d{2}分ごろに着く見込みです。/);
     expect(findFlowWording(judgment.reason ?? "", "ja")).toBeNull();
-    expect(judgment.typicalFlow).toBeDefined();
+    // 人身事故は防護無線の事象。区間が分からないので詰まりの本数は 0 で、降りる価値は無い
+    expect(judgment).not.toHaveProperty("typicalFlow");
+    expect(judgment.protection).toBe(true);
+    expect(judgment.resumeQueue?.worthAlightingAtNextStation).toBe(false);
   });
 });
 
@@ -187,12 +190,13 @@ describe("駅間の車内にいる利用者の理由", () => {
         buildRequest({
           trainPosition: observed([]),
           eventType: "heavy_rain",
-          signalIds: ["hr_inspection_announced"],
+          signalIds: [],
           cleared: false,
         }),
       ),
     );
-    expect(judgment.estimate.phaseId).toBe("track_inspection");
+    expect(judgment.estimate.eventType).toBe("heavy_rain");
+    expect(judgment.cues ?? []).not.toContain("track_cleared");
     expect(judgment.reason).toMatch(/^塚本には再開後の/);
   });
 
@@ -202,7 +206,7 @@ describe("駅間の車内にいる利用者の理由", () => {
         app,
         buildRequest({
           trainPosition: observed([]),
-          signalIds: ["pa_preparing_resume"],
+          signalIds: ["resume_soon"],
           cleared: false,
         }),
       ),
@@ -316,7 +320,7 @@ describe("走行位置画像を判断へ反映する", () => {
       ...buildEntryObservation(),
       id: "cause",
       observedAt: now,
-      eventTypeCandidates: [{ eventType: "person_accident", confidence: "high" }],
+      eventTypeCandidates: [{ eventType: "person_collision", confidence: "high" }],
     });
     request.newInput = {
       type: "photo",

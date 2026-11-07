@@ -1,7 +1,9 @@
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import type { NetworkData } from "@repo/geo";
 import networkJson from "@repo/geo/data/network.json";
 import { describe, expect, it } from "vitest";
-import { createMapGeo } from "@/features/map/geo-data";
+import { buildTrackShapes, createMapGeo, type LinesGeoJson } from "@/features/map/geo-data";
 import { listEntryDirections } from "./directions";
 import { createEntryData, findStationChoice, listGroupLines } from "./entry-places";
 import {
@@ -17,6 +19,11 @@ import {
 
 const geo = createMapGeo(networkJson as unknown as NetworkData);
 const data = createEntryData(geo.nodes, geo.index);
+const trackShapes = buildTrackShapes(
+  JSON.parse(
+    readFileSync(createRequire(import.meta.url).resolve("@repo/geo/data/lines.geojson"), "utf8"),
+  ) as LinesGeoJson,
+);
 
 function findPoint(name: string) {
   const choice = findStationChoice(data, name);
@@ -166,6 +173,20 @@ describe("listLineTapChoices", () => {
     );
     expect(choices.length).toBeLessThanOrEqual(3);
     expect(choices.every((c) => c.kind === "between")).toBe(true);
+  });
+
+  it("引いた地図で押すと、画面で拾った線の順ではなく、線路の形が押した点に近い順に並べる", () => {
+    // 開いた直後の倍率で 44px を地図の距離にした値。画面の線は東西線が先に拾われたとする
+    const lowZoomReach = 4400;
+    const choices = listLineTapChoices(
+      data,
+      geo.nodes,
+      awayFromOthers,
+      lowZoomReach,
+      [tozai, kobe],
+      trackShapes,
+    );
+    expect(choices.map((c) => (c.kind === "between" ? c.line.lineId : ""))).toEqual([kobe, tozai]);
   });
 
   it("押した線から離れた所や、線の無い所では候補を出さない", () => {

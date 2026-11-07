@@ -1,6 +1,6 @@
 import type { Observation } from "@repo/schema";
 import { describe, expect, it } from "vitest";
-import { checkTrackCleared } from "../src/domain/phase.ts";
+import { checkTrackCleared } from "../src/domain/incident.ts";
 
 // 線路の安全が確かめられた兆候。再開の見込みの時刻か、再開が近いと言い切る放送だけを数える
 

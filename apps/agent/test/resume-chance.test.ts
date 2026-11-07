@@ -175,13 +175,14 @@ describe("車内対応のリプレイの再開の見込み", () => {
     const chance = requireChance(judgment);
     const tenMinutes = chance.ticks.find((t) => t.sinceOnsetMinutes === 10);
     expect(tenMinutes?.tenths).toBeGreaterThanOrEqual(7);
-    expect(chance.waitFaster).toBeGreaterThanOrEqual(9);
+    // 規則表の短い事象の目安は p80 を仮の 15 分にしているので、待つほうが早い確率は 8 割以上にとどまる
+    expect(chance.waitFaster).toBeGreaterThanOrEqual(8);
     expect(judgment.action).toBe("wait");
     expect(judgment.reason).toMatch(
       /^待つほうが早く着きます。再開は\d{1,2}時\d{2}分ごろの見込みです。/,
     );
     expect(findFlowWording(judgment.reason ?? "", "ja")).toBeNull();
-    expect(judgment.reason).toMatch(/。\d{1,2}時\d{2}分までに動く見込みは(9割|9割以上)です。$/);
+    expect(judgment.reason).toMatch(/。\d{1,2}時\d{2}分までに動く見込みは(8割|9割|9割以上)です。$/);
   });
 });
 
@@ -288,21 +289,20 @@ describe("確率の捏造の検査", () => {
     const entry = scenario.timeline[0];
     if (!entry) throw new Error("シナリオがありません");
     const request = buildScenarioRequest(scenario, entry, []);
-    const knowledge = deps.content.knowledge.get(scenario.event_type);
-    const signal = knowledge?.phases[0]?.signals[0];
-    if (!knowledge || !signal) throw new Error("知見がありません");
+    // 発表の引用の根拠は、種類の id で、呼び名を含む原文の文から作る
+    const eventType = scenario.event_type;
     const observation: Observation = {
       id: entry.id,
       observedAt: request.now,
       source: "scenario",
       rawText: entry.text.ja,
-      eventTypeCandidates: [{ eventType: knowledge.id, confidence: "high" }],
+      eventTypeCandidates: [{ eventType, confidence: "high" }],
       operator: null,
       line: null,
       section: null,
       statedResumeTime: null,
       transferServiceActive: null,
-      detectedSignals: [{ eventType: knowledge.id, signalId: signal.id, quote: "引用" }],
+      detectedSignals: [],
     };
     const session = createJudgeSession(
       {
@@ -318,7 +318,7 @@ describe("確率の捏造の検査", () => {
         () => request.now,
       ),
     );
-    await session.executeTool("estimate_phase_and_remaining", { eventType: knowledge.id });
+    await session.executeTool("estimate_remaining", { eventType });
     await session.executeTool("find_alternatives", {});
     const outcome = await session.executeTool("compute_break_even", {});
     const { estimate, alternatives, breakEven } = session.state;
@@ -326,21 +326,21 @@ describe("確率の捏造の検査", () => {
     return {
       session,
       results: { estimate, alternatives, breakEven },
-      signalId: signal.id,
+      signalId: eventType,
       outcome,
       request,
     };
   }
 
   it("ツールの結果の確率はそのまま通り、無い確率は指摘する", async () => {
-    const { session, results, signalId } = await prepareSession("person_accident_last_train");
+    const { session, results, signalId, request } = await prepareSession(
+      "person_accident_last_train",
+    );
     const chance = results.breakEven.resumeChance;
     if (!chance || chance.waitFaster === null) throw new Error("確率がありません");
     const tick = chance.ticks.find((t) => t.tenths > 0 && t.tenths < 10);
     if (!tick) throw new Error("中間の確率の目盛りがありません");
-    const minutesFromNow = Math.round(
-      diffMinutes(results.estimate.phaseStartedAt ?? "", tick.time),
-    );
+    const minutesFromNow = Math.round(diffMinutes(request.now, tick.time));
     const decision = (reason: string) => ({
       action: "switch" as const,
       headline: "いま振替に切り替える",
@@ -361,13 +361,21 @@ describe("確率の捏造の検査", () => {
     );
     expect(session.checkJudgment(fine, results).errors).toEqual([]);
 
+    // ツールの結果に無い割合を選んで書かせる
+    const shown = new Set([
+      chance.waitFaster,
+      chance.waitOnTime,
+      ...chance.ticks.map((t) => t.tenths),
+    ]);
+    const missing = [2, 3, 4, 5, 6, 7, 8].find((n) => !shown.has(n));
+    if (missing === undefined) throw new Error("ツールの結果に無い割合がありません");
     const fabricated = assembleJudgment(
       results,
-      decision("待ったほうが早く着く見込みは4割です。"),
+      decision(`待ったほうが早く着く見込みは${missing}割です。`),
       "ja",
     );
     const { errors } = session.checkJudgment(fabricated, results);
-    expect(errors.some((e) => e.includes("4割"))).toBe(true);
+    expect(errors.some((e) => e.includes(`${missing}割`))).toBe(true);
   });
 
   it("Claude へのツール結果に確率の表示が入り、標本は渡さない", async () => {

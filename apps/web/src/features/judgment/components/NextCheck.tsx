@@ -1,23 +1,21 @@
 "use client";
 
-import { classifyFlowOutlook } from "@repo/core";
-import type { Estimate, EstimateSource, TypicalFlow } from "@repo/schema";
+import { resolveFlowOutlook, resolveIncidentType } from "@repo/core";
+import type { Estimate, EstimateSource } from "@repo/schema";
 import { Eye, Info, RotateCcw } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { SheetSection } from "@/components/SheetSection";
-import type { KnowledgeCatalog } from "@/features/knowledge/catalog";
 import { type CauseChoiceId, toCauseChoiceId } from "@/features/situation/cause-categories";
 import { describePlace } from "@/features/stations/describe";
-import { listNextSignalPhrases } from "../evidence-text";
 import { type TripContext, useJudgmentSession } from "../session";
 import { selectJudgmentDisplay } from "../state";
 import { testIds } from "../testids";
 
 // 入口で方面だけ・電車の中・分からないで進んだときの前提と、次に確かめること
-// 確信度が高くないときだけ、次に確かめることを出す。兆候は放送の言い回しの例で示す
+// 確信度が高くないときだけ、次に確かめることを出す
 // 短く終わる事象では、再開見込みの放送を待たないので、発車の放送を確かめるよう示す
 
-// 次に確かめることの数の上限。兆候と定型の項目を合わせて数える
+// 次に確かめることの数の上限
 const checkLimit = 3;
 
 function usePremises(): string[] {
@@ -102,30 +100,26 @@ export function PremiseSection() {
   );
 }
 
+// 短く終わる事象か。core の規則表の見込みで決める
+function checkShortIncident(eventType: string | null): boolean {
+  return resolveFlowOutlook(resolveIncidentType({ eventType })) === "short";
+}
+
 export function NextCheckSection({
   estimate,
-  flow,
-  catalog,
   onUpdate,
 }: {
   estimate: Estimate;
-  flow: TypicalFlow | null;
-  catalog: KnowledgeCatalog;
   onUpdate: () => void;
 }) {
   const t = useTranslations("judgment.nextCheck");
-  const locale = useLocale();
   if (estimate.confidence === "high") return null;
-  const short = flow?.eventType === estimate.eventType && classifyFlowOutlook(flow) === "short";
+  const short = checkShortIncident(estimate.eventType);
   const items = [
     ...(estimate.eventType === null ? [t("cause")] : []),
     short ? t("departSoon") : t("resume"),
     ...(estimate.eventType === null ? [t("transfer")] : []),
   ].slice(0, checkLimit);
-  // 先頭の言い回しは根拠の欄に出すので、ここでは 2 つ目から並べる
-  const signals = listNextSignalPhrases(catalog, estimate, locale)
-    .slice(1, 1 + Math.max(0, checkLimit - items.length))
-    .map((phrase) => `「${phrase}」`);
   return (
     <SheetSection testId={testIds.judgment.nextCheck} title={t("title")}>
       <ul className="flex flex-col gap-2">
@@ -136,16 +130,6 @@ export function NextCheckSection({
           </li>
         ))}
       </ul>
-      {signals.length > 0 && (
-        <div className="flex flex-col gap-1.5 rounded-xl bg-foreground/[0.04] px-3 py-2.5">
-          <p className="text-[13px] font-medium text-muted">{t("signals")}</p>
-          <ul className="flex flex-col gap-1 text-[14px] leading-relaxed">
-            {signals.map((s) => (
-              <li key={s}>・{s}</li>
-            ))}
-          </ul>
-        </div>
-      )}
       <button
         type="button"
         data-testid={testIds.judgment.nextCheckAction}

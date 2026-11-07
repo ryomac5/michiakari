@@ -2,10 +2,9 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { type Document, isNode, LineCounter, parseDocument, visit } from "yaml";
 import { z } from "zod";
-import { type Knowledge, KnowledgeSchema } from "./knowledge.ts";
 import { type Scenario, ScenarioSchema } from "./scenario.ts";
 
-// knowledge/ と scenarios/ の YAML を読む。fs を使うので Node 専用
+// scenarios/ の YAML を読む。fs を使うので Node 専用
 
 // start から親へたどり、pnpm-workspace.yaml があるディレクトリを返す
 // import.meta.url に依存しない（Turbopack がバンドル時に import と誤認するため）
@@ -20,7 +19,7 @@ export function findRepoRoot(start: string = process.cwd()): string {
   return dir;
 }
 
-// knowledge/ と scenarios/ を含むディレクトリ。CONTENT_DIR が無ければリポジトリルート
+// scenarios/ を含むディレクトリ。CONTENT_DIR が無ければリポジトリルート
 // 相対パスは cwd ではなくリポジトリルート基準で解決する（pnpm --filter で cwd が変わるため）
 export function resolveContentDir(
   env: Record<string, string | undefined> = process.env,
@@ -153,10 +152,6 @@ function loadDir<T>(dir: string, schema: z.ZodType<T>): LoadDirResult<T> {
   }
 
   return { files, entries, errors };
-}
-
-export function loadKnowledgeDir(dir: string): LoadDirResult<Knowledge> {
-  return loadDir(dir, KnowledgeSchema);
 }
 
 export function loadScenarioDir(dir: string): LoadDirResult<Scenario> {

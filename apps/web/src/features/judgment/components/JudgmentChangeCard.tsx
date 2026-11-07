@@ -21,7 +21,7 @@ export function JudgmentChangeCard({ change }: { change?: JudgmentChange }) {
   const tChance = useTranslations("judgment.resumeChance");
   if (!data) return null;
 
-  // 読めることの文は、根拠の欄と同じ組み立てで作る
+  // 読めることの文は、根拠の欄と同じ組み立てで作る。手がかりの読みがあるときだけ出す
   const reading = data.evidence
     ? buildEvidenceLines([data.evidence], (key, values) =>
         tEvidence(key as never, values as never),
@@ -56,7 +56,7 @@ export function JudgmentChangeCard({ change }: { change?: JudgmentChange }) {
         <p
           className="line-clamp-2 text-[12px] leading-snug"
           data-testid={testIds.judgment.changeReading}
-          data-phase-id={data.evidence?.phaseId ?? ""}
+          data-cue-id={data.evidence?.cueId ?? ""}
         >
           <span className="text-muted">{t("evidence.reading.label")}: </span>
           {reading}

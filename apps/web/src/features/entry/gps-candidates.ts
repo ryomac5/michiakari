@@ -113,15 +113,19 @@ export function listLineTapChoices(
     // 線を押したとみなす幅は、押せる大きさの半分。地図で線を拾う幅にそろえる
     return meters <= reachMeters / 2 ? [{ candidate: c, meters }] : [];
   });
-  measured.sort((a, b) => a.meters - b.meters);
-  // 並べる順は、描いた線が押した点に近い順。駅を結ぶ直線は描いた線から離れるので、順には使わない
+  // 並べる順は、描いた線路の形が押した点に近い順。同じ近さなら、画面で拾った線の近い順にする
+  // 引いた地図の画面の線は形を間引いて描くので、近さは線路の形で測る。駅を結ぶ直線は描いた線から離れるので、順には使わない
+  const order = (lineId: string) => lineIds.indexOf(lineId);
+  measured.sort(
+    (a, b) =>
+      a.meters - b.meters || order(a.candidate.line.lineId) - order(b.candidate.line.lineId),
+  );
   const nearestPerLine = measured
     .filter(
       (m, i) =>
         measured.findIndex((o) => o.candidate.line.lineId === m.candidate.line.lineId) === i,
     )
-    .map((m) => m.candidate)
-    .sort((a, b) => lineIds.indexOf(a.line.lineId) - lineIds.indexOf(b.line.lineId));
+    .map((m) => m.candidate);
   return convertCandidates(data, nearestPerLine).slice(0, limit);
 }
 

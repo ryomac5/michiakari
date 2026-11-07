@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import {
   betweenTsukamotoAmagasaki,
+  dragTo,
   expectStage,
   findCanvasPointNear,
   panTo,
@@ -13,7 +14,7 @@ import {
 import { expect, test } from "../support/test.ts";
 
 // 最初の地図で駅と駅の間の線を押すと、その駅の間の車内にいるか確かめ、はいで行き先の段へ進む
-// 引いた地図で線を押したときは、駅の間を決めずに、まずそのあたりへ寄る
+// 引いた地図で線を押したときも、駅の間の候補を出し、候補の区間が見える倍率まで寄る
 
 const screenshotDir = fileURLToPath(new URL("../screenshots/line-tap/", import.meta.url));
 test.setTimeout(120_000);
@@ -30,7 +31,7 @@ for (const viewport of [
   test.describe(size, () => {
     test.use({ viewport });
 
-    test("引いた地図で線を押すと寄り、寄った地図で塚本と尼崎の間の線を押すと尋ね、はいで行き先へ進む", async ({
+    test("引いた地図で線を押すと候補を出して寄り、寄った地図で塚本と尼崎の間の線を押すと尋ね、はいで行き先へ進む", async ({
       page,
     }) => {
       await page.goto("/");
@@ -41,7 +42,7 @@ for (const viewport of [
       // 価値の 3 行は地図の上端を覆うので、線を押す前に閉じる
       await page.getByTestId(testIds.start.introClose).click();
       await waitForMapStill(page);
-      // 引いた地図で塚本と尼崎のあたりの線を押すと、段はそのままで、駅の印が出る倍率まで寄る
+      // 引いた地図で塚本と尼崎のあたりの線を押すと、段はそのままで駅の間の候補を出し、駅の印が出る倍率まで寄る
       await page.locator(".maplibregl-canvas").focus();
       const far = await panTo(page, betweenTsukamotoAmagasaki, {
         x: viewport.width / 2,
@@ -53,15 +54,29 @@ for (const viewport of [
       await waitForMapStill(page);
       await expectStage(page, "position");
       expect(await readZoom(page)).toBeGreaterThanOrEqual(12.5);
-      await expect(page.getByTestId(testIds.start.gpsQuestion)).toHaveCount(0);
+      // 候補が 1 件なら問いで、複数なら一覧で出る
+      const farChoice = page
+        .getByTestId(testIds.start.gpsQuestion)
+        .or(
+          page
+            .locator("[data-testid^='start-gps-choice-']")
+            .filter({ hasText: "JR神戸線の塚本〜尼崎の間" }),
+        );
+      await expect(farChoice).toContainText("JR神戸線の塚本〜尼崎の間");
       await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-detail", "stations");
 
-      // 寄った地図で塚本と尼崎の間の線を押す。押しやすいよう、さらに寄せて地図の上の方へ動かす
+      // 寄った地図で塚本と尼崎の間の線を押す。押しやすいよう、さらに寄せる
+      // 候補が出てシートが高いので、指で引いて、上部の帯とシートの間の中ほどへ動かす
+      await page.locator(".maplibregl-canvas").focus();
       await zoomOn(page, betweenTsukamotoAmagasaki, 15);
-      const middle = await panTo(page, betweenTsukamotoAmagasaki, {
-        x: viewport.width / 2,
-        y: viewport.height * 0.22,
-      });
+      const sheetTop = (await page.getByTestId(testIds.start.sheet).boundingBox())?.y ?? 0;
+      const middle = await dragTo(
+        page,
+        betweenTsukamotoAmagasaki,
+        { x: viewport.width / 2, y: (72 + sheetTop) / 2 },
+        { top: 72, bottom: sheetTop },
+      );
+      expect(middle.y).toBeLessThan(sheetTop);
 
       // 線を押すと、その駅の間か尋ねる。段は最初の段のまま
       await page.mouse.click(middle.x, middle.y);

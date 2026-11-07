@@ -2,22 +2,25 @@ import type {
   BreakEvenResult,
   ComparisonRow,
   ConcreteTrainType,
+  IncidentEstimateBasis,
+  IncidentFlowOutlook,
   LonLat,
   TrainQueueOutcome,
 } from "@repo/core";
 import type {
+  AnnouncementCueId,
   DurationDist,
   Estimate,
   JudgeRequest,
   Observation,
   ResumeChance,
+  ResumeQueue,
   RouteOption,
   Scenario,
-  TypicalFlow,
+  UnaffectedTrack,
 } from "@repo/schema";
 import type { AlternativesProvider } from "../alternatives/provider.ts";
 import type { ContentStore } from "../content.ts";
-import type { FlowOutlook } from "../domain/typical-flow.ts";
 import type { RainReading, RainSummary } from "../domain/weather.ts";
 
 // ツールの実行に必要な文脈と、ツールの結果
@@ -52,22 +55,29 @@ export type TrainQueueToolResult = TrainQueueOutcome & {
 export type EstimateToolResult = {
   estimate: Estimate;
   trainQueue: TrainQueueToolResult | null;
-  phaseName: string | null;
-  phaseGuidance: string | null;
-  phaseStartedAt: string | null;
   statedResumeTime: string | null;
   statedExtended: boolean;
-  // 残り時間の根拠。statistics は知見が無く、入口で答えた原因の統計値から見積もった
-  remainingBasis: "knowledge" | "stated" | "resumed" | "statistics" | null;
-  skippedPhaseIds: string[];
+  // 残り時間の根拠。core の estimateIncidentRemaining の basis。見込みが無ければ null
+  remainingBasis: IncidentEstimateBasis | null;
+  // 再開から乗れる列車が来るまで。規則表の止まり方から引く
   firstTrainWait: DurationDist | null;
   // 現在時刻 + 残り時間。再開して乗れる見込みの時刻
   boardableP50: string | null;
   boardableP80: string | null;
-  // 事象の段階と再開までの見込み。事象が分からなければ null
-  typicalFlow: TypicalFlow | null;
-  // 見込みが立てやすい事象なら、短く終わるか長くかかるか。行動と見出しの選び方に使う
-  flowOutlook: FlowOutlook | null;
+  // 種類の長さの見込み。種類が分からなければ unknown
+  flowOutlook: IncidentFlowOutlook;
+  // めったに無い事象で、見込みの数字を言い切らない
+  withholdNumbers: boolean;
+  // 天気の事象か。気象を確かめるかを決める
+  weatherIncident: boolean;
+  // 観測から拾った放送の手がかり
+  cues: AnnouncementCueId[];
+  // 防護無線の事象か。周りの同じ会社の列車も一斉に止まる
+  protection: boolean;
+  // 支障の無い線路が先に動く見込み。防護無線の事象でなければ null
+  unaffectedTrack: UnaffectedTrack | null;
+  // 再開後の詰まりの見込み。列車の中にいないか、詰まりの放送が無ければ null
+  resumeQueue: ResumeQueue | null;
   // 確率の計算に使う、乗れるまでの残り時間の標本（分、昇順）。remaining が null なら null。Claude には渡さない
   remainingSamples?: readonly number[] | null;
   // 発生とみなした時刻。最初の観測の時刻
@@ -75,7 +85,10 @@ export type EstimateToolResult = {
 };
 
 export type AlternativesToolResult = {
+  // 先頭は待つ選択肢。防護無線の事象では、残りを上げる・そのまま・下げるの順に並べる
   options: RouteOption[];
+  // 防護無線の事象で下げた選択肢。止まった会社と同じ会社の線で、最初は一緒に止まる
+  loweredOptionIds?: string[];
   waitOptionId: string;
   waitRouteMinutesAfterResume: number | null;
   blockedLine: string | null;
@@ -103,7 +116,6 @@ export type ToolState = {
   alternatives: AlternativesToolResult | null;
   breakEven: BreakEvenToolResult | null;
   weather: WeatherToolResult | null;
-  lookedUpKnowledge: string[];
 };
 
 export function createToolState(): ToolState {
@@ -112,6 +124,5 @@ export function createToolState(): ToolState {
     alternatives: null,
     breakEven: null,
     weather: null,
-    lookedUpKnowledge: [],
   };
 }

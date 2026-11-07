@@ -1,46 +1,43 @@
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import { loadReplayKnowledge, openSheet, waitForFiniteAnimations } from "../support/replay.ts";
+import { ANNOUNCEMENT_CUE_IDS } from "../../packages/schema/src/judgment.ts";
+import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
-// 判断の根拠の欄。聞いたことと、そこから読めるいまの段階の 2 行を、最大 3 項目で出す
-// 日本語の画面に英語の id や札を出さず、事象の決まった流れや再開の時間の言い切りも出さない
-// 決定論モードの agent とダミーの人身事故の知見で確かめる
+// 判断の根拠の欄。聞いたことを最大 3 項目で出し、手がかりのある項目にだけ読みを 1 行添える
+// 事象の段階の名前、次の放送の例、事象の決まった流れや再開の時間の言い切りは出さない
+// 日本語の画面に英語の id や札を出さない。決定論モードの agent で確かめる
 
 const screenshotDir = fileURLToPath(new URL("../screenshots/", import.meta.url));
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(120_000);
 
-const pasted = "人身事故のため、運転を見合わせています。現在、警察による現場の確認を行っています。";
+// 手がかりの無い発表と、前の列車の詰まりの手がかりを含む放送
+const plain = "人身事故のため、運転を見合わせています。現在、警察による現場の確認を行っています。";
+const withCue = `${plain}前の列車がつかえているため、しばらく停車いたします。`;
 
 const copy = {
   ja: {
     title: "判断の根拠",
     heard: "聞いたこと",
     reading: "そこから読めること",
-    current: /^いまは.+の段階です。$/,
+    queueReading: "動いても、前の列車が詰まって進みにくいと読めます。",
+    stage: /の段階|段階です/,
     flowWording: /よくある流れ|ふつう|[0-9０-９]+(時間|分)ほどで(再開|終わ)/,
   },
   en: {
     title: "Why we think so",
     heard: "What you heard",
     reading: "What it tells us",
-    current: /^Service is now at the “.+” stage\.$/,
+    queueReading: "Even once moving, trains ahead may hold you up.",
+    stage: /\bstage\b/i,
     flowWording: /typical flow|usually|p50|p80/i,
   },
 } as const;
 
-// 知見に出てくる id。画面の文に入ってはいけない
-function listKnowledgeIds(): string[] {
-  return loadReplayKnowledge().flatMap((k) => [
-    k.id,
-    ...k.phases.flatMap((p) => [p.id, ...p.signals.map((s) => s.id)]),
-  ]);
-}
-
-async function startWithPaste(page: Page, locale: "ja" | "en"): Promise<void> {
+async function startWithPaste(page: Page, locale: "ja" | "en", pasted: string): Promise<void> {
   await page
     .context()
     .addCookies([
@@ -62,11 +59,11 @@ async function startWithPaste(page: Page, locale: "ja" | "en"): Promise<void> {
 }
 
 for (const locale of ["ja", "en"] as const) {
-  test(`${locale} の画面で根拠を開くと、聞いたことと読めることの 2 行が 3 項目まで出る`, async ({
+  test(`${locale} の画面で根拠を開くと、聞いたことが 3 項目まで出て、段階の名前は出ない`, async ({
     page,
   }) => {
     const words = copy[locale];
-    await startWithPaste(page, locale);
+    await startWithPaste(page, locale, plain);
     await openSheet(page, "full");
     const toggle = page.getByTestId(testIds.judgment.evidenceToggle);
     await expect(toggle).toHaveText(words.title);
@@ -80,50 +77,28 @@ for (const locale of ["ja", "en"] as const) {
     for (let i = 0; i < count; i++) {
       const item = items.nth(i);
       await expect(item).toContainText(words.heard);
-      await expect(item).toContainText(words.reading);
       await expect(item.getByTestId(testIds.judgment.evidenceHeard)).toBeVisible();
-      await expect(item.getByTestId(testIds.judgment.evidenceReading)).toBeVisible();
     }
-    // 最初の項目がいまの段階を読む
-    await expect(items.first()).toHaveAttribute("data-current", "true");
-    await expect(items.first().getByTestId(testIds.judgment.evidenceReading)).toHaveText(
-      words.current,
-    );
-    // 聞いたことは貼り付けた発表の言葉を引く
+    // 聞いたことは貼り付けた発表の言葉を引く。同じ引用は重ねない
     await expect(evidence).toContainText("人身事故のため、運転を見合わせています。");
-    // 同じ段階の項目は 1 つにまとめ、同じ読めることの文を重ねない
-    const phases = await items.evaluateAll((els) =>
-      els.map((el) => el.getAttribute("data-phase-id")),
-    );
-    expect(new Set(phases).size).toBe(phases.length);
-    const readings = await evidence.getByTestId(testIds.judgment.evidenceReading).allTextContents();
-    expect(new Set(readings).size).toBe(readings.length);
-    // 先頭の項目に、次に聞こえたら再開が近づく放送の言い回しを 1 行添える。例は日本語だけなので英語では出さない
-    const next = evidence.getByTestId(testIds.judgment.evidenceNext);
-    if (locale === "ja") {
-      await expect(next).toHaveCount(1);
-      await expect(items.first().getByTestId(testIds.judgment.evidenceNext)).toHaveText(
-        /^「.+」と聞こえたら、再開が近づきます。$/,
-      );
-      // 同じ言い回しを次に確かめることの欄に重ねない
-      const phrase = /^「(.+)」と聞こえたら/.exec((await next.textContent()) ?? "")?.[1] ?? "";
-      expect(phrase.length).toBeGreaterThan(0);
-      const nextCheck = page.getByTestId(testIds.judgment.nextCheck);
-      if ((await nextCheck.count()) > 0) await expect(nextCheck).not.toContainText(phrase);
-    } else {
-      await expect(next).toHaveCount(0);
-    }
+    const heard = await evidence.getByTestId(testIds.judgment.evidenceHeard).allTextContents();
+    expect(new Set(heard).size).toBe(heard.length);
+    // 手がかりの無い発表なので読みの行は出さない。段階の名前と次の放送の例も出さない
+    await expect(evidence.getByTestId(testIds.judgment.evidenceReading)).toHaveCount(0);
+    await expect(evidence.locator("[data-phase-id]")).toHaveCount(0);
+    await expect(evidence.getByTestId(testIds.judgment.evidenceNext)).toHaveCount(0);
+    await expect(evidence).not.toContainText(words.stage);
 
-    // 発表の引用を除いた文に、id と英字の札が入らない。英語の画面にも id は入らない
+    // 発表の引用を除いた文に、id と英字の札が入らない
     const shown = (await evidence.textContent()) ?? "";
-    const ids = listKnowledgeIds();
-    for (const id of ids) expect(shown, id).not.toContain(id);
+    for (const id of ANNOUNCEMENT_CUE_IDS) expect(shown, id).not.toContain(id);
     expect(shown).not.toMatch(words.flowWording);
     if (locale === "ja") expect(shown).not.toMatch(/[A-Za-z_]/);
 
-    // シート全体にも、事象の決まった流れや再開の時間の言い切りは出ない
+    // シート全体にも、段階の名前、事象の決まった流れ、再開の時間の言い切りは出ない
     const sheet = page.getByTestId(testIds.judgment.sheet);
     await expect(sheet).not.toContainText(words.flowWording);
+    await expect(sheet).not.toContainText(words.stage);
     // 推定である旨と公式発表を優先すべき旨は消さない
     await expect(page.getByTestId(testIds.judgment.disclaimer)).toBeVisible();
 
@@ -132,3 +107,21 @@ for (const locale of ["ja", "en"] as const) {
     await page.screenshot({ path: `${screenshotDir}evidence-${locale}-390x844.png` });
   });
 }
+
+test("詰まりの放送を貼り付けると、その言葉の項目に手がかりの読みが 1 行だけ付く", async ({
+  page,
+}) => {
+  const words = copy.ja;
+  await startWithPaste(page, "ja", withCue);
+  await openSheet(page, "full");
+  await page.getByTestId(testIds.judgment.evidenceToggle).click();
+  const evidence = page.getByTestId(testIds.judgment.evidence);
+  const readings = evidence.getByTestId(testIds.judgment.evidenceReading);
+  await expect(readings).toHaveCount(1);
+  await expect(readings).toHaveText(words.queueReading);
+  const item = evidence.locator("li[data-cue-id='queue_ahead']");
+  await expect(item).toHaveCount(1);
+  await expect(item).toContainText(words.reading);
+  await expect(item.getByTestId(testIds.judgment.evidenceHeard)).toContainText("前の列車がつかえ");
+  await expect(evidence).not.toContainText(words.stage);
+});

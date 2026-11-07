@@ -14,7 +14,7 @@ export const ComputeBreakEvenInputSchema = z.object({});
 export const computeBreakEvenDefinition = {
   name: "compute_break_even",
   description:
-    "待つ場合と代替手段の到着時刻を比べ、分岐点（この時刻までに再開しなければ代替手段のほうが早い境目）と比較表をコードで計算する。あわせて resumeChance として、待ったほうが早く着く確率（waitFaster）、待って期限に間に合う確率（waitOnTime）、切りのよい時刻ごとに動いている確率（ticks）を 1 割単位で返す。確率は labels.resumeChance の表示をそのまま文に写し、自分で計算しない。期限が理由でタクシーを勧めるときは、分岐点が待っても期限に間に合う最後の再開の時刻になり、waitFaster は null で waitOnTime を使う。find_alternatives の後に呼ぶ。入力は不要。",
+    "待つ場合と代替手段の到着時刻を比べ、分岐点（この時刻までに再開しなければ代替手段のほうが早い境目）と比較表をコードで計算する。あわせて resumeChance として、待ったほうが早く着く確率（waitFaster）、待って期限に間に合う確率（waitOnTime）、切りのよい時刻ごとに動いている確率（ticks）を 1 割単位で返す。確率は labels.resumeChance の表示をそのまま文に写し、自分で計算しない。期限が理由でタクシーを勧めるときは、分岐点が待っても期限に間に合う最後の再開の時刻になり、waitFaster は null で waitOnTime を使う。防護無線の事象で下げた同じ会社の線は、勧める代替手段に選ばない。find_alternatives の後に呼ぶ。入力は不要。",
   inputSchema: ComputeBreakEvenInputSchema,
 } as const;
 
@@ -70,6 +70,7 @@ export function runComputeBreakEven(
     options: alternatives.options,
     deadline,
     firstTrainWaitMinutes: estimate.firstTrainWait?.p50 ?? null,
+    excludedOptionIds: alternatives.loweredOptionIds ?? [],
   });
   return {
     ...computed,

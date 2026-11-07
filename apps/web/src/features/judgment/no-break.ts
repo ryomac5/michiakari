@@ -4,6 +4,9 @@
 export type TextRun = { text: string; keep: boolean };
 
 const unbreakablePatterns = [
+  // 分の幅。「10〜15分ほど」「6–10 min」
+  String.raw`約?\d+〜\d+\s?分(?:ほど)?`,
+  String.raw`\d+–\d+\s?(?:minutes?|mins?|min)\b`,
   // 日本語の時刻と時間。「22時46分頃」「1時間30分」「約25分」
   String.raw`約?\d{1,2}時\d{1,2}分(?:頃|ごろ)?`,
   String.raw`約?\d+(?:\.\d+)?\s?時間(?:\d{1,2}\s?分)?(?:半|ほど)?`,

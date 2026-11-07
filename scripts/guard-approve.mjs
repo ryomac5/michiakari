@@ -1,4 +1,4 @@
-// 開発者が knowledge/ と scenarios/ の現在の内容を承認し、記録を書き出す
+// 開発者が scenarios/ の現在の内容を承認し、記録を書き出す
 // TTY での確認を必須にし、エージェントが代行できないようにする
 import { closeSync, openSync, readSync, writeSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";

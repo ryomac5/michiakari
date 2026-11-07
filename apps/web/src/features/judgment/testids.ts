@@ -18,6 +18,15 @@ export const testIds = {
     // 近くのバス停の確認候補の欄。時刻は出さない
     busChecks: "judgment-bus-checks",
     busCheck: (id: string) => `judgment-bus-check-${id}`,
+    // 防護無線の事象の 1 行の読み。見出しの下に出す
+    protection: "judgment-protection",
+    // 規則から出した見込みの欄。支障の無い線路と再開後の詰まり
+    ruleOutlook: "judgment-rule-outlook",
+    // 支障の無い線路の行。side は opposite か affected
+    trackLine: (side: string) => `judgment-track-line-${side}`,
+    queueWait: "judgment-queue-wait",
+    // 次の駅で降りて乗り換える行。data-option-id に乗り換え先の選択肢を出す
+    queueAlight: "judgment-queue-alight",
   },
   start: {
     ...sharedTestIds.start,

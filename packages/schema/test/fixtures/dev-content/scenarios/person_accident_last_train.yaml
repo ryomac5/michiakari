@@ -5,7 +5,7 @@ id: person_accident_last_train
 title:
   ja: 人身事故で見合わせ、京都駅で最終の乗り継ぎに間に合わせたい夜
   en: Suspension after a person-strike accident, racing to a last connection at Kyoto
-event_type: person_accident
+event_type: person_collision
 operator: JR西日本
 line: JR京都線
 blocked_section:
@@ -68,30 +68,21 @@ expectations:
   # obs_2 も発表の見込みが無く、再開の見込みが分岐点より後のままなので、同じ理由で switch にした
   - after: obs_1
     action: switch
-    phase: initial
-    evidence_includes: [pa_occurred_announced]
     break_even_shown: true
     note: 人身事故は再開まで 1 時間はかかる。再開の見込みが分岐点より後なので、いま振替経路へ切り替える。
   - after: obs_2
     action: switch
-    phase: initial
-    evidence_includes: [pa_occurred_announced]
     break_even_shown: true
     note: 状況は変わらず、再開見込みの発表もまだない。再開の見込みは分岐点より後のままなので、切り替えを続ける。
   - after: obs_3
     action: wait
-    phase: resume_estimate
-    evidence_includes: [pa_resume_estimate_announced]
     break_even_shown: true
     note: 見込みどおりなら振替より早く京都に着き、乗り継ぎにも間に合う。分岐点を示して待つ。
   - after: obs_4
     action: switch
-    phase: resume_estimate
-    evidence_includes: [pa_estimate_extended]
     note: 見込みが延びて分岐点を越えた。待つと乗り継ぎに間に合わず、いま振替へ移れば間に合う。さらに延びる余地もあるので、振替へ切り替える。
   - after: obs_6
-    phase: preparing_resume
-    evidence_includes: [pa_preparing_resume]
+    evidence_includes: [resume_soon]
     note: 再開は近いが、再開後の遅れが残ることを伝える。
 
 ground_truth:

@@ -23,7 +23,7 @@ import { renderNoticePng } from "./notice-png.ts";
 
 const SCENARIO_ID = "person_accident_last_train";
 const STEP_IDS = ["obs_1", "obs_3"] as const;
-const IMAGE_EVENT_TYPE = "person_accident";
+const IMAGE_EVENT_TYPE = "person_collision";
 const IMAGE_RESUME_CLOCK = "22:50";
 
 type CallRecord = {
@@ -199,7 +199,6 @@ async function interpretNoticeImage(deps: JudgeDeps): Promise<CheckRow[]> {
     {
       llm: deps.llm,
       prompts: deps.prompts,
-      knowledge: deps.content.knowledge,
       observationId: "obs_photo",
       observedAt: "2026-11-05T22:30:00+09:00",
     },
@@ -215,7 +214,7 @@ async function interpretNoticeImage(deps: JudgeDeps): Promise<CheckRow[]> {
       detail: `${png.length} バイト。原文「${rawText.replace(/\s+/g, " ").slice(0, 60)}」`,
     },
     {
-      item: "画像の事象種別",
+      item: "画像の種類",
       target: "photo",
       ok: observation.eventTypeCandidates.some((c) => c.eventType === IMAGE_EVENT_TYPE),
       detail: candidates.join(", ") || "候補なし",
@@ -224,7 +223,7 @@ async function interpretNoticeImage(deps: JudgeDeps): Promise<CheckRow[]> {
       item: "画像の再開見込み",
       target: "photo",
       ok: resume?.includes(`T${IMAGE_RESUME_CLOCK}`) ?? false,
-      detail: `${resume ?? "null"}。兆候 ${observation.detectedSignals.map((s) => s.signalId).join(", ") || "なし"}`,
+      detail: `${resume ?? "null"}。手がかり ${observation.detectedSignals.map((s) => s.signalId).join(", ") || "なし"}`,
     },
   ];
 }

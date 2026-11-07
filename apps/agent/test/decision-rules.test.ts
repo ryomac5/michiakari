@@ -1,4 +1,4 @@
-import type { BreakEvenResult, FlowOutlook } from "@repo/core";
+import type { BreakEvenResult, IncidentEstimateBasis, IncidentFlowOutlook } from "@repo/core";
 import { type Confidence, ResumeChanceSchema } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { decisionParams, reasonLimits } from "../src/config.ts";
@@ -37,8 +37,8 @@ function buildInput(input: {
   eventType: string | null;
   confidence: Confidence;
   result: BreakEvenResult;
-  flowOutlook?: FlowOutlook | null;
-  remainingBasis?: "knowledge" | "stated";
+  flowOutlook?: IncidentFlowOutlook;
+  remainingBasis?: IncidentEstimateBasis;
   statedResumeTime?: string | null;
 }): RuleInput {
   const stated = input.statedResumeTime ?? null;
@@ -46,28 +46,29 @@ function buildInput(input: {
     estimate: {
       estimate: {
         eventType: input.eventType,
-        phaseId: input.eventType ? "initial" : null,
-        elapsedMinutes: input.eventType ? 3 : null,
+        phaseId: null,
+        elapsedMinutes: 3,
         remaining: input.eventType || stated ? { p50: 50, p80: 125 } : null,
         confidence: input.confidence,
       },
       trainQueue: null,
-      phaseName: null,
-      phaseGuidance: null,
-      phaseStartedAt: null,
       statedResumeTime: stated,
       statedExtended: false,
       remainingBasis: input.eventType
-        ? (input.remainingBasis ?? "knowledge")
+        ? (input.remainingBasis ?? "statistics")
         : stated
           ? "stated"
           : null,
-      skippedPhaseIds: [],
       firstTrainWait: null,
       boardableP50: null,
       boardableP80: null,
-      typicalFlow: null,
-      flowOutlook: input.flowOutlook ?? null,
+      flowOutlook: input.flowOutlook ?? "unknown",
+      withholdNumbers: false,
+      weatherIncident: false,
+      cues: [],
+      protection: false,
+      unaffectedTrack: null,
+      resumeQueue: null,
     },
     alternatives: {
       options: [],
@@ -77,7 +78,6 @@ function buildInput(input: {
       notes: [],
     },
     breakEven: { result: input.result, comparison: [], basisOptionIds: ["alt_1"], deadline: null },
-    knowledge: null,
     weather: null,
   };
 }
@@ -133,13 +133,13 @@ describe("保留より先に切り替えを返す規則", () => {
       marginP50Minutes: -24,
       marginP80Minutes: -82,
     });
-    for (const eventType of [null, "person_accident"]) {
+    for (const eventType of [null, "person_collision"]) {
       const outcome = applyDecisionRules(buildInput({ eventType, confidence: "low", result }));
       expect(outcome.action).toBe("hold");
     }
   });
 
-  it("見込みの立てやすい事象は、分岐点まで時間があっても、見込みが後なら切り替える", () => {
+  it("規則表で長く止まる種類は、分岐点まで時間があっても、統計値の見込みが後なら切り替える", () => {
     const result = buildResult({
       minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
       marginP50Minutes: -24,
@@ -147,7 +147,7 @@ describe("保留より先に切り替えを返す規則", () => {
     });
     for (const confidence of ["low", "medium"] as const) {
       const outcome = applyDecisionRules(
-        buildInput({ eventType: "person_accident", confidence, result, flowOutlook: "long" }),
+        buildInput({ eventType: "person_collision", confidence, result, flowOutlook: "long" }),
       );
       expect(outcome).toEqual({
         action: "switch",
@@ -157,20 +157,27 @@ describe("保留より先に切り替えを返す規則", () => {
     }
   });
 
-  it("見込みの立てやすい事象でも、発表の見込みがあれば発表の時刻で比べる", () => {
-    // 発表の見込みが分岐点をわずかに過ぎるだけなら、乗り換えるほどの差がないので待つ
-    const result = buildResult({ minutesFromNow: 36, marginP50Minutes: -3, marginP80Minutes: -18 });
-    const outcome = applyDecisionRules(
+  it("長く止まる種類でも、発表の見込みがあれば発表の時刻で比べる", () => {
+    // 発表の時刻が分岐点より前なら、長く止まる種類でも統計値で切り替えず待つ
+    const before = buildResult({ minutesFromNow: 36, marginP50Minutes: 3, marginP80Minutes: -7 });
+    const input = (result: typeof before) =>
       buildInput({
-        eventType: "person_accident",
+        eventType: "person_collision",
         confidence: "high",
         result,
         flowOutlook: "long",
         remainingBasis: "stated",
-      }),
-    );
-    expect(outcome.action).toBe("wait");
-    expect(outcome.reason).toBe("resume_before_break_even");
+      });
+    expect(applyDecisionRules(input(before))).toMatchObject({
+      action: "wait",
+      reason: "resume_before_break_even",
+    });
+    // 発表の時刻が分岐点をわずかでも過ぎれば、見出しの時刻と食い違わないよう切り替える
+    const after = buildResult({ minutesFromNow: 36, marginP50Minutes: -3, marginP80Minutes: -18 });
+    expect(applyDecisionRules(input(after))).toMatchObject({
+      action: "switch",
+      reason: "resume_after_break_even",
+    });
   });
 
   it("原因が分からず見込みが無いときは、これまでどおり保留する", () => {
@@ -212,6 +219,66 @@ describe("原因が分からず、発表の再開見込みがある規則", () =
     expect(outcome).toEqual({
       action: "switch",
       reason: "stated_resume_after_break_even",
+      recommendedOptionId: "alt_1",
+    });
+  });
+
+  it("発表の時刻が分岐点より少しでも後なら、乗り換えの余裕の分を見ずに切り替える", () => {
+    const result = buildResult({
+      minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
+      marginP50Minutes: -1,
+      marginP80Minutes: -11,
+    });
+    const outcome = applyDecisionRules(
+      buildInput({ eventType: null, confidence: "medium", result, statedResumeTime: stated }),
+    );
+    expect(outcome).toEqual({
+      action: "switch",
+      reason: "stated_resume_after_break_even",
+      recommendedOptionId: "alt_1",
+    });
+  });
+
+  it("発表の時刻が分岐点と同じなら待つ", () => {
+    const result = buildResult({
+      minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
+      marginP50Minutes: 0,
+      marginP80Minutes: -10,
+    });
+    const outcome = applyDecisionRules(
+      buildInput({ eventType: null, confidence: "medium", result, statedResumeTime: stated }),
+    );
+    expect(outcome.action).toBe("wait");
+  });
+
+  it("原因が分かっていても、発表の時刻が分岐点より後なら待つと言わない", () => {
+    const result = buildResult({
+      minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
+      marginP50Minutes: -3,
+      marginP80Minutes: -13,
+    });
+    const stays = applyDecisionRules(
+      buildInput({
+        eventType: "person_collision",
+        confidence: "high",
+        result,
+        remainingBasis: "statistics",
+      }),
+    );
+    // 統計値の見込みなら、乗り換えの手間の分だけ余裕を見て待つ
+    expect(stays.action).toBe("wait");
+    const outcome = applyDecisionRules(
+      buildInput({
+        eventType: "person_collision",
+        confidence: "high",
+        result,
+        remainingBasis: "stated",
+        statedResumeTime: stated,
+      }),
+    );
+    expect(outcome).toEqual({
+      action: "switch",
+      reason: "resume_after_break_even",
       recommendedOptionId: "alt_1",
     });
   });
@@ -478,7 +545,7 @@ describe("結論の根拠と確率の比較時点", () => {
     const input = buildInput({
       eventType: "vehicle_failure",
       confidence: extended ? "high" : "low",
-      remainingBasis: extended ? "stated" : "knowledge",
+      remainingBasis: extended ? "stated" : "statistics",
       result: buildResult({ minutesFromNow: 4, marginP50Minutes: 2, marginP80Minutes: -18 }),
     });
     input.estimate.statedExtended = extended;
@@ -498,5 +565,46 @@ describe("結論の根拠と確率の比較時点", () => {
     expect(buildChanceSentence(chance, "en")).toBe(
       "Looking later, the chance of a restart by 22:50 is 60%.",
     );
+  });
+});
+
+describe("再開後の詰まりの規則と、雨の保留", () => {
+  // 境目まで時間があり、再開の見込みは境目より前。詰まりが無ければ待つ場面
+  const early = buildResult({ minutesFromNow: 40, marginP50Minutes: 20, marginP80Minutes: 5 });
+  const queue = {
+    closesUp: true,
+    trainsInQueue: 2,
+    waitRange: { minMinutes: 6, maxMinutes: 10 },
+    queueAnnounced: true,
+    worthAlightingAtNextStation: true,
+  };
+  const rain = {
+    source: "scenario" as const,
+    stationName: null,
+    readings: [],
+    summary: { latest: null, trend: "rising" as const, rainContinuing: true },
+  };
+
+  function buildQueueInput(withRain: boolean): RuleInput {
+    const input = buildInput({ eventType: "heavy_rain", confidence: "medium", result: early });
+    input.estimate.weatherIncident = true;
+    input.estimate.resumeQueue = queue;
+    return { ...input, weather: withRain ? rain : null };
+  }
+
+  it("雨が続くあいだの保留は、詰まりで降りる価値があっても切り替えに変えない", () => {
+    expect(applyDecisionRules(buildQueueInput(true))).toEqual({
+      action: "hold",
+      reason: "rain_continuing",
+      recommendedOptionId: null,
+    });
+  });
+
+  it("雨の保留が無ければ、詰まりで降りる価値があるとき待つ代わりに切り替える", () => {
+    expect(applyDecisionRules(buildQueueInput(false))).toEqual({
+      action: "switch",
+      reason: "queue_after_resume",
+      recommendedOptionId: "alt_1",
+    });
   });
 });

@@ -10,11 +10,17 @@
 - `kind`: 観測の種類。announcement（公式の運行情報）、signage（駅の掲示・表示器）、station_broadcast（駅や車内の放送）、weather（雨雲や警報の情報）、train_movement（列車の動き）のいずれか。判断できなければ null。
 - `trainsAhead`: 列車走行位置の画像（kind は train_movement）で、自分の列車の進行方向の前に詰まっている同じ線路・同じ方向の列車の種別を、自分に近い順に並べる任意の配列。普通は local、快速は rapid、新快速は special_rapid、特急は limited_express、読めない・対応しない種別は unknown。自分の列車・進行方向・並びを特定できないときは ["unknown"] とし、前に列車がいないと画像から確認できたときだけ [] にする。反対方向・別の線路・自分の列車は含めない。色や運転パターンから推測せず、明示された文字と凡例だけを読む。走行位置以外の入力では項目を省略する。
 - `rawText`: 読み取った原文。写真では書かれている文字をそのまま書き起こす。
-- `eventTypeCandidates`: このあとの `<knowledge_catalog>` にある事象種別の id と確信度（low / medium / high）。見分け方の文言（identification）が含まれていれば high。当てはまるものが無ければ空の配列。
+- `eventTypeCandidates`: このあとの `<incident_catalog>` にある、起きていることの種類の id と確信度（low / medium / high）。`phrases` の呼び名かそれと同じ意味の言葉が書かれていれば high。言い回しから推し量るだけなら medium か low。当てはまるものが無ければ空の配列。
 - `operator`, `line`: 事業者名と路線名。書かれていなければ null。
 - `section`: 止まっている区間の両端の駅名（「駅」は付けない）。書かれていなければ null。
 - `statedResumeClock`: 発表に再開見込み時刻が書かれていれば "HH:MM"（24 時間制）。書かれていなければ null。運転を再開した時刻は見込みではないので null にする。
 - `transferServiceActive`: 振替輸送を実施していると書かれていれば true、実施していないと書かれていれば false、書かれていなければ null。
-- `detectedSignals`: 観測に現れている兆候。`<knowledge_catalog>` の事象種別の id と兆候の id の組と、根拠になった原文の一部（quote）。例文と言い回しが違っても、意味が同じなら含める。当てはまらない兆候は入れない。
+- `detectedCues`: 行動を変える放送の手がかりと、根拠になった原文の一部（quote）。手がかりの id は次の 6 つだけです。例文と言い回しが違っても、意味が同じなら含めます。「点検が終わり次第」のような条件付きの文は数えません。
+  - `resumed`: 運転を再開した。
+  - `resume_soon`: まもなく再開する、順次再開する。
+  - `rescue`: 救援の列車や人が向かう。
+  - `protection_received`: 危険を知らせる信号や緊急停止の信号を受信して止まった。
+  - `queue_ahead`: 前の列車がつかえている、先行列車の影響で進めない。
+  - `track_cleared`: 線路の安全が確かめられた、運転再開の準備をしている。
 
-カタログに無い id を作ってはいけません。
+カタログと上の手がかりに無い id を作ってはいけません。

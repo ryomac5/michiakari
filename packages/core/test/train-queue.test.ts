@@ -66,7 +66,8 @@ describe("resolveTrainQueueParams と表", () => {
       expect(normalizeOperatorKey(name)).toBe("jr-west");
       expect(resolveTrainQueueParams(name).closesUp).toBe(true);
     }
-    expect(normalizeOperatorKey("阪急")).toBeNull();
+    expect(normalizeOperatorKey("阪急")).toBe("hankyu");
+    expect(normalizeOperatorKey("架空鉄道")).toBeNull();
     expect(normalizeOperatorKey(null)).toBeNull();
     expect(findLineOperatorKey("jr-west.東海道線")).toBe("jr-west");
     expect(findLineOperatorKey("hankyu.神戸線")).toBe("hankyu");

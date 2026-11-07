@@ -62,11 +62,9 @@
       "submit": "この内容で判断する"
     },
     "select": {
-      "eventLabel": "起きていることを選ぶ",
-      "signalLabel": "聞こえた案内・見えた様子をすべて選ぶ",
-      "empty": "選択肢を用意しています。撮影か貼り付けで伝えてください。",
-      "back": "起きていることを選び直す",
-      "submit": "この内容で判断する"
+      "eventLabel": "止まった原因を選ぶ",
+      "kindLabel": "近いものを選ぶ",
+      "back": "原因を選び直す"
     },
     "busy": "判断しています"
   },
@@ -79,7 +77,7 @@
       "steps": {
         "reading": "掲示・発表を読み取る",
         "signals": "兆候を見つける",
-        "phase": "いまの段階を推定する",
+        "phase": "再開の見込みを出す",
         "options": "代わりの手段を調べる",
         "breakEven": "境目の時刻を計算する"
       },
@@ -92,7 +90,6 @@
       "detail": {
         "reading": "「{text}」",
         "signals": "{count}件の兆候",
-        "phase": "{phase}",
         "options": "{count}件の選択肢",
         "breakEven": "{time}",
         "breakEvenNone": "待つのが確実"
@@ -100,7 +97,7 @@
       "short": {
         "reading": "読み取り",
         "signals": "兆候",
-        "phase": "段階",
+        "phase": "見込み",
         "options": "選択肢",
         "breakEven": "境目"
       },
@@ -251,12 +248,16 @@
       "heard": "聞いたこと",
       "heardQuote": "「{quote}」",
       "reading": {
-        "label": "そこから読めること",
-        "current": "いまは{phase}の段階です。",
-        "entered": "{phase}の段階に入ったと読めます。",
-        "unknown": "段階はまだ絞れていません。"
+        "label": "そこから読めること"
       },
-      "next": "「{phrase}」と聞こえたら、再開が近づきます。"
+      "cue": {
+        "resumed": "動き出したと読めます。",
+        "resume_soon": "再開が近いと読めます。",
+        "track_cleared": "線路の確認が済み、再開が近いと読めます。",
+        "queue_ahead": "動いても、前の列車が詰まって進みにくいと読めます。",
+        "protection_received": "周りの列車も止まる事象と読めます。",
+        "rescue": "救護が続き、長引くと読めます。"
+      }
     },
     "addInfo": {
       "title": "情報を追加する",
@@ -287,7 +288,6 @@
       "resume": "再開見込みの放送を聞いたら入れ直す",
       "departSoon": "「まもなく発車」の放送が流れたらそのまま乗る",
       "transfer": "振替輸送の案内が出たら入れ直す",
-      "signals": "次の様子が見えたら入れ直す",
       "action": "いまの様子を入れ直す"
     },
     "trainPosition": {
@@ -332,6 +332,22 @@
       "announcement": "きっかけ",
       "probability": "待つほうが早い見込み",
       "noAnnouncement": "新しい発表はありません"
+    },
+    "rules": {
+      "protection": "近くで非常停止があったと読めます",
+      "range": "{min}〜{max}分ほど",
+      "single": "{minutes}分ほど",
+      "track": {
+        "oppositeLabel": "反対の線路や並ぶ線",
+        "affectedLabel": "当該の線路",
+        "opposite": "確かめが済めば{range}で動き出すことがあります",
+        "oppositeSoon": "確かめが済めばまもなく動き出すことがあります",
+        "affected": "長く止まる見込みです"
+      },
+      "queue": {
+        "wait": "動き出しても、前の列車が詰まり、先へ進むまで{range}かかる見込みです",
+        "alight": "次の駅で降りて乗り換える選択肢もあります"
+      }
     }
   },
   "replay": {
@@ -451,7 +467,7 @@
     "approach": {
       "title": "推定の考え方",
       "p1": "放送や掲示から読める兆候と、過去の事例から見込みを出します。",
-      "p2": "あなたが持ち込んだ掲示や発表から兆候を読み取り、いまの段階と再開までの残り時間を幅で推定します。",
+      "p2": "あなたが持ち込んだ掲示や発表から兆候を読み取り、再開までの残り時間を幅で推定します。",
       "p3": "到着時刻や境目の時刻などの数値はプログラムで計算し、AI はその結果を解釈して説明します。",
       "p4": "確かな見込みが立たないときは、境目の時刻を中心に示します。"
     },
@@ -562,6 +578,12 @@
       "lightning": "雷",
       "earthquake": "地震",
       "other": "その他・分からない"
+    },
+    "protectionQuestion": "止まったとき「信号を受信したため緊急停止」のような放送はありましたか",
+    "protection": {
+      "heard": "あった",
+      "notHeard": "なかった",
+      "unsure": "覚えていない"
     },
     "elapsedQuestion": "止まってからの時間を選ぶ",
     "elapsed": {

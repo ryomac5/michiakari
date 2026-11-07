@@ -35,6 +35,8 @@ export const TimelineEntrySchema = z.strictObject({
 export type TimelineEntry = z.infer<typeof TimelineEntrySchema>;
 
 // 期待する振る舞い。検査項目が一つもない要素は拒否する
+// phase は以前の雛形との互換のため受け付けるが、判断は段階を持たないので検査しない
+// evidence_includes は放送の手がかりの id（ANNOUNCEMENT_CUE_IDS）で、判断の根拠の cue と照合する
 export const ExpectationSchema = z
   .strictObject({
     after: IdSchema,
@@ -65,6 +67,7 @@ export type WeatherReading = z.infer<typeof WeatherReadingSchema>;
 export const ScenarioSchema = z.strictObject({
   id: IdSchema,
   title: LocalizedTextSchema,
+  // 統計値の種類の id（packages/core の IncidentTypeId）。照合は core を使う側が行う
   event_type: IdSchema,
   operator: z.string(),
   line: z.string(),

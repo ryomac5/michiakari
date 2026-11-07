@@ -5,7 +5,6 @@ import createNextIntlPlugin from "next-intl/plugin";
 // findRepoRoot が pnpm-workspace.yaml を目印にするので、それも同梱する
 const runtimeContentFiles = [
   "../../pnpm-workspace.yaml",
-  "../../knowledge/**/*",
   "../../scenarios/**/*",
   "../../packages/schema/test/fixtures/dev-content/**/*",
   "../../packages/geo/data/**/*",
@@ -23,7 +22,7 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: process.env.ALLOWED_DEV_ORIGINS?.split(",").map((s) => s.trim()) ?? [],
   // @repo/geo の路線データ（.geojson）を JSON として読み込む
   turbopack: { rules: { "*.geojson": { type: "json" } } },
-  // Vercel のサーバー関数に知見・シナリオ・路線データを同梱する
+  // Vercel のサーバー関数にシナリオと路線データを同梱する。知見は画面に配らない
   outputFileTracingIncludes: { "/**/*": runtimeContentFiles },
 };
 

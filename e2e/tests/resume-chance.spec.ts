@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import type { JudgmentEvent } from "../../packages/schema/src/index.ts";
-import { chooseBetweenStations } from "../support/entry.ts";
+import { answerProtection, chooseBetweenStations } from "../support/entry.ts";
 import {
   openReplay,
   openSheet,
@@ -145,8 +145,9 @@ for (const theme of ["light", "dark"] as const) {
         "data-action",
         "wait",
       );
+      // 急病人の目安は開発者の推定で p80 を長めに取るので、待ったほうが早い見込みは 7 割以上とする
       const waitFaster = page.getByTestId(testIds.judgment.resumeChanceWaitFaster);
-      expect(Number(await waitFaster.getAttribute("data-tenths"))).toBeGreaterThanOrEqual(9);
+      expect(Number(await waitFaster.getAttribute("data-tenths"))).toBeGreaterThanOrEqual(7);
       await expect(page.getByTestId(testIds.judgment.resumeChanceOnset)).toContainText("発生から");
       await waitForMapReady(page);
       await page.screenshot({ path: `${screenshotDir}resume-chance-in-car-${theme}-390x844.png` });
@@ -184,6 +185,7 @@ async function startBetweenStations(page: Page): Promise<void> {
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
   await page.getByTestId(testIds.start.cause("person")).click();
+  await answerProtection(page);
   await page.getByTestId(testIds.start.elapsed("m10")).click();
   await page.getByTestId(testIds.start.resume("unknown")).click();
   await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });

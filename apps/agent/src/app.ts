@@ -23,7 +23,7 @@ export type AppOptions = {
   readClockMs?: () => number;
 };
 
-const EMPTY_CONTENT: ContentStore = { knowledge: new Map(), scenarios: new Map(), errorCount: 0 };
+const EMPTY_CONTENT: ContentStore = { scenarios: new Map(), errorCount: 0 };
 
 // テストや骨組み確認用の既定値。判断は決定論モードで動く
 export function createDefaultJudgeDeps(): JudgeDeps {

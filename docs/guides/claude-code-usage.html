@@ -140,21 +140,26 @@
 <h2 id="summary">1. 要約</h2>
 
 <p>開発者が仕事をしている昼間に、Claude Code が並列の作業ツリーで実装を進めた。
-開発者は夜に差分を確かめ、知見ナレッジとシナリオを書き、翌日の目標を決めた。</p>
+開発者は夜に差分を確かめ、規則表の値に答え、シナリオを書き、翌日の目標を決めた。</p>
 
 <p>この分業を成り立たせたのは 3 つの仕組みである。
 守りの仕組みは、エージェントが触ってはいけない領域をフックと guard で遮断する。
 委譲の仕組みは、根のセッションが計画と判断だけを担い、実装を子に振る。
 記録の仕組みは、各ターンの終わりに作業記録を残し、次のセッションが引き継ぐ。</p>
 
-<p>開発者本人が担ったのは、知見ナレッジ、シナリオ、判断結果の確認、動画のナレーションである。
+<p>開発者本人が担ったのは、規則表に落とす知見の答え、シナリオ、判断結果の確認、動画のナレーションである。
 それ以外のコード、文書、テスト、録画の台本は Claude Code が書いた。</p>
 
 <h2 id="guard">2. 守りの仕組み</h2>
 
-<p>このアプリの価値は、元指令員の知見にある。
-知見とシナリオを機械に書かせては、作品の根拠が失われる。
-そこで <code>knowledge/</code> と <code>scenarios/</code> を開発者本人だけが書く領域と定め、4 層で守った。</p>
+<p>このアプリの価値は、元指令員の経験を落とした規則にある。
+シナリオを機械に書かせては、作品の根拠が失われる。
+知見の材料が公開のリポジトリに漏れても、根拠が損なわれる。</p>
+
+<p>そこで守る対象を 2 つに定めた。
+<code>scenarios/</code> は開発者本人だけが書く領域である。
+知見の材料はリポジトリ外のフォルダで管理し、コミットしない。
+この 2 つを 4 層で守った。</p>
 
 <figure>
 <svg viewBox="0 0 640 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="守りの 4 層の図">
@@ -186,8 +191,8 @@
     <line x1="560" y1="80" x2="560" y2="130" stroke="#5b6670" marker-end="url(#arrow)"/>
 
     <rect x="10" y="135" width="300" height="70" rx="6" fill="#ffffff" stroke="#1f5f8b" stroke-width="1.5"/>
-    <text x="160" y="162" text-anchor="middle" font-weight="bold">knowledge/ と scenarios/</text>
-    <text x="160" y="184" text-anchor="middle" font-size="11">開発者本人だけが書く領域</text>
+    <text x="160" y="162" text-anchor="middle" font-weight="bold">scenarios/ と非公開の材料</text>
+    <text x="160" y="184" text-anchor="middle" font-size="11">開発者本人だけが書く。材料は外に置く</text>
 
     <rect x="330" y="135" width="300" height="70" rx="6" fill="#ffffff" stroke="#1f5f8b" stroke-width="1.5"/>
     <text x="480" y="162" text-anchor="middle" font-weight="bold">判断の振る舞い</text>
@@ -201,9 +206,11 @@
 
 <p><code>.claude/settings.json</code> に <code>PreToolUse</code> のフックを 1 つ置いた。
 <code>Write</code>、<code>Edit</code>、<code>MultiEdit</code> の前に <code>protect-paths.mjs</code> が走る。
-対象のパスが保護ディレクトリなら exit 2 で止め、理由を伝える。</p>
+対象のパスが保護ディレクトリなら exit 2 で止め、理由を伝える。
+保護ディレクトリは <code>scenarios/</code> と、知見の材料のフォルダである。
+材料のフォルダは書き込みを止め、読むことだけを許す。</p>
 
-<pre><code>knowledge/foo.yaml は開発者本人が書く領域のため変更できません。
+<pre><code>scenarios/foo.yaml は開発者本人が書く領域のため変更できません。
 問題があれば docs/progress.md の「開発者に確認したいこと」に書いてください。</code></pre>
 
 <p>エージェントが内容に疑問を持ったときの出口は、作業記録への記入である。
@@ -219,10 +226,11 @@ Bash 経由の書き込みやシンボリックリンクはすり抜ける。
 <table>
   <thead><tr><th>検査</th><th>内容</th></tr></thead>
   <tbody>
-    <tr><td>承認記録</td><td>保護ディレクトリの内容を承認記録のハッシュと照合する。未承認の差分があれば失敗する。</td></tr>
-    <tr><td>シンボリックリンク</td><td>保護ディレクトリ内にリンクがあれば失敗する。</td></tr>
-    <tr><td>ブランチ差分</td><td>main からの差分に保護ディレクトリの変更があれば失敗する。</td></tr>
+    <tr><td>承認記録</td><td><code>scenarios/</code> の内容を承認記録のハッシュと照合する。未承認の差分があれば失敗する。</td></tr>
+    <tr><td>シンボリックリンク</td><td><code>scenarios/</code> 内にリンクがあれば失敗する。</td></tr>
+    <tr><td>ブランチ差分</td><td>main からの差分に <code>scenarios/</code> の変更があれば失敗する。</td></tr>
     <tr><td>内容検証</td><td><code>pnpm validate</code> で YAML と雛形の整合を確かめる。</td></tr>
+    <tr><td>材料の照合</td><td><code>PRIVATE_NOTES_DIR</code> の材料の文を、追跡中のファイルと照合する。文が写っていれば失敗する。</td></tr>
   </tbody>
 </table>
 
@@ -248,7 +256,7 @@ API キーが無ければ決定論モードで動き、文字列照合と規則�
 地図のタイルとフォントは固定データに差し替え、外部に依存しない。</p>
 
 <p>判断ロジック、プロンプト、ツールを変えたら e2e を流す規則にした。
-開発者の知見をコードに写した結果を、機械が毎回確かめる。</p>
+開発者の答えを規則に落とした結果を、機械が毎回確かめる。</p>
 
 <h2 id="delegation">3. 委譲の仕組み</h2>
 
@@ -352,7 +360,7 @@ git log の「検証前スナップショット」は、スケジューラが受
 <pre><code>/goal docs/roadmap.md の M1 を完了する。
 証明: `pnpm typecheck &amp;&amp; pnpm test &amp;&amp; pnpm guard` が exit 0 で、
 `pnpm test:e2e -- --grep &lt;シナリオid&gt;` でそのシナリオのリプレイが最後まで通ること。
-制約: knowledge/ と scenarios/ を変更しない。テストを削除・skip しない。
+制約: scenarios/ を変更しない。テストを削除・skip しない。
 各ターンの作業内容を docs/progress.md に追記する。
 40 ターンで停止し、残課題を docs/progress.md に書く。</code></pre>
 
@@ -399,7 +407,7 @@ git log の「検証前スナップショット」は、スケジューラが受
     <tr><td>作業ツリー</td><td class="num">40 本超</td><td>残タスク一覧の片付けの項</td></tr>
     <tr><td>路線と駅</td><td class="num">106 / 1,356</td><td>国土数値情報から生成した網</td></tr>
     <tr><td>フック</td><td class="num">1</td><td><code>PreToolUse</code> の <code>protect-paths.mjs</code></td></tr>
-    <tr><td>guard の検査</td><td class="num">4</td><td>承認記録、リンク、ブランチ差分、内容検証</td></tr>
+    <tr><td>guard の検査</td><td class="num">5</td><td>承認記録、リンク、ブランチ差分、内容検証、材料の照合</td></tr>
   </tbody>
 </table>
 

@@ -37,20 +37,54 @@ describe("JudgmentSchema", () => {
     expect(JudgmentSchema.safeParse({ ...validJudgment, reason: "" }).success).toBe(false);
   });
 
-  it("typicalFlow は任意で、あれば受け入れ、段階が空なら拒否する", () => {
-    const typicalFlow = {
-      eventType: "person_accident",
-      phases: [{ id: "initial", name: { ja: "発生直後" }, duration: { p50: 10, p80: 20 } }],
-      untilResume: { p50: 60, p80: 110 },
-      firstTrainWait: { p50: 10, p80: 25 },
-      predictability: { level: "high", source: "knowledge", basis: { ja: "架空" } },
-      typicalFloorMinutes: 60,
-    } as const;
-    expect(JudgmentSchema.safeParse({ ...validJudgment, typicalFlow }).success).toBe(true);
-    expect(JudgmentSchema.safeParse(validJudgment).success).toBe(true);
+  it("以前の記録にある typicalFlow は受け付けて読み飛ばす", () => {
+    const parsed = JudgmentSchema.parse({ ...validJudgment, typicalFlow: { phases: [] } });
+    expect(parsed).not.toHaveProperty("typicalFlow");
+  });
+
+  it("見込みの出どころの knowledge を rule に読み替える", () => {
+    const j = cloneJudgment();
+    const parsed = JudgmentSchema.parse({ ...j, estimate: { ...j.estimate, source: "knowledge" } });
+    expect(parsed.estimate.source).toBe("rule");
     expect(
-      JudgmentSchema.safeParse({ ...validJudgment, typicalFlow: { ...typicalFlow, phases: [] } })
-        .success,
+      JudgmentSchema.safeParse({ ...j, estimate: { ...j.estimate, source: "guess" } }).success,
+    ).toBe(false);
+    const { source: _omitted, ...withoutSource } = j.estimate;
+    expect(JudgmentSchema.parse({ ...j, estimate: withoutSource }).estimate.source).toBeUndefined();
+  });
+
+  it("手がかり、防護無線、支障の無い線路、詰まりの欄は任意で、あれば受け入れる", () => {
+    const outlook = {
+      cues: ["protection_received", "queue_ahead"],
+      protection: true,
+      unaffectedTrack: { trackSide: "unknown", affected: null, opposite: { p50: 5, p80: 10 } },
+      resumeQueue: {
+        closesUp: false,
+        trainsInQueue: 1,
+        waitRange: null,
+        queueAnnounced: true,
+        worthAlightingAtNextStation: false,
+      },
+    };
+    expect(JudgmentSchema.safeParse({ ...validJudgment, ...outlook }).success).toBe(true);
+    expect(JudgmentSchema.safeParse({ ...validJudgment, cues: ["knowledge"] }).success).toBe(false);
+    expect(
+      JudgmentSchema.safeParse({
+        ...validJudgment,
+        unaffectedTrack: { ...outlook.unaffectedTrack, trackSide: "up" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("根拠の種類に knowledge を受け付けず、cue を受け付ける", () => {
+    const evidence = (kind: string) => [
+      { kind, id: "resumed", description: "運転を再開しました。" },
+    ];
+    expect(JudgmentSchema.safeParse({ ...validJudgment, evidence: evidence("cue") }).success).toBe(
+      true,
+    );
+    expect(
+      JudgmentSchema.safeParse({ ...validJudgment, evidence: evidence("knowledge") }).success,
     ).toBe(false);
   });
 

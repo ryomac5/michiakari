@@ -21,9 +21,20 @@ export type BreakEvenRequest = {
   waitRouteMinutesAfterResume: number;
   options: readonly RouteOption[];
   deadline: string | null;
-  // 知見の after_resume.first_train_wait_minutes.p50。事象が不明なら null
+  // 規則表の初列車待ちの p50。分からなければ null
   firstTrainWaitMinutes: number | null;
+  // 勧める代替手段の候補から外す選択肢。防護無線の事象で下げた同じ会社の線。比較表には残す
+  excludedOptionIds?: readonly string[];
 };
+
+// 外す選択肢を除いた候補。外すと代替手段が無くなるなら外さない
+function selectCandidates(
+  alternatives: readonly RouteOption[],
+  excluded: readonly string[],
+): RouteOption[] {
+  const kept = alternatives.filter((o) => !excluded.includes(o.id));
+  return kept.length > 0 ? kept : [...alternatives];
+}
 
 // 勧める代替手段は core が決める。分岐点はその到着時刻で求め、比較表には待つ以外の選択肢をすべて並べる
 export function computeBreakEvenForOptions(request: BreakEvenRequest): BreakEvenComputation {
@@ -35,7 +46,10 @@ export function computeBreakEvenForOptions(request: BreakEvenRequest): BreakEven
     alternatives: request.options.filter((o) => o.kind !== "wait"),
     deadline: request.deadline,
   };
-  const result = computeBreakEven(base);
+  const result = computeBreakEven({
+    ...base,
+    alternatives: selectCandidates(base.alternatives, request.excludedOptionIds ?? []),
+  });
   const comparison = compareOptions({ ...base, waitOptionId: "wait" });
   return {
     result,
