@@ -166,7 +166,7 @@ const markRadius = 20;
 // 「表示中」の札の高さと上下の余白。駅の吹き出しで選んだ経路を示せないときだけ地図の上端に出す
 const selectedRouteTagSpace = 44;
 // 画面の外の行き先の札のおおよその大きさ。単位は px
-const destinationEdgeSize = { w: 128, h: 32 } as const;
+const destinationEdgeSize = { w: 136, h: 44 } as const;
 // 動きをもう一度見るボタンの置き場所。単位は px。地図の左下で、出典の行より上に置く
 const replayButtonBox = { left: 12, bottom: 40, size: 44, margin: 6 } as const;
 // 流れる模様の破線を次へ進める間隔。単位は ms
@@ -1792,7 +1792,7 @@ export function MapPanel(props: MapPanelProps) {
             fittedRef.current = null;
             setViewChoice("overview");
           }}
-          className="glass absolute z-10 flex h-8 -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full px-2.5 text-[12px] font-bold whitespace-nowrap text-foreground"
+          className="glass absolute z-10 flex h-11 -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full px-3 text-[12px] font-bold whitespace-nowrap text-foreground"
           style={{
             left: destinationEdge.x,
             top: destinationEdge.y,

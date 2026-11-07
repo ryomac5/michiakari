@@ -97,7 +97,7 @@ export function ConclusionSummary({
   );
 }
 
-// 開いたシートの先頭。行動の札と数字、見出しの 2 文目、防護無線の読み、止まった理由、理由の先頭の文
+// 開いたシートの先頭。判断の変化、行動の札と数字、見出しの 2 文目、防護無線の読み、止まった理由、理由の先頭の文
 export function ConclusionLead({
   judgment,
   metric,
@@ -109,6 +109,7 @@ export function ConclusionLead({
 }) {
   return (
     <div data-testid={testIds.judgment.conclusionLead} className="flex flex-col gap-2">
+      <JudgmentChangeCard />
       <PillRow judgment={judgment} metric={metric} />
       <ConclusionLines judgment={judgment} />
       {children}
