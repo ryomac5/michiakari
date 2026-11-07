@@ -241,6 +241,8 @@ describe("claude モード", () => {
     const feedback = JSON.stringify(retryCall?.messages.at(-1)?.content);
     expect(feedback).toContain('"is_error":true');
     expect(feedback).toContain("made_up_signal");
+    // 指摘に、根拠に挙げてよい一覧を添える
+    expect(feedback).toContain("evidenceChoices");
   });
 
   it("見出しが長すぎれば、指摘を返して再生成させる", async () => {
@@ -373,6 +375,12 @@ describe("claude モード", () => {
     });
     const { events, judgment, warnings } = await runWith(script);
     expect(warnings.some((w) => w.includes("決定論モード"))).toBe(true);
+    // 2 回分の失敗を、落ちた検査の名前と判断の文の抜粋つきで記録に出す
+    const failures = warnings.filter((w) => w.includes("判断の検証の失敗"));
+    expect(failures).toHaveLength(2);
+    expect(failures[0]).toContain("[evidence_ref]");
+    expect(failures[1]).toContain("2 回目");
+    expect(failures[1]).toContain(`headline=「${invalidDecision.headline}」`);
     expect(judgment).not.toBeNull();
     expect(judgment?.headline).not.toBe(validDecision.headline);
     expect(collapseTypes(events)).toEqual(ORDER);

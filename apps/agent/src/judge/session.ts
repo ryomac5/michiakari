@@ -345,9 +345,16 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     return { isError: false, content: presentAlternatives(result, language, inCar) };
   }
 
+  // 分岐点の結果に、根拠に挙げてよい項目を添える。Claude は evidence をこの中から選ぶ
+  function presentBreakEvenWithChoices(r: BreakEvenToolResult) {
+    return {
+      ...presentBreakEven(r, state.alternatives, language, inCar),
+      evidenceChoices: collectEvidenceRefs(),
+    };
+  }
+
   async function runBreakEven(input: unknown): Promise<ToolOutcome> {
-    if (state.breakEven)
-      return cached(presentBreakEven(state.breakEven, state.alternatives, language, inCar));
+    if (state.breakEven) return cached(presentBreakEvenWithChoices(state.breakEven));
     if (!state.estimate || !state.alternatives) {
       return {
         isError: true,
@@ -368,10 +375,7 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
           ? null
           : buildComputedBreakEven(result, state.alternatives, language),
     });
-    return {
-      isError: false,
-      content: presentBreakEven(result, state.alternatives, language, inCar),
-    };
+    return { isError: false, content: presentBreakEvenWithChoices(result) };
   }
 
   async function runWeather(input: unknown): Promise<ToolOutcome> {
