@@ -31,6 +31,11 @@ export const sheetTopInset = 76;
 // 上限は、駅間の前提のチップが並んでも注意書きが切れない高さにする
 const collapsedRange = { min: 160, max: 300, maxShare: 0.55, maxPx: 520 } as const;
 
+// 閉じた状態の高さ。要点に余白と端末の下の余白を足し、下限と上限の間に収める
+function computeCollapsedHeight(summary: number, viewport: number, min: number): number {
+  return clamp(Math.ceil(summary), min, computeCollapsedMax(viewport));
+}
+
 function computeCollapsedMax(viewport: number): number {
   return clamp(
     Math.round(viewport * collapsedRange.maxShare),
@@ -78,6 +83,7 @@ export function MapSheet({
   onSnapChange,
   onCollapsedHeightChange,
   topInset = sheetTopInset,
+  collapsedMin = collapsedRange.min,
   summary,
   children,
 }: {
@@ -88,6 +94,8 @@ export function MapSheet({
   onCollapsedHeightChange?: (height: number) => void;
   // 全部開いたときに上に残す高さ。リプレイは再生バーのぶん広げる
   topInset?: number;
+  // 閉じた状態の高さの下限。要点が短い画面では下げて、地図を広く残す
+  collapsedMin?: number;
   summary: ReactNode;
   children: ReactNode;
 }) {
@@ -113,10 +121,10 @@ export function MapSheet({
     function measure() {
       if (!summaryEl) return;
       // 取っ手の 20px と端末の下の余白を足す。要点の下の余白は要点の中に含む
-      const collapsed = clamp(
-        Math.ceil(summaryEl.offsetHeight + 20 + safeBottom),
-        collapsedRange.min,
-        computeCollapsedMax(window.innerHeight),
+      const collapsed = computeCollapsedHeight(
+        summaryEl.offsetHeight + 20 + safeBottom,
+        window.innerHeight,
+        collapsedMin,
       );
       setLayout((prev) =>
         prev?.viewport === window.innerHeight && prev.collapsed === collapsed && prev.top === top
@@ -132,7 +140,7 @@ export function MapSheet({
       observer.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [top, safeBottom]);
+  }, [top, safeBottom, collapsedMin]);
 
   useEffect(() => {
     if (layout) onCollapsedHeightChange?.(layout.collapsed);

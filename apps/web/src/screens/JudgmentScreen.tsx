@@ -16,7 +16,11 @@ import {
 } from "@/features/judgment/components/BreakEvenPanel";
 import { BusChecksSection } from "@/features/judgment/components/BusChecks";
 import { ConclusionAnnouncer } from "@/features/judgment/components/ConclusionAnnouncer";
-import { ConclusionCard, ConclusionDetail } from "@/features/judgment/components/ConclusionCard";
+import {
+  ConclusionDetail,
+  ConclusionLead,
+  ConclusionSummary,
+} from "@/features/judgment/components/ConclusionCard";
 import { Disclaimer } from "@/features/judgment/components/Disclaimer";
 import { EvidenceSection } from "@/features/judgment/components/EvidenceSection";
 import { InCarGuide } from "@/features/judgment/components/InCarGuide";
@@ -24,16 +28,19 @@ import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { NextCheckSection, PremiseSection } from "@/features/judgment/components/NextCheck";
 import { OptionList } from "@/features/judgment/components/OptionList";
 import { ReasoningLog, ReasoningProgress } from "@/features/judgment/components/ReasoningProgress";
+import { InCarBand, ResumeBand } from "@/features/judgment/components/ResumeBand";
 import { RuleOutlook } from "@/features/judgment/components/RuleOutlook";
 import { TrainPositionChips } from "@/features/judgment/components/TrainPositionChips";
 import { StatusChip, TripSummary } from "@/features/judgment/components/TripSummary";
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { selectFallbackOptionId } from "@/features/judgment/fallback-option";
+import { buildInCarBand } from "@/features/judgment/in-car-band";
 import { type OriginLine, type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { selectStoppedPlace, selectStopScope } from "@/features/judgment/stop-scope";
 import { selectSwitchStep } from "@/features/judgment/switch-step";
 import { testIds } from "@/features/judgment/testids";
+import { selectTimeLine } from "@/features/judgment/time-line";
 import { useOptionFocus, useOptionSelection } from "@/features/judgment/use-option-focus";
 import { MapLegend } from "@/features/map/MapLegend";
 import { MapPanel, selectRouteTone } from "@/features/map/MapPanel";
@@ -45,6 +52,10 @@ import { SituationInput } from "@/features/situation/SituationInput";
 
 // 選択肢がまだ無いときの空の配列。描画のたびに新しい配列を作ると地図の組み立てが繰り返される
 const noOptions: RouteOption[] = [];
+// 地図に重ねる見込みの帯が占める高さ。単位は px。地図の札と寄せる範囲をその下へずらす
+const resumeBandSpace = 76;
+// 閉じたシートの高さの下限。単位は px。見出しと時刻と注意書きだけなので低くし、詳細を覗かせない
+const collapsedSheetMin = 120;
 
 // 方面の key は「路線の key>方面の終わりの駅の ID」
 function selectBlockedDirection(
@@ -163,6 +174,17 @@ export function JudgmentScreen() {
   const fallbackOptionId = selectFallbackOptionId(display.judgment ?? null);
   // 凡例も地図と同じ選択中の選択肢の色にする
   const tone = selectRouteTone(options, mapOptionId);
+  const ready = state.status === "ready";
+  const timeLine = ready && display.judgment ? selectTimeLine(display.judgment, destination) : null;
+  // 見込みの帯は地図に重ねる。駅にいる人には再開の見込み、駅の間の車内の人には動き出す見込みを出す
+  // 見込みの数字が無いときは出さない。線路に降りる案内のときは動き出す見込みが無い
+  const resumeChance = ready && !inCar ? (display.breakEven?.resumeChance ?? null) : null;
+  const inCarBandGuide =
+    ready && inCar && inCarGuide && buildInCarBand(inCarGuide) ? inCarGuide : null;
+  const showBand = (resumeChance !== null || inCarBandGuide !== null) && chrome.snap !== "full";
+  const mapInsets = showBand
+    ? { ...chrome.insets, top: chrome.insets.top + resumeBandSpace }
+    : chrome.insets;
 
   return (
     <div data-testid={testIds.judgment.screen} data-status={state.status} className="h-dvh">
@@ -210,7 +232,9 @@ export function JudgmentScreen() {
         blockedDirection={blockedDirection}
         trainPosition={trainPosition}
         trainOnly={stopScope === "train"}
-        insets={chrome.insets}
+        insets={mapInsets}
+        afterAlight={inCarGuide?.afterAlight ?? null}
+        motionKey={ready ? (state.judgedAt ?? null) : null}
         onAddAnnouncement={() => {
           chrome.setSnap("full");
           setFocusAddInfo(true);
@@ -219,6 +243,31 @@ export function JudgmentScreen() {
         onGuideChange={setGuide}
         onSelectOption={focusOption}
       />
+
+      {showBand && inCarBandGuide && (
+        <InCarBand
+          guide={inCarBandGuide}
+          className="fixed z-10 lg:max-w-[420px]"
+          style={{
+            top: chrome.insets.top + 8,
+            left: chrome.insets.left + 12,
+            right: chrome.insets.right + 12,
+          }}
+        />
+      )}
+      {showBand && resumeChance && display.breakEven && (
+        <ResumeBand
+          chance={resumeChance}
+          breakEvenTime={display.breakEven.time}
+          switching={display.judgment?.action === "switch"}
+          className="fixed z-10 lg:max-w-[420px]"
+          style={{
+            top: chrome.insets.top + 8,
+            left: chrome.insets.left + 12,
+            right: chrome.insets.right + 12,
+          }}
+        />
+      )}
 
       <main id="main">
         <h1 className="sr-only">{t("heading")}</h1>
@@ -230,6 +279,7 @@ export function JudgmentScreen() {
           snap={chrome.snap}
           onSnapChange={chrome.setSnap}
           onCollapsedHeightChange={chrome.setCollapsedHeight}
+          collapsedMin={collapsedSheetMin}
           summary={
             <div className="flex flex-col gap-3">
               {streaming && <ReasoningProgress state={state} />}
@@ -240,19 +290,26 @@ export function JudgmentScreen() {
                   onRetry={retry}
                 />
               )}
-              {/* 1 段目: 行動の見出し、理由、数字 1 つ、推定である旨 */}
-              {state.status === "ready" && display.judgment && (
-                <ConclusionCard
-                  judgment={display.judgment}
-                  metric={<BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />}
-                />
+              {/* 閉じたシートは、行動の見出しと時刻の 1 行と推定である旨だけにする。ほかの文は開いたシートに置く */}
+              {ready && display.judgment && (
+                <ConclusionSummary judgment={display.judgment} timeLine={timeLine} />
               )}
-              {state.status === "ready" && inCarGuide && <InCarGuide guide={inCarGuide} />}
               <Disclaimer />
             </div>
           }
         >
-          {/* 駅と駅の間の人の前提のチップ。閉じたシートは結論だけにし、チップは半分まで開くと見せる */}
+          {/* 行動の札と数字、見出しの 2 文目、止まった理由、理由の先頭の文、車内の次の一手 */}
+          {ready && display.judgment && (
+            <SheetSection>
+              <ConclusionLead
+                judgment={display.judgment}
+                metric={<BreakEvenMetric {...breakEvenProps} switchStep={switchStep} />}
+              >
+                {inCarGuide && <InCarGuide guide={inCarGuide} />}
+              </ConclusionLead>
+            </SheetSection>
+          )}
+          {/* 駅と駅の間の人の前提のチップ */}
           {trainPosition?.kind === "between_stations" && trainPosition.nextStation && (
             <SheetSection>
               <TrainPositionChips
@@ -264,7 +321,7 @@ export function JudgmentScreen() {
             </SheetSection>
           )}
           {/* 支障の無い線路が先に動く見込みと、再開後の詰まり。乗り換え先はその選択肢の行へ寄せる */}
-          {state.status === "ready" && display.judgment && (
+          {ready && display.judgment && (
             <SheetSection className="empty:hidden">
               <RuleOutlook
                 judgment={display.judgment}
@@ -272,8 +329,8 @@ export function JudgmentScreen() {
               />
             </SheetSection>
           )}
-          {/* 2 段目: 再開の見込みの図。閉じたシートは地図を広く残すため、引き上げたときに見せる */}
-          {state.status === "ready" && display.breakEven && (
+          {/* 再開の見込みの図。地図の上の帯の詳しい形 */}
+          {ready && display.breakEven && (
             <SheetSection>
               <ResumeOutlook {...breakEvenProps} />
             </SheetSection>
@@ -338,9 +395,6 @@ export function JudgmentScreen() {
               <ReasoningLog state={state} />
             </SheetSection>
           )}
-          <SheetSection>
-            <MapLegend tone={tone} reachSource={reachSource} />
-          </SheetSection>
           <SheetSection
             testId={testIds.judgment.addInfo}
             title={t("addInfo.title")}
@@ -354,6 +408,10 @@ export function JudgmentScreen() {
                 chrome.setSnap("collapsed");
               }}
             />
+          </SheetSection>
+          {/* 地図の見方。地図の印は見れば分かるので、いちばん下に置く */}
+          <SheetSection>
+            <MapLegend tone={tone} reachSource={reachSource} />
           </SheetSection>
         </MapSheet>
       </main>
