@@ -1,6 +1,11 @@
 // 決定論的な計算。Claude を呼ばない
 
 export {
+  ANNOUNCEMENT_CUE_IDS,
+  ANNOUNCEMENT_CUE_PATTERNS,
+  type AnnouncementCueId,
+} from "../params/announcement-cues.ts";
+export {
   COMMUTE_HOUR_RANGES,
   MONTE_CARLO_SAMPLE_COUNT,
   MONTE_CARLO_SEED,
@@ -10,12 +15,25 @@ export {
   STATED_RESUME_SLACK_MINUTES,
 } from "../params/estimation.ts";
 export {
+  FIRST_TRAIN_WAIT_BY_STOP_KIND,
+  INCIDENT_BEHAVIOR,
+  INCIDENT_BEHAVIOR_SOURCE,
+  INCIDENT_FLOW_OUTLOOKS,
+  type IncidentBehavior,
+  type IncidentFlowOutlook,
+  PROTECTION_LEVELS,
+  type ProtectionLevel,
+  STOP_KINDS,
+  UNAFFECTED_TRACK_RESUME,
+} from "../params/incident-behavior.ts";
+export {
   type DurationPeriod,
   INCIDENT_GROUP_IDS,
   INCIDENT_TYPE_IDS,
   type IncidentGroupId,
   type IncidentTypeId,
 } from "../params/incident-durations.ts";
+export { INCIDENT_PHRASES } from "../params/incident-phrases.ts";
 export * from "../params/routing.ts";
 export {
   OSAKA_CITY_TAXI_FARE,
@@ -30,6 +48,7 @@ export {
   DEFAULT_TRAIN_QUEUE_PARAMS,
   FALLBACK_RIDE_MINUTES_TO_NEXT_STATION,
   type LineOperationPattern,
+  MIN_MINUTES_PER_TRAIN_AHEAD,
   OPERATION_PATTERNS,
   type OperationPattern,
   STATION_PLATFORMS_BY_LINE,
@@ -56,6 +75,19 @@ export {
   type StayOn,
   selectAfterAlightStep,
 } from "./after-alight.ts";
+export {
+  ALTERNATIVE_STANDINGS,
+  type AlternativeStanding,
+  type ProtectionRankingInput,
+  type RankableAlternative,
+  type RankedAlternative,
+  rankAlternativesForProtection,
+} from "./alternative-ranking.ts";
+export {
+  checkTrackCleared,
+  detectAnnouncementCues,
+  detectObservationCues,
+} from "./announcement-cues.ts";
 export { computeArrival, type LegMinutes, sumLegMinutes } from "./arrival.ts";
 export {
   type AlternativeArrival,
@@ -86,6 +118,25 @@ export {
   sampleDuration,
   sampleRemainingDuration,
 } from "./duration-model.ts";
+export {
+  estimateIncidentRemaining,
+  INCIDENT_ESTIMATE_BASES,
+  type IncidentEstimateBasis,
+  type IncidentRemaining,
+  type IncidentRemainingInput,
+} from "./incident-estimate.ts";
+export {
+  checkProtectionIncident,
+  checkWeatherIncident,
+  decideRuleConfidence,
+  findIncidentTypeByPhrase,
+  type IncidentTypeInput,
+  type ProtectionIncidentInput,
+  type RuleConfidenceInput,
+  resolveFirstTrainWait,
+  resolveFlowOutlook,
+  resolveIncidentType,
+} from "./incident-rules.ts";
 export {
   classifyDurationPeriod,
   estimateStatsRemaining,
@@ -144,10 +195,18 @@ export {
   selectKeyTick,
 } from "./resume-chance.ts";
 export {
+  estimateQueueAfterResume,
+  type ResumeQueueInput,
+  type ResumeQueueOutlook,
+} from "./resume-queue.ts";
+export {
+  findIncidentType,
+  INCIDENT_TYPE_BY_EVENT_TYPE,
   type ObservedStopScopeInput,
   resolveObservedStopScope,
   resolveStopKind,
   resolveStopScope,
+  STOP_KIND_BY_INCIDENT_TYPE,
   type StopKind,
   type StopScope,
   type StopScopeInput,
@@ -198,6 +257,13 @@ export {
   type FlowOutlook,
   inferPredictabilityLevel,
 } from "./typical-flow.ts";
+export {
+  estimateUnaffectedTrackResume,
+  TRACK_SIDES,
+  type TrackSide,
+  type UnaffectedTrackInput,
+  type UnaffectedTrackOutlook,
+} from "./unaffected-track.ts";
 export {
   computeHaversineMeters,
   computeWalkMinutesFromMeters,

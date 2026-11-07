@@ -21,6 +21,10 @@ export const DEFAULT_TRAIN_QUEUE_PARAMS: TrainQueueParams = {
   minutesPerTrainAhead: { p50: 4, p80: 5 },
 };
 
+// 前の列車 1 本が信号の区間を空けるまでの短いほうの目安（分）。3〜5 分の幅の下端
+// 出典: 開発者の推定
+export const MIN_MINUTES_PER_TRAIN_AHEAD = 3;
+
 // キーは路線 ID の先頭と同じ事業者キー
 // 詰める動きは、まず JR西日本だけを対象にする
 export const TRAIN_QUEUE_PARAMS_BY_OPERATOR: Readonly<Record<string, Partial<TrainQueueParams>>> = {
