@@ -138,25 +138,5 @@ export function decideEstimateConfidence(input: {
   return CONFIDENCE_SCORE[base] < CONFIDENCE_SCORE[floor] ? floor : base;
 }
 
-// 線路の安全が確かめられたと言い切る放送の言い回し。「〜次第」の条件付きの文は数えない
-const TRACK_CLEARED_PATTERNS: readonly RegExp[] = [
-  /まもなく(?:運転を)?再開/,
-  /順次(?:運転を)?再開/,
-  /運転再開の準備/,
-  /安全(?:が|を)確認(?:でき|され)まし/,
-  /resum\w* shortly|safety (?:has been |was )?confirmed/i,
-];
-
-function checkClearedSentence(sentence: string): boolean {
-  return !sentence.includes("次第") && TRACK_CLEARED_PATTERNS.some((p) => p.test(sentence));
-}
-
-// 線路の安全が確かめられた兆候があるか。再開の見込みの時刻か、再開が近いと言い切る放送で判定する
-// 知見の段階が進んだだけでは数えない。大雨の線路の点検のように、点検中でまだ確かめられていない段階があるため
-export function checkTrackCleared(observations: readonly Observation[]): boolean {
-  return observations.some((o) => {
-    if (o.statedResumeTime) return true;
-    const texts = [o.rawText ?? "", ...o.detectedSignals.map((s) => s.quote)];
-    return texts.some((t) => t.split(/[。.\n]/).some(checkClearedSentence));
-  });
-}
+// 線路の安全が確かめられた兆候の判定は core の手がかりの照合に移した
+export { checkTrackCleared } from "@repo/core";
