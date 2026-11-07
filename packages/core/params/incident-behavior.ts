@@ -14,6 +14,7 @@ export const STOP_KINDS = ["train_only", "train_first", "section"] as const;
 export type StopKind = (typeof STOP_KINDS)[number];
 
 // 防護無線を出すか。always は出す、maybe は出すことがある、none は出さない
+// 公開の出典: docs/research/rail-operations/01-protection-radio.md。受信で止める範囲は自社線に限る
 export const PROTECTION_LEVELS = ["always", "maybe", "none"] as const;
 export type ProtectionLevel = (typeof PROTECTION_LEVELS)[number];
 
@@ -41,11 +42,18 @@ export type IncidentBehavior = {
   rare: boolean;
   // 確かめが済んだ手がかりがあるときだけ ruleRange を使う。無ければ統計値に落とす
   ruleNeedsCheck: boolean;
+  // 天気が収まっても、点検が終わるまで再開しない。点検が続く間は再開が近い手がかりを数えない
+  // 出典: docs/research/rail-operations/04-weather-regulation.md の共通の流れ
+  resumeAfterInspection: boolean;
 };
 
-type BehaviorRow = Omit<IncidentBehavior, "firstTrainWait" | "rare" | "ruleNeedsCheck"> & {
+type BehaviorRow = Omit<
+  IncidentBehavior,
+  "firstTrainWait" | "rare" | "ruleNeedsCheck" | "resumeAfterInspection"
+> & {
   rare?: boolean;
   ruleNeedsCheck?: boolean;
+  resumeAfterInspection?: boolean;
 };
 
 const shortRange = (p50: number, p80: number): DurationDist => ({ p50, p80 });
@@ -174,9 +182,27 @@ const BEHAVIOR_ROWS: Readonly<Record<IncidentTypeId, BehaviorRow>> = {
     ruleRange: null,
   },
   // 大雨と強風は区間ごとに上下とも止まる。強風のうち台風は特に長い。地震は揺れた所が止まる
-  heavy_rain: { stopKind: "section", protection: "none", flowOutlook: "long", ruleRange: null },
-  strong_wind: { stopKind: "section", protection: "none", flowOutlook: "long", ruleRange: null },
-  earthquake: { stopKind: "section", protection: "none", flowOutlook: "long", ruleRange: null },
+  heavy_rain: {
+    stopKind: "section",
+    protection: "none",
+    flowOutlook: "long",
+    ruleRange: null,
+    resumeAfterInspection: true,
+  },
+  strong_wind: {
+    stopKind: "section",
+    protection: "none",
+    flowOutlook: "long",
+    ruleRange: null,
+    resumeAfterInspection: true,
+  },
+  earthquake: {
+    stopKind: "section",
+    protection: "none",
+    flowOutlook: "long",
+    ruleRange: null,
+    resumeAfterInspection: true,
+  },
   snow_ice: { stopKind: "section", protection: "none", flowOutlook: "long", ruleRange: null },
   lightning: {
     stopKind: "section",
@@ -202,6 +228,7 @@ function buildBehaviorTable(): Readonly<Record<IncidentTypeId, IncidentBehavior>
       ...row,
       rare: row.rare ?? false,
       ruleNeedsCheck: row.ruleNeedsCheck ?? false,
+      resumeAfterInspection: row.resumeAfterInspection ?? false,
       firstTrainWait: FIRST_TRAIN_WAIT_BY_STOP_KIND[row.stopKind],
     },
   ]);

@@ -2,7 +2,11 @@ import type { DurationDist, IncidentCause } from "@repo/schema";
 import type { AnnouncementCueId } from "../params/announcement-cues.ts";
 import { INCIDENT_BEHAVIOR, type IncidentFlowOutlook } from "../params/incident-behavior.ts";
 import { INCIDENT_TYPE_DURATIONS, type IncidentTypeId } from "../params/incident-durations.ts";
-import { resolveFirstTrainWait, resolveFlowOutlook } from "./incident-rules.ts";
+import {
+  checkTrackEvacuation,
+  resolveFirstTrainWait,
+  resolveFlowOutlook,
+} from "./incident-rules.ts";
 import {
   estimateStatsRemaining,
   type IncidentDurationTables,
@@ -45,7 +49,7 @@ export type IncidentRemaining = {
   // 統計値のとき、使った統計値
   statistics: ResolvedIncidentDuration | null;
   flowOutlook: IncidentFlowOutlook;
-  // めったに無い事象で、見込みの数字を言い切らない
+  // めったに無い事象か、線路に降りる案内が出て、見込みの数字を言い切らない
   withholdNumbers: boolean;
 };
 
@@ -74,7 +78,7 @@ function resolveStatsCause(
 
 export function estimateIncidentRemaining(input: IncidentRemainingInput): IncidentRemaining {
   const { type } = input;
-  const firstTrainWait = resolveFirstTrainWait(type);
+  const firstTrainWait = resolveFirstTrainWait(type, input.cues);
   const flowOutlook = resolveFlowOutlook(type, input.texts);
   const build = (
     basis: IncidentEstimateBasis | null,
@@ -92,6 +96,8 @@ export function estimateIncidentRemaining(input: IncidentRemainingInput): Incide
   });
 
   if (input.cues.includes("resumed")) return build("resumed", { p50: 0, p80: 0 });
+  // 線路に降りる案内が出たら、発表の時刻があっても見込みの数字を言い切らない
+  if (checkTrackEvacuation(input.cues)) return build(null, null, { withholdNumbers: true });
   if (input.statedResumeTime) {
     return build(
       "stated",

@@ -1,6 +1,7 @@
 import type { Confidence, DurationDist, IncidentCause, ProtectionBroadcast } from "@repo/schema";
 import type { AnnouncementCueId } from "../params/announcement-cues.ts";
 import {
+  FIRST_TRAIN_WAIT_BY_STOP_KIND,
   INCIDENT_BEHAVIOR,
   type IncidentFlowOutlook,
   UNKNOWN_FIRST_TRAIN_WAIT,
@@ -68,7 +69,12 @@ export function resolveFlowOutlook(
 }
 
 // 再開から乗れる列車が来るまでの分。種類が分からなければ区間が止まるものとみなす
-export function resolveFirstTrainWait(type: IncidentTypeId | null): DurationDist {
+// 折り返し運転の案内があれば、区間が止まっているので区間の値を使う
+export function resolveFirstTrainWait(
+  type: IncidentTypeId | null,
+  cues: readonly AnnouncementCueId[] = [],
+): DurationDist {
+  if (cues.includes("turnback")) return FIRST_TRAIN_WAIT_BY_STOP_KIND.section;
   return type ? INCIDENT_BEHAVIOR[type].firstTrainWait : UNKNOWN_FIRST_TRAIN_WAIT;
 }
 
@@ -116,4 +122,14 @@ export function decideRuleConfidence(input: RuleConfidenceInput): Confidence {
     default:
       return "low";
   }
+}
+
+// 点検が終わるまで再開しない種類か。規則表の resumeAfterInspection
+export function checkResumeAfterInspection(type: IncidentTypeId | null): boolean {
+  return type !== null && INCIDENT_BEHAVIOR[type].resumeAfterInspection;
+}
+
+// 線路に降りる案内が聞こえたか。降り始めると再開の見込みが立たない
+export function checkTrackEvacuation(cues: readonly AnnouncementCueId[]): boolean {
+  return cues.includes("evacuation_on_track");
 }
