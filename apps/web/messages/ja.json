@@ -221,6 +221,10 @@
       "minutes": "{minutes}分",
       "recommended": "おすすめ",
       "transferService": "振替輸送",
+      "transferFare": {
+        "covered": "振替の対象",
+        "fare_required": "運賃がかかります"
+      },
       "pending": "調べています",
       "empty": "運転再開を待つ",
       "stale": "更新中",
@@ -604,6 +608,13 @@
       "now": "いま止まった",
       "m10": "約10分",
       "m30": "30分以上",
+      "unknown": "分からない"
+    },
+    "ticketQuestion": "乗車券",
+    "ticket": {
+      "ic": "IC カード",
+      "commuter_pass": "定期券",
+      "paper": "紙の切符",
       "unknown": "分からない"
     },
     "resumeQuestion": "放送で聞いた再開見込みを選ぶ",

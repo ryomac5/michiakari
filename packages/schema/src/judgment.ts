@@ -24,6 +24,11 @@ export const RouteLegSchema = z.object({
 });
 export type RouteLeg = z.infer<typeof RouteLegSchema>;
 
+// 乗り換え先の追加の費用。covered は振替輸送の対象で追加の運賃がかからない。fare_required は運賃がかかる
+// 利用者の乗車券の種類から packages/core が決める。決められなければ持たない
+export const TransferFareSchema = z.enum(["covered", "fare_required"]);
+export type TransferFare = z.infer<typeof TransferFareSchema>;
+
 export const RouteOptionSchema = z.object({
   id: IdSchema,
   kind: z.enum(["wait", "transfer", "taxi", "walk"]),
@@ -33,6 +38,7 @@ export const RouteOptionSchema = z.object({
   fareYen: NonNegativeIntSchema.nullable(),
   walkMinutes: NonNegativeIntSchema,
   isTransferService: z.boolean(),
+  transferFare: TransferFareSchema.optional(),
 });
 export type RouteOption = z.infer<typeof RouteOptionSchema>;
 

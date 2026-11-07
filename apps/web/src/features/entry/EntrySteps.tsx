@@ -56,6 +56,7 @@ import {
   protectionAnswerIds,
 } from "@/features/situation/protection-broadcast";
 import { PastePanel, PhotoPanel } from "@/features/situation/SituationInput";
+import { type TicketAnswer, ticketAnswerIds } from "@/features/situation/ticket";
 import type { StationChoice } from "@/features/stations/catalog";
 import { StationSearch } from "@/features/stations/components/StationSearch";
 import { pickStationName } from "@/features/stations/describe";
@@ -936,14 +937,51 @@ export function ElapsedStep({
 // 再開見込みの答え。時刻を言っていたときだけ time を持つ
 export type ResumeAnswer = { id: ResumeOptionId; time: ResumeTimeOption | null };
 
+// 乗車券の種類。押しても先へ進まず、再開見込みの答えと一緒に送る。既定は分からない
+function TicketChoice({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: TicketAnswer;
+  disabled: boolean;
+  onChange: (answer: TicketAnswer) => void;
+}) {
+  const t = useTranslations("entry");
+  return (
+    <fieldset className="flex flex-col gap-1.5" disabled={disabled}>
+      <legend className="mb-1.5 text-[13px] font-semibold text-muted">{t("ticketQuestion")}</legend>
+      <div className="grid grid-cols-4 gap-1.5">
+        {ticketAnswerIds.map((id) => (
+          <button
+            key={id}
+            type="button"
+            data-testid={testIds.start.ticket(id)}
+            aria-pressed={value === id}
+            onClick={() => onChange(id)}
+            className={cn(
+              "inline-flex min-h-11 items-center justify-center rounded-xl px-1 text-center text-[13px] leading-tight font-bold transition-[transform,background-color] duration-150 active:scale-[0.96] disabled:opacity-60",
+              value === id ? "bg-focus/[0.12] text-focus ring-2 ring-focus" : softChip,
+            )}
+          >
+            {t(`ticket.${id}`)}
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 // 3 問目。再開の見込みを言っていたか。時刻を言っていたなら、その場で時刻を選ぶ
-// どの答えも押せばそのまま判断を始める
+// どの答えも押せばそのまま判断を始める。上に乗車券の種類を軽く聞き、答えと一緒に送る
 export function ResumeStep({
   trip,
   answers,
   busy,
   pending,
   times,
+  ticket,
+  onTicket,
   onSelect,
 }: {
   trip: ReactNode;
@@ -952,6 +990,8 @@ export function ResumeStep({
   // 押した答えの id。時刻なら HHMM
   pending: string | null;
   times: ResumeTimeOption[];
+  ticket: TicketAnswer;
+  onTicket: (answer: TicketAnswer) => void;
   onSelect: (answer: ResumeAnswer) => void;
 }) {
   const t = useTranslations("entry");
@@ -959,10 +999,9 @@ export function ResumeStep({
   const [statedOpen, setStatedOpen] = useState(false);
   return (
     <>
-      <SheetTitle
-        eyebrow={<QuestionEyebrow trip={trip} answers={answers} />}
-        title={t("resumeQuestion")}
-      />
+      <QuestionEyebrow trip={trip} answers={answers} />
+      <TicketChoice value={ticket} disabled={busy} onChange={onTicket} />
+      <SheetTitle title={t("resumeQuestion")} />
       <div className="grid grid-cols-2 gap-2">
         <button
           type="button"

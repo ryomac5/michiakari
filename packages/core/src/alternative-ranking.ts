@@ -1,5 +1,6 @@
 import type { RouteOption } from "@repo/schema";
-import { findLineOperatorKey, normalizeOperatorKey } from "./train-queue.ts";
+import { normalizeOperatorKey } from "./train-queue.ts";
+import { resolveLineOperator } from "./transfer-fare.ts";
 
 // 防護無線の事象での乗り換え先の並べ方
 // 防護無線が止める範囲は自社の列車に限られる。他社の並行路線はすぐ使えるため上げ、同じ会社の並行路線は初めのうち一緒に止まるため下げる
@@ -31,17 +32,10 @@ const STANDING_ORDER: Readonly<Record<AlternativeStanding, number>> = {
   lowered: 2,
 };
 
-// 路線 ID「hankyu.神戸線」の先頭を事業者キーにそろえる。ID の形でなければ null
-function resolveLineOperatorKey(lineId: string | null | undefined): string | null {
-  if (!lineId?.includes(".")) return null;
-  const key = findLineOperatorKey(lineId);
-  return key ? (normalizeOperatorKey(key) ?? key) : null;
-}
-
 function listRideOperators(option: RankableAlternative): string[] {
   return option.legs.flatMap((leg) => {
     if (leg.mode !== "ride") return [];
-    const key = resolveLineOperatorKey(leg.lineId);
+    const key = resolveLineOperator(leg.lineId);
     return key ? [key] : [];
   });
 }
@@ -63,8 +57,7 @@ export function rankAlternativesForProtection<T extends RankableAlternative>(
 ): RankedAlternative<T>[] {
   // 事業者名は事業者キーにそろえてから比べる。表に無い名前は分からないものとして扱う
   const blockedOperator =
-    resolveLineOperatorKey(input.blockedLineId) ??
-    normalizeOperatorKey(input.blockedOperator ?? null);
+    resolveLineOperator(input.blockedLineId) ?? normalizeOperatorKey(input.blockedOperator ?? null);
   const ranked = input.options.map((option) => ({
     option,
     standing:

@@ -1,4 +1,4 @@
-import type { RouteLeg, RouteOption } from "@repo/schema";
+import type { RouteLeg, RouteOption, TransferFare } from "@repo/schema";
 
 // 選択肢の行に出す値。分からない値と 0 分の徒歩は出さず、経路は乗る路線の名前だけを並べる
 
@@ -18,12 +18,17 @@ export function listRideLines(
 }
 
 // 行の右下に出す徒歩と運賃。徒歩が 0 分なら徒歩を、運賃が分からなければ運賃を出さない
-export function selectOptionFacts(option: Pick<RouteOption, "walkMinutes" | "fareYen">): {
+// 乗り換え先の追加の費用は、乗車券の種類から決まったときだけ出す
+export function selectOptionFacts(
+  option: Pick<RouteOption, "walkMinutes" | "fareYen"> & Partial<Pick<RouteOption, "transferFare">>,
+): {
   walkMinutes: number | null;
   fareYen: number | null;
+  transferFare: TransferFare | null;
 } {
   return {
     walkMinutes: option.walkMinutes > 0 ? option.walkMinutes : null,
     fareYen: option.fareYen,
+    transferFare: option.transferFare ?? null,
   };
 }

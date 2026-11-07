@@ -7,6 +7,7 @@ import {
   type Place,
   type ProtectionBroadcast,
   type RawInput,
+  type TicketType,
   type TrainPosition,
   type UserConstraints,
 } from "@repo/schema";
@@ -34,6 +35,8 @@ export type JudgeRequestParams = {
   cause?: IncidentCause | null;
   // 入口で答えた受信の放送の有無。無ければ送らない
   protectionBroadcast?: ProtectionBroadcast | null;
+  // 入口で答えた乗車券の種類。分からなければ送らない
+  ticketType?: TicketType | null;
 };
 
 export function buildJudgeRequest(params: JudgeRequestParams): JudgeRequest {
@@ -48,5 +51,6 @@ export function buildJudgeRequest(params: JudgeRequestParams): JudgeRequest {
     ...(params.trainPosition ? { trainPosition: params.trainPosition } : {}),
     ...(params.cause ? { cause: params.cause } : {}),
     ...(params.protectionBroadcast ? { protectionBroadcast: params.protectionBroadcast } : {}),
+    ...(params.ticketType ? { ticketType: params.ticketType } : {}),
   });
 }

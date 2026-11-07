@@ -221,6 +221,10 @@
       "minutes": "{minutes} min",
       "recommended": "Suggested",
       "transferService": "Transfer service",
+      "transferFare": {
+        "covered": "Transfer service applies",
+        "fare_required": "Fare required"
+      },
       "pending": "Checking",
       "empty": "Wait for service to restart",
       "stale": "Updating",
@@ -604,6 +608,13 @@
       "now": "Just stopped",
       "m10": "About 10 min",
       "m30": "30 min or more",
+      "unknown": "Not sure"
+    },
+    "ticketQuestion": "Your ticket",
+    "ticket": {
+      "ic": "IC card",
+      "commuter_pass": "Commuter pass",
+      "paper": "Paper ticket",
       "unknown": "Not sure"
     },
     "resumeQuestion": "Pick the restart outlook you heard",

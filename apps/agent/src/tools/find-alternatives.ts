@@ -1,4 +1,4 @@
-import { rankAlternativesForProtection } from "@repo/core";
+import { applyTransferFares, rankAlternativesForProtection } from "@repo/core";
 import type { Observation, RouteOption, Section } from "@repo/schema";
 import { SectionSchema } from "@repo/schema";
 import { z } from "zod";
@@ -62,6 +62,12 @@ function buildAssumedTrainSection(ctx: ToolContext): Section | null {
   return toStation ? { fromStation: position.previousStation, toStation } : null;
 }
 
+// 待つ選択肢が乗る路線。止まっている会社を決めるのに使う
+function findWaitLineId(options: readonly RouteOption[], waitOptionId: string): string | null {
+  const wait = options.find((o) => o.id === waitOptionId);
+  return wait?.legs.find((leg) => leg.mode === "ride" && leg.lineId)?.lineId ?? null;
+}
+
 // 防護無線の事象では、待つ選択肢を先頭に残し、残りを上げる・そのまま・下げるの順に並べる
 // 止まった会社は待つ選択肢の乗る路線から決め、引けなければ観測の事業者名を使う
 function rankForProtection(
@@ -70,8 +76,7 @@ function rankForProtection(
   operator: string | null,
 ): { options: RouteOption[]; loweredOptionIds: string[] } {
   const wait = options.filter((o) => o.id === waitOptionId);
-  const blockedLineId =
-    wait[0]?.legs.find((leg) => leg.mode === "ride" && leg.lineId)?.lineId ?? null;
+  const blockedLineId = findWaitLineId(options, waitOptionId);
   const ranked = rankAlternativesForProtection({
     options: options.filter((o) => o.id !== waitOptionId),
     protection: true,
@@ -98,7 +103,8 @@ export async function runFindAlternatives(
       : announced;
   const trainSection = observedSection ? null : buildAssumedTrainSection(ctx);
   const blockedSection: Section | null = observedSection ?? trainSection;
-  const result = await ctx.provider.findAlternatives({
+  const transferServiceActive = findLatest(ctx.observations, (o) => o.transferServiceActive);
+  const found = await ctx.provider.findAlternatives({
     origin: ctx.request.origin,
     destination: ctx.request.destination,
     blockedLine,
@@ -114,11 +120,22 @@ export async function runFindAlternatives(
     ...(estimate.trainQueue && estimate.firstTrainWait
       ? { firstTrainWaitMinutes: estimate.firstTrainWait.p50 }
       : {}),
-    transferServiceActive: findLatest(ctx.observations, (o) => o.transferServiceActive),
+    transferServiceActive,
     language: ctx.request.language,
   });
-  if (!estimate.protection) return { ...result, blockedLine };
   const operator = findLatest(ctx.observations, (o) => o.operator);
+  // 乗車券の種類で、他社の線へ乗り換える選択肢の追加の費用を決める。分岐点の同着の扱いにも効く
+  const result = {
+    ...found,
+    options: applyTransferFares({
+      options: found.options,
+      ticketType: ctx.request.ticketType ?? null,
+      transferServiceActive,
+      blockedLineId: findWaitLineId(found.options, found.waitOptionId),
+      blockedOperatorName: operator,
+    }),
+  };
+  if (!estimate.protection) return { ...result, blockedLine };
   return {
     ...result,
     ...rankForProtection(result.options, result.waitOptionId, operator),

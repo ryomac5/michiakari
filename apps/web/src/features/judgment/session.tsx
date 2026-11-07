@@ -6,6 +6,7 @@ import type {
   Place,
   ProtectionBroadcast,
   RawInput,
+  TicketType,
   TrainPosition,
 } from "@repo/schema";
 import { useLocale } from "next-intl";
@@ -70,12 +71,16 @@ type JudgmentSession = {
   // 原因が分からないまま進んだときは input を null にし、seed だけで判断する
   // cause は入口で答えた原因。この行程の判断のたびに送り、種類の無い原因の見込みに使う
   // protectionBroadcast は入口で答えた受信の放送の有無。原因と同じく判断のたびに送る
+  // ticketType は入口で答えた乗車券の種類。分からなければ null
   startJudgment: (
     input: RawInput | null,
     seed: Observation[],
     cause?: IncidentCause | null,
     protectionBroadcast?: ProtectionBroadcast | null,
+    ticketType?: TicketType | null,
   ) => void;
+  // 入口で答えた乗車券の種類。入口に戻ったときに選んだ状態を復元する
+  ticketType: TicketType | null;
   // startJudgment で預けた判断を流し始める。判断の画面が開いたときに呼ぶ
   resumeJudgment: () => void;
   retry: () => void;
@@ -159,6 +164,9 @@ export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
   // 入口で答えた原因。行程を始めるときに決め、出し直しでも同じものを送る
   const causeRef = useRef<IncidentCause | null>(null);
   const protectionBroadcastRef = useRef<ProtectionBroadcast | null>(null);
+  // 入口で答えた乗車券の種類。原因と同じく、出し直しでも同じものを送る
+  const ticketTypeRef = useRef<TicketType | null>(null);
+  const [ticketType, setTicketType] = useState<TicketType | null>(null);
 
   useEffect(() => {
     setMockEnabled(isMockRequested(window.location.search));
@@ -193,6 +201,7 @@ export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
         trainPosition: trainPositionRef.current,
         cause: causeRef.current,
         protectionBroadcast: protectionBroadcastRef.current,
+        ticketType: ticketTypeRef.current,
       });
       const stream: JudgmentStream = mockEnabled ? streamMockJudgment : streamJudgment;
 
@@ -239,10 +248,13 @@ export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
       seed: Observation[],
       cause: IncidentCause | null = null,
       protectionBroadcast: ProtectionBroadcast | null = null,
+      ticket: TicketType | null = null,
     ) => {
       controllerRef.current?.abort();
       causeRef.current = cause;
       protectionBroadcastRef.current = protectionBroadcast;
+      ticketTypeRef.current = ticket;
+      setTicketType(ticket);
       setObservations(seed);
       pendingRef.current = { input, seed };
       // 新しい行程では前の行程の判断と比べない
@@ -303,6 +315,7 @@ export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
       mockEnabled,
       submitInput,
       startJudgment,
+      ticketType,
       resumeJudgment,
       retry,
     }),
@@ -323,6 +336,7 @@ export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
       mockEnabled,
       submitInput,
       startJudgment,
+      ticketType,
       resumeJudgment,
       retry,
     ],
