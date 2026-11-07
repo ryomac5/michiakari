@@ -11,6 +11,8 @@ REPOSITORY="${REPOSITORY:-kansai}"
 SECRET_NAME="${SECRET_NAME:-anthropic-api-key}"
 # 画面のオリジン。カンマ区切りで複数指定できる。出し直しで消えないよう毎回必ず渡す
 CORS_ORIGINS="${CORS_ORIGINS:?CORS_ORIGINS に画面のオリジンを渡してください}"
+# リプレイのシナリオの置き場所。/app からの相対。公開版は架空のダミーシナリオを読む
+CONTENT_DIR="${CONTENT_DIR:-packages/schema/test/fixtures/dev-content}"
 # 1 分あたりに 1 利用者へ許す /judge の回数
 RATE_LIMIT_PER_MINUTE="${RATE_LIMIT_PER_MINUTE:-6}"
 # 使いすぎを防ぐため台数を絞る。頻度制限はインスタンスごとに数える
@@ -54,7 +56,7 @@ gcloud run deploy "$SERVICE" \
   --min-instances "$MIN_INSTANCES" \
   --max-instances "$MAX_INSTANCES" \
   --timeout "$TIMEOUT_SECONDS" \
-  --set-env-vars "^@^JUDGE_MODE=claude@TRUST_PROXY=true@CORS_ORIGINS=${CORS_ORIGINS}@RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE}" \
+  --set-env-vars "^@^JUDGE_MODE=claude@TRUST_PROXY=true@CORS_ORIGINS=${CORS_ORIGINS}@RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE}@CONTENT_DIR=${CONTENT_DIR}" \
   --set-secrets "ANTHROPIC_API_KEY=${SECRET_NAME}:latest"
 
 gcloud run services describe "$SERVICE" \

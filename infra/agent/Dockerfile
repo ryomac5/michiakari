@@ -34,6 +34,8 @@ COPY packages/geo/src packages/geo/src
 COPY packages/geo/data packages/geo/data
 # シナリオ。CONTENT_DIR が無ければ /app 直下を読む
 COPY scenarios scenarios
+# 公開版のリプレイに使う架空のダミーシナリオ。CONTENT_DIR でこちらに切り替える
+COPY packages/schema/test/fixtures/dev-content packages/schema/test/fixtures/dev-content
 
 # ファイルは root の所有のまま読み取り専用で使い、非 root の node ユーザーで動かす
 USER node

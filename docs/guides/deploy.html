@@ -112,6 +112,8 @@
 <p>ブラウザはエージェントへ直接つなぎ、判断を SSE で受け取ります。</p>
 <p>API キーを持つのはエージェントだけです。画面はキーを一切持ちません。</p>
 <p>キーは Secret Manager に置き、Cloud Run が環境変数として渡します。</p>
+<p>公開版のリプレイは、架空のダミーシナリオを画面とエージェントの両方で読みます。</p>
+<p>ダミーシナリオはリプレイにだけ使います。利用者が入れた状況の判断には使いません。</p>
 
 <h2 id="before">始める前に</h2>
 <ul>
@@ -171,6 +173,7 @@ curl -s "$AGENT_URL/health"</code></pre>
 <p>起動ログで、判断モードが claude になっていることも確かめます。</p>
 <pre><code>gcloud run services logs read kansai-agent --region "$REGION" --limit 20 | grep 'agent listening'</code></pre>
 <p><code>mode: claude</code> と出ていれば、キーが渡っています。</p>
+<p><code>scenarios: 5</code> と出ていれば、リプレイのシナリオを読めています。</p>
 <p>表示した <code>AGENT_URL</code> は手順 4 で使います。</p>
 
 <h2 id="step4">手順 4　Vercel で取り込む</h2>
@@ -195,7 +198,7 @@ curl -s "$AGENT_URL/health"</code></pre>
     <tr><th>名前</th><th>値</th><th>説明</th></tr>
     <tr><td><code>NEXT_PUBLIC_AGENT_URL</code></td><td>手順 3 の <code>AGENT_URL</code></td><td>末尾にスラッシュを付けません。</td></tr>
     <tr><td><code>ENABLE_EXPERIMENTAL_COREPACK</code></td><td><code>1</code></td><td>ルートの <code>packageManager</code> に書いた版の pnpm を使わせます。</td></tr>
-    <tr><td><code>CONTENT_DIR</code></td><td>設定しない</td><td>未設定ならリポジトリの <code>scenarios/</code> を読みます。</td></tr>
+    <tr><td><code>CONTENT_DIR</code></td><td><code>packages/schema/test/fixtures/dev-content</code></td><td>リプレイのシナリオの置き場所です。エージェントと同じ値にします。</td></tr>
     <tr><td><code>NEXT_PUBLIC_JUDGE_MOCK</code></td><td>設定しない</td><td>設定すると固定の判断を表示します。本番では必ず未設定にします。</td></tr>
   </table>
 </div>
@@ -213,7 +216,7 @@ curl -s "$AGENT_URL/health"</code></pre>
     <tr><th>対象</th><th>理由</th></tr>
     <tr><td><code>pnpm-workspace.yaml</code></td><td>リポジトリのルートを探す目印です。</td></tr>
     <tr><td><code>scenarios/</code></td><td>リプレイに使います。</td></tr>
-    <tr><td><code>packages/schema/test/fixtures/dev-content/</code></td><td>ダミーのシナリオです。<code>CONTENT_DIR</code> で切り替えたときに使います。</td></tr>
+    <tr><td><code>packages/schema/test/fixtures/dev-content/</code></td><td>公開版のリプレイに使うダミーのシナリオです。</td></tr>
     <tr><td><code>packages/geo/data/</code></td><td>路線と駅のデータです。</td></tr>
   </table>
 </div>
@@ -270,7 +273,7 @@ curl -s "$AGENT_URL/health"</code></pre>
     <tr><td><code>CORS_ORIGINS</code></td><td>画面の本番オリジン</td><td>カンマ区切りで複数指定できます。</td></tr>
     <tr><td><code>RATE_LIMIT_PER_MINUTE</code></td><td>6</td><td>1 分あたりに 1 利用者へ許す <code>/judge</code> の回数です。アプリの既定は 20 です。</td></tr>
     <tr><td><code>TRUST_PROXY</code></td><td><code>true</code></td><td>利用者を <code>X-Forwarded-For</code> で見分けます。Cloud Run では必須です。</td></tr>
-    <tr><td><code>CONTENT_DIR</code></td><td>設定しない</td><td>シナリオの置き場所です。未設定ならイメージ内の <code>scenarios/</code> を読みます。</td></tr>
+    <tr><td><code>CONTENT_DIR</code></td><td><code>packages/schema/test/fixtures/dev-content</code></td><td>リプレイのシナリオの置き場所です。イメージにはこのフォルダも入れてあります。</td></tr>
   </table>
 </div>
 
@@ -303,7 +306,9 @@ curl -s "$AGENT_URL/health"</code></pre>
 <pre><code>docker build -f infra/agent/Dockerfile -t kansai-agent:local .
 docker run -d --name kansai-agent-local -p 18080:8080 \
   -e PORT=8080 -e JUDGE_MODE=deterministic -e TRUST_PROXY=true \
-  -e CORS_ORIGINS=http://localhost:3000 kansai-agent:local
+  -e CORS_ORIGINS=http://localhost:3000 \
+  -e CONTENT_DIR=packages/schema/test/fixtures/dev-content kansai-agent:local
+docker logs kansai-agent-local
 curl -s http://localhost:18080/health
 curl -s -N -X POST http://localhost:18080/judge \
   -H 'content-type: application/json' \
@@ -314,7 +319,7 @@ curl -s -N -X POST http://localhost:18080/judge \
        "constraints":{"deadline":"2026-11-06T00:25:00+09:00","knowsAlternatives":false,"mobilityNotes":null},
        "language":"ja","now":"2026-11-05T22:12:00+09:00"}'
 docker rm -f kansai-agent-local</code></pre>
-<p>最後に <code>judgment_ready</code> のイベントが届けば成功です。</p>
+<p>起動ログに <code>scenarios: 5</code> と出て、最後に <code>judgment_ready</code> のイベントが届けば成功です。</p>
 <p><code>docker compose -f infra/compose.yaml up --build</code> でも同じ確認ができます。こちらは 8787 で待ち受けます。</p>
 
 <h2 id="trouble">困ったとき</h2>
@@ -348,7 +353,8 @@ docker rm -f kansai-agent-local</code></pre>
 <ul class="check">
   <li>本番の画面から判断を流し、CORS で止まりません。</li>
   <li>起動ログに <code>mode: claude</code> と出ています。</li>
-  <li>起動ログの読めなかった件数が 0 です。</li>
+  <li>起動ログのシナリオの数が 5 で、読めなかった件数が 0 です。</li>
+  <li>画面のリプレイにダミーのシナリオが並びます。</li>
 </ul>
 <h3>リポジトリ</h3>
 <ul class="check">

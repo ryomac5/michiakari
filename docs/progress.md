@@ -1015,5 +1015,5 @@
 - 防護無線の規則表の注に、公開の出典への参照を書いた。他社線は今の規則のまま止めない。
 
 ### 2026-11-07 / Cloud Run と Vercel への公開の準備をした
-- infra/deploy-agent.sh と infra/cloudbuild.yaml で、Cloud Build から Cloud Run への公開を 1 コマンドにした。頻度制限は公開で 1 分 6 回、最大 2 台とした。
+- infra/deploy-agent.sh と infra/cloudbuild.yaml で、Cloud Build から Cloud Run への公開を 1 コマンドにした。頻度制限は公開で 1 分 6 回、最大 2 台とし、リプレイは架空のダミーシナリオを読む。
 - 手元の docker で /health と決定論モードの /judge を確かめ、docs/guides/deploy.html を上から貼れば公開できる手順に書き直した。
