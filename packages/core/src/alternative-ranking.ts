@@ -31,10 +31,17 @@ const STANDING_ORDER: Readonly<Record<AlternativeStanding, number>> = {
   lowered: 2,
 };
 
+// 路線 ID「hankyu.神戸線」の先頭を事業者キーにそろえる。ID の形でなければ null
+function resolveLineOperatorKey(lineId: string | null | undefined): string | null {
+  if (!lineId?.includes(".")) return null;
+  const key = findLineOperatorKey(lineId);
+  return key ? (normalizeOperatorKey(key) ?? key) : null;
+}
+
 function listRideOperators(option: RankableAlternative): string[] {
   return option.legs.flatMap((leg) => {
     if (leg.mode !== "ride") return [];
-    const key = findLineOperatorKey(leg.lineId ?? null);
+    const key = resolveLineOperatorKey(leg.lineId);
     return key ? [key] : [];
   });
 }
@@ -54,11 +61,10 @@ function classifyStanding(
 export function rankAlternativesForProtection<T extends RankableAlternative>(
   input: ProtectionRankingInput<T>,
 ): RankedAlternative<T>[] {
+  // 事業者名は事業者キーにそろえてから比べる。表に無い名前は分からないものとして扱う
   const blockedOperator =
-    findLineOperatorKey(input.blockedLineId) ??
-    normalizeOperatorKey(input.blockedOperator ?? null) ??
-    input.blockedOperator ??
-    null;
+    resolveLineOperatorKey(input.blockedLineId) ??
+    normalizeOperatorKey(input.blockedOperator ?? null);
   const ranked = input.options.map((option) => ({
     option,
     standing:

@@ -27,6 +27,8 @@ export type IncidentRemainingInput = {
   // 発生とみなした時刻
   onsetTime: string;
   now: string;
+  // 発表や放送の文。台風のように長さの見込みを上げる語を見る
+  texts?: readonly string[];
   tables?: IncidentDurationTables;
 };
 
@@ -73,7 +75,7 @@ function resolveStatsCause(
 export function estimateIncidentRemaining(input: IncidentRemainingInput): IncidentRemaining {
   const { type } = input;
   const firstTrainWait = resolveFirstTrainWait(type);
-  const flowOutlook = resolveFlowOutlook(type);
+  const flowOutlook = resolveFlowOutlook(type, input.texts);
   const build = (
     basis: IncidentEstimateBasis | null,
     untilResume: DurationDist | null,
@@ -101,9 +103,10 @@ export function estimateIncidentRemaining(input: IncidentRemainingInput): Incide
     return build(null, null, { withholdNumbers: true });
   }
   const elapsed = computeElapsedMinutes(input.onsetTime, input.now);
-  const ruleUntil = behavior?.ruleRange
-    ? computeRuleUntilResume(behavior.ruleRange, elapsed)
-    : null;
+  const ruleUsable =
+    behavior?.ruleRange && (!behavior.ruleNeedsCheck || input.cues.includes("track_cleared"));
+  const ruleUntil =
+    ruleUsable && behavior?.ruleRange ? computeRuleUntilResume(behavior.ruleRange, elapsed) : null;
   if (ruleUntil) return build("rule", ruleUntil);
   const cause = resolveStatsCause(type, input.cause);
   const stats = cause
