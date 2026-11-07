@@ -479,16 +479,20 @@ test("駅の間で線路に降りる案内を入れると、行動の札は「�
     .getByTestId(testIds.situation.pasteInput)
     .fill("これから線路に降りて、最寄り駅まで歩いてご案内します。");
   await addInfo.getByTestId(testIds.situation.submit("paste")).click();
-  const conclusion = page.getByTestId(testIds.judgment.conclusion);
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText(
     "係員の案内に従う",
     { timeout: 30_000 },
   );
-  const pill = conclusion.getByTestId(testIds.judgment.actionPill);
+  // 行動の札は開いたシートの先頭にある
+  const pill = page
+    .getByTestId(testIds.judgment.conclusionLead)
+    .getByTestId(testIds.judgment.actionPill);
   await expect(pill).toHaveAttribute("data-label", "followStaff");
   await expect(pill).toContainText("案内に従う");
   await expect(pill).not.toContainText("待つ");
   // 分岐点の時刻と再開の見込みは出さない
   await expect(page.getByTestId(testIds.judgment.breakEvenTime)).toHaveCount(0);
   await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(0);
+  // 動き出す見込みが無いので、地図の上端の帯も出さない
+  await expect(page.getByTestId(testIds.judgment.resumeBand)).toHaveCount(0);
 });
