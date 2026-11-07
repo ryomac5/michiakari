@@ -28,16 +28,17 @@ export type RuleInput = JudgmentToolResults & {
 };
 
 // 保留の代わりに切り替えを言い切るか。原因が分からないときと確信度が低いときの保留の前に確かめる
-// 分岐点までまだ時間があれば、次の発表を待てるので保留を保つ
-// 見込みの立てやすい事象は、時間の窓を待たずに確かめる（ignoreWindow）
+// p50 が分岐点より後なら、分岐点までに動く見込みは 5 割を切る。保留の見出しは「分岐点まで待つ」なので、時間の窓を待たずに切り替える
+// p50 が前で幅の大半が後のときは、分岐点まで時間があれば次の発表を待てるので保留を保つ
+// 見込みの立てやすい事象は、この場合も時間の窓を待たずに確かめる（ignoreWindow）
 function decideSwitchInsteadOfHold(
   r: BreakEvenToolResult["result"],
   ignoreWindow = false,
 ): DecisionReason | null {
   if (r.kind !== "future" || r.resumeOutlook === null) return null;
-  if (!ignoreWindow && r.minutesFromNow > decisionParams.holdDecisionWindowMinutes) return null;
   // p50 が分岐点より後なら、p80 まで含めて見込みの幅のすべてが分岐点より後
   if (r.resumeOutlook.marginP50Minutes < 0) return "resume_after_break_even";
+  if (!ignoreWindow && r.minutesFromNow > decisionParams.holdDecisionWindowMinutes) return null;
   if (computeLateShare(r.resumeOutlook) >= decisionParams.lateShareToSwitch) {
     return "resume_mostly_after_break_even";
   }
@@ -134,7 +135,7 @@ function applyIncidentRules(input: RuleInput): RuleOutcome {
         recommendedOptionId: input.alternatives.waitOptionId,
       };
     }
-    // 原因の統計値から見込みが出ていれば、境目が迫って見込みが後に寄っているときだけ切り替える
+    // 原因の統計値から見込みが出ていれば、p50 が境目より後か、境目が迫って見込みが後に寄っているときに切り替える
     // 統計値は段階が分からず長引いた事例に偏るので、それ以外は知見が無いときと同じく保留する
     const late = decideSwitchInsteadOfHold(r);
     if (late && r.kind === "future") {

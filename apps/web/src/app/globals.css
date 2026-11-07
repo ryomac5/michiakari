@@ -265,3 +265,8 @@ time {
     transition-duration: 1ms;
   }
 }
+
+/* スマホでは地図の印の見た目だけを小さくする。倍率は map-scale.ts が決め、押せる範囲は変えない */
+.map-mark {
+  scale: var(--map-mark-scale, 1);
+}

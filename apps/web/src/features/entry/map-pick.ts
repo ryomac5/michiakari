@@ -540,6 +540,7 @@ export function selectAttendedChoiceKey(
 }
 
 // 候補の駅の間を光らせる形と強さを決める。注目が無いか候補に無ければ先頭の候補を注目にする
+// 両端は、その路線の駅の位置にする。同じ名前の駅をまとめた位置は、別の会社の駅のことがある
 // 注目している候補は最後に置き、ほかの候補の上に描く
 export function buildSectionGlow(
   choices: readonly GpsChoice[],
@@ -554,11 +555,7 @@ export function buildSectionGlow(
     type: "Feature" as const,
     geometry: {
       type: "LineString" as const,
-      coordinates: buildSegmentPath(
-        trackShapes?.get(c.line.lineId),
-        [c.from.lon, c.from.lat],
-        [c.to.lon, c.to.lat],
-      ),
+      coordinates: buildSegmentPath(trackShapes?.get(c.line.lineId), c.fromPosition, c.toPosition),
     },
     properties: {
       key: c.key,

@@ -2,13 +2,15 @@
 
 import type { Judgment } from "@repo/schema";
 import { CornerDownRight } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { splitHeadline } from "../headline";
 import type { buildJudgmentChange } from "../judgment-change";
 import { checkFollowStaff } from "../rule-outlook";
 import { testIds } from "../testids";
+import { formatClockInSentence } from "../time";
+import type { TimeLine } from "../time-line";
 import { ActionPill } from "./ActionPill";
 import { JudgmentChangeCard } from "./JudgmentChangeCard";
 import { NoBreakText } from "./NoBreakText";
@@ -35,9 +37,7 @@ export function ConclusionCard({
   // 右上に置く数字。境目までの残り時間か到着の見込み
   metric?: ReactNode;
 }) {
-  const t = useTranslations("judgment.conclusion");
-  const { lead, rest } = splitHeadline(judgment.headline);
-  const cardReason = selectCardReason(judgment);
+  const { lead } = splitHeadline(judgment.headline);
 
   return (
     <>
@@ -47,44 +47,138 @@ export function ConclusionCard({
         aria-labelledby="conclusion-headline"
         className="flex flex-col gap-2"
       >
-        <div className="flex min-w-0 items-center gap-2">
-          <ActionPill action={judgment.action} followStaff={checkFollowStaff(judgment)} />
-          {badge}
-          <div className="ml-auto">{metric}</div>
-        </div>
-        <h2
-          id="conclusion-headline"
-          data-testid={testIds.judgment.conclusionHeadline}
-          className="text-[24px] leading-[1.25] font-bold tracking-tight text-balance"
-        >
-          <NoBreakText text={lead.replace(/。$/, "")} />
-        </h2>
-        {rest && (
-          <p
-            data-testid={testIds.judgment.conclusionNext}
-            className="-mt-1 flex items-center gap-1.5 text-[15px] font-semibold text-muted"
-          >
-            <CornerDownRight className="size-4 shrink-0" strokeWidth={2} aria-hidden />
-            {/* 駅間の車内では 2 文目は動く見込みで、次の手ではない */}
-            {!judgment.inCar && <span className="sr-only">{t("next")}: </span>}
-            {/* flex の子に分けると時刻の前後に隙間が入るので、1 つの span にまとめる */}
-            <span className="min-w-0">
-              <NoBreakText text={rest} />
-            </span>
-          </p>
-        )}
-        <ProtectionReading judgment={judgment} />
-        <StopReasonLine judgment={judgment} />
-        {cardReason && (
-          <p
-            data-testid={testIds.judgment.conclusionReason}
-            className="line-clamp-2 text-[15px] leading-snug text-pretty"
-          >
-            <NoBreakText text={cardReason} />
-          </p>
-        )}
+        <PillRow judgment={judgment} badge={badge} metric={metric} />
+        <ConclusionHeadline text={lead} />
+        <ConclusionLines judgment={judgment} />
       </section>
       <JudgmentChangeCard change={change} />
+    </>
+  );
+}
+
+// 地図で読む判断の閉じたシート。行動の見出しと時刻の 1 行だけを出す。ほかの文は開いたシートに置く
+export function ConclusionSummary({
+  judgment,
+  timeLine,
+}: {
+  judgment: Judgment;
+  timeLine: TimeLine | null;
+}) {
+  const t = useTranslations("judgment.conclusion");
+  const locale = useLocale();
+  const { lead } = splitHeadline(judgment.headline);
+  const time = timeLine ? formatClockInSentence(timeLine.time, locale) : null;
+
+  return (
+    <section
+      data-testid={testIds.judgment.conclusion}
+      data-action={judgment.action}
+      aria-labelledby="conclusion-headline"
+      className="flex flex-col gap-1"
+    >
+      <ConclusionHeadline text={lead} />
+      {timeLine && time && (
+        <p
+          data-testid={testIds.judgment.timeLine}
+          className="text-[16px] leading-snug font-semibold tabular-nums text-muted"
+        >
+          <time dateTime={timeLine.time}>
+            <NoBreakText
+              text={
+                timeLine.station
+                  ? t("arriveAt", { station: timeLine.station, time })
+                  : t("arrive", { time })
+              }
+            />
+          </time>
+        </p>
+      )}
+    </section>
+  );
+}
+
+// 開いたシートの先頭。判断の変化、行動の札と数字、見出しの 2 文目、防護無線の読み、止まった理由、理由の先頭の文
+export function ConclusionLead({
+  judgment,
+  metric,
+  children,
+}: {
+  judgment: Judgment;
+  metric?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div data-testid={testIds.judgment.conclusionLead} className="flex flex-col gap-2">
+      <JudgmentChangeCard />
+      <PillRow judgment={judgment} metric={metric} />
+      <ConclusionLines judgment={judgment} />
+      {children}
+    </div>
+  );
+}
+
+function PillRow({
+  judgment,
+  badge,
+  metric,
+}: {
+  judgment: Judgment;
+  badge?: ReactNode;
+  metric?: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <ActionPill action={judgment.action} followStaff={checkFollowStaff(judgment)} />
+      {badge}
+      <div className="ml-auto">{metric}</div>
+    </div>
+  );
+}
+
+function ConclusionHeadline({ text }: { text: string }) {
+  return (
+    <h2
+      id="conclusion-headline"
+      data-testid={testIds.judgment.conclusionHeadline}
+      className="text-[24px] leading-[1.25] font-bold tracking-tight text-balance"
+    >
+      <NoBreakText text={text.replace(/。$/, "")} />
+    </h2>
+  );
+}
+
+// 見出しの 2 文目と、防護無線の読み、止まった理由、理由の先頭の文
+function ConclusionLines({ judgment }: { judgment: Judgment }) {
+  const t = useTranslations("judgment.conclusion");
+  const { rest } = splitHeadline(judgment.headline);
+  const cardReason = selectCardReason(judgment);
+
+  return (
+    <>
+      {rest && (
+        <p
+          data-testid={testIds.judgment.conclusionNext}
+          className="-mt-1 flex items-center gap-1.5 text-[15px] font-semibold text-muted"
+        >
+          <CornerDownRight className="size-4 shrink-0" strokeWidth={2} aria-hidden />
+          {/* 駅間の車内では 2 文目は動く見込みで、次の手ではない */}
+          {!judgment.inCar && <span className="sr-only">{t("next")}: </span>}
+          {/* flex の子に分けると時刻の前後に隙間が入るので、1 つの span にまとめる */}
+          <span className="min-w-0">
+            <NoBreakText text={rest} />
+          </span>
+        </p>
+      )}
+      <ProtectionReading judgment={judgment} />
+      <StopReasonLine judgment={judgment} />
+      {cardReason && (
+        <p
+          data-testid={testIds.judgment.conclusionReason}
+          className="line-clamp-2 text-[15px] leading-snug text-pretty"
+        >
+          <NoBreakText text={cardReason} />
+        </p>
+      )}
     </>
   );
 }
@@ -99,8 +193,11 @@ export function ConclusionDetail({ judgment }: { judgment: Judgment }) {
   const remaining = judgment.estimate.remaining;
   const level = judgment.estimate.confidence;
   // 境目が無いときだけ、再開までの見込みの幅を添える。境目があれば 2 段目の図が示す
+  // 駅間の車内では、見出しが自分の列車の動く時刻を言う。乗れるまでの幅は別の見込みなので並べない
   const remainingText =
-    remaining && judgment.breakEven === null ? t("conclusion.remaining", remaining) : null;
+    remaining && judgment.breakEven === null && !judgment.inCar
+      ? t("conclusion.remaining", remaining)
+      : null;
 
   return (
     <div className="flex flex-col gap-2">

@@ -161,8 +161,9 @@ export function ResumeOutlook(props: BreakEvenProps) {
   if (!breakEven) return null;
   const relation = timeline && now ? buildBreakEvenTimeline({ ...timeline, now }).relation : null;
 
+  // data-sheet-half-end で、半分まで引き上げたシートを図の下端まで伸ばす
   return (
-    <div className={cn("flex flex-col gap-1", stale && "opacity-60")}>
+    <div data-sheet-half-end="" className={cn("flex flex-col gap-1", stale && "opacity-60")}>
       {chance ? (
         <ResumeChanceChart
           chance={chance}

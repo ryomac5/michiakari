@@ -147,19 +147,22 @@ async function checkScreen(page: Page, label: string) {
   await expectTapTargets(page, label);
 }
 
-// スマートフォンの閉じたシートに、結論の種類・見出し・数字・注意書きが見え、地図が画面の半分以上残ること
+// スマートフォンの閉じたシートに、見出し・数字・注意書きが見え、地図が画面の半分以上残ること
+// 判断の画面の数字は時刻の 1 行、リプレイの数字は右上の数字にする
 // 再開の見込みは、シートを半分まで引き上げたときに見えること
 async function expectFirstViewport(page: Page, variant: Variant, label: string) {
   const sheet = page.getByTestId(testIds.judgment.sheet);
   await expect(sheet, label).toHaveAttribute("data-snap", "collapsed");
   await waitForFiniteAnimations(page);
   const conclusion = page.getByTestId(testIds.judgment.conclusion);
-  const breakEven = page.getByTestId(testIds.judgment.breakEven);
+  const figure = page.getByTestId(
+    label === "判断" ? testIds.judgment.timeLine : testIds.judgment.breakEven,
+  );
   const resume = page.getByTestId(testIds.judgment.breakEvenResume);
   const disclaimer = page.getByTestId(testIds.judgment.disclaimer);
   for (const [name, locator] of [
     ["結論", conclusion],
-    ["数字", breakEven],
+    ["数字", figure],
     ["注意書き", disclaimer],
   ] as const) {
     const box = await locator.boundingBox();

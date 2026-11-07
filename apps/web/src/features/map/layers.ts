@@ -88,7 +88,18 @@ export const sourceIds = {
   guideWalkLabels: "guide-walk-labels",
   guideStations: "guide-stations",
   reachLabels: "walk-reach-labels",
+  // 車内の人の判断で、列車が次の駅まで動く道筋と、降りた後に光らせる経路
+  motionRide: "motion-ride",
+  motionAfter: "motion-after",
 } as const;
+
+// 勧める動きの向きを示す矢印の画像。流れる模様を止めたあとと、動きを減らす設定のときに出す
+export const ROUTE_ARROW_IMAGE = "route-arrow";
+
+// 流れる模様を描く層。破線の並びを順に差し替えて、進む向きに流す
+export const flowLayerIds = ["route-flow", "motion-ride-flow", "motion-after-flow"] as const;
+// 向きの矢印の層
+export const arrowLayerIds = ["route-arrows", "motion-ride-arrows", "motion-after-arrows"] as const;
 
 // 地図の見せ方。focus は現在地のまわり、overview は行き先までの全体
 export type MapView = "focus" | "overview";
@@ -331,6 +342,22 @@ export function buildDataLayers(
         "line-dasharray": [2, 1.4],
       },
     },
+    // 推奨経路のまわりの光。太くぼかした線を下に敷く
+    {
+      id: "route-glow",
+      type: "line",
+      source: sourceIds.route,
+      filter: ["==", ["get", "mode"], "ride"],
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: {
+        "line-color": accent,
+        "line-color-transition": colorTransition,
+        "line-width": byZoom(14, 26),
+        "line-blur": byZoom(6, 12),
+        "line-opacity": 0.45,
+        "line-offset": routeOffset,
+      },
+    },
     // 推奨経路は止まっている区間と並走するところで横へずらし、重ならないようにする
     {
       id: "route-casing",
@@ -370,6 +397,23 @@ export function buildDataLayers(
         "line-offset": routeOffset,
       },
     },
+    // 勧める経路は線路の形に沿って光らせ、進む向きに流れる模様を重ねる
+    {
+      id: "route-flow",
+      type: "line",
+      source: sourceIds.route,
+      filter: ["==", ["get", "mode"], "ride"],
+      layout: { "line-join": "round" },
+      paint: {
+        "line-color": palette.routeCasing,
+        "line-width": byZoom(1.6, 3.2),
+        "line-opacity": 0.85,
+        "line-dasharray": [0, 4, 3],
+        "line-offset": routeOffset,
+      },
+    },
+    ...buildMotionLayers(palette, accent),
+    ...buildArrowLayers(),
     {
       id: "guide-station-dots",
       type: "circle",
@@ -437,10 +481,12 @@ export function buildDataLayers(
         "text-halo-width": 2,
       },
     },
+    // 行き先の名前は行き先のピンの札が示すので、ここでは出さない
     {
       id: "key-station-labels",
       type: "symbol",
       source: sourceIds.keyStations,
+      filter: ["!=", ["get", "role"], "destination"],
       layout: {
         "text-field": ["get", "name"],
         "text-font": [
@@ -492,6 +538,138 @@ export function buildDataLayers(
         }
       : layer,
   ) as LayerSpecification[];
+}
+
+// 車内の人の判断の動き。列車が動く道筋は細く、降りた後の経路は光らせて流す
+function buildMotionLayers(palette: MapPalette, accent: string): LayerSpecification[] {
+  const layout = { "line-cap": "round", "line-join": "round" } as const;
+  return [
+    {
+      id: "motion-after-glow",
+      type: "line",
+      source: sourceIds.motionAfter,
+      layout,
+      paint: {
+        "line-color": accent,
+        "line-width": byZoom(14, 26),
+        "line-blur": byZoom(6, 12),
+        "line-opacity": 0.45,
+      },
+    },
+    {
+      id: "motion-after-casing",
+      type: "line",
+      source: sourceIds.motionAfter,
+      layout,
+      paint: { "line-color": palette.routeCasing, "line-width": byZoom(7, 13) },
+    },
+    {
+      id: "motion-after-line",
+      type: "line",
+      source: sourceIds.motionAfter,
+      layout,
+      paint: { "line-color": accent, "line-width": byZoom(4, 8) },
+    },
+    {
+      id: "motion-after-flow",
+      type: "line",
+      source: sourceIds.motionAfter,
+      layout: { "line-join": "round" },
+      paint: {
+        "line-color": palette.routeCasing,
+        "line-width": byZoom(1.6, 3.2),
+        "line-opacity": 0.85,
+        "line-dasharray": [0, 4, 3],
+      },
+    },
+    {
+      id: "motion-ride-casing",
+      type: "line",
+      source: sourceIds.motionRide,
+      layout,
+      paint: { "line-color": palette.routeCasing, "line-width": byZoom(6, 11) },
+    },
+    {
+      id: "motion-ride-line",
+      type: "line",
+      source: sourceIds.motionRide,
+      layout,
+      paint: { "line-color": accent, "line-width": byZoom(3.5, 7) },
+    },
+    {
+      id: "motion-ride-flow",
+      type: "line",
+      source: sourceIds.motionRide,
+      layout: { "line-join": "round" },
+      paint: {
+        "line-color": palette.routeCasing,
+        "line-width": byZoom(1.4, 2.8),
+        "line-opacity": 0.85,
+        "line-dasharray": [0, 4, 3],
+      },
+    },
+  ] as LayerSpecification[];
+}
+
+// 向きの矢印。線に沿って一定の間隔で置く。出すかどうかは動きの段で切り替える
+function buildArrowLayers(): LayerSpecification[] {
+  const sources = [sourceIds.route, sourceIds.motionRide, sourceIds.motionAfter];
+  return arrowLayerIds.map((id, i) => ({
+    id,
+    type: "symbol",
+    source: sources[i] as string,
+    ...(id === "route-arrows" ? { filter: ["==", ["get", "mode"], "ride"] } : {}),
+    layout: {
+      "symbol-placement": "line",
+      "symbol-spacing": 70,
+      "icon-image": ROUTE_ARROW_IMAGE,
+      "icon-size": 0.9,
+      "icon-rotation-alignment": "map",
+      "icon-allow-overlap": true,
+      "icon-ignore-placement": true,
+    },
+  })) as LayerSpecification[];
+}
+
+// 矢印の画像を描く。右向きの山形で、白い線に濃い縁を付けて、どの色の経路の上でも見えるようにする
+export function drawRouteArrow(size = 32): {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+} {
+  const data = new Uint8ClampedArray(size * size * 4);
+  const half = size / 2;
+  // 山形の 2 本の線からの距離で塗る
+  const distanceToSegment = (
+    px: number,
+    py: number,
+    ax: number,
+    ay: number,
+    bx: number,
+    by: number,
+  ) => {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+    return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+  };
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const px = x + 0.5;
+      const py = y + 0.5;
+      const d = Math.min(
+        distanceToSegment(px, py, half - 6, half - 9, half + 5, half),
+        distanceToSegment(px, py, half + 5, half, half - 6, half + 9),
+      );
+      const i = (y * size + x) * 4;
+      if (d <= 2.6) {
+        data.set([255, 255, 255, 255], i);
+      } else if (d <= 4.4) {
+        data.set([24, 24, 27, Math.round(200 * Math.min(1, 4.4 - d))], i);
+      }
+    }
+  }
+  return { width: size, height: size, data };
 }
 
 // テーマ・判断・見せ方が変わったときに、塗りと表示の値だけを入れ替えるための一覧

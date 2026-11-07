@@ -19,12 +19,17 @@ export const mapTestIds = {
   alight: "judgment-map-alight",
   // 発表で区間が分かったときだけ出す「見合わせ 大阪〜京都」の札
   blockedTag: "judgment-map-blocked-tag",
-  // 発表に区間が無いときの「区間は発表で確かめる」と、発表を貼る欄へ移るボタン
+  // 発表に区間が無いときも出さない札。出ないことをテストで確かめるための識別子
   sectionNote: "judgment-map-section-note",
-  sectionNoteAction: "judgment-map-section-note-action",
   // 一覧で選んだ経路を描いているときの「表示中」の札
   selectedRoute: "judgment-map-selected-route",
   // 札が地図に収まらないときに、札を移す上端の一覧と、その駅の行
   labelList: "judgment-map-label-list",
   labelListRow: (key: string) => `judgment-map-label-list-row-${key}`,
+  // 車内の判断で、次の駅まで動く列車の印と、動きをもう一度見るボタン
+  motionTrain: "judgment-map-motion-train",
+  motionReplay: "judgment-map-motion-replay",
+  // 行き先の印と、行き先が画面の外にあるときに縁に出す札
+  destination: "judgment-map-destination",
+  destinationEdge: "judgment-map-destination-edge",
 } as const;
