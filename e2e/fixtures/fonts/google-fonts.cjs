@@ -6,5 +6,5 @@ const empty = "/* e2e: Google Fonts を取りに行かない */\n";
 
 module.exports = {
   "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap": empty,
-  "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap": empty,
+  "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@100..900&display=swap": empty,
 };
