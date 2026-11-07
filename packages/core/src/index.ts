@@ -172,6 +172,14 @@ export {
   type ReplayOutcomeVerdict,
 } from "./outcome.ts";
 export { createMulberry32, type Random } from "./random.ts";
+export {
+  computeDepartedProbability,
+  computeDepartureChance,
+  type DepartureChanceInput,
+  decideInCarPlan,
+  type InCarPlan,
+  sampleDepartureMinutes,
+} from "./departure-chance.ts";
 export { computeQuantile, sampleDurationDist, summarizeSamples } from "./remaining.ts";
 export { estimateStatedRemainingWithoutKnowledge } from "./remaining-paths.ts";
 export {
