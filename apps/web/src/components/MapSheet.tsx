@@ -335,6 +335,9 @@ export function MapSheet({
         className={cn(
           "min-h-0 flex-1 overscroll-contain px-4 pb-[max(24px,env(safe-area-inset-bottom))] lg:overflow-y-auto lg:px-5",
           snap !== "collapsed" ? "overflow-y-auto" : "overflow-hidden",
+          // 閉じて止まっている間は、要点の下に次の行の頭が覗かないよう詳細を透明にする。引いている間と PC 幅では見せる
+          "transition-opacity duration-200 lg:opacity-100",
+          snap === "collapsed" && dragOffset === null ? "opacity-0" : "opacity-100",
         )}
       >
         <div ref={contentRef}>{children}</div>
