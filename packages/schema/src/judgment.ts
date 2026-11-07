@@ -179,6 +179,22 @@ export const ANNOUNCEMENT_CUE_IDS = [
   "queue_ahead",
   // 線路の安全が確かめられた
   "track_cleared",
+  // 線路に降りて最寄りの駅まで歩くよう案内された
+  "evacuation_on_track",
+  // 止まった区間の手前で折り返し運転をしている
+  "turnback",
+  // この列車は運転を取りやめる
+  "service_cancelled",
+  // 他社線への直通運転を中止した
+  "through_service_suspended",
+  // 徐行して走る
+  "slow_running",
+  // 駅で発車を見合わせて止まっている
+  "held_at_station",
+  // 点検や安全確認が続いている
+  "inspection_ongoing",
+  // 安全を確かめた区間を、次の駅まで進む
+  "proceed_to_station",
 ] as const;
 export const AnnouncementCueIdSchema = z.enum(ANNOUNCEMENT_CUE_IDS);
 export type AnnouncementCueId = z.infer<typeof AnnouncementCueIdSchema>;

@@ -1,5 +1,6 @@
 import {
   addMinutesToIso,
+  checkTrackEvacuation,
   findIncidentType,
   type IncidentTypeId,
   resolveObservedStopScope,
@@ -497,7 +498,10 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
       evidenceRefs,
     });
     // 詰まりで次の駅で降りる価値があれば、駅間の車内の人にも降りて乗り換える言い方を許す
-    const alightAllowed = results.estimate.resumeQueue?.worthAlightingAtNextStation === true;
+    // 線路に降りる案内が出たときも、降りる言い方を許す
+    const alightAllowed =
+      results.estimate.resumeQueue?.worthAlightingAtNextStation === true ||
+      checkTrackEvacuation(results.estimate.cues);
     const r = results.breakEven.result;
     return validateJudgment({
       judgment,

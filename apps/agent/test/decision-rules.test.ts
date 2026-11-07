@@ -609,3 +609,35 @@ describe("再開後の詰まりの規則と、雨の保留", () => {
     });
   });
 });
+
+describe("線路に降りる案内の規則", () => {
+  it("降りる案内があれば、見込みや分岐点より先に係員の案内に従う結論にする", () => {
+    const input = buildInput({
+      eventType: "person_collision",
+      confidence: "low",
+      result: nambaLate,
+    });
+    input.estimate.cues = ["evacuation_on_track"];
+    expect(applyDecisionRules(input)).toEqual({
+      action: "hold",
+      reason: "follow_staff",
+      recommendedOptionId: null,
+    });
+    const text = buildDecisionText({
+      reason: "follow_staff",
+      language: "ja",
+      breakEvenMinutesFromNow: 3,
+      breakEvenTime: "2026-11-05T22:41:00+09:00",
+      resumeP50: null,
+      resumeP80: null,
+      marginP50Minutes: null,
+      deadline: null,
+      deadlineBasis: null,
+      bestOption: null,
+      flow: null,
+      chance: null,
+    });
+    expect(text.headline).toBe("係員の案内に従う");
+    expect(text.reason).not.toMatch(/\d{1,2}:\d{2}/);
+  });
+});
