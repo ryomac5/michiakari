@@ -86,6 +86,7 @@ import {
 } from "@/features/entry/gps-candidates";
 import { inferEntryRoutes, listTrainLines } from "@/features/entry/infer-route";
 import {
+  buildSectionGlow,
   buildSegmentPath,
   computeMidpoint,
   computePathMidpoint,
@@ -100,6 +101,7 @@ import {
   pickLineTap,
   placeDirectionTag,
   selectAwaySide,
+  selectRailTapOutcome,
   selectStopDirection,
 } from "@/features/entry/map-pick";
 import { buildLineObservation } from "@/features/entry/seed";
@@ -414,6 +416,10 @@ export function StartScreen() {
 
   // 最初の段と駅の間の段で線を押したときの駅の間の候補。現在地の読み取りと同じ部品で確かめる
   const [mapPick, setMapPick] = useState<{ point: Position; choices: GpsChoice[] } | null>(null);
+  // 候補の一覧で指を置くかフォーカスしている候補。地図でその区間をいちばん強く光らせる
+  const [focusedChoiceKey, setFocusedChoiceKey] = useState<string | null>(null);
+  // 確定した駅の間。確定した後も、その駅の間を選んでいる間は光らせたまま残す
+  const [pickedSection, setPickedSection] = useState<GpsChoice | null>(null);
   // 前に確定した駅の間の中ほど。駅の間の段へ戻ったら、地図をここへ寄せる
   const [lastBetween, setLastBetween] = useState<Position | null>(null);
   const nearestStation = nearest[0]?.station;
@@ -437,6 +443,7 @@ export function StartScreen() {
         onLocate: locateGps,
         onConfirm: confirmGpsChoice,
         onDismiss: () => setMapPick(null),
+        onFocusChoice: setFocusedChoiceKey,
       }
     : {
         status: gps.status,
@@ -461,6 +468,7 @@ export function StartScreen() {
     }
     rememberStationName(choice.from.name, choice.from.nameEn);
     rememberStationName(choice.to.name, choice.to.nameEn);
+    setPickedSection(choice);
     setLastBetween(
       computeMidpoint([choice.from.lon, choice.from.lat], [choice.to.lon, choice.to.lat]),
     );
@@ -504,8 +512,25 @@ export function StartScreen() {
     }
   }
 
-  // 最初の段と駅の間の段で線を押したら、その駅の間の車内にいるか確かめる。駅の間が無ければ、そのあたりへ寄る
-  function handleRailTap(lineIds: string[], point: Position, reachMeters: number) {
+  // 地図の駅を押したとき。選んだ駅の丸を押しても、ここまでの答えは捨てない。電車の中なら近い駅の答えにする
+  function pickMapPlace(place: EntryPlace) {
+    if (place.key === entry.place?.key && entry.stage !== "area" && entry.stage !== "kansai") {
+      const here = nearby.find((s) => s.choice.id === entry.line?.stationName);
+      if (entry.stage === "trainPosition" && onTrain && here) chooseNearStop(here);
+      return;
+    }
+    const area = data ? findAreaAt(data, place.position) : null;
+    if (area) selectPlace(area, place);
+  }
+
+  // 最初の段と駅の間の段で線を押したら、その駅の間の車内にいるか確かめる
+  // 駅の間が無いとき、札を押していればその駅を選び、そうでなければ、そのあたりへ寄る
+  function handleRailTap(
+    lineIds: string[],
+    point: Position,
+    reachMeters: number,
+    label: EntryPlace | null,
+  ) {
     if (!data || !geo || (entry.stage !== "position" && entry.stage !== "between")) return;
     const choices = listLineTapChoices(
       data,
@@ -513,12 +538,19 @@ export function StartScreen() {
       { lon: point[0], lat: point[1] },
       reachMeters,
       lineIds,
+      geo.trackShapes,
     );
-    if (choices.length === 0) {
+    const outcome = selectRailTapOutcome(choices.length, label);
+    if (outcome.kind === "station") {
+      pickMapPlace(outcome.place);
+      return;
+    }
+    if (outcome.kind === "tap") {
       handleTap(point, reachMeters);
       return;
     }
     gps.reset();
+    setFocusedChoiceKey(null);
     setMapPick({ point, choices });
   }
 
@@ -884,6 +916,23 @@ export function StartScreen() {
       }),
     [segmentPicks, segmentTrack, currentSegmentIndex, lineColor, locale, t],
   );
+  // 線を押して出した候補を光らせる。確定した駅の間は、その駅の間を選んでいる間だけ光らせたまま残す
+  // 戻る操作で駅の間を選ぶ前の段へ戻ると、entry.segment が消えるので光りも消える
+  const keptSection =
+    pickedSection?.kind === "between" &&
+    entry.segment?.from === pickedSection.from.name &&
+    entry.segment.to === pickedSection.to.name
+      ? pickedSection
+      : null;
+  const sectionGlow = useMemo(
+    () =>
+      buildSectionGlow(
+        mapPick?.choices ?? (keptSection ? [keptSection] : []),
+        focusedChoiceKey,
+        geo?.trackShapes,
+      ),
+    [mapPick, keptSection, focusedChoiceKey, geo],
+  );
   // 地図の札で選べる路線。行き先の段では駅の全部の路線、路線の段では一覧と同じ路線
   const pickLines =
     !onTrain && entry.place && !entry.line
@@ -1169,6 +1218,8 @@ export function StartScreen() {
         linePickable={linePickable}
         onSelectLine={selectMapLine}
         segments={mapSegments}
+        sections={sectionGlow}
+        tapPoint={mapPick?.point ?? null}
         onSelectSegment={selectMapSegment}
         placeSide={placeSide}
         destination={destinationMarker}
@@ -1188,20 +1239,9 @@ export function StartScreen() {
           const area = data ? resolveConfiguredArea(data, areaId) : null;
           if (area) dispatch({ type: "openArea", area });
         }}
-        onSelectPlace={(place: EntryPlace) => {
-          // 選んだ駅の丸を押しても、ここまでの答えは捨てない。電車の中なら近い駅の答えにする
-          if (
-            place.key === entry.place?.key &&
-            entry.stage !== "area" &&
-            entry.stage !== "kansai"
-          ) {
-            const here = nearby.find((s) => s.choice.id === entry.line?.stationName);
-            if (entry.stage === "trainPosition" && onTrain && here) chooseNearStop(here);
-            return;
-          }
-          const area = data ? findAreaAt(data, place.position) : null;
-          if (area) selectPlace(area, place);
-        }}
+        onSelectPlace={pickMapPlace}
+        // 駅の段と駅の間の段は駅を答えにしないので、駅の印や札の上も線として押させる
+        placePickable={entry.stage !== "station" && entry.stage !== "between"}
         onTap={handleTap}
         onSelectRails={
           entry.stage === "position" || entry.stage === "between" ? handleRailTap : undefined
@@ -1294,6 +1334,7 @@ export function StartScreen() {
                 }
                 onSearch={() => setMapPick(null)}
                 onConfirm={confirmGpsChoice}
+                onFocusChoice={setFocusedChoiceKey}
               />
             )}
             {entry.stage === "station" && onTrain && (

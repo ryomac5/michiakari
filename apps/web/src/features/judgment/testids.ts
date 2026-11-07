@@ -38,6 +38,7 @@ export const testIds = {
     gps: "start-gps",
     gpsLocate: "start-gps-locate",
     gpsQuestion: "start-gps-question",
+    tapRipple: "start-tap-ripple",
     gpsConfirm: "start-gps-confirm",
     gpsDismiss: "start-gps-dismiss",
     gpsChoice: (key: string) => `start-gps-choice-${key}`,

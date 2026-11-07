@@ -162,6 +162,19 @@ const smallSideClass: Record<LabelSide, string> = {
   bottom: "top-[calc(50%+9px)] left-1/2 -translate-x-1/2",
 };
 
+// 駅の印を押した点。札を押したかも添える。キーで押したときは null
+export type PlaceTap = { clientX: number; clientY: number; label: boolean } | null;
+
+function readPlaceTap(e: MouseEvent): PlaceTap {
+  if (e.detail === 0) return null;
+  const target = e.target as HTMLElement | null;
+  return {
+    clientX: e.clientX,
+    clientY: e.clientY,
+    label: Boolean(target?.closest("[data-station-label]")),
+  };
+}
+
 // 地図の駅。乗降客数の多い駅は大きめの丸と札、少ない駅は小さな丸と小さな文字にする
 // 名前が重なる駅は印だけを出し、押せば選べる。選んだ駅は判断の画面の現在地と同じ青い丸にする
 export function PlaceMarker({
@@ -180,13 +193,13 @@ export function PlaceMarker({
   label: string;
   layout: { side: LabelSide; size: "large" | "small"; slide: number; tappable: boolean } | null;
   major: boolean;
-  // 押せる丸の半径（px）。隣の駅の印に届かない大きさ
+  // 印として押せる丸の半径（px）。隣の駅の印に届かない大きさ
   hitRadius: number;
   colors: string[];
   selected: boolean;
   dim: boolean;
   hereLabel: string;
-  onSelect: () => void;
+  onSelect: (tap: PlaceTap) => void;
 }) {
   const dot = selected ? (
     <span className="relative size-5">
@@ -209,7 +222,10 @@ export function PlaceMarker({
       data-label={layout?.size ?? "none"}
       aria-label={label}
       aria-pressed={selected}
-      onClick={stop(onSelect)}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect(readPlaceTap(e));
+      }}
       className={cn(
         "group pointer-events-none relative flex animate-fade-in items-center justify-center rounded-full transition-opacity duration-200",
         major || selected ? "size-12" : "size-11",

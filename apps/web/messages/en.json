@@ -1,7 +1,7 @@
 {
   "app": {
     "title": "Michiakari",
-    "description": "Choose whether to wait or switch in Kansai.",
+    "description": "See your options and outlook when service stops in Kansai.",
     "home": "Start from the map",
     "about": "About this app",
     "language": "Language",
@@ -22,9 +22,9 @@
     "short": "Estimate only. Follow official notices."
   },
   "start": {
-    "introAudience": "When your train stops and you are unsure whether to wait or switch.",
+    "introAudience": "When your train stops and you are unsure what to do.",
     "introProblem": "Just pick where you are and what you heard.",
-    "introSolution": "We show whether to wait, or where to switch.",
+    "introSolution": "See the options you have right now, on the map.",
     "introClose": "Close",
     "originLabel": "Where are you?",
     "locate": "Use my location",
@@ -445,8 +445,8 @@
     },
     "purpose": {
       "title": "Purpose",
-      "p1": "Michiakari shows whether to wait or switch, and what to do next.",
-      "p2": "When service is suspended, it shows an estimate and an action to help you decide whether to wait or switch."
+      "p1": "Michiakari shows the options you have now, and the outlook for each.",
+      "p2": "When service is suspended, it shows an estimate for each option you can take."
     },
     "approach": {
       "title": "How we estimate",
