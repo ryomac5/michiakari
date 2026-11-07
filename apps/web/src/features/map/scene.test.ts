@@ -611,7 +611,6 @@ describe("buildMapScene", () => {
     const scene = buildMapScene(geo, input, labels);
     expect(scene.blockedLineIds).toEqual(["jr-west.東海道線"]);
     expect(scene.blocked.features[0]?.properties.label).toBe("見合わせ 大阪〜三ノ宮");
-    expect(scene.sectionUnconfirmed).toBe(false);
     expect(scene.reach.features.map((f) => f.properties.minutes)).toEqual([20, 10]);
     expect(scene.reachSource).toBe("circle");
     expect(scene.route.features.map((f) => f.properties.mode)).toEqual(["walk", "ride", "walk"]);
@@ -677,7 +676,6 @@ describe("buildMapScene", () => {
     expect(scene.route.features).toEqual([]);
     expect(scene.blocked.features).toEqual([]);
     expect(scene.blockedLineIds).toEqual([]);
-    expect(scene.sectionUnconfirmed).toBe(true);
   });
 
   it("発表の区間があれば、線路の形に沿った線と「見合わせ 大阪〜三ノ宮」の札を描く", () => {
@@ -689,7 +687,6 @@ describe("buildMapScene", () => {
     expect(coords.length).toBeGreaterThan(20);
     for (const p of coords) expect(measureTrackMeters(p, "jr-west.東海道線")).toBeLessThan(1);
     expect(coords.filter((p) => vertices.has(`${p[0]},${p[1]}`)).length).toBeGreaterThan(20);
-    expect(scene.sectionUnconfirmed).toBe(false);
     expect(scene.keyStations.features.filter((f) => f.properties.role === "blocked-end")).toEqual(
       [],
     );
@@ -707,7 +704,6 @@ describe("buildMapScene", () => {
       labels,
     );
     expect(scene.blocked.features).toEqual([]);
-    expect(scene.sectionUnconfirmed).toBe(true);
     // 路線は薄く示し、代わりの手段の駅からは外す
     expect(scene.blockedLineIds).toEqual([tokaido]);
     expect(
@@ -769,8 +765,6 @@ describe("buildMapScene", () => {
     const train = buildMapScene(geo, { ...input, trainOnly: true }, labels);
     expect(train.blocked.features).toEqual([]);
     expect(train.blockedLineIds).toEqual([]);
-    // 区間を止める事象ではないので、発表で区間を確かめる案内も出さない
-    expect(train.sectionUnconfirmed).toBe(false);
     expect(train.keyStations.features.some((f) => f.properties.role === "blocked-end")).toBe(false);
     // 駅間の現在地を線路の上に置くための道筋は、区間を止める事象と同じ
     expect(train.trackLineIds).toEqual(section.blockedLineIds);
