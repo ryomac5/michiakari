@@ -2,10 +2,11 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
+import { addAnswers, expectJudgmentOpened } from "../support/add-info.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
-// 入口で原因に「聞き取れなかった」、再開見込みに放送の時刻を選んだときの結論
+// 原因を答えず、情報を追加するで再開見込みに放送の時刻を選んだときの結論
 // 原因が分からなくても、発表の時刻を見込みとして分岐点と比べ、待つか切り替えるかを言い切る
 // 決定論モードの agent とダミーの内容で確かめる
 
@@ -15,7 +16,7 @@ const screenshotDir = fileURLToPath(new URL("../screenshots/", import.meta.url))
 const nonDecisive =
   /まだ判断できません|判断できません|分かりません|わかりません|情報が足りません|材料が不足|見込みが立ちません/;
 
-// 大阪から JR 神戸線で三ノ宮へ向かう途中で止まった想定。原因は聞き取れず、再開見込みの時刻だけを選ぶ
+// 大阪から JR 神戸線で三ノ宮へ向かう途中で止まった想定。原因は聞き取れず、再開見込みの時刻だけを足す
 async function answerWithStatedTime(
   page: Page,
   pickTime: "first" | "second" | "last",
@@ -30,22 +31,12 @@ async function answerWithStatedTime(
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expect(page.getByTestId(testIds.start.trip)).toContainText("三ノ宮");
-
-  await page.getByTestId(testIds.start.cause("unknown")).click();
-  await expect(page.getByTestId(testIds.start.answer("cause"))).toContainText("聞き取れなかった");
-  await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume("stated")).click();
-  const times = page.locator("[data-testid^='start-resume-time-']");
-  await expect(times).toHaveCount(8);
+  await expectJudgmentOpened(page);
+  // 原因は答えず、止まってからの時間と放送で聞いた再開見込みの時刻だけを足す
   // 最初は 0〜10 分先で分岐点より前、最後は 70〜80 分先で分岐点より十分後になる
   // 原因が分からないときも初列車待ちを規則表の区間の値で見込むので、2 つ目は分岐点の近くになる
-  const chosen =
-    pickTime === "first" ? times.first() : pickTime === "second" ? times.nth(1) : times.last();
-  const label = (await chosen.textContent()) ?? "";
-  await chosen.click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
-  return label;
+  const label = await addAnswers(page, { elapsed: "m10", resume: { time: pickTime } });
+  return label ?? "";
 }
 
 // 「HH:MM」か「H時MM分」の表示を 0 時からの分にする
@@ -91,25 +82,16 @@ test("原因が聞き取れなくても、放送の再開時刻が分岐点よ�
   await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
     timeout: 30_000,
   });
-  // 動かなかったときに乗る駅には、切り替えのおすすめと同じ見た目の吹き出しに「動かなければ」を添える
+  // 動かなかったときに乗る駅は地図に出さず、シートの一覧に残す。地図は勧める経路と今いる位置と行き先だけにする
   const nextText = (await page.getByTestId(testIds.judgment.conclusionNext).textContent()) ?? "";
   const fallbackLine = /動かなければ(.+)へ/.exec(nextText)?.[1] ?? "";
-  const fallback = page.locator("[data-testid^='judgment-map-station-'][data-fallback='true']");
-  await expect(fallback).toHaveCount(1);
-  await expect(fallback).toBeVisible();
-  // 地図が狭く小さな札に縮めるときも、「動かなければ」の言葉は残す
-  await expect(fallback.getByTestId(mapTestIds.fallbackTag)).toBeVisible();
-  await expect(fallback.getByTestId(mapTestIds.fallbackTag)).toHaveText("動かなければ");
-  // 吹き出しの駅は、見出しの「動かなければ◯◯へ」の路線に乗る駅にする
   expect(fallbackLine.length).toBeGreaterThan(0);
-  await expect(fallback).toHaveAttribute(
-    "aria-label",
-    new RegExp(`^動かなければ .*${fallbackLine}`),
-  );
-  // 待つ判断では、おすすめの星は出さない
-  await expect(
-    page.locator("[data-testid^='judgment-map-station-'][data-starred='true']"),
-  ).toHaveCount(0);
+  const fallback = page.locator("[data-testid^='judgment-map-station-'][data-fallback='true']");
+  await expect(fallback).toHaveCount(0);
+  await expect(page.getByTestId(mapTestIds.fallbackTag)).toHaveCount(0);
+  // 待つ判断では、駅の候補の吹き出しを出さない
+  await expect(page.locator("[data-testid^='judgment-map-station-']")).toHaveCount(0);
+  await expect(page.getByTestId(testIds.judgment.options)).toContainText(fallbackLine);
   await waitForFiniteAnimations(page);
   await page.screenshot({ path: `${screenshotDir}stated-resume-wait-390x844.png` });
   await openSheet(page, "half");

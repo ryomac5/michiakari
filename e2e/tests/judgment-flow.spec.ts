@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
+import { expectJudgmentOpened } from "../support/add-info.ts";
 import { openSheet } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -55,21 +56,24 @@ async function startWithPastedText(page: Page): Promise<void> {
   await page.getByTestId(testIds.start.originOption("大阪")).click();
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
 
-  // 路線を選ぶと方面を聞く。行き先は方面の外の駅も検索で選べる
+  // 行き先を選ぶと、そのまま判断を始める
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expect(page.getByTestId(testIds.start.trip)).toContainText("三ノ宮");
+  await expectJudgmentOpened(page);
+  await expect(page.getByTestId(testIds.judgment.tripSummary)).toContainText("三ノ宮");
 
-  // 状況の入力は別の画面に飛ばず、同じ地図の上のシートで続ける
-  await page.getByTestId(testIds.start.method("paste")).click();
-  await page
+  // 発表文は判断の画面の情報を追加するから貼る
+  await openSheet(page, "full");
+  const addInfo = page.getByTestId(testIds.judgment.addInfo);
+  await addInfo.scrollIntoViewIfNeeded();
+  await addInfo.getByTestId(testIds.situation.tab("paste")).click();
+  await addInfo
     .getByTestId(testIds.situation.pasteInput)
     .fill("人身事故のため、運転を見合わせています。現在、現場の確認を行っています。");
-  await page.getByTestId(testIds.situation.submit("paste")).click();
-  await expect(page.getByTestId(testIds.judgment.screen)).toBeVisible({ timeout: 30_000 });
+  await addInfo.getByTestId(testIds.situation.submit("paste")).click();
 }
 
-test("駅を選び、貼り付けで状況を入れると、推論過程が順に現れて結論と分岐点が出る", async ({
+test("駅と行き先を選んで判断が出たあと、情報を追加するで発表文を貼ると、推論過程が順に現れて結論と分岐点が出る", async ({
   page,
 }) => {
   await recordReasoningSteps(page);
@@ -113,9 +117,10 @@ test("駅を選び、貼り付けで状況を入れると、推論過程が順�
   await expect(map).toHaveAttribute("data-blocked", "true");
   expect(Number(await map.getAttribute("data-blocked-points"))).toBeGreaterThan(20);
   await expect(page.getByTestId(mapTestIds.sectionNote)).toHaveCount(0);
-  // 大阪には Valhalla の到達範囲があるので、円ではなく多角形で描く
-  await expect(map).toHaveAttribute("data-reach-source", "valhalla");
+  // 待つ経路は歩かないので、徒歩の範囲を描かない
   await expect(map).toHaveAttribute("data-recommended-option", "wait_resume");
+  await expect(map).toHaveAttribute("data-walk-reach", "false");
+  await expect(map).toHaveAttribute("data-reach-source", "");
   await expect(page.getByTestId(mapTestIds.legend)).toBeVisible();
   await expect(page.getByTestId(mapTestIds.attribution)).toContainText("国土地理院");
   await expect(page.getByTestId(testIds.judgment.option("transfer_hankyu"))).toBeVisible();

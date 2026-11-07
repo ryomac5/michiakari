@@ -70,6 +70,8 @@ export type MapScene = {
   // 名前を出す駅: 出発、行き先、推奨経路の乗換駅、止まっている区間の端
   keyStations: FeatureCollection<PointGeometry, { name: string; role: KeyStationRole }>;
   transferLineIds: string[];
+  // 地図に描く経路が乗る路線
+  routeLineIds: string[];
   places: FeatureCollection<PointGeometry, { role: PlaceRole; label: string }>;
   stationLabels: FeatureCollection<
     PointGeometry,
@@ -914,6 +916,11 @@ export function buildMapScene(geo: MapGeo, input: MapSceneInput, labels: MapScen
     ),
     keyStations,
     transferLineIds: listTransferServiceLineIds(geo, input.options),
+    routeLineIds: [
+      ...new Set(
+        routeLegs.flatMap((leg) => (leg.mode === "ride" && leg.lineId ? [leg.lineId] : [])),
+      ),
+    ],
     places: buildFeatureCollection(places),
     stationLabels: buildStationLabels(geo.nodes, new Set(reachable.map((n) => n.stationId))),
     bounds: computeFitBounds(fitPoints),

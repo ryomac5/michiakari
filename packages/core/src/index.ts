@@ -145,6 +145,7 @@ export {
   checkWeatherIncident,
   decideRuleConfidence,
   findIncidentTypeByPhrase,
+  findIncidentTypeGroup,
   type IncidentTypeInput,
   type ProtectionIncidentInput,
   type RuleConfidenceInput,

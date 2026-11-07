@@ -64,7 +64,39 @@
     "select": {
       "eventLabel": "止まった原因を選ぶ",
       "kindLabel": "近いものを選ぶ",
-      "back": "原因を選び直す"
+      "back": "戻る",
+      "backToCause": "原因を選び直す",
+      "change": "選び直す",
+      "cuesLabel": "聞いた放送",
+      "itemsLabel": "分かったこと",
+      "items": {
+        "cause": "原因",
+        "resume": "再開見込み",
+        "elapsed": "止まってから",
+        "protection": "「受信」の放送",
+        "section": "止まっている区間",
+        "ticket": "乗車券"
+      },
+      "cues": {
+        "resume_soon": "まもなく再開",
+        "resumed": "運転を再開した",
+        "inspection_ongoing": "点検が続いている",
+        "proceed_to_station": "次の駅まで進む",
+        "evacuation_on_track": "線路に降りる案内",
+        "turnback": "折り返し運転"
+      },
+      "questions": {
+        "elapsed": "止まってからの時間",
+        "protection": "「信号を受信したため緊急停止」の放送",
+        "resume": "再開見込みの放送",
+        "resumeTime": "放送で聞いた時刻",
+        "ticket": "乗車券"
+      },
+      "resume": {
+        "stated": "時刻を言っていた",
+        "undecided": "未定と言っていた",
+        "unknown": "言っていない"
+      }
     },
     "busy": "判断しています"
   },
@@ -117,6 +149,7 @@
       "live": "結論: {action}。{headline}",
       "next": "次の手",
       "reasonTitle": "理由",
+      "depart": "{time}ごろ動く見込み",
       "arriveAt": "{station}に{time}ごろ着く見込み",
       "arrive": "{time}ごろ着く見込み"
     },
@@ -482,6 +515,11 @@
     "between": "{from}〜{to}の間",
     "alight": "降りる駅",
     "walkShort": "徒歩{minutes}分",
+    "sectionPick": {
+      "first": "止まっている区間の端の駅を押す",
+      "second": "もう一方の端の駅を押す",
+      "cancel": "やめる"
+    },
     "destination": "行き先",
     "train": "乗っている列車",
     "replay": "動きをもう一度見る"
@@ -556,17 +594,6 @@
     "from": "出発",
     "to": "行き先",
     "change": "選び直す",
-    "withText": "発表文や掲示があれば",
-    "methods": {
-      "photo": {
-        "title": "撮る",
-        "heading": "掲示や画面を撮る"
-      },
-      "paste": {
-        "title": "貼る",
-        "heading": "発表の文章を貼る"
-      }
-    },
     "demoNote": "架空のシナリオで判断の流れを再生",
     "quickPicks": "よく使う駅",
     "directionQuestion": "向かう方面を選ぶ",
@@ -589,7 +616,6 @@
     },
     "tripHub": "方面の主な駅を行き先にする",
     "tripTerminal": "方面の終点を行き先にする",
-    "causeQuestion": "放送で聞いた原因を選ぶ",
     "causes": {
       "person": "人身事故",
       "inCar": "車内の急病人・非常ボタン",
@@ -602,7 +628,6 @@
       "major_accident": "衝突・脱線・火災",
       "unknown": "聞き取れなかった・言っていない"
     },
-    "causeKindQuestion": "近いものを選ぶ",
     "causeKinds": {
       "rain": "雨",
       "wind": "風",
@@ -611,37 +636,22 @@
       "earthquake": "地震",
       "other": "その他・分からない"
     },
-    "protectionQuestion": "止まったとき「信号を受信したため緊急停止」のような放送はありましたか",
     "protection": {
       "heard": "あった",
       "notHeard": "なかった",
       "unsure": "覚えていない"
     },
-    "elapsedQuestion": "止まってからの時間を選ぶ",
     "elapsed": {
       "now": "いま止まった",
       "m10": "約10分",
       "m30": "30分以上",
       "unknown": "分からない"
     },
-    "ticketQuestion": "乗車券",
     "ticket": {
       "ic": "IC カード",
       "commuter_pass": "定期券",
       "paper": "紙の切符",
       "unknown": "分からない"
-    },
-    "resumeQuestion": "放送で聞いた再開見込みを選ぶ",
-    "resume": {
-      "stated": "時刻を言っていた",
-      "statedNote": "押して時刻を選ぶ",
-      "undecided": "見込みは未定と言っていた",
-      "unknown": "言っていない・分からない"
-    },
-    "resumeTimeQuestion": "放送で聞いた時刻を選ぶ",
-    "answers": {
-      "cause": "放送の原因",
-      "elapsed": "止まってから"
     },
     "nextStation": "次は{station}",
     "positionBetweenTrip": "駅と駅の間・次に着く駅を出発にする",
@@ -677,7 +687,8 @@
     "betweenSecondStation": "2つ目の駅",
     "betweenChangeStation": "{station}を選び直す",
     "betweenPairNone": "2つの駅を通る路線が見つかりませんでした。別の駅名で探してください。",
-    "betweenPickQuestion": "止まっている駅の間を選ぶ"
+    "betweenPickQuestion": "止まっている駅の間を選ぶ",
+    "judge": "この行程で判断する"
   },
   "status": {
     "notFound": {

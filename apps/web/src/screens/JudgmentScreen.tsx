@@ -35,6 +35,7 @@ import { StatusChip, TripSummary } from "@/features/judgment/components/TripSumm
 import { WeatherPanel } from "@/features/judgment/components/WeatherPanel";
 import { selectFallbackOptionId } from "@/features/judgment/fallback-option";
 import { buildInCarBand } from "@/features/judgment/in-car-band";
+import { selectInCarPlan } from "@/features/judgment/in-car-plan";
 import { type OriginLine, type TripContext, useJudgmentSession } from "@/features/judgment/session";
 import { selectJudgmentDisplay } from "@/features/judgment/state";
 import { selectStoppedPlace, selectStopScope } from "@/features/judgment/stop-scope";
@@ -49,6 +50,7 @@ import type { StationGuide } from "@/features/map/station-guide";
 import { useLineLabel } from "@/features/map/use-line-label";
 import { resolveIncidentCause, toCauseChoiceId } from "@/features/situation/cause-categories";
 import { SituationInput } from "@/features/situation/SituationInput";
+import { useSectionPick } from "@/features/situation/use-section-pick";
 
 // 選択肢がまだ無いときの空の配列。描画のたびに新しい配列を作ると地図の組み立てが繰り返される
 const noOptions: RouteOption[] = [];
@@ -120,6 +122,7 @@ export function JudgmentScreen() {
   const known = [...observations, ...state.observations];
   const blockedLine = known.findLast((o) => o.line !== null)?.line ?? null;
   const lineLabel = useLineLabel(blockedLine);
+  const sectionPick = useSectionPick();
 
   // 入口で選んだ路線と方面。発表に区間が無いあいだ、地図は利用者のいる路線として薄く示す
   const blockedDirection = useMemo(
@@ -179,9 +182,17 @@ export function JudgmentScreen() {
   // 見込みの帯は地図に重ねる。駅にいる人には再開の見込み、駅の間の車内の人には動き出す見込みを出す
   // 見込みの数字が無いときは出さない。線路に降りる案内のときは動き出す見込みが無い
   const resumeChance = ready && !inCar ? (display.breakEven?.resumeChance ?? null) : null;
+  const inCarPlan = inCarGuide ? selectInCarPlan(inCarGuide, destination) : null;
+  // 乗り続けるときは、帯に次の駅に着く時刻を出さない。そこで降りるように読めるためである
+  const inCarBandSource =
+    inCarGuide && inCarPlan !== "alight" ? { ...inCarGuide, alightArrival: null } : inCarGuide;
   const inCarBandGuide =
-    ready && inCar && inCarGuide && buildInCarBand(inCarGuide) ? inCarGuide : null;
-  const showBand = (resumeChance !== null || inCarBandGuide !== null) && chrome.snap !== "full";
+    ready && inCar && inCarBandSource && buildInCarBand(inCarBandSource) ? inCarBandSource : null;
+  // 止まっている区間を地図で選んでいる間は、上端を選び方の案内に譲るため帯を出さない
+  const showBand =
+    (resumeChance !== null || inCarBandGuide !== null) &&
+    chrome.snap !== "full" &&
+    sectionPick === null;
   const mapInsets = showBand
     ? { ...chrome.insets, top: chrome.insets.top + resumeBandSpace }
     : chrome.insets;
@@ -234,10 +245,12 @@ export function JudgmentScreen() {
         trainOnly={stopScope === "train"}
         insets={mapInsets}
         afterAlight={inCarGuide?.afterAlight ?? null}
+        inCarPlan={inCarPlan}
         motionKey={ready ? (state.judgedAt ?? null) : null}
         onReachSourceChange={setReachSource}
         onGuideChange={setGuide}
         onSelectOption={focusOption}
+        sectionPick={sectionPick}
       />
 
       {showBand && inCarBandGuide && (
@@ -403,6 +416,7 @@ export function JudgmentScreen() {
                 submitInput(input);
                 chrome.setSnap("collapsed");
               }}
+              onAnswered={() => chrome.setSnap("collapsed")}
             />
           </SheetSection>
           {/* 地図の見方。地図の印は見れば分かるので、いちばん下に置く */}

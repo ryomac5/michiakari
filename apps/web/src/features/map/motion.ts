@@ -20,6 +20,8 @@ export type InCarMotion = {
   ride: Position[];
   // 降りた後の経路。乗り換え先の路線か、乗ったまま行き先へ向かう路線
   after: Position[][];
+  // 列車が走る路線と、降りた後に乗る路線。地図で路線色に塗る
+  lineIds: string[];
 };
 
 export type InCarMotionInput = {
@@ -30,6 +32,8 @@ export type InCarMotionInput = {
   alightStation: string;
   destination: Place;
   afterAlight: AfterAlightStep | null;
+  // 行き先まで乗り続けるか。乗り続けるなら列車は次の駅で止まらず、行き先まで線路に沿って進む
+  stay: boolean;
 };
 
 // 段ごとの長さ。単位は ms。列車が動き、降りる印が出て、経路が伸びる
@@ -110,41 +114,60 @@ function buildLineToDestination(
   lineIds: readonly string[],
   boardStation: string,
   destination: Place,
-): Position[] | null {
+): { lineId: string; path: Position[] } | null {
   for (const lineId of lineIds) {
     const from = resolveStationByName(geo.index, boardStation, [lineId]);
     const to = findDestinationOnLine(geo, lineId, destination);
     if (from?.lineId !== lineId || to?.lineId !== lineId) continue;
     if (from.stationId === to.stationId) return null;
     const path = buildPathCoordinates(geo, lineId, from, to);
-    if (path.length >= 2) return path;
+    if (path.length >= 2) return { lineId, path };
   }
   return null;
 }
 
 // 降りた後の経路。乗り換えなら乗り換え先の路線で、次の一手が無ければ乗っている路線で行き先まで
 // タクシーと徒歩は道を知らないので描かない。駅への直線の点線も引かない
-function buildAfterPaths(geo: MapGeo, input: InCarMotionInput): Position[][] {
+function buildAfterPaths(
+  geo: MapGeo,
+  input: InCarMotionInput,
+): { lineId: string; path: Position[] } | null {
   const step = input.afterAlight;
   if (step === null) {
-    const path = input.lineId
+    return input.lineId
       ? buildLineToDestination(geo, [input.lineId], input.alightStation, input.destination)
       : null;
-    return path ? [path] : [];
   }
-  if (step.kind !== "transfer" || !step.line) return [];
+  if (step.kind !== "transfer" || !step.line) return null;
   const lineIds = findLinesByName(geo.index, step.line).map((l) => l.lineId);
-  const path = buildLineToDestination(
+  return buildLineToDestination(
     geo,
     lineIds,
     step.boardStation ?? input.alightStation,
     input.destination,
   );
-  return path ? [path] : [];
 }
 
 export function buildInCarMotion(geo: MapGeo, input: InCarMotionInput): InCarMotion {
-  return { ride: buildRidePath(geo, input), after: buildAfterPaths(geo, input) };
+  const after = buildAfterPaths(geo, input);
+  const ride = buildRidePath(geo, input);
+  // 乗り続けるときは、次の駅から先も同じ列車の道筋としてつなぐ
+  if (input.stay) {
+    return {
+      ride: after ? [...ride, ...after.path.slice(1)] : ride,
+      after: [],
+      lineIds: [
+        ...new Set([...(input.lineId ? [input.lineId] : []), ...(after ? [after.lineId] : [])]),
+      ],
+    };
+  }
+  return {
+    ride,
+    after: after ? [after.path] : [],
+    lineIds: [
+      ...new Set([...(input.lineId ? [input.lineId] : []), ...(after ? [after.lineId] : [])]),
+    ],
+  };
 }
 
 // 再生を始めてからの時間で、いまの段と段の中の進み具合を 0〜1 で返す

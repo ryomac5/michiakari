@@ -4,8 +4,9 @@ import { expect, type Page, test } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import type { Scenario } from "../../packages/schema/src/scenario.ts";
 import { webUrl } from "../servers.ts";
+import { addAnswers, openAddInfo, waitForJudgmentReady } from "../support/add-info.ts";
 import { findDemoScene, sceneMarkName, scenesEndMark } from "../support/demo-scenes.ts";
-import { answerProtection, chooseBetweenStations } from "../support/entry.ts";
+import { chooseBetweenStations } from "../support/entry.ts";
 import { findCanvasPointNear, panTo } from "../support/map-view.ts";
 import {
   createRecordingMarks,
@@ -190,9 +191,12 @@ async function showEntryChoices(page: Page): Promise<void> {
   await waitForEntryMapStill(page);
   await expect(page.getByTestId(testIds.start.mapStop("pick-天満"))).toBeAttached();
   await page.waitForTimeout(1000);
+  // 行き先を押すと、そのまま判断を出す。戻るで入口へ引く
   await tapCenter(page, testIds.start.mapStop("pick-天満"));
-  await expectStage(page, "cause");
+  await waitForLiveJudgment(page);
   await page.waitForTimeout(600);
+  await page.getByTestId(testIds.judgment.backButton).click();
+  await expectStage(page, "cause");
   await backToPosition(page);
 
   // 駅と駅の間で止まっていると答え、地図の大阪と天満の間の環状線を押して確かめる
@@ -216,7 +220,7 @@ async function showEntryChoices(page: Page): Promise<void> {
   await expectStage(page, "destination");
 }
 
-// 場面 3: 行き先を決め、起きていることの 10 の選択肢を見せて 1 つを選ぶ
+// 場面 3: 行き先を決めるとすぐ判断が出る。情報を追加するで起きていることの選択肢を見せて 1 つを選ぶ
 async function showCauseChoices(page: Page): Promise<void> {
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
@@ -226,20 +230,24 @@ async function showCauseChoices(page: Page): Promise<void> {
     .locator("[data-testid^='start-direction-']")
     .filter({ hasText: "京橋・鶴橋方面" })
     .click();
-  await expectStage(page, "cause");
-  const cards = page.locator(
-    "[data-testid^='start-cause-']:not([data-testid^='start-cause-kind-'])",
+  await waitForLiveJudgment(page);
+  await page.waitForTimeout(1500);
+  const addInfo = await openAddInfo(page);
+  const cards = addInfo.locator(
+    "[data-testid^='situation-cause-']:not([data-testid^='situation-cause-kind-'])",
   );
-  await expect(cards).toHaveCount(10);
+  await expect(cards).toHaveCount(9);
   await waitForFiniteAnimations(page);
-  // 10 の選択肢をナレーションの間見せ、終わりぎわに車内の急病人を選ぶ
+  // 選択肢をナレーションの間見せ、終わりぎわに車内の急病人を選ぶ
   await page.waitForTimeout(4500);
-  await page.getByTestId(testIds.start.cause("unknown")).scrollIntoViewIfNeeded();
-  await page.waitForTimeout(3500);
-  await page.getByTestId(testIds.start.cause("inCar")).scrollIntoViewIfNeeded();
-  await page.waitForTimeout(2000);
-  await page.getByTestId(testIds.start.cause("inCar")).click();
-  await expectStage(page, "elapsed");
+  await addInfo
+    .getByTestId(testIds.situation.causeOption("major_accident"))
+    .scrollIntoViewIfNeeded();
+  await page.waitForTimeout(3000);
+  await addInfo.getByTestId(testIds.situation.causeOption("inCar")).scrollIntoViewIfNeeded();
+  await page.waitForTimeout(1500);
+  await addInfo.getByTestId(testIds.situation.causeOption("inCar")).click();
+  await waitForJudgmentReady(page);
 }
 
 // 一覧からシナリオを選び、再生の前の画面で止める。一覧の背景の地図と札が描き終わるまで待つ
@@ -335,10 +343,8 @@ async function showBusChecks(page: Page): Promise<void> {
   await expectStage(page, "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await page.getByTestId(testIds.start.cause("unknown")).click();
-  await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume("stated")).click();
-  await page.locator("[data-testid^='start-resume-time-']").last().click();
+  await waitForLiveJudgment(page);
+  await addAnswers(page, { elapsed: "m10", resume: { time: "last" } });
   await waitForLiveJudgment(page);
   await openSheet(page, "full");
   const section = page.getByTestId(testIds.judgment.busChecks);
@@ -359,11 +365,14 @@ async function showInCarJudgment(page: Page): Promise<void> {
     .locator("[data-testid^='start-direction-']")
     .filter({ hasText: "京橋・鶴橋方面" })
     .click();
-  await expectStage(page, "cause");
-  await page.getByTestId(testIds.start.cause("inCar")).click();
-  await answerProtection(page);
-  await page.getByTestId(testIds.start.elapsed("now")).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
+  await waitForLiveJudgment(page);
+  await addAnswers(page, {
+    cause: "inCar",
+    protection: "notHeard",
+    elapsed: "now",
+    resume: "unknown",
+  });
+  await openSheet(page, "collapsed");
   await waitForLiveJudgment(page);
   await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("停車中");
 }

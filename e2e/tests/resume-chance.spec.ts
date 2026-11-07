@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import type { JudgmentEvent } from "../../packages/schema/src/index.ts";
-import { answerProtection, chooseBetweenStations } from "../support/entry.ts";
+import { addAnswers, expectJudgmentOpened } from "../support/add-info.ts";
+import { chooseBetweenStations } from "../support/entry.ts";
 import {
   openReplay,
   openSheet,
@@ -155,7 +156,7 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
-// 入口から判断を始める。京橋の大阪環状線で、非常ボタン・急病を選ぶ
+// 京橋の大阪環状線で判断を始め、非常ボタン・急病と止まってからの時間を足す
 async function startFromEntry(page: Page, elapsed: "m10" | "unknown"): Promise<void> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
@@ -167,10 +168,8 @@ async function startFromEntry(page: Page, elapsed: "m10" | "unknown"): Promise<v
   await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
-  await page.getByTestId(testIds.start.cause("inCar")).click();
-  await page.getByTestId(testIds.start.elapsed(elapsed)).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  await expectJudgmentOpened(page);
+  await addAnswers(page, { cause: "inCar", elapsed, resume: "unknown" });
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
 }
 
@@ -183,12 +182,13 @@ async function startBetweenStations(page: Page): Promise<void> {
   await chooseBetweenStations(page, "JR神戸線", "大阪", "塚本");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
-  await page.getByTestId(testIds.start.cause("person")).click();
-  await answerProtection(page);
-  await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
+  await expectJudgmentOpened(page);
+  await addAnswers(page, {
+    cause: "person",
+    protection: "notHeard",
+    elapsed: "m10",
+    resume: "unknown",
+  });
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
 }
 
@@ -216,7 +216,9 @@ for (const { clock, sinceOnset } of [
   { clock: "22:01:00", sinceOnset: 19 },
   { clock: "22:09:59", sinceOnset: 10 },
 ]) {
-  test(`入口の${clock}の判断では経過時間を答えたときだけ「発生から」が付く`, async ({ page }) => {
+  test(`${clock}の判断では止まってからの時間を足したときだけ「発生から」が付く`, async ({
+    page,
+  }) => {
     await page.clock.setFixedTime(new Date(`2026-11-05T${clock}+09:00`));
     await startFromEntry(page, "m10");
     const band = page.getByTestId(testIds.judgment.resumeChance);

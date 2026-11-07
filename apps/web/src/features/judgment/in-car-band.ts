@@ -21,7 +21,9 @@ function placeOnAxis(startMs: number, spanMs: number, iso: string): number {
 // 動き出す見込みが無ければ null。線路に降りる案内のときがこれに当たる
 export function buildInCarBand(guide: InCarGuide): InCarBand | null {
   if (!guide.departure) return null;
-  const late = guide.departureP80 ?? null;
+  // 遅い側が早い側と同じなら幅にせず、点にする
+  const late =
+    guide.departureP80 && guide.departureP80 !== guide.departure ? guide.departureP80 : null;
   const arrival =
     guide.alightArrival && guide.alightStation
       ? { time: guide.alightArrival, station: guide.alightStation }

@@ -2,7 +2,14 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
-import { answerProtection, chooseBetweenStations } from "../support/entry.ts";
+import {
+  addAnswers,
+  type CauseAnswerInput,
+  expectJudgmentOpened,
+  openAddInfo,
+  waitForJudgmentReady,
+} from "../support/add-info.ts";
+import { chooseBetweenStations } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -23,28 +30,30 @@ async function openEntry(page: Page): Promise<void> {
   });
 }
 
-// 大阪から三ノ宮へ向かう人として、原因の問いまで進む
-async function openCauseStage(page: Page): Promise<void> {
+// 大阪から三ノ宮へ向かう人として、いる所と行き先を答えて判断を出す
+async function openJudgment(page: Page): Promise<void> {
   await openEntry(page);
   await page.getByTestId(testIds.start.positionStation).click();
   await page.getByTestId(testIds.start.originSearch).fill("大阪");
   await page.getByTestId(testIds.start.originOption("大阪")).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
+  await expectJudgmentOpened(page);
 }
 
-// 原因を選び、10 分くらい前に止まった・見込みは言っていないで判断を始める
-async function judgeWithCause(page: Page, cause: string, kind?: string): Promise<void> {
-  await openCauseStage(page);
-  await page.getByTestId(testIds.start.cause(cause)).click();
-  if (kind) await page.getByTestId(testIds.start.causeKind(kind)).click();
-  await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
+// 判断を出し、原因、10 分くらい前に止まった、見込みは言っていないを足す。原因が null なら答えない
+async function judgeWithCause(page: Page, cause: CauseAnswerInput | null): Promise<void> {
+  await openJudgment(page);
+  await addAnswers(page, {
+    ...(cause ? { cause } : {}),
+    elapsed: "m10",
+    resume: "unknown",
+  });
+  await openSheet(page, "collapsed");
   await waitForJudgment(page);
 }
 
-// 京橋から天王寺へ向かう人として、発表の文を貼り付けて判断を始める
+// 京橋から天王寺へ向かう人として判断を出し、情報を追加するで発表の文を貼り付ける
 async function judgeWithPaste(page: Page, pasted: string): Promise<void> {
   await openEntry(page);
   await page.getByTestId(testIds.start.positionStation).click();
@@ -52,9 +61,13 @@ async function judgeWithPaste(page: Page, pasted: string): Promise<void> {
   await page.getByTestId(testIds.start.originOption("京橋")).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
-  await page.getByTestId(testIds.start.method("paste")).click();
-  await page.getByTestId(testIds.situation.pasteInput).fill(pasted);
-  await page.getByTestId(testIds.situation.submit("paste")).click();
+  await expectJudgmentOpened(page);
+  const addInfo = await openAddInfo(page);
+  await addInfo.getByTestId(testIds.situation.tab("paste")).click();
+  await addInfo.getByTestId(testIds.situation.pasteInput).fill(pasted);
+  await addInfo.getByTestId(testIds.situation.submit("paste")).click();
+  await waitForJudgmentReady(page);
+  await openSheet(page, "collapsed");
   await waitForJudgment(page);
 }
 
@@ -109,16 +122,14 @@ test("人身事故は、支障の無い線路の見込みの下にある図も�
 });
 
 test("雨の事象でも、半分の段で図の下端まで見える", async ({ page }) => {
-  await judgeWithCause(page, "weather", "rain");
+  await judgeWithCause(page, { weather: "rain" });
   await expectChartInHalfSheet(page);
 });
 
 test("発表の時刻を選ぶと、その時刻から図を描く", async ({ page }) => {
-  await openCauseStage(page);
-  await page.getByTestId(testIds.start.cause("unknown")).click();
-  await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume("stated")).click();
-  await page.locator("[data-testid^='start-resume-time-']").first().click();
+  await openJudgment(page);
+  await addAnswers(page, { elapsed: "m10", resume: { time: "first" } });
+  await openSheet(page, "collapsed");
   await waitForJudgment(page);
   await expectChartInHalfSheet(page);
 });
@@ -131,7 +142,7 @@ test("再開しましたの発表を貼ると、初列車待ちから図を描�
 test("原因が分からず見込みが無いときは、図の代わりの境目の時刻が半分の段で見える", async ({
   page,
 }) => {
-  await judgeWithCause(page, "unknown");
+  await judgeWithCause(page, null);
   await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(0);
   const time = page.getByTestId(testIds.judgment.breakEvenTime);
   await openSheet(page, "half");
@@ -156,10 +167,14 @@ test("駅と駅の間の車内では、車内で待つ案内を出し、図を�
   await chooseBetweenStations(page, "JR神戸線", "大阪", "塚本");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await page.getByTestId(testIds.start.cause("person")).click();
-  await answerProtection(page);
-  await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
+  await expectJudgmentOpened(page);
+  await addAnswers(page, {
+    cause: "person",
+    protection: "notHeard",
+    elapsed: "m10",
+    resume: "unknown",
+  });
+  await openSheet(page, "collapsed");
   await waitForJudgment(page);
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText("車内で待つ");
   await openSheet(page, "half");

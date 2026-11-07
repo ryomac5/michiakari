@@ -7,6 +7,7 @@ import en from "../../apps/web/messages/en.json" with { type: "json" };
 import ja from "../../apps/web/messages/ja.json" with { type: "json" };
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
+import { expectJudgmentOpened, waitForJudgmentReady } from "../support/add-info.ts";
 import {
   loadReplayScenarios,
   openReplay,
@@ -62,17 +63,24 @@ test.describe("通常画面の判断の変化", () => {
 
     await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
     await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-    await page.getByTestId(testIds.start.method("paste")).click();
-    await page.getByTestId(testIds.situation.pasteInput).fill("人身事故で運転を見合わせています。");
-    await page.getByTestId(testIds.situation.submit("paste")).click();
-    await expect(page.getByTestId(testIds.judgment.screen)).toBeVisible({ timeout: 30_000 });
-    await expect(page).toHaveURL(/\/judgment$/);
+    await expectJudgmentOpened(page);
+
+    // 最初の発表文も、判断が出てから情報を追加するで貼る
+    await openSheet(page, "full");
+    const addInfo = page.getByTestId(testIds.judgment.addInfo);
+    await addInfo.scrollIntoViewIfNeeded();
+    await addInfo.getByTestId(testIds.situation.tab("paste")).click();
+    await addInfo
+      .getByTestId(testIds.situation.pasteInput)
+      .fill("人身事故で運転を見合わせています。");
+    await addInfo.getByTestId(testIds.situation.submit("paste")).click();
+    await waitForJudgmentReady(page);
     const conclusion = page.getByTestId(testIds.judgment.conclusion);
     await expect(conclusion).toHaveAttribute("data-action", "wait", { timeout: 30_000 });
     await expect(page.getByTestId(testIds.judgment.change)).toHaveCount(0);
 
     await openSheet(page, "full");
-    const addInfo = page.getByTestId(testIds.judgment.addInfo);
+    await addInfo.scrollIntoViewIfNeeded();
     await addInfo.getByTestId(testIds.situation.tab("paste")).click();
     await addInfo.getByTestId(testIds.situation.pasteInput).fill("振替輸送を実施しています。");
     await addInfo.getByTestId(testIds.situation.submit("paste")).click();
@@ -109,7 +117,7 @@ test.describe("通常画面の判断の変化", () => {
 test.describe("リプレイの地図と見込みの図", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test("切り替えでは期限の印を出さず、待つでは動かなかったときに乗る駅に吹き出しを出す", async ({
+  test("切り替えでは期限の印を出さず、待つでは動かなかったときに乗る駅を地図に出さない", async ({
     page,
   }) => {
     if (!scenario || !switchAfter || !waitAfter) {
@@ -140,9 +148,10 @@ test.describe("リプレイの地図と見込みの図", () => {
       "wait",
     );
     await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
-    await expect(fallback).toHaveCount(1);
-    await expect(fallback).toBeVisible();
-    await expect(fallback.getByTestId(mapTestIds.fallbackTag)).toHaveText(ja.map.fallback);
+    // 動かなかったときに乗る駅は地図に出さない。動かなければの手は見出しの 2 文目と一覧が示す
+    await expect(fallback).toHaveCount(0);
+    await expect(page.getByTestId(mapTestIds.fallbackTag)).toHaveCount(0);
+    await expect(page.getByTestId(testIds.judgment.conclusionNext)).toContainText(ja.map.fallback);
     await capture(page, variants[0] as Variant, `replay-${scenario.id}-${waitAfter}-fallback`);
   });
 });

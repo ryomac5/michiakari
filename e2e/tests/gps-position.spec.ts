@@ -1,5 +1,6 @@
 import type { BrowserContext, Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
+import { backToTrip } from "../support/entry.ts";
 import { expect, test } from "../support/test.ts";
 
 // 入口の最初の段で、端末の位置から いる駅か駅の間 を読み取り、1 回押せば確定できる
@@ -56,10 +57,10 @@ test("駅の間にいると路線と 2 駅を尋ね、はいで路線と駅間�
   await expect(page.locator("[data-testid^='start-line-']")).toHaveCount(0);
   await expect(page.getByTestId(testIds.start.trainSegment)).toHaveCount(0);
 
-  // 行き先から進む向きを決め、次の駅の尼崎を出発にする
+  // 行き先から進む向きを決め、次の駅の尼崎を出発にする。判断から戻って行程の札で確かめる
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expectStage(page, "cause");
+  await backToTrip(page);
   await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("JR神戸線");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("尼崎");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("駅と駅の間");
@@ -81,7 +82,7 @@ test("駅にいると駅名を尋ね、はいで駅を確定して行き先へ�
   await expectStage(page, "destination");
   await page.getByTestId(testIds.start.destinationSearch).fill("三ノ宮");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
-  await expectStage(page, "cause");
+  await backToTrip(page);
   await expect(page.getByTestId(testIds.start.routeSummary)).toContainText("JR神戸線");
   await expect(page.getByTestId(testIds.start.trip)).toContainText("塚本");
 });

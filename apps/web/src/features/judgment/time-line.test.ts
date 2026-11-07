@@ -35,6 +35,7 @@ const base: Judgment = {
 describe("時刻の 1 行", () => {
   it("駅にいる人は、勧める選択肢で行き先に着く見込みの時刻にする", () => {
     expect(selectTimeLine(base, { kind: "station", name: "三ノ宮" })).toEqual({
+      kind: "arrive",
       station: "三ノ宮",
       time: "2026-11-07T20:40:00+09:00",
     });
@@ -44,22 +45,32 @@ describe("時刻の 1 行", () => {
     expect(selectTimeLine(base, { kind: "coord", lon: 135.2, lat: 34.7 })?.station).toBeNull();
   });
 
-  it("駅間の車内では、降りられる駅に着く見込みの時刻にする", () => {
-    const inCar: Judgment = {
-      ...base,
-      action: "wait",
-      options: [],
-      recommendedOptionId: null,
-      inCar: {
-        alightStation: "大阪",
-        alightArrival: "2026-11-07T20:02:00+09:00",
-        departure: "2026-11-07T19:58:00+09:00",
-        afterAlight: null,
-      },
-    };
-    expect(selectTimeLine(inCar, { kind: "station", name: "京都" })).toEqual({
+  const inCar: Judgment = {
+    ...base,
+    action: "wait",
+    options: [],
+    recommendedOptionId: null,
+    inCar: {
+      alightStation: "大阪",
+      alightArrival: "2026-11-07T20:02:00+09:00",
+      departure: "2026-11-07T19:58:00+09:00",
+      afterAlight: null,
+    },
+  };
+
+  it("駅間の車内で次の駅で降りるときは、その駅に着く見込みの時刻にする", () => {
+    expect(selectTimeLine(inCar, { kind: "station", name: "大阪" })).toEqual({
+      kind: "arrive",
       station: "大阪",
       time: "2026-11-07T20:02:00+09:00",
+    });
+  });
+
+  it("駅間の車内で乗り続けるときは、次の駅の名前を出さず、自分の列車が動く時刻にする", () => {
+    expect(selectTimeLine(inCar, { kind: "station", name: "京都" })).toEqual({
+      kind: "depart",
+      station: null,
+      time: "2026-11-07T19:58:00+09:00",
     });
   });
 

@@ -5,7 +5,12 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { answerProtection, chooseBetweenStations, searchStationPair } from "../support/entry.ts";
+import {
+  addAnswers,
+  expectJudgmentAfterDirection,
+  expectJudgmentOpened,
+} from "../support/add-info.ts";
+import { chooseBetweenStations, searchStationPair } from "../support/entry.ts";
 import { openSheet, waitForFiniteAnimations } from "../support/replay.ts";
 import { expect, test } from "../support/test.ts";
 
@@ -48,6 +53,7 @@ async function listMapLabelOverlaps(page: Page): Promise<string[]> {
       alightLabel: one("[data-testid='judgment-map-alight'] > p"),
       alightDot: one("[data-testid='judgment-map-alight']"),
       toggle: one("[data-testid='judgment-map-view-toggle']"),
+      edge: one("[data-testid='judgment-map-destination-edge']"),
       stations: [...document.querySelectorAll("[data-testid^='judgment-map-station-']")].map(
         (el): StationBox => ({
           ...box(el),
@@ -57,9 +63,9 @@ async function listMapLabelOverlaps(page: Page): Promise<string[]> {
       ),
     };
   });
-  const { hereLabel, hereDot, alightLabel, alightDot, toggle } = read;
-  if (!hereLabel || !hereDot || !alightLabel || !alightDot || !toggle)
-    return ["地図の札が見つからない"];
+  // 降りる駅の札は、次の駅で降りるときだけ出る。行き先の縁の札は、行き先が画面の外のときだけ出る
+  const { hereLabel, hereDot, alightLabel, alightDot, toggle, edge } = read;
+  if (!hereLabel || !hereDot || !toggle) return ["地図の札が見つからない"];
 
   const overlaps = (a: Box, b: Box) =>
     Math.min(a.r, b.r) > Math.max(a.l, b.l) && Math.min(a.b, b.b) > Math.max(a.t, b.t);
@@ -80,17 +86,29 @@ async function listMapLabelOverlaps(page: Page): Promise<string[]> {
   };
   const marks: [string, Box][] = [
     ["現在地の印", hereDot],
-    // 降りる駅の印は、外側の輪（6px）までを印とする
-    ["降りる駅の印", around((alightDot.l + alightDot.r) / 2, (alightDot.t + alightDot.b) / 2, 14)],
+    // 降りる駅の印は、外側の輪の 6px までを印とする
+    ...(alightDot
+      ? [
+          [
+            "降りる駅の印",
+            around((alightDot.l + alightDot.r) / 2, (alightDot.t + alightDot.b) / 2, 14),
+          ] as [string, Box],
+        ]
+      : []),
     ...read.stations.map((s): [string, Box] => [`${s.id} の印`, stationMark(s)]),
   ];
   const labels: [string, Box][] = [
     ["「いま」の札", hereLabel],
-    ["「降りる駅」の札", alightLabel],
+    ...(alightLabel ? [["「降りる駅」の札", alightLabel] as [string, Box]] : []),
+    ...(edge ? [["行き先の縁の札", edge] as [string, Box]] : []),
   ];
 
   const found: string[] = [];
-  if (overlaps(hereLabel, alightLabel)) found.push("「いま」の札と「降りる駅」の札が重なっている");
+  for (const [i, [name, label]] of labels.entries()) {
+    for (const [otherName, other] of labels.slice(i + 1)) {
+      if (overlaps(label, other)) found.push(`${name}と${otherName}が重なっている`);
+    }
+  }
   for (const [name, label] of labels) {
     for (const [markName, mark] of marks) {
       if (overlaps(label, mark)) found.push(`${name}が${markName}に重なっている`);
@@ -127,7 +145,7 @@ async function reachPositionStep(page: Page): Promise<void> {
   );
 }
 
-// 駅と駅の間を選び、人身事故・10 分くらいで判断を始める。行き先は既定で三ノ宮
+// 駅と駅の間を選び、行き先を答えて判断を出す。人身事故・10 分くらいは情報を追加するで足す。行き先は既定で三ノ宮
 // 再開の見込みは既定で、選べるうち最も遅い時刻を聞いたことにする。見込みの時刻が出ると、前の列車を詰める動きが始まる
 async function startBetweenStations(
   page: Page,
@@ -137,20 +155,17 @@ async function startBetweenStations(
   await page.getByTestId(testIds.start.gpsConfirm).click();
   await page.getByTestId(testIds.start.destinationSearch).fill(destination.search);
   await page.getByTestId(testIds.start.destinationOption(destination.name)).click();
-  // 駅間の後に行き先を答え、様子へ進む。行き先が JR神戸線の先に無ければ、神戸方面を答える
-  const screen = page.getByTestId(testIds.start.screen);
-  await expect(screen).toHaveAttribute("data-stage", /^(cause|direction)$/);
-  if ((await screen.getAttribute("data-stage")) === "direction")
-    await page.locator("[data-testid^='start-direction-'][data-testid$='.神戸']").click();
-  await expect(screen).toHaveAttribute("data-stage", "cause");
-  await expect(page.getByTestId(testIds.start.trip)).toContainText("塚本");
-  await page.getByTestId(testIds.start.cause("person")).click();
-  await answerProtection(page);
-  await page.getByTestId(testIds.start.elapsed("m10")).click();
-  await page.getByTestId(testIds.start.resume(resume)).click();
-  if (resume === "stated") await page.locator("[data-testid^='start-resume-time-']").last().click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
-  await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
+  // 行き先が JR神戸線の先に無ければ、神戸方面を答える
+  await expectJudgmentAfterDirection(page, "神戸");
+  await expect(page.getByTestId(testIds.judgment.tripSummary)).toContainText("塚本");
+  await addAnswers(page, {
+    cause: "person",
+    protection: "notHeard",
+    elapsed: "m10",
+    resume: resume === "stated" ? { time: "last" } : "unknown",
+  });
+  await openSheet(page, "collapsed");
+  await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible();
 }
 
 // 車内で待つ結論の共通の形。選択肢の一覧・バス停・乗り換え候補の駅・確率の帯を出さず、係員の案内の文も出さない
@@ -242,7 +257,8 @@ for (const theme of ["light", "dark"] as const) {
       await expect(reason).toHaveText(/^.+には\d{1,2}時\d{2}分ごろに着く見込みです。$/);
       await expect(reason).not.toContainText(/仮定|ふだん|入れない/);
 
-      // 利用者は大阪と塚本の間にいる。上部の帯と現在地の札は駅の間にいることを出し、塚本は降りる駅として目立たせる
+      // 利用者は大阪と塚本の間にいる。上部の帯と現在地の札は駅の間にいることを出す
+      // 三ノ宮まで乗り続ける判断なので、塚本を降りる駅として出さない
       await expect(page.getByTestId(testIds.judgment.tripSummary)).toContainText("大阪〜塚本");
       // 人身事故は区間を止めるので、上部の札は見合わせにする
       // 発表に区間が無いので、駅の間の位置から区間を作って描かず、札も添えない
@@ -251,8 +267,12 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByTestId(mapTestIds.blockedTag)).toHaveCount(0);
       await expect(page.getByTestId(mapTestIds.sectionNote)).toHaveCount(0);
       await expect(page.getByTestId(mapTestIds.here)).toContainText("大阪〜塚本の間");
-      await expect(page.getByTestId(mapTestIds.alight)).toContainText("塚本");
-      // 「いま」の札と「降りる駅」の札は、互いにも、駅の印にも、「全体を見る」のボタンにも重ならない
+      await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute(
+        "data-in-car-plan",
+        "stay",
+      );
+      await expect(page.getByTestId(mapTestIds.alight)).toHaveCount(0);
+      // 「いま」の札は、駅の印にも、「全体を見る」のボタンにも重ならない
       await expect.poll(() => listMapLabelOverlaps(page), { timeout: 15_000 }).toEqual([]);
       await capture(page, theme, "02-judgment-closed");
 
@@ -282,13 +302,16 @@ test("福島〜大阪の車内で急病人により止まり、行き先が大�
   await chooseBetweenStations(page, "JR環状線", "福島", "大阪");
   await page.getByTestId(testIds.start.destinationSearch).fill("大阪");
   await page.getByTestId(testIds.start.destinationOption("大阪")).click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
-  await page.getByTestId(testIds.start.cause("inCar")).click();
-  await answerProtection(page);
-  await page.getByTestId(testIds.start.elapsed("now")).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
-  await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
+  await expectJudgmentOpened(page);
+  // 原因と様子は判断が出てから情報を追加するで足す
+  await addAnswers(page, {
+    cause: "inCar",
+    protection: "notHeard",
+    elapsed: "now",
+    resume: "unknown",
+  });
+  await openSheet(page, "collapsed");
+  await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible();
 
   await expectInCarWait(page);
   await expect(page.getByTestId(testIds.judgment.conclusionNext)).toHaveText(

@@ -1,7 +1,8 @@
 import type { Page } from "@playwright/test";
 import { testIds } from "../../apps/web/src/features/judgment/testids.ts";
 import { mapTestIds } from "../../apps/web/src/features/map/testids.ts";
-import { answerProtection, chooseBetweenStations } from "../support/entry.ts";
+import { addAnswers, expectJudgmentOpened } from "../support/add-info.ts";
+import { chooseBetweenStations } from "../support/entry.ts";
 import { expect, test } from "../support/test.ts";
 
 // 止まり方の区別。車内の急病人や非常ボタンはその列車だけが止まり、人身事故は区間を止める
@@ -10,7 +11,7 @@ import { expect, test } from "../support/test.ts";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
-// 大阪から環状線で京橋・鶴橋方面へ向かう途中、大阪と天満の間で止まった。原因の種類を選んで判断を始める
+// 大阪から環状線で京橋・鶴橋方面へ向かう途中、大阪と天満の間で止まった。判断が出たら原因の種類を足す
 async function startOnLoopLine(page: Page, kind: "inCar" | "person" | "vehicle"): Promise<void> {
   await page.goto("/");
   await expect(page.getByTestId(testIds.start.map)).toHaveAttribute("data-ready", "true", {
@@ -25,14 +26,12 @@ async function startOnLoopLine(page: Page, kind: "inCar" | "person" | "vehicle")
     .locator("[data-testid^='start-direction-']")
     .filter({ hasText: "京橋・鶴橋方面" })
     .click();
-  await expect(page.getByTestId(testIds.start.screen)).toHaveAttribute("data-stage", "cause");
-  await page.getByTestId(testIds.start.cause(kind)).click();
-  await answerProtection(page);
-  await page.getByTestId(testIds.start.elapsed("now")).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
-  await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready", {
-    timeout: 30_000,
+  await expectJudgmentOpened(page);
+  await addAnswers(page, {
+    cause: kind,
+    protection: "notHeard",
+    elapsed: "now",
+    resume: "unknown",
   });
   await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
     timeout: 30_000,
@@ -88,13 +87,8 @@ test("駅で待つ人には、車内の急病人・非常ボタンを後続の�
   await page.getByTestId(testIds.start.originOption("京橋")).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
-  await page.getByTestId(testIds.start.cause("inCar")).click();
-  await page.getByTestId(testIds.start.elapsed("now")).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
-  await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready", {
-    timeout: 30_000,
-  });
+  await expectJudgmentOpened(page);
+  await addAnswers(page, { cause: "inCar", elapsed: "now", resume: "unknown" });
   const status = page.getByTestId(testIds.judgment.statusChip);
   await expect(status).toHaveAttribute("data-scope", "train");
   await expect(status).toContainText("後続に遅れ");
@@ -111,13 +105,8 @@ test("駅で待つ人には、信号の不具合を後続の遅れとして伝�
   await page.getByTestId(testIds.start.originOption("京橋")).click();
   await page.getByTestId(testIds.start.destinationSearch).fill("天王寺");
   await page.getByTestId(testIds.start.destinationOption("天王寺")).click();
-  await page.getByTestId(testIds.start.cause("signaling")).click();
-  await page.getByTestId(testIds.start.elapsed("now")).click();
-  await page.getByTestId(testIds.start.resume("unknown")).click();
-  await expect(page).toHaveURL(/\/judgment$/, { timeout: 30_000 });
-  await expect(page.getByTestId(testIds.judgment.screen)).toHaveAttribute("data-status", "ready", {
-    timeout: 30_000,
-  });
+  await expectJudgmentOpened(page);
+  await addAnswers(page, { cause: "signaling", elapsed: "now", resume: "unknown" });
   const status = page.getByTestId(testIds.judgment.statusChip);
   await expect(status).toHaveAttribute("data-scope", "train");
   await expect(status).toContainText("後続に遅れ");
