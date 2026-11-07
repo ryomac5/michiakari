@@ -60,7 +60,7 @@
 - `cues` は、観測の放送や発表から拾った手がかりの id です。`resumed` は再開した、`resume_soon` はまもなく再開、`rescue` は救援を待つ、`protection_received` は危険を知らせる信号の受信、`queue_ahead` は前の列車がつかえている、`track_cleared` は線路の安全が確かめられた、です。
 - `protection` が true なら、周りの同じ会社の列車も一斉に止まる事象です。人身事故、踏切、線路の支障物、脱線などが当たります。
   - `cues` に `protection_received` があれば、原因の発表が無くても、外に危害が及ぶ事象と推し量ります。原因を決め打ちして書きません。
-  - 並ぶ他社の線は止まらないので、すぐ使える選択肢です。並ぶ同じ会社の線は最初は一緒に止まるので、`find_alternatives` が後ろに下げ、`loweredOptionIds` に入れます。下げた選択肢は勧めません。`compute_break_even` の `bestAlternativeId` もそれを除いて選ばれています。
+  - 他社の並行路線は止まらないため、すぐ使える選択肢です。同じ会社の並行路線は初めのうち一緒に止まるため、`find_alternatives` が後ろに下げ、`loweredOptionIds` に入れます。下げた選択肢は勧めません。`compute_break_even` の `bestAlternativeId` もそれを除いて選ばれています。
 - `unaffectedTrack` は、支障の無い線路が先に動く見込みです。`protection` が true のときだけ値があります。
   - `opposite` は反対の線路と並ぶ同じ会社の線、`affected` は当該の線路の、再開までの残りです。時刻は `labels.oppositeTrackP50` と `labels.affectedTrackP50` を写します。
   - `trackSide` が `unknown` なら、利用者がどちら側か分かりません。片方だけを言い切らず、反対の線路が先に動くことがある、と書くにとどめます。

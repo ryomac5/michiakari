@@ -2,7 +2,7 @@ import type { RouteOption } from "@repo/schema";
 import { findLineOperatorKey, normalizeOperatorKey } from "./train-queue.ts";
 
 // 防護無線の事象での乗り換え先の並べ方
-// 防護無線で止まるのは同じ会社の列車だけ。並ぶ他社の線はすぐ使えるので上げ、同じ会社の線は最初は一緒に止まるので下げる
+// 防護無線が止める範囲は自社の列車に限られる。他社の並行路線はすぐ使えるため上げ、同じ会社の並行路線は初めのうち一緒に止まるため下げる
 
 export type RankableAlternative = Pick<RouteOption, "id" | "kind" | "legs">;
 
