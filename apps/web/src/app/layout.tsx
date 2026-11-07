@@ -9,10 +9,9 @@ import { resolveTheme, themeCookieName } from "@/i18n/config";
 import { cn } from "@/lib/utils";
 import "./globals.css";
 
-// 数字と英字は Inter、和文は Noto Sans JP。和文は量が多いので先読みしない
+// 数字と英字は Inter、和文は可変の Noto Sans JP。和文は量が多いので先読みしない
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const notoSansJp = Noto_Sans_JP({
-  weight: ["400", "500", "700"],
   variable: "--font-noto-jp",
   display: "swap",
   preload: false,

@@ -33,6 +33,13 @@ export {
 export { INCIDENT_PHRASES } from "../params/incident-phrases.ts";
 export * from "../params/routing.ts";
 export {
+  DISPATCH_RADIUS_KM,
+  PROTECTION_RADIUS_KM,
+  QUEUE_AHEAD_CUE_WEIGHT,
+  STOP_REASON_TIE_ORDER,
+  STOP_REASONS_SOURCE,
+} from "../params/stop-reasons.ts";
+export {
   OSAKA_CITY_TAXI_FARE,
   OSAKA_CITY_TAXI_FARE_LABEL,
   OSAKA_CITY_TAXI_FARE_SOURCES,
@@ -177,6 +184,12 @@ export {
   type ResumeQueueInput,
   type ResumeQueueOutlook,
 } from "./resume-queue.ts";
+export {
+  countStopReasonTrains,
+  estimateStopReasons,
+  resolveOperatorLineType,
+  type StopReasonsInput,
+} from "./stop-reasons.ts";
 export {
   findIncidentType,
   INCIDENT_TYPE_BY_EVENT_TYPE,

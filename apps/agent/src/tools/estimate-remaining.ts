@@ -7,6 +7,7 @@ import {
   diffMinutes,
   estimateIncidentRemaining,
   estimateQueueAfterResume,
+  estimateStopReasons,
   estimateTrainQueueArrival,
   estimateUnaffectedTrackResume,
   FALLBACK_RIDE_MINUTES_TO_NEXT_STATION,
@@ -15,11 +16,10 @@ import {
   HEADWAY_MINUTES,
   type IncidentRemaining,
   type IncidentTypeId,
-  type LineType,
-  normalizeOperatorKey,
   normalizeTrainType,
   parseIsoToMs,
   resolveIncidentDuration,
+  resolveOperatorLineType,
   resolveStationPlatform,
   resolveTrainQueueParams,
   type StationAhead,
@@ -33,6 +33,7 @@ import type {
   IncidentCause,
   ResumeQueue,
   Section,
+  StopReasons,
 } from "@repo/schema";
 import { z } from "zod";
 import {
@@ -117,9 +118,15 @@ function estimateTrainQueue(
   };
 }
 
-// 詰める JR 西日本は JR の普通、それ以外は私鉄の普通の運転間隔で数える
-function resolveQueueLineType(operator: string | null): LineType {
-  return normalizeOperatorKey(operator) === "jr-west" ? "jr_local" : "private_local";
+// 列車の中にいる利用者か。駅間でも駅の中でも、列車に乗っていれば true
+function checkOnTrain(ctx: ToolContext): boolean {
+  const kind = ctx.request.trainPosition?.kind;
+  return kind === "between_stations" || kind === "on_train_at_station";
+}
+
+// 時間帯の同じ向きの運転間隔。詰める JR 西日本は JR の普通、それ以外は私鉄の普通で数える
+function resolveHeadwayMinutes(ctx: ToolContext, operator: string | null): number {
+  return HEADWAY_MINUTES[resolveOperatorLineType(operator)][classifyTimeOfDay(ctx.request.now)];
 }
 
 // 駅間の車内なら、先の駅を順にたどって発表の区間の端までの駅の数を数える。たどれなければ null
@@ -161,19 +168,34 @@ function estimateResumeQueue(
   cues: readonly AnnouncementCueId[],
   protection: boolean,
 ): ResumeQueue | null {
-  const kind = ctx.request.trainPosition?.kind;
-  const onTrain = kind === "between_stations" || kind === "on_train_at_station";
   const announced = cues.includes("queue_ahead");
-  if (!announced && !(protection && onTrain)) return null;
+  if (!announced && !(protection && checkOnTrain(ctx))) return null;
   const operator = findOperator(ctx);
   const section = findLatestSection(ctx);
-  const lineType = resolveQueueLineType(operator);
   return estimateQueueAfterResume({
     stationsBetween: section ? countStationsToSection(ctx, section) : null,
     distanceKm: section ? measureDistanceToSection(ctx, section) : null,
-    headwayMinutes: HEADWAY_MINUTES[lineType][classifyTimeOfDay(ctx.request.now)],
+    headwayMinutes: resolveHeadwayMinutes(ctx, operator),
     operator,
     cues,
+  });
+}
+
+// 自分の列車が止まった理由の見込み。列車の中にいる利用者のときだけ見積もる
+function estimateOwnStopReasons(
+  ctx: ToolContext,
+  type: IncidentTypeId | null,
+  cues: readonly AnnouncementCueId[],
+  stoppedMinutes: number,
+): StopReasons | null {
+  if (!checkOnTrain(ctx)) return null;
+  const operator = findOperator(ctx);
+  return estimateStopReasons({
+    type,
+    cues,
+    headwayMinutes: resolveHeadwayMinutes(ctx, operator),
+    stoppedMinutes,
+    operator,
   });
 }
 
@@ -228,7 +250,7 @@ export const EstimateRemainingInputSchema = z.object({
 export const estimateRemainingDefinition = {
   name: "estimate_remaining",
   description:
-    "元指令員の経験から作った規則表と報道の統計値で、再開して乗れるまでの残り時間（p50, p80 分）をコードで計算する。運転を再開した放送、発表された再開見込みの時刻、短く終わる事象の目安、統計値の順に当てはめる（remainingBasis は resumed、stated、rule、statistics）。めったに無い事象では数字を出さない（withholdNumbers）。放送の手がかり（cues）、防護無線の事象か（protection）、支障の無い線路が先に動く見込み（unaffectedTrack）、再開後の詰まり（resumeQueue）も返す。止まり方（stopScope）は、その列車から止まる train か、区間を止める section。駅間の車内なら、降りられる駅に着く見込みと自分の列車が動き出す見込み（trainQueue）も返す。",
+    "元指令員の経験から作った規則表と報道の統計値で、再開して乗れるまでの残り時間（p50, p80 分）をコードで計算する。運転を再開した放送、発表された再開見込みの時刻、短く終わる事象の目安、統計値の順に当てはめる（remainingBasis は resumed、stated、rule、statistics）。めったに無い事象では数字を出さない（withholdNumbers）。放送の手がかり（cues）、防護無線の事象か（protection）、支障の無い線路が先に動く見込み（unaffectedTrack）、再開後の詰まり（resumeQueue）も返す。列車の中の利用者なら、自分の列車が止まった理由ごとの割合（stopReasons）も返す。止まり方（stopScope）は、その列車から止まる train か、区間を止める section。駅間の車内なら、降りられる駅に着く見込みと自分の列車が動き出す見込み（trainQueue）も返す。",
   inputSchema: EstimateRemainingInputSchema,
 } as const;
 
@@ -291,6 +313,7 @@ export function runEstimateRemaining(
       elapsedSinceOnsetMinutes: elapsed,
     }),
     resumeQueue: estimateResumeQueue(ctx, cues, protection),
+    stopReasons: estimateOwnStopReasons(ctx, type, cues, elapsed),
     remainingSamples: sampleBoardableRemaining(incident),
     onsetTime,
   };

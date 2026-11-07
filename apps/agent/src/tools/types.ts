@@ -17,6 +17,7 @@ import type {
   ResumeQueue,
   RouteOption,
   Scenario,
+  StopReasons,
   UnaffectedTrack,
 } from "@repo/schema";
 import type { AlternativesProvider } from "../alternatives/provider.ts";
@@ -78,6 +79,8 @@ export type EstimateToolResult = {
   unaffectedTrack: UnaffectedTrack | null;
   // 再開後の詰まりの見込み。列車の中にいないか、詰まりの放送が無ければ null
   resumeQueue: ResumeQueue | null;
+  // 自分の列車が止まった理由ごとの割合。列車の中にいないか、種類も手がかりも無ければ null
+  stopReasons: StopReasons | null;
   // 確率の計算に使う、乗れるまでの残り時間の標本（分、昇順）。remaining が null なら null。Claude には渡さない
   remainingSamples?: readonly number[] | null;
   // 発生とみなした時刻。最初の観測の時刻

@@ -507,28 +507,31 @@ function keepPointVisible(
   map.panBy([point.x - goal.x, point.y - goal.y], { duration });
 }
 
-// 引いた地図で線を押して候補が出たら、候補の区間を収め、駅の印が出る倍率まで寄せる
-// 収めると駅の印の倍率に届かないときは、押した点を中心にして駅の印の倍率にする
+// 引いた地図で線を押して候補が出たら、押した点と全部の候補の区間を、上部の帯とシートの間に収める
+// 倍率は収まるところまでにし、駅の印が出る倍率に届かなくても上げない。長い区間や離れた候補の端を見せるため
+// ただし押したときの倍率（minZoom）より引かない。収まらなければ、その倍率で全部の候補の中ほどを見せる
 function approachSections(
   map: MapLibreMap,
   tapPoint: Position,
   sectionPoints: Position[],
   insets: MapInsets,
+  minZoom: number,
   duration: number,
 ): void {
   const bounds = computeBounds([tapPoint, ...sectionPoints]);
   if (!bounds) return;
-  const camera = map.cameraForBounds(bounds, {
-    padding: buildPadding(map, insets, sectionMargin),
-    maxZoom: sectionMaxZoom,
+  const padding = buildPadding(map, insets, sectionMargin);
+  const fitZoom = map.cameraForBounds(bounds, { padding, maxZoom: sectionMaxZoom })?.zoom;
+  if (fitZoom !== undefined && fitZoom >= minZoom) {
+    map.fitBounds(bounds, { padding, maxZoom: sectionMaxZoom, duration });
+    return;
+  }
+  map.easeTo({
+    center: [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2],
+    zoom: minZoom,
+    offset: buildOffset(insets),
+    duration,
   });
-  const fitZoom = camera?.zoom ?? BETWEEN_PICK_MIN_ZOOM;
-  const zoom = Math.max(fitZoom, BETWEEN_PICK_MIN_ZOOM);
-  const center: Position =
-    fitZoom >= BETWEEN_PICK_MIN_ZOOM
-      ? [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2]
-      : tapPoint;
-  map.easeTo({ center, zoom, offset: buildOffset(insets), duration });
 }
 
 // 地図を押した点の答えを決めて知らせる。札を押したときは label にその駅を渡す
@@ -825,6 +828,10 @@ export function EntryMap(props: EntryMapProps) {
   // 線を押して候補を出してから、利用者が地図を動かしたか。押すたびに戻す
   const lastTapRef = useRef("");
   const tapMovedRef = useRef(false);
+  // 引いた地図で押して、候補の区間を収めている候補の点
+  const approachTapRef = useRef("");
+  // 候補を出したときの倍率。候補を収め直しても、これより引かない
+  const tapZoomRef = useRef(0);
   // biome-ignore lint/correctness/useExhaustiveDependencies: 視点は cameraKey が変わったときだけ動かす
   useEffect(() => {
     if (!map) return;
@@ -833,19 +840,33 @@ export function EntryMap(props: EntryMapProps) {
     // 引いた地図なら、候補の区間が見える倍率まで寄せる
     // 候補を出した後に利用者が地図を動かしていれば、シートの高さが変わっても動かさない
     if (tapPoint && sameScene) {
-      if (lastTapRef.current !== tapKey) tapMovedRef.current = false;
+      const sectionPoints = sections.features.flatMap((f) => f.geometry.coordinates);
+      if (lastTapRef.current !== tapKey) {
+        tapMovedRef.current = false;
+        // 押したときに引いた地図なら、その候補を出している間は、シートの高さが変わっても候補を収め直す
+        approachTapRef.current =
+          map.getZoom() < BETWEEN_PICK_MIN_ZOOM && sectionPoints.length > 0 ? tapKey : "";
+        tapZoomRef.current = map.getZoom();
+      }
       lastTapRef.current = tapKey;
       if (!tapMovedRef.current) {
         const duration = prefersReducedMotion() ? 0 : durationMs;
         const current = { top, right, bottom, left };
-        const sectionPoints = sections.features.flatMap((f) => f.geometry.coordinates);
-        if (map.getZoom() < BETWEEN_PICK_MIN_ZOOM && sectionPoints.length > 0)
-          approachSections(map, tapPoint, sectionPoints, current, duration);
+        if (approachTapRef.current === tapKey)
+          approachSections(map, tapPoint, sectionPoints, current, tapZoomRef.current, duration);
         else keepPointVisible(map, tapPoint, current, duration);
       }
       return;
     }
-    lastTapRef.current = tapKey;
+    // 候補を閉じただけなら、寄せた所を保つ。段の寄せ方で全体の地図へ戻さない
+    // 段が変わって段の寄せ方をしたときは、候補の点を忘れる。後から候補が消えても閉じたとはみなさない
+    const closedTap = lastTapRef.current !== "" && !tapPoint && sameScene;
+    lastTapRef.current = "";
+    approachTapRef.current = "";
+    if (closedTap) {
+      userMovedRef.current = true;
+      return;
+    }
     // 利用者が地図を動かした後に余白だけが変わったときは、見ている所を保つ
     if (userMovedRef.current && sameScene) return;
     lastSceneRef.current = sceneKey;
@@ -1275,7 +1296,8 @@ export function EntryMap(props: EntryMapProps) {
           className="pointer-events-none absolute z-[4] size-5 rounded-full border-2 border-foreground/70 bg-foreground/15 motion-safe:animate-tap-ripple"
         />
       )}
-      {(zoom < STATION_LABEL_MIN_ZOOM ? edgeHubs : []).map(({ hub, x, y, angle }) => (
+      {/* 駅の間の候補を光らせている間は、縁の札を出さない。狭い地図で光らせた区間を覆うため */}
+      {(zoom < STATION_LABEL_MIN_ZOOM && !dimmed ? edgeHubs : []).map(({ hub, x, y, angle }) => (
         <button
           key={hub.areaId}
           type="button"
