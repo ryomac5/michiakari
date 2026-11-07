@@ -9,9 +9,6 @@ export {
   COMMUTE_HOUR_RANGES,
   MONTE_CARLO_SAMPLE_COUNT,
   MONTE_CARLO_SEED,
-  PREDICTABILITY_HIGH_MAX_RATIO,
-  PREDICTABILITY_MEDIUM_MAX_RATIO,
-  SHORT_FLOW_MAX_MINUTES,
   STATED_RESUME_SLACK_MINUTES,
 } from "../params/estimation.ts";
 export {
@@ -157,28 +154,8 @@ export {
   type ReplayOutcomeVerdict,
 } from "./outcome.ts";
 export { createMulberry32, type Random } from "./random.ts";
-export {
-  computeQuantile,
-  computeResumeFloorRemaining,
-  estimateRemaining,
-  findPhaseIndex,
-  getFirstTrainWait,
-  type RemainingOptions,
-  sampleDurationDist,
-  sampleRemaining,
-  summarizeSamples,
-} from "./remaining.ts";
-export {
-  type BranchAwareOptions,
-  type BranchAwareRemaining,
-  enumeratePhasePaths,
-  estimateBranchAwareRemaining,
-  estimateStatedRemaining,
-  estimateStatedRemainingWithoutKnowledge,
-  findPhasePaths,
-  mergeBranchSamples,
-  type PhasePaths,
-} from "./remaining-paths.ts";
+export { computeQuantile, sampleDurationDist, summarizeSamples } from "./remaining.ts";
+export { estimateStatedRemainingWithoutKnowledge } from "./remaining-paths.ts";
 export {
   CHANCE_FLOOR,
   CHANCE_NEARLY_CERTAIN,
@@ -251,13 +228,6 @@ export {
   computeRideMinutesUnrounded,
   computeWaitMinutes,
 } from "./transit.ts";
-export {
-  classifyFlowOutlook,
-  describeTypicalFlow,
-  estimateUntilResume,
-  type FlowOutlook,
-  inferPredictabilityLevel,
-} from "./typical-flow.ts";
 export {
   estimateUnaffectedTrackResume,
   TRACK_SIDES,

@@ -1,6 +1,4 @@
-import { join } from "node:path";
-import type { Knowledge, ResumeChance } from "@repo/schema";
-import { findRepoRoot, loadKnowledgeDir } from "@repo/schema/loaders";
+import type { ResumeChance } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import {
   CHANCE_TICK_COUNT,
@@ -12,36 +10,42 @@ import {
   computeResumeChance,
   computeWaitFasterProbability,
   diffMinutes,
-  estimateBranchAwareRemaining,
+  estimateIncidentRemaining,
   estimateStatedRemainingWithoutKnowledge,
+  estimateStatsRemaining,
   getJstMinuteOfDay,
   listChanceTickTimes,
-  mergeBranchSamples,
   parseIsoToMs,
   type ResumeChanceInput,
   roundChanceTenths,
   sampleDurationDist,
-  sampleRemaining,
+  sampleStatsRemaining,
   selectKeyTick,
 } from "../src/index.ts";
-import {
-  constantKnowledge,
-  lognormalKnowledge,
-  singlePhaseKnowledge,
-} from "./fixtures/knowledge.ts";
 
 // 時刻ごとの再開の見込みと、待ったほうが早く着く確率。残り時間の推定と同じ標本から数える
+// 標本は架空の所要時間の分布か、core の規則表と統計値から作る
 
-const DEV_KNOWLEDGE_DIR = join(findRepoRoot(), "packages/core/test/fixtures/dev-knowledge");
-
-function loadDevKnowledge(id: string): Knowledge {
-  const entry = loadKnowledgeDir(DEV_KNOWLEDGE_DIR).entries.find((e) => e.data.id === id);
-  if (!entry) throw new Error(`ダミーの知見がありません: ${id}`);
-  return entry.data;
+// 架空の所要時間の分布。発生からの経過を差し引いた残りの標本にする
+const lognormalSamples = (elapsed = 0) => sampleStatsRemaining({ p50: 45, p80: 80 }, elapsed);
+// 再開までの標本に初列車待ちを足し、乗れるまでの標本にする。agent と同じ作り方
+function buildIncidentSamples(type: "person_collision" | "medical_response", onset: string) {
+  const incident = estimateIncidentRemaining({
+    type,
+    cues: [],
+    statedResumeTime: null,
+    onsetTime: onset,
+    now: onset,
+  });
+  const wait = incident.firstTrainWait;
+  const samples =
+    incident.basis === "statistics"
+      ? (incident.samples ?? []).map((m) => m + wait.p50)
+      : incident.remaining
+        ? sampleDurationDist(incident.remaining)
+        : [];
+  return { incident, samples };
 }
-
-const personAccident = loadDevKnowledge("person_accident");
-const inCar = loadDevKnowledge("in_car_response");
 
 const at = (clock: string, day = "05") => `2026-11-${day}T${clock}:00+09:00`;
 const now = at("22:10");
@@ -49,7 +53,7 @@ const now = at("22:10");
 function buildInput(overrides: Partial<ResumeChanceInput> = {}): ResumeChanceInput {
   return {
     now,
-    samples: sampleRemaining(lognormalKnowledge, "initial", 0),
+    samples: lognormalSamples(),
     firstTrainWaitMinutes: 5,
     waitRouteMinutesAfterResume: 20,
     bestAlternativeArrival: at("23:10"),
@@ -165,8 +169,8 @@ describe("computeResumeChance", () => {
 
   it("最後の目盛りはほぼ動いている時刻を覆うので 9 割か 9 割以上になる", () => {
     for (const samples of [
-      sampleRemaining(lognormalKnowledge, "initial", 0),
-      sampleRemaining(lognormalKnowledge, "recovering", 10),
+      lognormalSamples(),
+      sampleStatsRemaining({ p50: 15, p80: 25 }, 10),
       sampleDurationDist({ p50: 2, p80: 5 }),
     ]) {
       const chance = computeResumeChance(buildInput({ samples, breakEvenTime: null }));
@@ -203,61 +207,39 @@ describe("computeResumeChance", () => {
     expect(chance.ticks[0]?.sinceOnsetMinutes).toBe(minutes);
   });
 
-  it("人身事故では、発生から下限の時刻までの目盛りが 1 割未満になる", () => {
-    const onset = at("22:10");
-    const estimate = estimateBranchAwareRemaining(personAccident, "initial", 0, {
-      elapsedSinceOnsetMinutes: 0,
-    });
-    const chance = computeResumeChance(
-      buildInput({
-        now: onset,
-        samples: estimate.samples,
-        firstTrainWaitMinutes: personAccident.after_resume.first_train_wait_minutes.p50,
-        waitRouteMinutesAfterResume: 30,
-        bestAlternativeArrival: at("23:26"),
-        breakEvenTime: at("22:46"),
-        deadline: at("00:25", "06"),
-        onsetTime: onset,
-      }),
-    );
-    const floor = personAccident.predictability?.typical_floor_minutes ?? 0;
-    const before = chance.ticks.filter((t) => (t.sinceOnsetMinutes ?? 0) < floor);
-    const after = chance.ticks.filter((t) => (t.sinceOnsetMinutes ?? 0) >= floor + 15);
-    expect(before.length).toBeGreaterThan(0);
-    expect(after.length).toBeGreaterThan(0);
-    expect(before.every((t) => t.tenths === 0)).toBe(true);
-    expect(after.every((t) => t.tenths >= 5)).toBe(true);
-    // 分岐点 22:46 は下限の前なので、待ったほうが早く着く見込みも 1 割未満
-    expect(chance.waitFaster).toBe(0);
-    expect(chance.waitOnTime).not.toBeNull();
-    expect(chance.resumeByForDeadline).toBe(at("23:45"));
-  });
-
-  it("車内対応では、発生から 10 分ほどの目盛りが高い確率になる", () => {
+  it("人身事故は統計値、急病人は規則の目安から標本を作り、急病人のほうが早く動く見込みになる", () => {
     const onset = at("18:20", "09");
-    const estimate = estimateBranchAwareRemaining(inCar, "stopped_for_check", 0, {
-      elapsedSinceOnsetMinutes: 0,
-    });
-    const chance = computeResumeChance(
-      buildInput({
-        now: onset,
-        samples: estimate.samples,
-        firstTrainWaitMinutes: inCar.after_resume.first_train_wait_minutes.p50,
-        waitRouteMinutesAfterResume: 15,
-        bestAlternativeArrival: at("19:00", "09"),
-        breakEvenTime: at("18:43", "09"),
-        onsetTime: onset,
-      }),
-    );
-    const tenMinutes = chance.ticks.find((t) => t.sinceOnsetMinutes === 10);
-    expect(tenMinutes?.tenths).toBeGreaterThanOrEqual(7);
-    expect(chance.waitFaster).toBeGreaterThanOrEqual(9);
+    const person = buildIncidentSamples("person_collision", onset);
+    const medical = buildIncidentSamples("medical_response", onset);
+    expect(person.incident.basis).toBe("statistics");
+    expect(medical.incident.basis).toBe("rule");
+    const chanceOf = (samples: number[], firstTrainWaitMinutes: number) =>
+      computeResumeChance(
+        buildInput({
+          now: onset,
+          samples,
+          firstTrainWaitMinutes,
+          waitRouteMinutesAfterResume: 15,
+          bestAlternativeArrival: at("19:00", "09"),
+          breakEvenTime: at("18:43", "09"),
+          onsetTime: onset,
+        }),
+      );
+    const personChance = chanceOf(person.samples, person.incident.firstTrainWait.p50);
+    const medicalChance = chanceOf(medical.samples, medical.incident.firstTrainWait.p50);
+    expectMonotone(personChance);
+    expectMonotone(medicalChance);
+    // 発生から 10 分の目盛りは、急病人のほうが高い。待ったほうが早く着く見込みも急病人のほうが高い
+    const tenOf = (chance: ResumeChance) =>
+      chance.ticks.find((t) => t.sinceOnsetMinutes === 10)?.tenths ?? 0;
+    expect(tenOf(medicalChance)).toBeGreaterThan(tenOf(personChance));
+    expect(medicalChance.waitFaster ?? 0).toBeGreaterThan(personChance.waitFaster ?? 0);
   });
 
   it("経過時間で条件を付けると、見込みが前に寄る", () => {
-    // 1 段階の知見。段階に 8 分いた条件を付けると、残りの中央値は条件なしより短い
-    const freshSamples = sampleRemaining(singlePhaseKnowledge, "only", 0);
-    const elapsedSamples = sampleRemaining(singlePhaseKnowledge, "only", 8);
+    // 発生から 8 分たった条件を付けると、残りの中央値は条件なしより短い
+    const freshSamples = sampleStatsRemaining({ p50: 10, p80: 20 }, 0);
+    const elapsedSamples = sampleStatsRemaining({ p50: 10, p80: 20 }, 8);
     expect(computeQuantile(elapsedSamples, 0.5)).toBeLessThan(computeQuantile(freshSamples, 0.5));
     const fresh = computeResumeChance(
       buildInput({ samples: freshSamples, firstTrainWaitMinutes: 0, breakEvenTime: null }),
@@ -280,8 +262,8 @@ describe("computeResumeChance", () => {
   });
 
   it("定数の分布では、その時刻の前は 1 割未満、以後は 9 割以上になる", () => {
-    // 全段階の和 35 分、初列車待ち 5 分。再開の時刻は 22:10 + 35 − 5 = 22:40
-    const samples = sampleRemaining(constantKnowledge, "first", 0);
+    // 乗れるまで 35 分、初列車待ち 5 分。再開の時刻は 22:10 + 35 − 5 = 22:40
+    const samples = sampleDurationDist({ p50: 35, p80: 35 });
     const chance = computeResumeChance(
       buildInput({
         samples,
@@ -371,16 +353,10 @@ describe("待ったほうが早く着く確率と分岐点の整合", () => {
 
   it("分岐点の定義から求めた確率と、標本で直接数えた P(T_wait ≤ T_alt) が一致する", () => {
     const cases = [
-      { samples: sampleRemaining(lognormalKnowledge, "initial", 0), ftw: 5, route: 20 },
-      { samples: sampleRemaining(lognormalKnowledge, "working", 12), ftw: 5, route: 7 },
-      { samples: sampleRemaining(constantKnowledge, "first", 0), ftw: 5, route: 10 },
-      {
-        samples: estimateBranchAwareRemaining(personAccident, "initial", 0, {
-          elapsedSinceOnsetMinutes: 0,
-        }).samples,
-        ftw: 10,
-        route: 30,
-      },
+      { samples: lognormalSamples(), ftw: 5, route: 20 },
+      { samples: lognormalSamples(12), ftw: 5, route: 7 },
+      { samples: sampleDurationDist({ p50: 35, p80: 35 }), ftw: 5, route: 10 },
+      { samples: buildIncidentSamples("person_collision", now).samples, ftw: 10, route: 30 },
     ];
     for (const { samples, ftw, route } of cases) {
       for (const arrival of ["22:40", "22:55", "23:10", "23:26", "23:45", "00:15"]) {
@@ -410,7 +386,7 @@ describe("待ったほうが早く着く確率と分岐点の整合", () => {
   });
 
   it("分岐点までの確率は、再開見込みの p50 でおよそ 5 割、p80 でおよそ 8 割になる", () => {
-    const samples = sampleRemaining(lognormalKnowledge, "initial", 0);
+    const samples = lognormalSamples();
     const ftw = 5;
     const p50 = computeQuantile(samples, 0.5);
     const p80 = computeQuantile(samples, 0.8);
@@ -421,31 +397,16 @@ describe("待ったほうが早く着く確率と分岐点の整合", () => {
   });
 });
 
-describe("mergeBranchSamples", () => {
-  const shortest = sampleRemaining(lognormalKnowledge, "initial", 0);
-  const longest = sampleRemaining(lognormalKnowledge, "initial", 0).map((v) => v * 1.5);
-
-  it("p50 は最短の経路、p80 は最長の経路の値になり、昇順を保つ", () => {
-    const merged = mergeBranchSamples(shortest, longest);
-    expect(merged).toHaveLength(shortest.length);
-    for (let i = 1; i < merged.length; i++) {
-      expect(merged[i]).toBeGreaterThanOrEqual(merged[i - 1] ?? 0);
-    }
-    expect(computeQuantile(merged, 0.5)).toBeCloseTo(computeQuantile(shortest, 0.5), 1);
-    expect(computeQuantile(merged, 0.8)).toBeCloseTo(computeQuantile(longest, 0.8), 1);
-    // p50 より下は最短の経路の標本そのもの
-    expect(computeQuantile(merged, 0.2)).toBeCloseTo(computeQuantile(shortest, 0.2), 1);
-  });
-
-  it("人身事故の標本の p50・p80 は、残り時間の推定と一致する", () => {
-    const estimate = estimateBranchAwareRemaining(personAccident, "initial", 0, {
-      elapsedSinceOnsetMinutes: 0,
-    });
-    expect(Math.round(computeQuantile(estimate.samples, 0.5))).toBe(estimate.remaining.p50);
-    expect(Math.round(computeQuantile(estimate.samples, 0.8))).toBe(estimate.remaining.p80);
-    // 分岐しない知見の標本は、そのままの標本
-    const plain = estimateBranchAwareRemaining(inCar, "stopped_for_check", 0);
-    expect(plain.samples).toEqual(sampleRemaining(inCar, "stopped_for_check", 0));
+describe("統計値の標本", () => {
+  it("標本の p50・p80 は、統計値の残り時間の推定と一致する", () => {
+    const stats = estimateStatsRemaining(
+      { group: "passenger", type: "person_collision" },
+      at("22:10"),
+      at("22:30"),
+    );
+    if (!stats) throw new Error("人身事故の統計値がありません");
+    expect(Math.round(computeQuantile(stats.samples, 0.5))).toBe(stats.remaining.p50);
+    expect(Math.round(computeQuantile(stats.samples, 0.8))).toBe(stats.remaining.p80);
   });
 });
 
