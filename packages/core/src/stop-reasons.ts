@@ -1,4 +1,9 @@
-import { STOP_REASONS, type StopReason, type StopReasons } from "@repo/schema";
+import {
+  type ProtectionBroadcast,
+  STOP_REASONS,
+  type StopReason,
+  type StopReasons,
+} from "@repo/schema";
 import type { AnnouncementCueId } from "../params/announcement-cues.ts";
 import { INCIDENT_BEHAVIOR } from "../params/incident-behavior.ts";
 import type { IncidentTypeId } from "../params/incident-durations.ts";
@@ -26,6 +31,8 @@ export type StopReasonsInput = {
   stoppedMinutes: number;
   // 事業者名か事業者キー。速度の目安を選ぶ
   operator: string | null;
+  // 入口で答えた受信の放送の有無。答えが無ければ null か省く
+  protectionBroadcast?: ProtectionBroadcast | null;
 };
 
 type ReasonCounts = Record<StopReason, number>;
@@ -51,16 +58,31 @@ function normalizeStoppedMinutes(minutes: number): number {
   return Number.isFinite(minutes) ? Math.max(0, minutes) : 0;
 }
 
+// 受信の放送が聞こえたか。放送の文の手がかりか、入口の答え
+function checkProtectionHeard(input: StopReasonsInput): boolean {
+  return input.cues.includes("protection_received") || input.protectionBroadcast === "heard";
+}
+
+// 受信の放送が無かったと答えたか。後から持ち込んだ放送の文に受信の手がかりがあれば、そちらを採る
+function checkProtectionNotHeard(input: StopReasonsInput): boolean {
+  return input.protectionBroadcast === "not_heard" && !checkProtectionHeard(input);
+}
+
 // 理由ごとに止まる列車の本数。手がかりで確定させる前の値
 export function countStopReasonTrains(input: StopReasonsInput): ReasonCounts {
   const lineType = resolveOperatorLineType(input.operator);
-  const protection = checkProtectionIncident({ type: input.type, cues: input.cues });
+  const protection = checkProtectionIncident({
+    type: input.type,
+    cues: input.cues,
+    protectionBroadcast: input.protectionBroadcast,
+  });
   const own = checkOwnTrainIncident(input.type) ? 1 : 0;
   const stopKind = input.type ? INCIDENT_BEHAVIOR[input.type].stopKind : "section";
-  // 発生場所の前後 1km の上下の列車
-  const received = protection
-    ? countTrainsInStretch(2 * PROTECTION_RADIUS_KM, input.headwayMinutes, lineType)
-    : 0;
+  // 発生場所の前後 1km の上下の列車。受信の放送が無かったと答えたなら、受信で止まった列車ではない
+  const received =
+    protection && !checkProtectionNotHeard(input)
+      ? countTrainsInStretch(2 * PROTECTION_RADIUS_KM, input.headwayMinutes, lineType)
+      : 0;
   // 区間を止める事象と防護無線の事象では、指令が止める範囲の上下の列車。受信で止まった列車は引く
   const section =
     protection || stopKind === "section"
@@ -77,8 +99,9 @@ export function countStopReasonTrains(input: StopReasonsInput): ReasonCounts {
 }
 
 // 手がかりで重みを変える。受信が聞こえれば防護無線に確定し、詰まりの放送なら詰まりを大きく上げる
-function weighCountsByCues(counts: ReasonCounts, cues: readonly AnnouncementCueId[]): ReasonCounts {
-  if (cues.includes("protection_received")) {
+function weighCountsByCues(counts: ReasonCounts, input: StopReasonsInput): ReasonCounts {
+  const cues = input.cues;
+  if (checkProtectionHeard(input)) {
     return { own_incident: 0, protection_received: 1, dispatcher_order: 0, queued_behind: 0 };
   }
   if (cues.includes("queue_ahead")) {
@@ -119,10 +142,10 @@ export function estimateStopReasons(input: StopReasonsInput): StopReasons | null
   if (!Number.isFinite(input.headwayMinutes) || input.headwayMinutes <= 0) {
     throw new RangeError(`運転間隔は正の値: ${input.headwayMinutes}`);
   }
-  const decisiveCue = input.cues.some((c) => c === "protection_received" || c === "queue_ahead");
+  const decisiveCue = checkProtectionHeard(input) || input.cues.includes("queue_ahead");
   if (input.type === null && !decisiveCue) return null;
   const counts = countStopReasonTrains(input);
-  const weights = weighCountsByCues(counts, input.cues);
+  const weights = weighCountsByCues(counts, input);
   const total = STOP_REASONS.reduce((sum, r) => sum + weights[r], 0);
   if (total <= 0) return null;
   // 同じ割合なら、受信、指令の指示、詰まり、当該の順に選ぶ

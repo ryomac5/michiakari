@@ -83,6 +83,27 @@ test("人身事故で止まった直後でも、この列車で起きたとは�
   await capture(page, "04-person-now");
 });
 
+test("入口で受信の放送が「なかった」と答えて人身事故を選ぶと、要求に答えが入り、受信で止まったとは出さない", async ({
+  page,
+}) => {
+  const request = page.waitForRequest(
+    (r) => r.method() === "POST" && new URL(r.url()).pathname === "/judge",
+  );
+  await startInCar(page, { cause: "person", protection: "notHeard", elapsed: "m10" });
+  const body = (await request).postDataJSON() as {
+    protectionBroadcast?: string;
+    observations: { kind?: string }[];
+  };
+  expect(body.protectionBroadcast).toBe("not_heard");
+  expect(body.observations).not.toContainEqual(
+    expect.objectContaining({ kind: "station_broadcast" }),
+  );
+  const line = page.getByTestId(testIds.judgment.stopReason);
+  await expect(line).toHaveAttribute("data-reason", "dispatcher_order");
+  await expect(line).not.toHaveText("近くの非常停止を受けて止まった可能性が高いです");
+  await capture(page, "05-person-not-heard");
+});
+
 test("大雨では、区間ごと止められている見込みを出す", async ({ page }) => {
   await startInCar(page, {
     cause: "weather",

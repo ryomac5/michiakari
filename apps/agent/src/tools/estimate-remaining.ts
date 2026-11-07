@@ -196,6 +196,7 @@ function estimateOwnStopReasons(
     headwayMinutes: resolveHeadwayMinutes(ctx, operator),
     stoppedMinutes,
     operator,
+    protectionBroadcast: ctx.request.protectionBroadcast ?? null,
   });
 }
 
@@ -277,7 +278,11 @@ export function runEstimateRemaining(
     texts: listObservationTexts(ctx.observations),
   });
   const elapsed = Math.max(0, Math.floor(diffMinutes(onsetTime, now)));
-  const protection = checkProtectionIncident({ type, cues });
+  const protection = checkProtectionIncident({
+    type,
+    cues,
+    protectionBroadcast: ctx.request.protectionBroadcast ?? null,
+  });
   const remaining = incident.remaining;
   const estimate: Estimate = {
     eventType: type,

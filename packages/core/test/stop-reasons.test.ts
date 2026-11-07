@@ -110,6 +110,53 @@ describe("estimateStopReasons", () => {
     expect(r?.mostLikely).toBe("protection_received");
   });
 
+  it("受信の放送が無かったと答えたら、人身事故でも受信の本数を 0 にし、その分を指令の指示に数える", () => {
+    const heardUnknown = countStopReasonTrains({
+      ...rushJr,
+      type: "person_collision",
+      stoppedMinutes: 0,
+    });
+    const notHeard = countStopReasonTrains({
+      ...rushJr,
+      type: "person_collision",
+      stoppedMinutes: 0,
+      protectionBroadcast: "not_heard",
+    });
+    expect(notHeard.protection_received).toBe(0);
+    expect(notHeard.own_incident).toBe(1);
+    expect(notHeard.dispatcher_order).toBeCloseTo(40 / 3.5, 5);
+    expect(notHeard.dispatcher_order).toBeCloseTo(
+      heardUnknown.dispatcher_order + heardUnknown.protection_received,
+      5,
+    );
+    const r = estimate({ type: "person_collision", protectionBroadcast: "not_heard" });
+    expect(r.shares.protection_received).toBe(0);
+    expect(r.trainCounts.protection_received).toBe(0);
+    expect(r.mostLikely).toBe("dispatcher_order");
+  });
+
+  it("覚えていないと答えたときは、答えが無いときと同じ見込みを出す", () => {
+    expect(estimate({ type: "person_collision", protectionBroadcast: "unknown" })).toEqual(
+      estimate({ type: "person_collision" }),
+    );
+  });
+
+  it("入口で受信の放送が聞こえたと答えたら、種類が分からなくても防護無線に確定する", () => {
+    const r = estimate({ type: null, protectionBroadcast: "heard" });
+    expect(r.mostLikely).toBe("protection_received");
+    expect(r.shares.protection_received).toBe(1);
+  });
+
+  it("無かったと答えても、後から持ち込んだ放送に受信の手がかりがあればそちらを採る", () => {
+    const r = estimate({
+      type: "person_collision",
+      cues: ["protection_received"],
+      protectionBroadcast: "not_heard",
+    });
+    expect(r.mostLikely).toBe("protection_received");
+    expect(r.trainCounts.protection_received).toBeGreaterThan(0);
+  });
+
   it("詰まりの放送が聞こえたら詰まりを大きく上げる", () => {
     const base = estimate({ type: "vehicle_failure", stoppedMinutes: 3 });
     const heard = estimate({ type: "vehicle_failure", stoppedMinutes: 3, cues: ["queue_ahead"] });

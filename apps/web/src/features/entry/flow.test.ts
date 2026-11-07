@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { buildJudgeRequest } from "@/features/judgment/request";
+import {
+  buildProtectionObservations,
+  resolveProtectionBroadcast,
+} from "@/features/situation/protection-broadcast";
 import type { EntryArea, EntryLine, EntryPlace } from "./entry-places";
 import {
   type EntryAction,
@@ -119,6 +124,29 @@ describe("reduceEntry", () => {
       expect(reduceEntry(elapsed, { type: "back" })).toEqual(cause);
     }
   });
+  it("電車の中で「なかった」を選ぶと、判断の要求に not_heard の欄が入り、放送の観測は入らない", () => {
+    const answered = run([
+      { type: "chooseLocation", location: "train" },
+      { type: "locateBetween", line, segment, place, area },
+      { type: "chooseDestination", inferred: { line, direction } },
+      { type: "chooseCause", cause: { category: null, kind: null } },
+      { type: "chooseProtection", protection: "notHeard" },
+    ]);
+    expect(answered).toMatchObject({ stage: "elapsed", protection: "notHeard" });
+    const now = new Date("2026-11-07T12:00:00+09:00");
+    const request = buildJudgeRequest({
+      observations: buildProtectionObservations(answered.protection, now),
+      newInput: null,
+      origin: { kind: "station", name: "大阪" },
+      destination: { kind: "station", name: "三ノ宮" },
+      language: "ja",
+      now,
+      protectionBroadcast: resolveProtectionBroadcast(answered.protection),
+    });
+    expect(request.protectionBroadcast).toBe("not_heard");
+    expect(request.observations).toEqual([]);
+  });
+
   it("電車の中の人だけ、原因の後に受信の放送を聞き、戻ると答えが消える", () => {
     const station = reduceEntry(run(toCause), {
       type: "chooseCause",

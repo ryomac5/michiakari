@@ -1,4 +1,4 @@
-import type { Observation } from "@repo/schema";
+import type { Observation, ProtectionBroadcast } from "@repo/schema";
 import { formatIsoWithOffset } from "@/features/judgment/time";
 
 // 車内で「信号を受信したため緊急停止」の放送を聞いたかの答え
@@ -34,4 +34,17 @@ export function buildProtectionObservations(
       detectedSignals: [],
     },
   ];
+}
+
+const protectionBroadcastByAnswer: Record<ProtectionAnswer, ProtectionBroadcast> = {
+  heard: "heard",
+  notHeard: "not_heard",
+  unsure: "unknown",
+};
+
+// 判断の要求に入れる受信の放送の有無。問いに答えていなければ null
+export function resolveProtectionBroadcast(
+  answer: ProtectionAnswer | null,
+): ProtectionBroadcast | null {
+  return answer === null ? null : protectionBroadcastByAnswer[answer];
 }
