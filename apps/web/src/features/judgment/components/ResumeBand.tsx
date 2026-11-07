@@ -2,7 +2,7 @@
 
 import type { InCarGuide, ResumeChance } from "@repo/schema";
 import { useLocale, useTranslations } from "next-intl";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { buildInCarBand } from "../in-car-band";
 import { buildChanceChart } from "../resume-chance";
@@ -32,6 +32,7 @@ export function ResumeBand({
   switching,
   className,
   style,
+  status,
 }: {
   chance: ResumeChance;
   breakEvenTime: string | null;
@@ -39,6 +40,8 @@ export function ResumeBand({
   switching: boolean;
   className?: string;
   style?: CSSProperties;
+  // 帯の左上に小さく添える運行の状態の札
+  status?: ReactNode;
 }) {
   const t = useTranslations("judgment.resumeBand");
   const locale = useLocale();
@@ -68,8 +71,11 @@ export function ResumeBand({
       className={cn("glass flex flex-col gap-1 rounded-2xl px-3 pt-2 pb-1.5", className)}
       style={style}
     >
-      <div className="flex items-baseline justify-between gap-2 text-[12px] leading-none">
-        <h2 className="font-semibold text-muted">{t("title")}</h2>
+      <div className="flex items-center justify-between gap-2 text-[12px] leading-none">
+        <div className="flex min-w-0 items-center gap-2">
+          {status}
+          <h2 className="shrink-0 font-semibold text-muted">{t("title")}</h2>
+        </div>
       </div>
       <div aria-hidden className="relative pt-4">
         {breakEven && (
@@ -119,10 +125,13 @@ export function InCarBand({
   guide,
   className,
   style,
+  status,
 }: {
   guide: InCarGuide;
   className?: string;
   style?: CSSProperties;
+  // 帯の左上に小さく添える運行の状態の札
+  status?: ReactNode;
 }) {
   const t = useTranslations("judgment.resumeBand");
   const locale = useLocale();
@@ -147,8 +156,11 @@ export function InCarBand({
       className={cn("glass flex flex-col gap-1 rounded-2xl px-3 pt-2 pb-1.5", className)}
       style={style}
     >
-      <div className="flex items-baseline justify-between gap-2 text-[12px] leading-none">
-        <h2 className="font-semibold text-muted">{t("inCarTitle")}</h2>
+      <div className="flex items-center justify-between gap-2 text-[12px] leading-none">
+        <div className="flex min-w-0 items-center gap-2">
+          {status}
+          <h2 className="shrink-0 font-semibold text-muted">{t("inCarTitle")}</h2>
+        </div>
         <p aria-hidden className="font-bold tabular-nums">
           {range}
         </p>

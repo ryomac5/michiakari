@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { describePlace } from "@/features/stations/describe";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { cn } from "@/lib/utils";
 import { useJudgmentSession } from "../session";
 
 // 上部の帯に置く「大阪 → 京都」。押すと開始画面に戻って選び直せる
@@ -110,9 +111,12 @@ export function StatusChip({
   testId,
   scope = "section",
   place = null,
+  size = "regular",
 }: {
   line: string | null;
   testId?: string;
+  // small は地図の見込みの帯の左上に添える小さな札
+  size?: "regular" | "small";
   scope?: StopScope;
   // その列車が止まっている場所の表示名。駅で待っている人には null
   place?: string | null;
@@ -129,7 +133,10 @@ export function StatusChip({
       <p
         data-testid={testId}
         data-scope="train"
-        className="flex h-8 min-w-0 shrink items-center rounded-full bg-hold-surface px-2 text-[12px] font-semibold whitespace-nowrap text-hold"
+        className={cn(
+          "flex min-w-0 shrink items-center rounded-full bg-hold-surface px-2 font-semibold whitespace-nowrap text-hold",
+          size === "small" ? "h-6 text-[11px]" : "h-8 text-[12px]",
+        )}
       >
         <span className="truncate">{text}</span>
       </p>
@@ -140,7 +147,10 @@ export function StatusChip({
     <p
       data-testid={testId}
       data-scope="section"
-      className="flex h-8 min-w-0 shrink items-center gap-1 rounded-full bg-danger/10 px-2 text-[12px] font-semibold whitespace-nowrap text-danger"
+      className={cn(
+        "flex min-w-0 shrink items-center gap-1 rounded-full bg-danger/10 px-2 font-semibold whitespace-nowrap text-danger",
+        size === "small" ? "h-6 text-[11px]" : "h-8 text-[12px]",
+      )}
     >
       <svg viewBox="0 0 14 4" className="h-1 w-3.5 shrink-0" aria-hidden>
         <line

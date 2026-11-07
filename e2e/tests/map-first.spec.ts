@@ -148,6 +148,20 @@ async function expectSectionPickClean(page: Page, theme: string, name: string): 
   await expect(banner).toHaveCount(0);
 }
 
+// 見出しの場所は戻るボタンとメニューだけで、行程の札も運行の状態の札も見出しに出さない
+// 運行の状態は、区間を描いていなければ地図の見込みの帯の左上に小さく出す
+async function expectHeaderBare(page: Page, statusText: string | RegExp): Promise<void> {
+  const header = page.getByTestId(testIds.app.header);
+  await expect(page.getByTestId(testIds.judgment.tripSummary)).toHaveCount(0);
+  await expect(header.getByTestId(testIds.judgment.statusChip)).toHaveCount(0);
+  await expect(header.getByTestId(testIds.judgment.backButton)).toBeVisible();
+  const status = page
+    .getByTestId(testIds.judgment.resumeBand)
+    .getByTestId(testIds.judgment.statusChip);
+  await expect(status).toBeVisible();
+  await expect(status).toContainText(statusText);
+}
+
 // 地図に出す駅の吹き出しの数。勧める経路で乗る駅だけにしぼったので、多くても 1 つ
 async function countStationBubbles(page: Page): Promise<number> {
   return page.locator("[data-testid^='judgment-map-station-']").count();
@@ -286,6 +300,8 @@ for (const theme of ["light", "dark"] as const) {
       await capture(page, theme, "stay-1-open", false);
       await expect(map).toHaveAttribute("data-motion", "done", { timeout: 15_000 });
       await capture(page, theme, "stay-2-done");
+      // その列車だけが止まる種類なので、見合わせと言わず停車中と出す
+      await expectHeaderBare(page, "桜ノ宮〜天満で停車中");
       // 天満は次の駅だが、降りる駅の札を出さない
       await expect(page.getByTestId(mapTestIds.alight)).toHaveCount(0);
       // 列車は次の駅で止まらず、行き先の西九条まで線路に沿って進み、その道筋が光る
@@ -297,7 +313,8 @@ for (const theme of ["light", "dark"] as const) {
       );
       const band = page.getByTestId(testIds.judgment.resumeBand);
       await expect(band).toBeInViewport();
-      await expect(band).not.toContainText("天満");
+      // 帯の左上の停車中の札は駅の間の位置を言うが、天満に着く時刻は出さない
+      await expect(band).not.toContainText("天満着");
       await expectMapFirst(page);
       expect(await countStationBubbles(page)).toBe(0);
       // 次の駅の名前は詳細に残す
@@ -333,6 +350,7 @@ for (const theme of ["light", "dark"] as const) {
       );
       await expect(page.getByTestId(testIds.judgment.resumeBand)).toBeInViewport();
       await capture(page, theme, "switch");
+      await expectHeaderBare(page, "見合わせ");
       await expectMapFirst(page);
       // 前は乗り換え候補の 4 駅に吹き出しと徒歩の分を出していた。今は勧める経路で乗る駅だけにする
       const map = page.getByTestId(testIds.judgment.map);
@@ -348,6 +366,47 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByTestId(mapTestIds.destinationEdge)).toBeVisible();
       await expectInMapView(page, mapTestIds.here);
       await expectSectionPickClean(page, theme, "switch-section-pick");
+    });
+
+    test("区間を入れた後は、運行の状態を赤い線のそばの見合わせの札で示し、帯の左上には出さない", async ({
+      page,
+    }) => {
+      await startAtStation(page, {
+        origin: "大阪",
+        destinationQuery: "さんのみや",
+        destination: "三ノ宮",
+        cause: "person",
+        action: "switch",
+      });
+      const addInfo = await openAddInfo(page);
+      await addInfo.getByTestId(testIds.situation.item("section")).click();
+      const banner = page.getByTestId(mapTestIds.sectionPick);
+      await expect(banner).toBeVisible();
+      // 選んでいる間は、運行の状態の札も見込みの帯と同じく隠す
+      await expect(page.getByTestId(testIds.judgment.statusChip)).toHaveCount(0);
+      await page.getByTestId(mapTestIds.sectionPickStation("大阪")).click();
+      await page.getByTestId(mapTestIds.sectionPickStation("尼崎")).click();
+      await expect(banner).toHaveCount(0);
+      await waitForMapReady(page);
+      const map = page.getByTestId(testIds.judgment.map);
+      await expect(map).toHaveAttribute("data-blocked", "true");
+      await expect(page.getByTestId(testIds.judgment.tripSummary)).toHaveCount(0);
+      // 状態は 1 か所だけに出す。線のそばに見合わせの札を置ければそれで示し、置けなければ帯の左上に出す
+      const tag = page.getByTestId(mapTestIds.blockedTag);
+      const chip = page.getByTestId(testIds.judgment.statusChip);
+      await expect
+        .poll(async () => (await tag.count()) + (await chip.count()), { timeout: 15_000 })
+        .toBe(1);
+      await page.waitForTimeout(1_000);
+      await capture(page, theme, "section-entered");
+      // 全体を見ると、赤い線の中ほどに見合わせの札を付け、帯の左上の札は消す
+      await page.getByTestId(mapTestIds.viewToggle).click();
+      await expect(map).toHaveAttribute("data-view", "overview");
+      await expect(tag).toHaveText("見合わせ 大阪〜尼崎", { timeout: 15_000 });
+      await expect(chip).toHaveCount(0);
+      await expect(map).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+      await page.waitForTimeout(1_000);
+      await capture(page, theme, "section-entered-overview");
     });
 
     test("駅で待つ判断では、今の路線の行き先までを光らせ、再開の見込みの帯を地図に重ねる", async ({
