@@ -7,6 +7,8 @@ import type { IncidentTypeId } from "./incident-durations.ts";
 export const STOP_REASONS_SOURCE = "開発者の推定";
 
 // 防護無線を受けて止まる範囲。発生場所の周りの片側の距離（km）
+// 公開資料は届く範囲を半径およそ 1km から 2km としている。docs/research/rail-operations/01-protection-radio.md
+// 他社線が止まるかは公開資料に無い。開発者の判断で自社線に限る
 export const PROTECTION_RADIUS_KM = 1;
 
 // 指令が信号と無線で周りの列車を止める範囲。発生場所の前後それぞれの距離（km）

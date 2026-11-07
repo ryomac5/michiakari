@@ -106,7 +106,8 @@
     "action": {
       "wait": "Wait",
       "switch": "Switch",
-      "hold": "Wait for now"
+      "hold": "Wait for now",
+      "followStaff": "Follow staff"
     },
     "conclusion": {
       "label": "Advice",
@@ -221,6 +222,11 @@
       "minutes": "{minutes} min",
       "recommended": "Suggested",
       "transferService": "Transfer service",
+      "transferFare": {
+        "covered": "Transfer service applies",
+        "possibly_covered": "Transfer service may apply",
+        "fare_required": "Fare required"
+      },
       "pending": "Checking",
       "empty": "Wait for service to restart",
       "stale": "Updating",
@@ -256,7 +262,15 @@
         "track_cleared": "The track check seems done, so the restart seems close.",
         "queue_ahead": "Even once moving, trains ahead may hold you up.",
         "protection_received": "Nearby trains have likely stopped too.",
-        "rescue": "A rescue is under way, so this may take a while."
+        "rescue": "A rescue is under way, so this may take a while.",
+        "evacuation_on_track": "Follow the staff's instructions.",
+        "turnback": "Trains outside the stopped section seem to be running.",
+        "service_cancelled": "This train seems to go no further.",
+        "through_service_suspended": "You will likely need to change at the connecting station.",
+        "slow_running": "Trains may run late even once moving.",
+        "held_at_station": "You are at a station, so you can get off and switch.",
+        "inspection_ongoing": "Trains likely stay stopped until the check is done.",
+        "proceed_to_station": "The train seems set to move on to the next station."
       }
     },
     "addInfo": {
@@ -596,6 +610,13 @@
       "now": "Just stopped",
       "m10": "About 10 min",
       "m30": "30 min or more",
+      "unknown": "Not sure"
+    },
+    "ticketQuestion": "Your ticket",
+    "ticket": {
+      "ic": "IC card",
+      "commuter_pass": "Commuter pass",
+      "paper": "Paper ticket",
       "unknown": "Not sure"
     },
     "resumeQuestion": "Pick the restart outlook you heard",

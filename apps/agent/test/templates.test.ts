@@ -142,6 +142,18 @@ describe("buildDecisionText", () => {
         en: "Use the transfer service.",
         fallbackJa: "動かなければ振替輸送へ",
       },
+      // 乗車券が振替輸送の対象外なら、振替と呼ばずに乗り換えと呼ぶ
+      {
+        bestOption: {
+          kind: "transfer" as const,
+          label: LONG_LABEL,
+          isTransferService: true,
+          transferFare: "fare_required" as const,
+        },
+        ja: "電車を乗り換える",
+        en: "Change trains.",
+        fallbackJa: "動かなければ電車を乗り換える",
+      },
       {
         bestOption: { kind: "transfer" as const, label: LONG_LABEL, isTransferService: false },
         ja: "電車を乗り換える",

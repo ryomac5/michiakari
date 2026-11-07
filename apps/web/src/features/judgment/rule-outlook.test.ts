@@ -11,6 +11,7 @@ import en from "../../../messages/en.json";
 import ja from "../../../messages/ja.json";
 import {
   buildMinuteRange,
+  checkFollowStaff,
   checkProtectionReading,
   formatQueueWait,
   formatTrackLine,
@@ -263,5 +264,14 @@ describe("selectStopReasonLine", () => {
       expect(tJa(`stopReason.${reason}`)).toBe(text);
       expect(createRuleTranslate("en")(`stopReason.${reason}`)).not.toMatch(/[()（）]/);
     }
+  });
+});
+
+describe("checkFollowStaff", () => {
+  it("線路に降りる案内があるときだけ、行動の札を案内に従うにする", () => {
+    expect(checkFollowStaff({ cues: ["evacuation_on_track"] })).toBe(true);
+    expect(checkFollowStaff({ cues: ["resumed"] })).toBe(false);
+    expect(checkFollowStaff({})).toBe(false);
+    expect(ja.judgment.action.followStaff).toBe("案内に従う");
   });
 });

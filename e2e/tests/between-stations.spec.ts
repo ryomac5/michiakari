@@ -466,3 +466,29 @@ test("持ち込んだ走行位置画像の種別を判断入力に使う", async
   });
   await expect(ahead).toContainText("前に詰まっている列車 快速・普通");
 });
+
+test("駅の間で線路に降りる案内を入れると、行動の札は「待つ」でなく「案内に従う」になる", async ({
+  page,
+}) => {
+  await reachPositionStep(page);
+  await startBetweenStations(page);
+  await openSheet(page, "full");
+  const addInfo = page.getByTestId(testIds.judgment.addInfo);
+  await addInfo.getByTestId(testIds.situation.tab("paste")).click();
+  await addInfo
+    .getByTestId(testIds.situation.pasteInput)
+    .fill("これから線路に降りて、最寄り駅まで歩いてご案内します。");
+  await addInfo.getByTestId(testIds.situation.submit("paste")).click();
+  const conclusion = page.getByTestId(testIds.judgment.conclusion);
+  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText(
+    "係員の案内に従う",
+    { timeout: 30_000 },
+  );
+  const pill = conclusion.getByTestId(testIds.judgment.actionPill);
+  await expect(pill).toHaveAttribute("data-label", "followStaff");
+  await expect(pill).toContainText("案内に従う");
+  await expect(pill).not.toContainText("待つ");
+  // 分岐点の時刻と再開の見込みは出さない
+  await expect(page.getByTestId(testIds.judgment.breakEvenTime)).toHaveCount(0);
+  await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(0);
+});

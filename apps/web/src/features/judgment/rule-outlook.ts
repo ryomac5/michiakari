@@ -108,3 +108,8 @@ export function formatTrackLine(t: RuleTranslate, line: TrackLine): string {
 export function formatQueueWait(t: RuleTranslate, wait: MinuteRange): string {
   return t("queue.wait", { range: formatMinuteRange(t, wait) });
 }
+
+// 線路に降りる案内が出た判断か。行動の札を「案内に従う」にする
+export function checkFollowStaff(judgment: Pick<Judgment, "cues">): boolean {
+  return judgment.cues?.includes("evacuation_on_track") === true;
+}

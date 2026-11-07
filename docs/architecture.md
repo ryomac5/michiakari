@@ -122,6 +122,7 @@
 
 - `estimateIncidentRemaining`: 事象の種類、手がかり、発表の見込み時刻から、実際に乗れる列車が来るまでの残りを返す
   - 次の順に当てはめ、最初に当たったものを出どころ `basis` にする
+  - `evacuation_on_track` があれば、再開の放送や発表の時刻があっても `withholdNumbers` を true にして数字を出さない。降りる案内より新しい観測の再開の放送は、agent が `resolveEvacuationCues` で優先する
   - `resumed` の手がかりがあれば `resumed` とし、再開までの残りを 0 分にする
   - 発表の見込み時刻があれば `stated` とし、`estimateStatedRemainingWithoutKnowledge` で求める
   - めったにない事象で長さが分からなければ、`withholdNumbers` を true にして数字を出さない
@@ -136,7 +137,7 @@
   - `rule` は、種類が分かれば medium にする
   - `statistics` は、`resume_soon` か `track_cleared` があれば medium にする
   - それ以外は low にする
-- `checkProtectionIncident`: 事象の種類と手がかりから、防護無線で止まった事象かを返す
+- `checkProtectionIncident`: 事象の種類と手がかりから、防護無線で止まった事象かを返す。入口の答えが `heard` でも true にする
 - `detectAnnouncementCues`: 発表と放送の文から、手がかりの id を返す。観測の列には `detectObservationCues` を使い、`rawText` と `detectedSignals` の `quote` を見る
 - `checkTrackCleared`: 前の列車が詰め始めてよいかを返す。agent から core に移した
 - `estimateUnaffectedTrackResume`: 防護無線の事象で、当該の線路と反対の線路の再開までの残りを返す。防護無線の事象でなければ null を返す
@@ -170,6 +171,13 @@
   - この場面で利用者が知りたいのは、タクシーより早いかではなく、待っても期限に間に合うかだからである
   - 鉄道の代替が無く、タクシーしか無いときは、期限があっても、これまでどおりタクシーの到着と並ぶ時刻を分岐点にする
 - `computeTaxiFare`: 距離と時刻から公示運賃体系にもとづく概算運賃を返す
+- `decideTransferFare`: 乗車券の種類と発表の振替輸送から、他社の線への乗り換えの追加の費用を決める
+  - 発表に振替なしとあれば、乗車券によらず運賃がかかる。IC カードは対象外なので運賃がかかる
+  - 定期券と紙の切符は、実施が分からなければ決めない。振替先に含まれれば対象、振替先が書かれていなければ対象になりうる
+- `applyTransferFares`: `find_alternatives` の結果の乗り換えの選択肢に `transferFare` を付ける。決定論と claude モードの両方に効く
+- 事業者は `params/transfer-fare.ts` の表に限る。調べの出典で関西の共通の扱いを確かめた事業者だけを置く
+- 止まった路線の事業者は、観測の事業者か止まった路線の名前から引く。待つ経路の最初の乗車からは引かない
+- 分岐点は到着時刻で比べる。同着なら振替の対象の選択肢だけを上げ、それ以外は並びの順を保つ
 - `estimateTrainQueueArrival`: 駅間に止まった列車が、ホームに着ける駅に着く時刻の p50 と p80 を返す
   - 入力は、再開までの残り、自分の種別、前の列車の種別の並び、先の駅と駅間の走行時間、事業者ごとの詰める動きである
   - 詰める事業者は、まず JR西日本だけにする。事業者は乗っている路線の ID の先頭から先に引き、引けなければ観測の事業者名の表記の揺れをそろえて引く。詰め始めるのは線路の安全が確かめられてからで、外からは再開に向けた放送か、再開の見込みの時刻が出たことで分かる。`closeUpCleared` は、再開の見込みの時刻か、手がかり `track_cleared` を見たときだけ true にする。`track_cleared` は、再開が近いと言い切る放送で立つ。条件付きの文では立たない。それまでは詰めず、再開を待ってから着くとみなす
@@ -309,12 +317,24 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `protection_received` | 信号を受信、緊急停止信号 | 防護無線で止まったとみなす |
 | `queue_ahead` | 前の列車がつかえて、先行列車の影響 | 再開後の詰まりの列に入ったとみなす |
 | `track_cleared` | 再開が近いと言い切る放送 | 前の列車が詰め始めたとみなす。統計値の見込みの確信度を medium に上げる |
+| `evacuation_on_track` | 線路に降りて、最寄り駅まで歩いて、降車誘導 | 見込みの数字と分岐点の時刻を出さない。結論は係員の案内に従い、行動の札は「案内に従う」にする。車内の駅に着く時刻と支障の無い線路の見込みも出さない |
+| `turnback` | 折り返し運転 | 区間が止まっているとみなし、初列車待ちを区間の値にする |
+| `service_cancelled` | この列車は運転を取りやめ | 読みだけを出す |
+| `through_service_suspended` | 直通運転を中止 | 読みだけを出す |
+| `slow_running` | 徐行運転 | 読みだけを出す |
+| `held_at_station` | この駅でしばらく停車、抑止 | 読みだけを出す。駅間の「しばらく停車」は拾わない |
+| `inspection_ongoing` | 点検を行っております、安全確認中 | 大雨、強風、地震で点検が続く間は `resume_soon` と `track_cleared` を数えない |
+| `proceed_to_station` | 安全を確認した区間、最寄り駅まで徐行 | 駅間の車内の人は、再開の前に次の駅へ着く見込みにする |
+
+言い回しの照合は、条件付きの文、否定の節、止める文を除く。否定は「が、」「けれど」「ので」などで区切った節の中だけに効かせる。止める文は「降りないでください」のような文で、降車の手がかりにだけ効く。はしごは「はしごで降りる」のように降りることを示す形だけを拾う。規制の解除だけでは再開に向けた手がかりにしない。点検が続くかは、点検か再開に向けた手がかりを含む最も新しい観測で決める。「点検は終了しました」は `track_cleared` として点検中の状態を解く。根拠は `docs/research/rail-operations/` の 02、04、06 である。
 
 `track_cleared` の判定は、`checkTrackCleared` とともに agent から core に移した。
 
 #### 防護無線
 
 `checkProtectionIncident` は、`protection` が `always` の種類なら true を返す。`maybe` の種類は、`protection_received` があるときだけ true にする。
+
+公開資料は、防護無線の届く範囲を半径およそ 1km から 2km としている。出典は `docs/research/rail-operations/01-protection-radio.md` である。他社線が止まるかは公開資料に無く、規則表は自社線に限る。
 
 原因の発表が無くても、`protection_received` があれば防護無線とみなす。このとき事象は、列車の外に危害が及ぶものと推し量る。種類は決め打ちしない。統計値は入口で答えた原因の大分類を使い、それも無ければ数字を出さない。
 
@@ -359,6 +379,10 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `queued_behind` | 止まってからの分を運転間隔で割った本数。当該がいるときだけ数える。天気と停電は指令が区間ごと止めるので、後ろの列車も `dispatcher_order` に入れ、0 本とする |
 
 - `protection_received` の手がかりがあれば、防護無線に確定する
+- 要求の `protectionBroadcast` が `heard` なら、手がかりと同じく防護無線に確定する
+- `not_heard` なら、`protection_received` の本数を 0 にする。その分は指令の指示に数える
+- `not_heard` でも防護無線の事象であることは変えない。反対の線路の見込みは事象の種類で決まる
+- `not_heard` でも、後から持ち込んだ放送に受信の手がかりがあれば、手がかりを採る
 - `queue_ahead` の手がかりがあれば、詰まりの本数に `QUEUE_AHEAD_CUE_WEIGHT` を掛ける
 - 利用者は止まった列車のどれかに乗っているとみなす。当該の割合は 1 ÷ 止まった本数の合計になる
 - 同じ割合なら、受信、指令の指示、詰まり、当該の順に選ぶ
@@ -401,7 +425,8 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `operator`, `line` | 事業者と路線。不明なら null |
 | `section` | 区間 `{ fromStation, toStation }`。不明なら null |
 | `statedResumeTime` | 発表文に記載された再開見込み時刻。記載が無ければ null |
-| `transferServiceActive` | 振替輸送の実施有無。記載が無ければ null |
+| `transferServiceActive` | 振替輸送の実施有無。記載が無ければ null。「行っておりません」のような打ち消しは false |
+| `transferOperators` | 振替先として書かれた事業者名。任意で、書かれていなければ省くか空 |
 | `detectedSignals` | 兆候との対応 `{ eventType, signalId, quote }` の配列。`quote` は根拠の文言で、core はここから手がかりを拾う |
 
 ### 4.3 JudgmentEvent（SSE で送るイベント）
@@ -467,6 +492,7 @@ RouteOption の項目は次のとおり。
 | `fareYen` | 運賃の円。null を許す |
 | `walkMinutes` | 徒歩の分 |
 | `isTransferService` | 振替輸送を使うか |
+| `transferFare` | 乗り換え先の追加の費用。`covered` は振替の対象、`possibly_covered` は振替の対象になりうる、`fare_required` は運賃がかかる。決められなければ省く |
 
 RouteLeg は `mode`、`from`、`to`、`minutes` を持ち、`line` は省略できる。`mode` は `walk` / `ride` / `wait` / `taxi` のいずれかである。
 
@@ -515,6 +541,8 @@ RouteLeg は `mode`、`from`、`to`、`minutes` を持ち、`line` は省略で�
 | `now` | 判断の基準時刻。リプレイではシナリオ時刻を入れる |
 | `trainPosition` | 車内の位置。任意で、無ければ駅にいるとみなす |
 | `cause` | 入口で答えた原因。統計値の大分類の `group` と種類の `type` を持ち、`type` は null を許す。任意で、分からないときとリプレイでは省く。事象の種類を決めるのに使う |
+| `protectionBroadcast` | 入口で答えた受信の放送の有無。`heard`、`not_heard`、`unknown` のいずれか。任意で、電車の中で答えたときだけ送る |
+| `ticketType` | 入口で答えた乗車券の種類。`ic` / `commuter_pass` / `paper`。任意で、分からないときは省く。乗り換え先の費用を決めるのに使う |
 
 `trainPosition` の項目は次のとおり。駅間のときだけ、次の駅以降の項目に値を入れる。
 

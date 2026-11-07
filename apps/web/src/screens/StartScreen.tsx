@@ -127,7 +127,11 @@ import {
   toCauseChoiceId,
 } from "@/features/situation/cause-categories";
 import { findElapsedOption, listResumeTimeOptions } from "@/features/situation/plain-questions";
-import { buildProtectionObservations } from "@/features/situation/protection-broadcast";
+import {
+  buildProtectionObservations,
+  resolveProtectionBroadcast,
+} from "@/features/situation/protection-broadcast";
+import { type TicketAnswer, toTicketAnswer, toTicketType } from "@/features/situation/ticket";
 import {
   findNearestChoices,
   type NearestStationChoice,
@@ -231,6 +235,7 @@ export function StartScreen() {
     stationNames,
     state: judgment,
     startJudgment,
+    ticketType,
   } = session;
   const { geo, data } = useEntryData();
   const [nearest, setNearest] = useState<NearestStationChoice[]>([]);
@@ -278,6 +283,8 @@ export function StartScreen() {
     useState<TripContext["destinationBasis"]>("chosen");
   // 再開見込みの問いで押した答え。判断を始めるまでその札に印を出す
   const [pendingResume, setPendingResume] = useState<string | null>(null);
+  // 再開見込みの問いの上で聞く乗車券の種類。入口に戻ったときは前の答えから始める
+  const [ticket, setTicket] = useState<TicketAnswer>(() => toTicketAnswer(ticketType));
   // 車内の駅の間の段で選んでいる駅の間。地図の点線と一覧の選択が同じものを指す
   const [segmentIndex, setSegmentIndex] = useState<number | null>(null);
   const directions = useMemo(
@@ -811,6 +818,8 @@ export function StartScreen() {
         ...buildProtectionObservations(entry.protection, now, elapsedMinutes),
       ],
       answers?.cause ?? null,
+      resolveProtectionBroadcast(entry.protection),
+      toTicketType(ticket),
     );
     setHandingOff(true);
     if (findFocusArea(origin)) await mapApi.current?.zoomToOrigin(handoffZoom);
@@ -1443,6 +1452,8 @@ export function StartScreen() {
                 busy={handingOff || judgment.status === "streaming"}
                 pending={pendingResume}
                 times={resumeTimes}
+                ticket={ticket}
+                onTicket={setTicket}
                 onSelect={submitAnswers}
               />
             )}

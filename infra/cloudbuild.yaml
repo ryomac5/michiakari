@@ -1,0 +1,16 @@
+# 判断エージェントのイメージを Cloud Build で作り、Artifact Registry へ送る
+# 実行は infra/deploy-agent.sh から行う。ビルドの文脈はリポジトリのルート
+# _IMAGE は deploy-agent.sh が渡す
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "infra/agent/Dockerfile", "-t", "${_IMAGE}", "."]
+
+images:
+  - ${_IMAGE}
+
+substitutions:
+  _IMAGE: ""
+
+options:
+  logging: CLOUD_LOGGING_ONLY

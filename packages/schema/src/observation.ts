@@ -90,6 +90,8 @@ export const ObservationSchema = z.object({
   section: SectionSchema.nullable(),
   statedResumeTime: IsoDateTimeSchema.nullable(),
   transferServiceActive: z.boolean().nullable(),
+  // 発表に振替先として書かれた事業者名。書かれていなければ省くか空にする
+  transferOperators: z.array(z.string()).optional(),
   detectedSignals: z.array(DetectedSignalSchema),
   // 走行位置画像から読んだ、前の列車の種別（近い順）
   trainsAhead: z.array(TrainTypeSchema).optional(),

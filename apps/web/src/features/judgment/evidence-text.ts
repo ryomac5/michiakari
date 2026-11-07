@@ -8,11 +8,19 @@ export const evidenceLimit = 3;
 
 // 行動を変える放送の手がかり。並びは読みを選ぶ優先の順
 export const cueIds = [
+  "evacuation_on_track",
   "resumed",
   "resume_soon",
   "track_cleared",
+  "inspection_ongoing",
+  "proceed_to_station",
   "queue_ahead",
   "protection_received",
+  "turnback",
+  "through_service_suspended",
+  "service_cancelled",
+  "held_at_station",
+  "slow_running",
   "rescue",
 ] as const satisfies readonly AnnouncementCueId[];
 export type CueId = AnnouncementCueId;
@@ -41,6 +49,16 @@ type Translate = (key: string, values?: Record<string, string>) => string;
 // 手がかりの id の並びから、行動を変える読みを 1 つ選ぶ。手がかりが無ければ null
 export function selectCueReading(ids: readonly string[]): CueId | null {
   return cueIds.find((id) => ids.includes(id)) ?? null;
+}
+
+// 判断の結果が点検の続く間として再開の近い手がかりを除いたら、その読みを出さない
+export function excludeInspectedCues(
+  ids: readonly string[],
+  judged: readonly AnnouncementCueId[] | undefined,
+): string[] {
+  if (!judged?.includes("inspection_ongoing")) return [...ids];
+  const dropped = (["resume_soon", "track_cleared"] as const).filter((id) => !judged.includes(id));
+  return ids.filter((id) => !(dropped as readonly string[]).includes(id));
 }
 
 // 引用は最初の 1 文だけにして短くする
@@ -89,7 +107,12 @@ export function selectEvidenceEntries(context: {
     })
     .slice(0, evidenceLimit);
 
-  const cue = selectCueReading([...distinct.flatMap((s) => s.signalIds), ...(context.cues ?? [])]);
+  const cue = selectCueReading(
+    excludeInspectedCues(
+      [...distinct.flatMap((s) => s.signalIds), ...(context.cues ?? [])],
+      context.cues,
+    ),
+  );
   const cueIndex = cue === null ? -1 : distinct.findIndex((s) => s.signalIds.includes(cue));
   const entries: EvidenceEntry[] = distinct.map((s, index) => ({
     ...s,

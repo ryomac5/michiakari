@@ -63,6 +63,11 @@ export {
   type TrainQueueParams,
 } from "../params/train-queue.ts";
 export {
+  KANSAI_COMMON_TRANSFER_OPERATORS,
+  TICKET_TRANSFER_ELIGIBLE,
+  TRANSFER_FARE_SOURCES,
+} from "../params/transfer-fare.ts";
+export {
   HEADWAY_MINUTES,
   LINE_TYPES,
   type LineType,
@@ -89,9 +94,12 @@ export {
   rankAlternativesForProtection,
 } from "./alternative-ranking.ts";
 export {
+  checkInspectionPending,
   checkTrackCleared,
   detectAnnouncementCues,
   detectObservationCues,
+  filterCuesDuringInspection,
+  resolveEvacuationCues,
 } from "./announcement-cues.ts";
 export { computeArrival, type LegMinutes, sumLegMinutes } from "./arrival.ts";
 export {
@@ -132,6 +140,8 @@ export {
 } from "./incident-estimate.ts";
 export {
   checkProtectionIncident,
+  checkResumeAfterInspection,
+  checkTrackEvacuation,
   checkWeatherIncident,
   decideRuleConfidence,
   findIncidentTypeByPhrase,
@@ -235,6 +245,14 @@ export {
   type TrainQueueInput,
   type TrainQueueOutcome,
 } from "./train-queue.ts";
+export {
+  type ApplyTransferFaresInput,
+  applyTransferFares,
+  decideTransferFare,
+  findOperatorKeysInText,
+  resolveLineOperator,
+  type TransferFareInput,
+} from "./transfer-fare.ts";
 export {
   classifyTimeOfDay,
   computeRideMinutes,

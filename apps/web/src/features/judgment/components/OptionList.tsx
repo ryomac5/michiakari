@@ -217,6 +217,18 @@ function OptionRow({
             )}
           </p>
         )}
+        {facts.transferFare !== null && (
+          <p
+            data-testid={testIds.judgment.optionFare}
+            data-fare={facts.transferFare}
+            className={cn(
+              "text-[12px] font-semibold whitespace-nowrap",
+              facts.transferFare === "covered" ? "text-focus" : "text-muted",
+            )}
+          >
+            {t(`transferFare.${facts.transferFare}`)}
+          </p>
+        )}
       </div>
     </li>
   );

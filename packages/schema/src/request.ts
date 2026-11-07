@@ -52,6 +52,13 @@ export const IncidentCauseSchema = z.object({
 });
 export type IncidentCause = z.infer<typeof IncidentCauseSchema>;
 
+// 入口で、車内で「信号を受信したため緊急停止」の放送を聞いたかの答え
+export const ProtectionBroadcastSchema = z.enum(["heard", "not_heard", "unknown"]);
+export type ProtectionBroadcast = z.infer<typeof ProtectionBroadcastSchema>;
+// 入口で答えた乗車券の種類。IC カード、定期券、紙の切符。分からないと答えたときは送らない
+export const TicketTypeSchema = z.enum(["ic", "commuter_pass", "paper"]);
+export type TicketType = z.infer<typeof TicketTypeSchema>;
+
 export const JudgeRequestSchema = z.object({
   // これまでに解釈済みの観測
   observations: z.array(ObservationSchema),
@@ -67,5 +74,9 @@ export const JudgeRequestSchema = z.object({
   trainPosition: TrainPositionSchema.optional(),
   // 入口で答えた原因。分からないと答えたときやリプレイでは省く
   cause: IncidentCauseSchema.optional(),
+  // 入口で答えた受信の放送の有無。電車の中で答えたときだけ送る
+  protectionBroadcast: ProtectionBroadcastSchema.optional(),
+  // 入口で答えた乗車券の種類。振替輸送の対象かを決め、乗り換え先の費用に使う
+  ticketType: TicketTypeSchema.optional(),
 });
 export type JudgeRequest = z.infer<typeof JudgeRequestSchema>;

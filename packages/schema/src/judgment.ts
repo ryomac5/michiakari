@@ -24,6 +24,12 @@ export const RouteLegSchema = z.object({
 });
 export type RouteLeg = z.infer<typeof RouteLegSchema>;
 
+// 乗り換え先の追加の費用。covered は発表の振替先に含まれ、振替輸送の対象。fare_required は運賃がかかる
+// possibly_covered は振替輸送の実施は分かるが、発表に振替先の事業者が書かれていない
+// 利用者の乗車券の種類と発表から packages/core が決める。決められなければ持たない
+export const TransferFareSchema = z.enum(["covered", "possibly_covered", "fare_required"]);
+export type TransferFare = z.infer<typeof TransferFareSchema>;
+
 export const RouteOptionSchema = z.object({
   id: IdSchema,
   kind: z.enum(["wait", "transfer", "taxi", "walk"]),
@@ -33,6 +39,7 @@ export const RouteOptionSchema = z.object({
   fareYen: NonNegativeIntSchema.nullable(),
   walkMinutes: NonNegativeIntSchema,
   isTransferService: z.boolean(),
+  transferFare: TransferFareSchema.optional(),
 });
 export type RouteOption = z.infer<typeof RouteOptionSchema>;
 
@@ -179,6 +186,22 @@ export const ANNOUNCEMENT_CUE_IDS = [
   "queue_ahead",
   // 線路の安全が確かめられた
   "track_cleared",
+  // 線路に降りて最寄りの駅まで歩くよう案内された
+  "evacuation_on_track",
+  // 止まった区間の手前で折り返し運転をしている
+  "turnback",
+  // この列車は運転を取りやめる
+  "service_cancelled",
+  // 他社線への直通運転を中止した
+  "through_service_suspended",
+  // 徐行して走る
+  "slow_running",
+  // 駅で発車を見合わせて止まっている
+  "held_at_station",
+  // 点検や安全確認が続いている
+  "inspection_ongoing",
+  // 安全を確かめた区間を、次の駅まで進む
+  "proceed_to_station",
 ] as const;
 export const AnnouncementCueIdSchema = z.enum(ANNOUNCEMENT_CUE_IDS);
 export type AnnouncementCueId = z.infer<typeof AnnouncementCueIdSchema>;

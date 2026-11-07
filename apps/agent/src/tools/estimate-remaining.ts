@@ -1,6 +1,9 @@
 import {
   addMinutesToIso,
+  checkInspectionPending,
   checkProtectionIncident,
+  checkResumeAfterInspection,
+  checkTrackEvacuation,
   classifyTimeOfDay,
   computeHaversineMeters,
   decideRuleConfidence,
@@ -11,6 +14,7 @@ import {
   estimateTrainQueueArrival,
   estimateUnaffectedTrackResume,
   FALLBACK_RIDE_MINUTES_TO_NEXT_STATION,
+  filterCuesDuringInspection,
   findIncidentType,
   findLineOperatorKey,
   HEADWAY_MINUTES,
@@ -18,6 +22,7 @@ import {
   type IncidentTypeId,
   normalizeTrainType,
   parseIsoToMs,
+  resolveEvacuationCues,
   resolveIncidentDuration,
   resolveOperatorLineType,
   resolveStationPlatform,
@@ -71,10 +76,12 @@ function findLatestSection(ctx: ToolContext): Section | null {
 // 駅間の車内にいる利用者が、ホームに着ける駅に着く見込み。駅間でなければ null
 // 車内の人は列車を待たないので、再開までの残りを使う
 // closeUpCleared は線路の安全が確かめられた兆候があるか。無ければ詰める動きを使わない
+// proceedToStation は次の駅まで進むと案内されたか
 function estimateTrainQueue(
   ctx: ToolContext,
   untilResume: DurationDist | null,
   closeUpCleared: boolean,
+  proceedToStation: boolean,
 ): TrainQueueToolResult | null {
   const position = ctx.request.trainPosition;
   if (position?.kind !== "between_stations" || !position.nextStation) return null;
@@ -108,6 +115,7 @@ function estimateTrainQueue(
     // 乗っている路線の事業者を先に使う。路線が引けなければ観測の事業者名を使う
     params: resolveTrainQueueParams(findLineOperatorKey(lineId) ?? findOperator(ctx)),
     closeUpCleared,
+    proceedToStation,
   });
   return {
     ...outcome,
@@ -196,6 +204,7 @@ function estimateOwnStopReasons(
     headwayMinutes: resolveHeadwayMinutes(ctx, operator),
     stoppedMinutes,
     operator,
+    protectionBroadcast: ctx.request.protectionBroadcast ?? null,
   });
 }
 
@@ -212,9 +221,14 @@ function decideEstimateSource(
 }
 
 // 線路の安全が確かめられた兆候があるか。原文の照合に、選んで答えた再開が近い手がかりを足す
-function checkCloseUpCleared(ctx: ToolContext, cues: readonly AnnouncementCueId[]): boolean {
+// 点検が続いている天気の事象では、cues から再開が近い手がかりを除いてあるので原文の照合を使わない
+function checkCloseUpCleared(
+  ctx: ToolContext,
+  cues: readonly AnnouncementCueId[],
+  inspectionPending: boolean,
+): boolean {
   return (
-    checkTrackCleared(ctx.observations) ||
+    (!inspectionPending && checkTrackCleared(ctx.observations)) ||
     cues.includes("track_cleared") ||
     cues.includes("resume_soon")
   );
@@ -236,6 +250,14 @@ function sampleBoardableRemaining(incident: IncidentRemaining): number[] | null 
     default:
       return null;
   }
+}
+
+// 点検が終わるまで再開しない事象か。種類が分からなければ、入口で答えた原因の大分類が天気なら同じに扱う
+function checkWaitsForInspection(
+  type: IncidentTypeId | null,
+  cause: IncidentCause | null,
+): boolean {
+  return checkResumeAfterInspection(type) || (type === null && cause?.group === "weather");
 }
 
 export const EstimateRemainingInputSchema = z.object({
@@ -264,8 +286,16 @@ export function runEstimateRemaining(
   const onsetTime = findOnsetTime(ctx.observations, now);
   const stated = findLatestStatedResume(ctx.observations);
   const statedIsFuture = stated !== null && parseIsoToMs(stated.time) > parseIsoToMs(now);
-  const cues = collectObservationCues(ctx.observations);
   const cause = resolveObservedCause(ctx.observations, ctx.request.cause ?? null);
+  const inspectionPending =
+    checkWaitsForInspection(type, cause) && checkInspectionPending(ctx.observations);
+  // 線路に降りる案内と再開の放送が両方あれば、観測の時刻が新しいほうを使う
+  const cues = resolveEvacuationCues(
+    ctx.observations,
+    filterCuesDuringInspection(collectObservationCues(ctx.observations), inspectionPending),
+    (o) => collectObservationCues([o]),
+  );
+  const evacuation = checkTrackEvacuation(cues);
   const incident = estimateIncidentRemaining({
     type,
     cause,
@@ -277,7 +307,11 @@ export function runEstimateRemaining(
     texts: listObservationTexts(ctx.observations),
   });
   const elapsed = Math.max(0, Math.floor(diffMinutes(onsetTime, now)));
-  const protection = checkProtectionIncident({ type, cues });
+  const protection = checkProtectionIncident({
+    type,
+    cues,
+    protectionBroadcast: ctx.request.protectionBroadcast ?? null,
+  });
   const remaining = incident.remaining;
   const estimate: Estimate = {
     eventType: type,
@@ -294,7 +328,15 @@ export function runEstimateRemaining(
   };
   return {
     estimate,
-    trainQueue: estimateTrainQueue(ctx, incident.untilResume, checkCloseUpCleared(ctx, cues)),
+    // 線路に降りる案内が出たら、駅に着く時刻も再開の時刻も出さない
+    trainQueue: evacuation
+      ? null
+      : estimateTrainQueue(
+          ctx,
+          incident.untilResume,
+          checkCloseUpCleared(ctx, cues, inspectionPending),
+          cues.includes("proceed_to_station"),
+        ),
     statedResumeTime: stated?.time ?? null,
     statedExtended: stated?.extended ?? false,
     remainingBasis: incident.basis,
@@ -306,13 +348,15 @@ export function runEstimateRemaining(
     weatherIncident: checkWeatherCause(type, cause),
     cues,
     protection,
-    unaffectedTrack: estimateUnaffectedTrackResume({
-      protection,
-      trackSide: "unknown",
-      affectedUntilResume: incident.untilResume,
-      elapsedSinceOnsetMinutes: elapsed,
-    }),
-    resumeQueue: estimateResumeQueue(ctx, cues, protection),
+    unaffectedTrack: evacuation
+      ? null
+      : estimateUnaffectedTrackResume({
+          protection,
+          trackSide: "unknown",
+          affectedUntilResume: incident.untilResume,
+          elapsedSinceOnsetMinutes: elapsed,
+        }),
+    resumeQueue: evacuation ? null : estimateResumeQueue(ctx, cues, protection),
     stopReasons: estimateOwnStopReasons(ctx, type, cues, elapsed),
     remainingSamples: sampleBoardableRemaining(incident),
     onsetTime,

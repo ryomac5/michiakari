@@ -62,6 +62,18 @@ describe("JudgeRequestSchema", () => {
     ).toBe(false);
   });
 
+  it("受信の放送の答えを任意の欄で受け、知らない値を拒否する", () => {
+    for (const protectionBroadcast of ["heard", "not_heard", "unknown"]) {
+      expect(
+        JudgeRequestSchema.safeParse({ ...validJudgeRequest, protectionBroadcast }).success,
+      ).toBe(true);
+    }
+    expect(
+      JudgeRequestSchema.safeParse({ ...validJudgeRequest, protectionBroadcast: "notHeard" })
+        .success,
+    ).toBe(false);
+  });
+
   it("observations 内の不正な観測を拒否する", () => {
     const value = { ...validJudgeRequest, observations: [{ id: "obs_1" }] };
     expect(JudgeRequestSchema.safeParse(value).success).toBe(false);

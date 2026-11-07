@@ -46,6 +46,9 @@ export type TrainQueueInput = {
   params: TrainQueueParams;
   // 線路の安全が確かめられたか。再開に向けた放送か、再開の見込みの時刻が出たら true。false なら詰める動きを使わない
   closeUpCleared: boolean;
+  // 安全を確かめた区間を次の駅まで進むと案内されたか。true なら事業者を問わず、再開の前に詰める動きで駅へ進む
+  // 出典: docs/research/rail-operations/04-weather-regulation.md と 06-stopped-between-stations.md
+  proceedToStation?: boolean;
 };
 
 // 遅れる理由
@@ -374,7 +377,7 @@ export function estimateTrainQueueArrival(input: TrainQueueInput): TrainQueueOut
 
   // 詰める経路。安全が確かめられたいまから、目の前に詰まっていた列車が前の駅へ進んだあとに、自分も進む
   const closeUp =
-    params.closesUp && input.closeUpCleared
+    (params.closesUp && input.closeUpCleared) || input.proceedToStation === true
       ? simulateCloseUp(stations, queue, ownType, alightIndex)
       : null;
   const closeUpPath =

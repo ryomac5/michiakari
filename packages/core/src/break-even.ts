@@ -7,7 +7,7 @@ const MS_PER_MINUTE = 60_000;
 
 // kind を省いた候補は、タクシー以外の代替（鉄道の乗り継ぎ）として扱う
 export type AlternativeArrival = Pick<RouteOption, "id" | "arrivalTime"> &
-  Partial<Pick<RouteOption, "kind">>;
+  Partial<Pick<RouteOption, "kind" | "transferFare">>;
 
 export type BreakEvenInput = {
   now: string;
@@ -59,13 +59,17 @@ function assertNonNegativeMinutes(minutes: number, name: string): void {
   }
 }
 
-// 到着が最も早い候補を返す。同着なら先に並んだもの
+// 到着が最も早い候補を返す。同着なら振替の対象のものだけを上げ、それ以外は先に並んだもの
 function pickEarliest<T extends AlternativeArrival>(candidates: readonly T[]): T | null {
   let best: T | null = null;
   for (const alt of candidates) {
-    if (best === null || parseIsoToMs(alt.arrivalTime) < parseIsoToMs(best.arrivalTime)) {
+    if (best === null) {
       best = alt;
+      continue;
     }
+    const diff = parseIsoToMs(alt.arrivalTime) - parseIsoToMs(best.arrivalTime);
+    const raised = alt.transferFare === "covered" && best.transferFare !== "covered";
+    if (diff < 0 || (diff === 0 && raised)) best = alt;
   }
   return best;
 }

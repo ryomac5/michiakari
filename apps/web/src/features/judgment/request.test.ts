@@ -1,7 +1,7 @@
 import { JudgeRequestSchema } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { buildPersonAccidentEvents } from "./fixtures/person-accident";
-import { buildJudgeRequest, defaultConstraints } from "./request";
+import { buildJudgeRequest, defaultConstraints, type JudgeRequestParams } from "./request";
 
 describe("buildJudgeRequest", () => {
   const observation = buildPersonAccidentEvents(
@@ -32,6 +32,19 @@ describe("buildJudgeRequest", () => {
     expect(request.constraints).toEqual(defaultConstraints);
     expect(Date.parse(request.now)).toBe(now.getTime());
     expect(request.now).toMatch(/[+-]\d{2}:\d{2}$/);
+  });
+
+  it("乗車券の種類は答えたときだけ送る", () => {
+    const params: JudgeRequestParams = {
+      observations: [],
+      newInput: null,
+      origin: { kind: "station", name: "大阪" },
+      destination: { kind: "station", name: "三ノ宮" },
+      language: "ja",
+      now: new Date(),
+    };
+    expect(buildJudgeRequest({ ...params, ticketType: "ic" }).ticketType).toBe("ic");
+    expect("ticketType" in buildJudgeRequest({ ...params, ticketType: null })).toBe(false);
   });
 
   it("スキーマに合わない地点は送る前に例外にする", () => {

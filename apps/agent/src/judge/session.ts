@@ -1,5 +1,6 @@
 import {
   addMinutesToIso,
+  checkTrackEvacuation,
   findIncidentType,
   type IncidentTypeId,
   resolveObservedStopScope,
@@ -361,7 +362,11 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     state.breakEven = result;
     await sink.emit({
       type: "break_even_computed",
-      breakEven: inCar ? null : buildComputedBreakEven(result, state.alternatives, language),
+      // 線路に降りる案内が出たら、分岐点の時刻を画面に出さない
+      breakEven:
+        inCar || checkTrackEvacuation(state.estimate.cues)
+          ? null
+          : buildComputedBreakEven(result, state.alternatives, language),
     });
     return {
       isError: false,
@@ -480,7 +485,7 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
       });
     }
     const be =
-      !inCar && state.breakEven
+      !inCar && state.breakEven && !checkTrackEvacuation(state.estimate?.cues ?? [])
         ? buildComputedBreakEven(state.breakEven, state.alternatives, language)
         : null;
     if (be) refs.push({ kind: "computation", id: "break_even", description: be.explanation });
@@ -497,7 +502,10 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
       evidenceRefs,
     });
     // 詰まりで次の駅で降りる価値があれば、駅間の車内の人にも降りて乗り換える言い方を許す
-    const alightAllowed = results.estimate.resumeQueue?.worthAlightingAtNextStation === true;
+    // 線路に降りる案内が出たときも、降りる言い方を許す
+    const alightAllowed =
+      results.estimate.resumeQueue?.worthAlightingAtNextStation === true ||
+      checkTrackEvacuation(results.estimate.cues);
     const r = results.breakEven.result;
     return validateJudgment({
       judgment,

@@ -1,4 +1,4 @@
-import { computeLateShare, selectKeyTick } from "@repo/core";
+import { checkTrackEvacuation, computeLateShare, selectKeyTick } from "@repo/core";
 import type { Action } from "@repo/schema";
 import { decisionParams } from "../config.ts";
 import type { Decision } from "../tools/emit-judgment.ts";
@@ -89,6 +89,7 @@ function decideByStatedResume(
 function applyResumeQueueRule(input: RuleInput, outcome: RuleOutcome): RuleOutcome {
   const r = input.breakEven.result;
   if (outcome.action === "switch" || outcome.reason === "rain_continuing") return outcome;
+  if (outcome.reason === "follow_staff") return outcome;
   if (!input.estimate.resumeQueue?.worthAlightingAtNextStation) return outcome;
   if (r.kind !== "future" && r.kind !== "passed") return outcome;
   return {
@@ -107,6 +108,10 @@ export function applyDecisionRules(input: RuleInput): RuleOutcome {
 function applyIncidentRules(input: RuleInput): RuleOutcome {
   const { estimate, breakEven } = input;
   const r = breakEven.result;
+  // 線路に降りる案内が出たら、係員の案内に従うことを第一にする。降りた後の選択肢は代替手段の計算に任せる
+  if (checkTrackEvacuation(estimate.cues)) {
+    return { action: "hold", reason: "follow_staff", recommendedOptionId: null };
+  }
   // 原因が分からなくても、分岐点を過ぎていれば代替手段のほうが早い。事象は決め打ちしない
   if (estimate.estimate.eventType === null) {
     if (r.kind === "passed") {
@@ -230,7 +235,9 @@ export function decideDeterministically(
 ): Decision {
   const language = session.ctx.request.language;
   // 駅間の車内では、結論は車内で待つだけにする。境目の比較で切り替えを勧めない。次の駅が分からなくても同じ
-  if (checkInCarBetweenStations(session.ctx.request)) {
+  // 線路に降りる案内が出たときは、車内でも係員の案内に従う結論にする
+  const evacuation = checkTrackEvacuation(results.estimate.cues);
+  if (!evacuation && checkInCarBetweenStations(session.ctx.request)) {
     const text = buildInCarDecisionText({
       language,
       queue: buildTrainQueueText(results.estimate),
@@ -271,7 +278,8 @@ export function decideDeterministically(
         : buildChanceText(results.breakEven, outcome.reason),
   });
   return {
-    action: outcome.action,
+    // 駅間の車内の人は降りる案内が出ても切り替えを勧めず、車内で案内を待つ形にする
+    action: evacuation && checkInCarBetweenStations(session.ctx.request) ? "wait" : outcome.action,
     headline: text.headline,
     reason: text.reason,
     breakEvenExplanation: computed?.explanation ?? buildNoAlternativeSentence(language),

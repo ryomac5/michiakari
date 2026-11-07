@@ -47,10 +47,12 @@ describe("selectOptionFacts", () => {
     expect(selectOptionFacts({ walkMinutes: 0, fareYen: null })).toEqual({
       walkMinutes: null,
       fareYen: null,
+      transferFare: null,
     });
     expect(selectOptionFacts({ walkMinutes: 0, fareYen: 4800 })).toEqual({
       walkMinutes: null,
       fareYen: 4800,
+      transferFare: null,
     });
   });
 
@@ -58,6 +60,17 @@ describe("selectOptionFacts", () => {
     expect(selectOptionFacts({ walkMinutes: 6, fareYen: 0 })).toEqual({
       walkMinutes: 6,
       fareYen: 0,
+      transferFare: null,
     });
+  });
+
+  it("乗り換え先の追加の費用は、決まったときだけ出す", () => {
+    expect(
+      selectOptionFacts({ walkMinutes: 0, fareYen: null, transferFare: "fare_required" })
+        .transferFare,
+    ).toBe("fare_required");
+    expect(
+      selectOptionFacts({ walkMinutes: 0, fareYen: null, transferFare: "covered" }).transferFare,
+    ).toBe("covered");
   });
 });

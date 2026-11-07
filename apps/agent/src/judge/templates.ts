@@ -121,7 +121,9 @@ export type DecisionReason =
   | "stated_resume_after_break_even"
   | "stated_resume_before_break_even"
   // 再開しても先の列車が詰まって進みにくい。待つより切り替えるほうが確か
-  | "queue_after_resume";
+  | "queue_after_resume"
+  // 線路に降りる案内が出た。係員の案内に従うことを第一にし、再開の時刻を見込まない
+  | "follow_staff";
 
 // 1 割単位の確率の表示。0 は 1 割未満、10 は 9 割以上で、0 割と 10 割は書かない
 export function formatChance(tenths: number, language: Lang): string {
@@ -205,7 +207,7 @@ export type DecisionTextInput = {
   // 勧める代替手段。legs があれば、見出しに乗る路線と駅を書く
   bestOption:
     | (Pick<RouteOption, "kind" | "label" | "isTransferService"> &
-        Partial<Pick<RouteOption, "legs">>)
+        Partial<Pick<RouteOption, "legs" | "transferFare">>)
     | null;
   // 種類の規則表の、短く終わるか長くかかるかの区別。見出しの言い方だけに使う
   flow?: { outlook: "short" | "long" } | null;
@@ -341,7 +343,9 @@ function describeSwitchTarget(option: DecisionTextInput["bestOption"]): SwitchTa
     line: option?.kind === "transfer" ? ride?.line || null : null,
     station: option?.kind === "transfer" ? ride?.from || null : null,
     walkMinutes,
-    transferService: option?.isTransferService ?? false,
+    // 振替輸送の対象外の乗車券なら、振替と呼ばずに乗り換えとして呼ぶ
+    transferService:
+      (option?.isTransferService ?? false) && option?.transferFare !== "fare_required",
   };
 }
 
@@ -405,6 +409,11 @@ function buildDeadlineBasisReason(input: DecisionTextInput): string | null {
 // 決定論モードの理由。先頭の 1 文は 25 字前後で、なぜその行動かを言う。画面はこの 1 文を見出しの下に出す
 // 2 文目からは比較の詳しい形にし、開いたシートに出す
 function buildDecisionReason(input: DecisionTextInput): string {
+  if (input.reason === "follow_staff") {
+    return input.language === "ja"
+      ? "線路に降りる案内が出ています。再開の時刻は見込めません。"
+      : "Passengers are being guided off the train. The restart time cannot be estimated.";
+  }
   const byDeadline = buildDeadlineBasisReason(input);
   if (byDeadline !== null) return byDeadline;
   const ja = input.language === "ja";
@@ -634,6 +643,8 @@ function buildDecisionHeadline(input: DecisionTextInput): string {
     case "stated_resume_after_break_even":
     case "queue_after_resume":
       return buildSwitchHeadline(input);
+    case "follow_staff":
+      return ja ? "係員の案内に従う" : "Follow the staff's instructions.";
     case "resume_before_break_even":
     case "stated_resume_before_break_even": {
       if (input.flow?.outlook === "short") return waitHeadline;
@@ -804,6 +815,38 @@ const CUE_MEANINGS: Record<AnnouncementCueId, { ja: string; en: string }> = {
   track_cleared: {
     ja: "線路の安全が確かめられたとみられます。",
     en: "The track looks confirmed safe.",
+  },
+  evacuation_on_track: {
+    ja: "係員の案内に従ってください。",
+    en: "Follow the staff's instructions.",
+  },
+  turnback: {
+    ja: "止まった区間の外は動いているとみられます。",
+    en: "Trains outside the stopped section look to be running.",
+  },
+  service_cancelled: {
+    ja: "この列車はこの先へ進まないとみられます。",
+    en: "This train looks set to go no further.",
+  },
+  through_service_suspended: {
+    ja: "乗り入れ先へは乗り換えが要るとみられます。",
+    en: "You will likely need to change trains at the connecting station.",
+  },
+  slow_running: {
+    ja: "動いても遅れが出るとみられます。",
+    en: "Trains may run late even once moving.",
+  },
+  held_at_station: {
+    ja: "駅に止まっているので、降りてほかの手段に移れます。",
+    en: "The train is at a station, so you can get off and switch.",
+  },
+  inspection_ongoing: {
+    ja: "点検が終わるまでは動かないとみられます。",
+    en: "Trains likely stay stopped until the check is done.",
+  },
+  proceed_to_station: {
+    ja: "次の駅まで進む見込みです。",
+    en: "The train looks set to move on to the next station.",
   },
 };
 
