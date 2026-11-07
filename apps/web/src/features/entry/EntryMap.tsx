@@ -717,6 +717,13 @@ export function EntryMap(props: EntryMapProps) {
 
   // 駅の間の候補を光らせる。描けた区間の数と一番強い区間は、e2e が確かめられるよう属性に出す
   const [sectionShown, setSectionShown] = useState({ count: 0, focus: "" });
+  // いちばん強く光らせる区間の両端。e2e が押した駅の間の位置で光るかを確かめる
+  const focusedSection = sections.features.find((f) => f.properties.key === sectionShown.focus);
+  const sectionEnds = focusedSection
+    ? [focusedSection.geometry.coordinates[0], focusedSection.geometry.coordinates.at(-1)]
+        .map((p) => (p ? `${p[0].toFixed(5)},${p[1].toFixed(5)}` : ""))
+        .join(";")
+    : "";
   useEffect(() => {
     if (!map) return;
     map.getSource<GeoJSONSource>(sourceIds.section)?.setData(sections);
@@ -1283,6 +1290,7 @@ export function EntryMap(props: EntryMapProps) {
       data-moving={moving}
       data-section-count={sectionShown.count}
       data-section-focus={sectionShown.focus}
+      data-section-ends={sectionEnds}
       aria-label={t("mapLabel")}
       className="fixed inset-0 z-0 bg-background"
     >
