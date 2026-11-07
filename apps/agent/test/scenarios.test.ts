@@ -1,10 +1,12 @@
-import type { JudgmentEvent } from "@repo/schema";
+import { findIncidentType } from "@repo/core";
+import { ANNOUNCEMENT_CUE_IDS, type JudgmentEvent } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { headlineLimits, reasonLimits } from "../src/config.ts";
 import { createTestApp, createTestDeps, replayScenario } from "./helpers.ts";
 
 // 決定論モードで、ダミーの各シナリオの expectations を満たすことを確かめる
 // 期待値はシナリオの YAML から読み、コードに埋め込まない
+// phase は判断が段階を持たないので検査しない。evidence_includes は根拠の cue の id と照合する
 
 const deps = createTestDeps();
 const scenarios = [...deps.content.scenarios.values()];
@@ -15,13 +17,22 @@ function findJudgment(events: JudgmentEvent[]) {
 }
 
 describe("決定論モードのシナリオ", () => {
-  it("ダミーのシナリオが 4 件読める", () => {
-    expect(scenarios).toHaveLength(4);
+  it("ダミーのシナリオが 5 件読める", () => {
+    expect(scenarios).toHaveLength(5);
   });
 
   for (const scenario of scenarios) {
     describe(scenario.id, () => {
       const app = createTestApp(deps);
+
+      it("event_type が統計値の種類の id で、evidence_includes が手がかりの id である", () => {
+        expect(findIncidentType(scenario.event_type)).toBe(scenario.event_type);
+        for (const e of scenario.expectations) {
+          for (const id of e.evidence_includes ?? []) {
+            expect(ANNOUNCEMENT_CUE_IDS as readonly string[]).toContain(id);
+          }
+        }
+      });
       const stepsPromise = replayScenario(app, scenario);
 
       it("すべての観測で、見出しが目安の長さに収まる", async () => {
@@ -58,11 +69,9 @@ describe("決定論モードのシナリオ", () => {
           if (!judgment) return;
 
           if (expectation.action !== undefined) expect(judgment.action).toBe(expectation.action);
-          if (expectation.phase !== undefined)
-            expect(judgment.estimate.phaseId).toBe(expectation.phase);
           if (expectation.evidence_includes !== undefined) {
-            const signalIds = judgment.evidence.filter((e) => e.kind === "signal").map((e) => e.id);
-            expect(signalIds).toEqual(expect.arrayContaining(expectation.evidence_includes));
+            const cueIds = judgment.evidence.filter((e) => e.kind === "cue").map((e) => e.id);
+            expect(cueIds).toEqual(expect.arrayContaining(expectation.evidence_includes));
           }
           if (expectation.break_even_shown !== undefined) {
             expect(judgment.breakEven !== null).toBe(expectation.break_even_shown);

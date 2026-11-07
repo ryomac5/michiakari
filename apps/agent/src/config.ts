@@ -80,16 +80,6 @@ export const decisionParams = {
   lateShareToSwitch: 0.7,
 } as const;
 
-// 判断の確信度の決め方。下限の中は開発者が確かめた値で、ほかは開発者の推定（仮）
-export const confidenceParams = {
-  // 知見の見込みの立てやすさがこの水準で、原因が観測から特定できていれば、確信度を下限より下げない
-  predictableLevel: "high",
-  // そのときの確信度の下限。発表の見込みがまだ無くても、流れが読めるので言い切れる
-  floorWhenPredictable: "medium",
-  // 原因が分からず、放送で聞いた再開見込みの時刻だけで見込むときの確信度。発表はあるが、延びる余地を知見で測れない
-  whenStatedWithoutEvent: "medium",
-} as const;
-
 // 結論の一言（headline）の長さ。target は書き方の目安、max を超えたら検証エラーにする
 // ja は文字数、en は英数字を含む文字数で数える。出典: 開発者の推定（仮）
 export const headlineLimits = {

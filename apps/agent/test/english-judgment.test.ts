@@ -102,16 +102,14 @@ describe("英語の判断: person_accident_last_train の obs_4", () => {
     if (observedEn) expect(wait?.label).toBe(`Wait for ${observedEn} to resume`);
   });
 
-  it("兆候の根拠は、知見の日本語の説明ではなく英語の説明になる", async () => {
+  it("発表の引用の根拠は、英語の書き出しで引用を添え、種類の id を文に出さない", async () => {
     const judgment = await judgmentPromise;
     const signals = judgment.evidence.filter((e) => e.kind === "signal");
     expect(signals.length).toBeGreaterThan(0);
     for (const e of signals) {
-      expect(e.description).toMatch(new RegExp(`^Signal "${e.id}"`));
-      const known = [...deps.content.knowledge.values()]
-        .flatMap((k) => k.phases.flatMap((p) => p.signals))
-        .find((s) => s.id === e.id);
-      if (known) expect(e.description).not.toContain(known.description);
+      expect(e.id).toBe("person_collision");
+      expect(e.description).toMatch(/^The notice says: ".+"\.$/);
+      expect(e.description).not.toContain(e.id);
     }
   });
 

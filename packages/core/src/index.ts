@@ -59,6 +59,7 @@ export {
   type TrainQueueParams,
 } from "../params/train-queue.ts";
 export {
+  HEADWAY_MINUTES,
   LINE_TYPES,
   type LineType,
   TIMES_OF_DAY,

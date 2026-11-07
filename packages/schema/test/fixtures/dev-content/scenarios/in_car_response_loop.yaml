@@ -1,12 +1,12 @@
 # 開発用のダミー。開発者の知見ではない。本番の判断には使わない
-# すべて架空。文面は自作。非常通報装置で止まっても、慌てず待てば数分で動く
+# すべて架空。文面は自作。車内の急病人の救護で止まっても、慌てず待てば数分で動く
 # 人身事故のシナリオと並べ、同じ「止まった」でも行動が逆になることを見せる
 
 id: in_car_response_loop
 title:
-  ja: 夕方の環状線、非常ボタンで停車しても数分で動き出す
-  en: Evening Osaka Loop Line stops for an emergency intercom call and moves again in minutes
-event_type: in_car_response
+  ja: 夕方の環状線、車内の急病人の救護で停車しても数分で動き出す
+  en: Evening Osaka Loop Line stops to assist a sick passenger and moves again in minutes
+event_type: medical_response
 operator: JR西日本
 line: JR大阪環状線
 blocked_section:
@@ -29,8 +29,8 @@ timeline:
     offset_minutes: 0
     kind: station_broadcast
     text:
-      ja: お客様にお知らせします。大阪環状線は、京橋駅〜鶴橋駅間を走る列車の車内で非常通報装置が扱われたため、停車しております。ただいま車内の状況を確かめております。
-      en: Attention passengers. On the Osaka Loop Line, a train between Kyobashi and Tsuruhashi has stopped because the emergency intercom was used. Staff are checking the situation on board.
+      ja: お客様にお知らせします。大阪環状線は、京橋駅〜鶴橋駅間を走る列車の車内で急病のお客様の救護を行っているため、停車しております。
+      en: Attention passengers. On the Osaka Loop Line, a train between Kyobashi and Tsuruhashi has stopped to assist a sick passenger on board.
   - id: obs_2
     offset_minutes: 2
     kind: station_broadcast
@@ -53,22 +53,16 @@ timeline:
 expectations:
   - after: obs_1
     action: wait
-    phase: stopped_for_check
-    evidence_includes: [icr_alarm_announced]
     note: 車内対応は短く終わることが多い。止まった直後でも慌てず待つ。
   - after: obs_2
     action: wait
-    phase: station_response
-    evidence_includes: [icr_staff_responding]
     note: 駅の係員が対応している。まもなく発車に向かうので待つ。
   - after: obs_3
     action: wait
-    phase: departing
-    evidence_includes: [icr_response_finished]
     note: 対応が終わり、まもなく発車する。そのまま待つ。
   - after: obs_4
     action: wait
-    evidence_includes: [icr_resumed]
+    evidence_includes: [resumed]
     note: 運転を再開した。次の列車を待つ。
 
 ground_truth:

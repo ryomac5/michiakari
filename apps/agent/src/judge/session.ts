@@ -1,29 +1,36 @@
-import { resolveObservedStopScope, type StopScope } from "@repo/core";
+import {
+  addMinutesToIso,
+  findIncidentType,
+  type IncidentTypeId,
+  resolveObservedStopScope,
+  type StopScope,
+} from "@repo/core";
 import type {
+  AnnouncementCueId,
   BreakEven,
   Evidence,
   InCarGuide,
   Lang,
+  Observation,
   ProgressStage,
   ResumeChance,
 } from "@repo/schema";
 import type { z } from "zod";
+import { findFlowWording, findInternalWording } from "../domain/flow-wording.ts";
 import {
-  collectKnowledgeSentences,
-  findFlowWording,
-  findInternalWording,
-  findKnowledgeText,
-} from "../domain/flow-wording.ts";
-import { selectEventType } from "../domain/phase.ts";
+  checkKnownIncidentType,
+  resolveObservedCause,
+  resolveObservedIncidentType,
+} from "../domain/incident.ts";
+import { findIncidentQuote, matchCueSentences } from "../interpret/text-match.ts";
 import { ComputeBreakEvenInputSchema, runComputeBreakEven } from "../tools/compute-break-even.ts";
-import { EstimatePhaseInputSchema, runEstimatePhase } from "../tools/estimate-phase.ts";
+import { EstimateRemainingInputSchema, runEstimateRemaining } from "../tools/estimate-remaining.ts";
 import {
   FindAlternativesInputSchema,
   findAnnouncedSection,
   runFindAlternatives,
 } from "../tools/find-alternatives.ts";
 import { GetWeatherInputSchema, runGetWeather } from "../tools/get-weather.ts";
-import { LookupKnowledgeInputSchema, runLookupKnowledge } from "../tools/lookup-knowledge.ts";
 import {
   type AlternativesToolResult,
   type BreakEvenToolResult,
@@ -33,16 +40,25 @@ import {
   type ToolState,
   type WeatherToolResult,
 } from "../tools/types.ts";
-import { collectAllowedNumbers, type JudgmentToolResults, validateJudgment } from "./assemble.ts";
+import {
+  buildRuleOutlook,
+  collectAllowedNumbers,
+  type JudgmentToolResults,
+  validateJudgment,
+} from "./assemble.ts";
 import type { EventSink, JudgmentEventBody } from "./event-sink.ts";
 import { buildInCarGuide, checkInCarBetweenStations } from "./in-car.ts";
 import {
   buildBreakEvenSentence,
+  buildCueEvidence,
   buildDeadlineBreakEvenSentence,
   buildDeadlinePassedSentence,
   buildNoAlternativeSentence,
   buildPassedSentence,
   buildProgressMessage,
+  buildResumeQueueEvidence,
+  buildSignalEvidence,
+  buildUnaffectedTrackEvidence,
   buildWeatherSummary,
   formatChance,
   formatClock,
@@ -63,41 +79,43 @@ export type JudgeSession = {
     judgment: unknown,
     results: JudgmentToolResults,
   ): ReturnType<typeof validateJudgment>;
-  // Claude の進み具合の文を画面に流してよいか。内部の名前、知見の文、決まった流れの言い方を含めば流さない
+  // Claude の進み具合の文を画面に流してよいか。内部の名前、段階、決まった流れの言い方を含めば流さない
   checkProgressNote(note: string): boolean;
   // 途中経過を送る。段階を渡すと定型文を使う
   emitProgress(stage: ProgressStage | undefined, message?: string): Promise<void>;
-  // 兆候のイベントで使う事象種別（観測の候補から決める）
-  inferredEventType: string | null;
+  // 観測の候補、入口の原因、発表の呼び名から決めた種類
+  inferredEventType: IncidentTypeId | null;
   // 駅間の車内の人への案内。駅にいる人なら null
   buildInCarGuide(results: JudgmentToolResults): InCarGuide | null;
   // 止まり方。その列車だけが止まる事象か、区間を止める事象か
   resolveStopScope(): StopScope;
 };
 
-// 英語の利用者向けの兆候の根拠。知見の説明は日本語だけなので、引用・段階の英語名・兆候 id で組み立てる
-export function buildSignalEvidenceEn(
-  signalId: string,
-  quote: string,
-  phaseName: string | undefined,
-): string {
-  const phase = phaseName ? ` in the "${phaseName}" phase` : "";
-  return `Signal "${signalId}"${phase}, observed in the announcement: "${quote}"`;
-}
-
 function formatOptional(iso: string | null, language: Lang): string | null {
   return iso ? formatClock(iso, language) : null;
 }
 
-function presentEstimate(r: EstimateToolResult, language: Lang, stopScope: StopScope) {
+// 支障の無い線路が先に動く見込みの時刻。見込みが無ければ null
+function listUnaffectedTrackTimes(r: EstimateToolResult, now: string) {
+  const at = (minutes: number | undefined) =>
+    minutes === undefined ? null : addMinutesToIso(now, minutes);
+  return {
+    affectedP50: at(r.unaffectedTrack?.affected?.p50),
+    affectedP80: at(r.unaffectedTrack?.affected?.p80),
+    oppositeP50: at(r.unaffectedTrack?.opposite?.p50),
+    oppositeP80: at(r.unaffectedTrack?.opposite?.p80),
+  };
+}
+
+function presentEstimate(r: EstimateToolResult, now: string, language: Lang, stopScope: StopScope) {
   // 確率の標本は大きいので Claude には渡さない。確率は compute_break_even が表示にして返す
   const { remainingSamples: _samples, ...rest } = r;
+  const track = listUnaffectedTrackTimes(r, now);
   return {
     ...rest,
     // 止まり方。train ならその列車だけが止まっていて、区間の運転見合わせではない
     stopScope,
     labels: {
-      phaseStartedAt: formatOptional(r.phaseStartedAt, language),
       statedResumeTime: formatOptional(r.statedResumeTime, language),
       boardableP50: formatOptional(r.boardableP50, language),
       boardableP80: formatOptional(r.boardableP80, language),
@@ -107,6 +125,11 @@ function presentEstimate(r: EstimateToolResult, language: Lang, stopScope: StopS
       // 駅間の車内なら、自分の列車が動き出す見込みの時刻
       ownDepartureP50: formatOptional(r.trainQueue?.departure?.p50 ?? null, language),
       ownDepartureP80: formatOptional(r.trainQueue?.departure?.p80 ?? null, language),
+      // 防護無線の事象なら、当該の線路と反対の線路が動き出す見込みの時刻
+      affectedTrackP50: formatOptional(track.affectedP50, language),
+      affectedTrackP80: formatOptional(track.affectedP80, language),
+      oppositeTrackP50: formatOptional(track.oppositeP50, language),
+      oppositeTrackP80: formatOptional(track.oppositeP80, language),
     },
   };
 }
@@ -256,8 +279,10 @@ function presentWeather(r: WeatherToolResult) {
 export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSession {
   const state = createToolState();
   const language = ctx.request.language;
-  const inferredEventType = selectEventType(ctx.observations, ctx.content.knowledge);
-  const knowledgeSentences = collectKnowledgeSentences(ctx.content.knowledge.values());
+  const inferredEventType = resolveObservedIncidentType(
+    ctx.observations,
+    ctx.request.cause ?? null,
+  );
   // 駅間の車内の人には、選択肢の一覧と境目を画面へ送らない
   const inCar = checkInCarBetweenStations(ctx.request);
 
@@ -279,15 +304,20 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
   });
 
   async function runEstimate(input: unknown): Promise<ToolOutcome> {
+    const now = ctx.request.now;
     if (state.estimate)
-      return cached(presentEstimate(state.estimate, language, resolveSessionStopScope()));
-    const parsed = parseInput(EstimatePhaseInputSchema, input);
+      return cached(presentEstimate(state.estimate, now, language, resolveSessionStopScope()));
+    const parsed = parseInput(EstimateRemainingInputSchema, input);
     if (isOutcome(parsed)) return parsed;
-    // 事象は観測と入口の原因からコードが決める。Claude の指定が違っても、両方のモードで同じ事象を使う
-    const result = runEstimatePhase(ctx, { eventType: inferredEventType });
+    // 種類は観測と入口の原因からコードが決める。Claude の指定が違っても、両方のモードで同じ種類を使う
+    const result = runEstimateRemaining(ctx, { eventType: inferredEventType });
     state.estimate = result;
-    await sink.emit({ type: "phase_estimated", estimate: result.estimate });
-    const content = presentEstimate(result, language, resolveSessionStopScope());
+    await sink.emit({
+      type: "phase_estimated",
+      estimate: result.estimate,
+      ...buildRuleOutlook(result),
+    });
+    const content = presentEstimate(result, now, language, resolveSessionStopScope());
     if (parsed.eventType === inferredEventType) return { isError: false, content };
     return {
       isError: false,
@@ -303,7 +333,7 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     if (!state.estimate) {
       return {
         isError: true,
-        content: { error: "先に estimate_phase_and_remaining を呼んでください" },
+        content: { error: "先に estimate_remaining を呼んでください" },
       };
     }
     const parsed = parseInput(FindAlternativesInputSchema, input);
@@ -321,7 +351,7 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
       return {
         isError: true,
         content: {
-          error: "先に estimate_phase_and_remaining と find_alternatives を呼んでください",
+          error: "先に estimate_remaining と find_alternatives を呼んでください",
         },
       };
     }
@@ -358,9 +388,8 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
   // 確定済みでないツールを始めるときに、その段階の開始を知らせる
   async function announceToolStart(name: string): Promise<void> {
     const pending: Record<string, ProgressStage | null> = {
-      lookup_knowledge: "knowledge",
       get_weather: state.weather ? null : "weather",
-      estimate_phase_and_remaining: state.estimate ? null : "phase",
+      estimate_remaining: state.estimate ? null : "phase",
       find_alternatives: state.alternatives || !state.estimate ? null : "alternatives",
       compute_break_even: state.breakEven || !state.alternatives ? null : "break_even",
     };
@@ -371,13 +400,9 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
   async function executeTool(name: string, input: unknown): Promise<ToolOutcome> {
     await announceToolStart(name);
     switch (name) {
-      case "lookup_knowledge": {
-        const parsed = parseInput(LookupKnowledgeInputSchema, input);
-        return isOutcome(parsed) ? parsed : runLookupKnowledge(ctx, state, parsed);
-      }
       case "get_weather":
         return runWeather(input);
-      case "estimate_phase_and_remaining":
+      case "estimate_remaining":
         return runEstimate(input);
       case "find_alternatives":
         return runAlternatives(input);
@@ -389,49 +414,24 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
   }
 
   // 根拠として挙げてよい項目。Claude の根拠はこの中から選ばせる
+  // 発表の引用、放送の手がかり、気象、計算に限る
   function collectEvidenceRefs(): Evidence[] {
     const refs: Evidence[] = [];
-    const eventType = state.estimate?.estimate.eventType ?? null;
-    const knowledge = eventType ? ctx.content.knowledge.get(eventType) : undefined;
-    if (knowledge) {
-      const seen = new Set<string>();
-      for (const o of ctx.observations) {
-        for (const s of o.detectedSignals) {
-          if (s.eventType !== knowledge.id || seen.has(s.signalId)) continue;
-          seen.add(s.signalId);
-          const phase = knowledge.phases.find((p) => p.signals.some((k) => k.id === s.signalId));
-          // 知見の本文は利用者に出さない。発表の引用と段階の名前だけで書く
-          refs.push({
-            kind: "signal",
-            id: s.signalId,
-            description:
-              language === "en"
-                ? buildSignalEvidenceEn(s.signalId, s.quote, phase?.name.en ?? phase?.name.ja)
-                : phase
-                  ? `「${s.quote}」は「${phase.name.ja}」の段階の兆候です。`
-                  : `発表に「${s.quote}」とあります。`,
-          });
-        }
-      }
+    const type = findIncidentType(state.estimate?.estimate.eventType ?? null);
+    const signalQuote = type ? findSignalQuote(ctx.observations, type) : null;
+    if (type && signalQuote) {
       refs.push({
-        kind: "knowledge",
-        id: knowledge.id,
-        description:
-          language === "en"
-            ? `What is happening: ${knowledge.name.en ?? knowledge.name.ja}`
-            : `起きていることは${knowledge.name.ja}です。`,
+        kind: "signal",
+        id: type,
+        description: buildSignalEvidence(signalQuote, language),
       });
-      const phase = knowledge.phases.find((p) => p.id === state.estimate?.estimate.phaseId);
-      if (phase) {
-        refs.push({
-          kind: "knowledge",
-          id: phase.id,
-          description:
-            language === "en"
-              ? `Current phase: ${phase.name.en ?? phase.name.ja}`
-              : `いまは「${phase.name.ja}」の段階です。`,
-        });
-      }
+    }
+    for (const cue of state.estimate?.cues ?? []) {
+      refs.push({
+        kind: "cue",
+        id: cue,
+        description: buildCueEvidence(cue, findCueQuote(ctx.observations, cue), language),
+      });
     }
     if (state.weather && state.weather.readings.length > 0) {
       const latest = state.weather.summary.latest;
@@ -442,6 +442,21 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
           : `The 10-min rainfall at ${formatClock(latest.time, language)} was ${latest.rainfall10minMm} mm.${latest.warnings.length > 0 ? ` In effect: ${latest.warnings.join(", ")}.` : ""} Source: JMA.`
         : "";
       refs.push({ kind: "weather", id: "weather", description: detail });
+    }
+    if (state.estimate?.unaffectedTrack?.opposite) {
+      refs.push({
+        kind: "computation",
+        id: "unaffected_track",
+        description: buildUnaffectedTrackEvidence(language),
+      });
+    }
+    const queue = state.estimate?.resumeQueue ?? null;
+    if (queue && queue.trainsInQueue > 0) {
+      refs.push({
+        kind: "computation",
+        id: "resume_queue",
+        description: buildResumeQueueEvidence(queue.worthAlightingAtNextStation, language),
+      });
     }
     if (state.estimate?.estimate.remaining) {
       refs.push({
@@ -474,14 +489,15 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
 
   function checkJudgment(judgment: unknown, results: JudgmentToolResults) {
     const evidenceRefs = collectEvidenceRefs();
-    const eventType = results.estimate.estimate.eventType;
     const allowedNumbers = collectAllowedNumbers({
       results,
       observations: ctx.observations,
       now: ctx.request.now,
-      knowledge: eventType ? (ctx.content.knowledge.get(eventType) ?? null) : null,
+      extraTimes: Object.values(listUnaffectedTrackTimes(results.estimate, ctx.request.now)),
       evidenceRefs,
     });
+    // 詰まりで次の駅で降りる価値があれば、駅間の車内の人にも降りて乗り換える言い方を許す
+    const alightAllowed = results.estimate.resumeQueue?.worthAlightingAtNextStation === true;
     const r = results.breakEven.result;
     return validateJudgment({
       judgment,
@@ -491,8 +507,8 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
       recommendedAlternativeId:
         r.kind === "future" || r.kind === "passed" ? r.bestAlternativeId : null,
       inCarAlternativeLines: inCar ? listAlternativeLines(results) : null,
+      inCarAlightAllowed: alightAllowed,
       stopScope: resolveSessionStopScope(),
-      knowledgeSentences,
       sectionContext: {
         announcedSection: findAnnouncedSection(ctx.observations),
         trainPosition:
@@ -505,8 +521,8 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     return resolveObservedStopScope({
       estimatedEventType: state.estimate?.estimate.eventType ?? null,
       observations: ctx.observations,
-      isKnownEvent: (id) => ctx.content.knowledge.has(id),
-      cause: ctx.request.cause ?? null,
+      isKnownEvent: checkKnownIncidentType,
+      cause: resolveObservedCause(ctx.observations, ctx.request.cause ?? null),
     });
   }
 
@@ -517,9 +533,7 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     collectEvidenceRefs,
     checkJudgment,
     checkProgressNote: (note) =>
-      findFlowWording(note, language) === null &&
-      findInternalWording(note) === null &&
-      findKnowledgeText(note, knowledgeSentences) === null,
+      findFlowWording(note, language) === null && findInternalWording(note) === null,
     emitProgress,
     inferredEventType,
     buildInCarGuide: (results) => buildInCarGuide(ctx.request, results),
@@ -535,4 +549,27 @@ function listAlternativeLines(results: JudgmentToolResults): string[] {
       .flatMap((o) => o.legs.flatMap((l) => (l.mode === "ride" && l.line ? [l.line] : [])));
   const waitLines = new Set(rideLines("wait"));
   return [...new Set(rideLines("other"))].filter((line) => !waitLines.has(line));
+}
+
+// 種類の呼び名を含む発表の文。新しい観測を先に見る
+function findSignalQuote(
+  observations: readonly Observation[],
+  type: IncidentTypeId,
+): string | null {
+  for (const o of [...observations].reverse()) {
+    const quote = o.rawText ? findIncidentQuote(o.rawText, type) : null;
+    if (quote) return quote;
+  }
+  return null;
+}
+
+// 手がかりを含む文。解釈で付いた引用を先に使い、無ければ原文から探す。どちらも無ければ空
+function findCueQuote(observations: readonly Observation[], cue: AnnouncementCueId): string {
+  for (const o of [...observations].reverse()) {
+    const signal = o.detectedSignals.find((s) => s.signalId === cue && s.quote.length > 0);
+    if (signal) return signal.quote;
+    const match = o.rawText ? matchCueSentences(o.rawText).find((m) => m.cueId === cue) : null;
+    if (match) return match.quote;
+  }
+  return "";
 }

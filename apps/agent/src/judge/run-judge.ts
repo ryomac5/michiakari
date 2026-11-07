@@ -1,8 +1,9 @@
+import { checkWeatherIncident } from "@repo/core";
 import type { JudgeRequest, Lang, Observation, RawInput, Scenario } from "@repo/schema";
 import type { AlternativesProvider } from "../alternatives/provider.ts";
 import type { JudgeMode } from "../config.ts";
 import type { ContentStore } from "../content.ts";
-import { selectEventType } from "../domain/phase.ts";
+import { selectEventType } from "../domain/incident.ts";
 import { interpretWithClaude } from "../interpret/claude-interpret.ts";
 import { interpretRawInputDeterministically } from "../interpret/deterministic-interpret.ts";
 import type { LlmClient } from "../llm-client.ts";
@@ -16,7 +17,7 @@ import type { EventSink, JudgmentEventBody } from "./event-sink.ts";
 import { createJudgeSession, type JudgeSession } from "./session.ts";
 import { buildProgressMessage } from "./templates.ts";
 
-// 1 回の判断の流れ: 解釈 → 兆候 → 段階 → 代替手段 → 分岐点 → 判断
+// 1 回の判断の流れ: 解釈 → 手がかり → 再開の見込み → 代替手段 → 分岐点 → 判断
 // claude モードが失敗したら、済んだ手順はそのままに決定論モードで仕上げる
 
 export type JudgeDeps = {
@@ -65,9 +66,8 @@ async function interpretNewInput(
   const observationId = buildObservationId(input, request.observations);
   const deterministic = () =>
     interpretRawInputDeterministically(input, {
-      knowledge: deps.content.knowledge,
       lines: deps.provider.listLines(),
-      contextEventType: selectEventType(request.observations, deps.content.knowledge),
+      contextEventType: selectEventType(request.observations),
       observationId,
       observedAt: request.now,
     });
@@ -76,7 +76,6 @@ async function interpretNewInput(
     return await interpretWithClaude(input, {
       llm: deps.llm,
       prompts: deps.prompts,
-      knowledge: deps.content.knowledge,
       observationId,
       observedAt: request.now,
       signal,
@@ -113,7 +112,7 @@ function buildInterpretFailure(language: Lang, claudeAvailable: boolean): Judgme
   };
 }
 
-// 兆候のイベント。推定した事象種別の兆候を、観測をまたいで重複なく送る
+// 手がかりのイベント。推定した種類に結びついた手がかりを、観測をまたいで重複なく送る
 async function emitDetectedSignals(session: JudgeSession, sink: EventSink): Promise<void> {
   const seen = new Set<string>();
   for (const o of session.ctx.observations) {
@@ -130,11 +129,9 @@ async function emitDetectedSignals(session: JudgeSession, sink: EventSink): Prom
 
 // 決定論モードの手順。確定済みのツールは呼び直しても結果が変わらず、イベントも重ならない
 async function runDeterministicTools(session: JudgeSession): Promise<void> {
-  const eventType = session.state.estimate?.estimate.eventType ?? session.inferredEventType;
-  const knowledge = eventType ? session.ctx.content.knowledge.get(eventType) : undefined;
-  if (knowledge) await session.executeTool("lookup_knowledge", { eventType: knowledge.id });
-  if (knowledge?.external_factors.weather) await session.executeTool("get_weather", {});
-  await session.executeTool("estimate_phase_and_remaining", { eventType: knowledge?.id ?? null });
+  const type = session.inferredEventType;
+  if (checkWeatherIncident(type)) await session.executeTool("get_weather", {});
+  await session.executeTool("estimate_remaining", { eventType: type });
   await session.executeTool("find_alternatives", {});
   await session.executeTool("compute_break_even", {});
 }

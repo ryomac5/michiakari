@@ -1,4 +1,5 @@
-import type { Observation, Section } from "@repo/schema";
+import { rankAlternativesForProtection } from "@repo/core";
+import type { Observation, RouteOption, Section } from "@repo/schema";
 import { SectionSchema } from "@repo/schema";
 import { z } from "zod";
 import type { AlternativesToolResult, EstimateToolResult, ToolContext } from "./types.ts";
@@ -17,7 +18,7 @@ export const FindAlternativesInputSchema = z.object({
 export const findAlternativesDefinition = {
   name: "find_alternatives",
   description:
-    "現在地・行き先・止まっている区間・時刻から、待つ選択肢と代替手段（振替・徒歩・タクシー）の経路、到着時刻、運賃、徒歩時間をコードで計算する。estimate_phase_and_remaining の後に呼ぶ。駅間の車内の利用者なら、次の駅に着く見込みの時刻から探す。その結果はいまの選択肢として示さず、切り替えも勧めない。着いた後の次の一手はサーバーが決める。",
+    "現在地・行き先・止まっている区間・時刻から、待つ選択肢と代替手段（振替・徒歩・タクシー）の経路、到着時刻、運賃、徒歩時間をコードで計算する。estimate_remaining の後に呼ぶ。防護無線の事象では、止まった会社と同じ会社の線は最初は一緒に止まるので後ろに下げ（loweredOptionIds）、他社の線を前に上げる。駅間の車内の利用者なら、次の駅に着く見込みの時刻から探す。その結果はいまの選択肢として示さず、切り替えも勧めない。着いた後の次の一手はサーバーが決める。",
   inputSchema: FindAlternativesInputSchema,
 } as const;
 
@@ -61,6 +62,28 @@ function buildAssumedTrainSection(ctx: ToolContext): Section | null {
   return toStation ? { fromStation: position.previousStation, toStation } : null;
 }
 
+// 防護無線の事象では、待つ選択肢を先頭に残し、残りを上げる・そのまま・下げるの順に並べる
+// 止まった会社は待つ選択肢の乗る路線から決め、引けなければ観測の事業者名を使う
+function rankForProtection(
+  options: readonly RouteOption[],
+  waitOptionId: string,
+  operator: string | null,
+): { options: RouteOption[]; loweredOptionIds: string[] } {
+  const wait = options.filter((o) => o.id === waitOptionId);
+  const blockedLineId =
+    wait[0]?.legs.find((leg) => leg.mode === "ride" && leg.lineId)?.lineId ?? null;
+  const ranked = rankAlternativesForProtection({
+    options: options.filter((o) => o.id !== waitOptionId),
+    protection: true,
+    blockedLineId,
+    blockedOperator: operator,
+  });
+  return {
+    options: [...wait, ...ranked.map((r) => r.option)],
+    loweredOptionIds: ranked.filter((r) => r.standing === "lowered").map((r) => r.option.id),
+  };
+}
+
 export async function runFindAlternatives(
   ctx: ToolContext,
   estimate: EstimateToolResult,
@@ -94,5 +117,11 @@ export async function runFindAlternatives(
     transferServiceActive: findLatest(ctx.observations, (o) => o.transferServiceActive),
     language: ctx.request.language,
   });
-  return { ...result, blockedLine };
+  if (!estimate.protection) return { ...result, blockedLine };
+  const operator = findLatest(ctx.observations, (o) => o.operator);
+  return {
+    ...result,
+    ...rankForProtection(result.options, result.waitOptionId, operator),
+    blockedLine,
+  };
 }

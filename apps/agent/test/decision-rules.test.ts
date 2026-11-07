@@ -1,4 +1,4 @@
-import type { BreakEvenResult, FlowOutlook } from "@repo/core";
+import type { BreakEvenResult, IncidentEstimateBasis, IncidentFlowOutlook } from "@repo/core";
 import { type Confidence, ResumeChanceSchema } from "@repo/schema";
 import { describe, expect, it } from "vitest";
 import { decisionParams, reasonLimits } from "../src/config.ts";
@@ -37,8 +37,8 @@ function buildInput(input: {
   eventType: string | null;
   confidence: Confidence;
   result: BreakEvenResult;
-  flowOutlook?: FlowOutlook | null;
-  remainingBasis?: "knowledge" | "stated";
+  flowOutlook?: IncidentFlowOutlook;
+  remainingBasis?: IncidentEstimateBasis;
   statedResumeTime?: string | null;
 }): RuleInput {
   const stated = input.statedResumeTime ?? null;
@@ -46,28 +46,29 @@ function buildInput(input: {
     estimate: {
       estimate: {
         eventType: input.eventType,
-        phaseId: input.eventType ? "initial" : null,
-        elapsedMinutes: input.eventType ? 3 : null,
+        phaseId: null,
+        elapsedMinutes: 3,
         remaining: input.eventType || stated ? { p50: 50, p80: 125 } : null,
         confidence: input.confidence,
       },
       trainQueue: null,
-      phaseName: null,
-      phaseGuidance: null,
-      phaseStartedAt: null,
       statedResumeTime: stated,
       statedExtended: false,
       remainingBasis: input.eventType
-        ? (input.remainingBasis ?? "knowledge")
+        ? (input.remainingBasis ?? "statistics")
         : stated
           ? "stated"
           : null,
-      skippedPhaseIds: [],
       firstTrainWait: null,
       boardableP50: null,
       boardableP80: null,
-      typicalFlow: null,
-      flowOutlook: input.flowOutlook ?? null,
+      flowOutlook: input.flowOutlook ?? "unknown",
+      withholdNumbers: false,
+      weatherIncident: false,
+      cues: [],
+      protection: false,
+      unaffectedTrack: null,
+      resumeQueue: null,
     },
     alternatives: {
       options: [],
@@ -77,7 +78,6 @@ function buildInput(input: {
       notes: [],
     },
     breakEven: { result: input.result, comparison: [], basisOptionIds: ["alt_1"], deadline: null },
-    knowledge: null,
     weather: null,
   };
 }
@@ -133,13 +133,13 @@ describe("保留より先に切り替えを返す規則", () => {
       marginP50Minutes: -24,
       marginP80Minutes: -82,
     });
-    for (const eventType of [null, "person_accident"]) {
+    for (const eventType of [null, "person_collision"]) {
       const outcome = applyDecisionRules(buildInput({ eventType, confidence: "low", result }));
       expect(outcome.action).toBe("hold");
     }
   });
 
-  it("見込みの立てやすい事象は、分岐点まで時間があっても、見込みが後なら切り替える", () => {
+  it("規則表で長く止まる種類は、分岐点まで時間があっても、統計値の見込みが後なら切り替える", () => {
     const result = buildResult({
       minutesFromNow: decisionParams.holdDecisionWindowMinutes + 26,
       marginP50Minutes: -24,
@@ -147,7 +147,7 @@ describe("保留より先に切り替えを返す規則", () => {
     });
     for (const confidence of ["low", "medium"] as const) {
       const outcome = applyDecisionRules(
-        buildInput({ eventType: "person_accident", confidence, result, flowOutlook: "long" }),
+        buildInput({ eventType: "person_collision", confidence, result, flowOutlook: "long" }),
       );
       expect(outcome).toEqual({
         action: "switch",
@@ -157,12 +157,12 @@ describe("保留より先に切り替えを返す規則", () => {
     }
   });
 
-  it("見込みの立てやすい事象でも、発表の見込みがあれば発表の時刻で比べる", () => {
+  it("長く止まる種類でも、発表の見込みがあれば発表の時刻で比べる", () => {
     // 発表の見込みが分岐点をわずかに過ぎるだけなら、乗り換えるほどの差がないので待つ
     const result = buildResult({ minutesFromNow: 36, marginP50Minutes: -3, marginP80Minutes: -18 });
     const outcome = applyDecisionRules(
       buildInput({
-        eventType: "person_accident",
+        eventType: "person_collision",
         confidence: "high",
         result,
         flowOutlook: "long",
@@ -478,7 +478,7 @@ describe("結論の根拠と確率の比較時点", () => {
     const input = buildInput({
       eventType: "vehicle_failure",
       confidence: extended ? "high" : "low",
-      remainingBasis: extended ? "stated" : "knowledge",
+      remainingBasis: extended ? "stated" : "statistics",
       result: buildResult({ minutesFromNow: 4, marginP50Minutes: 2, marginP80Minutes: -18 }),
     });
     input.estimate.statedExtended = extended;

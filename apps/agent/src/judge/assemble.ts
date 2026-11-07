@@ -1,18 +1,18 @@
 import type { StopScope } from "@repo/core";
 import { diffMinutes, getJstMinuteOfDay } from "@repo/core";
 import {
+  type AnnouncementCueId,
   checkJudgmentRefs,
   type Evidence,
   type InCarGuide,
   type Judgment,
   JudgmentSchema,
-  type Knowledge,
   type Lang,
   type Observation,
   type Section,
 } from "@repo/schema";
 import { headlineLimits, reasonLimits } from "../config.ts";
-import { findFlowWording, findInternalWording, findKnowledgeText } from "../domain/flow-wording.ts";
+import { findFlowWording, findInternalWording } from "../domain/flow-wording.ts";
 import type { Decision } from "../tools/emit-judgment.ts";
 import type {
   AlternativesToolResult,
@@ -29,6 +29,21 @@ export type JudgmentToolResults = {
   breakEven: BreakEvenToolResult;
 };
 
+// 判断と phase_estimated に載せる規則の見込みの欄。無い欄は付けない
+export function buildRuleOutlook(r: EstimateToolResult): {
+  cues: AnnouncementCueId[];
+  protection: boolean;
+  unaffectedTrack?: NonNullable<EstimateToolResult["unaffectedTrack"]>;
+  resumeQueue?: NonNullable<EstimateToolResult["resumeQueue"]>;
+} {
+  return {
+    cues: r.cues,
+    protection: r.protection,
+    ...(r.unaffectedTrack ? { unaffectedTrack: r.unaffectedTrack } : {}),
+    ...(r.resumeQueue ? { resumeQueue: r.resumeQueue } : {}),
+  };
+}
+
 // 駅間の車内の人には、境目と選択肢の一覧を付けず、車内の案内だけを付ける
 export function assembleJudgment(
   results: JudgmentToolResults,
@@ -36,8 +51,8 @@ export function assembleJudgment(
   language: Lang,
   inCar: InCarGuide | null = null,
 ): Judgment {
+  const outlook = buildRuleOutlook(results.estimate);
   if (inCar) {
-    const typicalFlow = results.estimate.typicalFlow;
     return {
       action: decision.action,
       headline: decision.headline,
@@ -52,12 +67,11 @@ export function assembleJudgment(
         description: e.description,
       })),
       disclaimer: buildDisclaimer(language),
-      ...(typicalFlow ? { typicalFlow } : {}),
+      ...outlook,
       inCar,
     };
   }
   const r = results.breakEven.result;
-  const typicalFlow = results.estimate.typicalFlow;
   // 時刻ごとの再開の見込みと、待ったほうが早く着く確率。分岐点の計算で求め、分岐点と一緒に届ける
   const resumeChance = results.breakEven.resumeChance ?? null;
   return {
@@ -81,7 +95,7 @@ export function assembleJudgment(
       description: e.description,
     })),
     disclaimer: buildDisclaimer(language),
-    ...(typicalFlow ? { typicalFlow } : {}),
+    ...outlook,
   };
 }
 
@@ -158,12 +172,13 @@ export type AllowedNumbersInput = {
   results: JudgmentToolResults;
   observations: readonly Observation[];
   now: string;
-  knowledge: Knowledge | null;
+  // ほかに文に書いてよい時刻。支障の無い線路が動き出す見込みなど
+  extraTimes?: readonly (string | null)[];
   evidenceRefs: readonly Evidence[];
 };
 
 export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumbers {
-  const { results, observations, now, knowledge } = input;
+  const { results, observations, now } = input;
   const r = results.breakEven.result;
   const hasBreakEven = r.kind === "future" || r.kind === "passed";
   const chance = results.breakEven.resumeChance ?? null;
@@ -172,7 +187,7 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
     results.estimate.statedResumeTime,
     results.estimate.boardableP50,
     results.estimate.boardableP80,
-    results.estimate.phaseStartedAt,
+    ...(input.extraTimes ?? []),
     // 駅間の車内なら、ホームに着ける駅に着く見込みの時刻と、自分の列車が動き出す見込みの時刻
     results.estimate.trainQueue?.arrival?.p50 ?? null,
     results.estimate.trainQueue?.arrival?.p80 ?? null,
@@ -222,13 +237,13 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
           ]),
         ]
       : []),
-    ...(knowledge
-      ? [
-          ...knowledge.phases.flatMap((p) => [p.duration_minutes.p50, p.duration_minutes.p80]),
-          knowledge.after_resume.first_train_wait_minutes.p50,
-          knowledge.after_resume.first_train_wait_minutes.p80,
-        ]
-      : []),
+    // 支障の無い線路と、再開後の詰まりの見込みの分
+    estimate.unaffectedTrack?.affected?.p50,
+    estimate.unaffectedTrack?.affected?.p80,
+    estimate.unaffectedTrack?.opposite?.p50,
+    estimate.unaffectedTrack?.opposite?.p80,
+    estimate.resumeQueue?.waitRange?.minMinutes,
+    estimate.resumeQueue?.waitRange?.maxMinutes,
   ];
   const allowed: AllowedNumbers = {
     clockMinutes: new Set(isoTimes.flatMap((t) => (t ? [getJstMinuteOfDay(t)] : []))),
@@ -325,25 +340,12 @@ export function checkFlowWording(field: string, text: string, language: Lang): s
   ];
 }
 
-// 内部の名前と知見の本文を、利用者に見せる文に写していれば指摘する
-export function checkSourceWording(
-  field: string,
-  text: string,
-  knowledgeSentences: readonly string[],
-): string[] {
+// 内部の名前を、利用者に見せる文に写していれば指摘する
+export function checkSourceWording(field: string, text: string): string[] {
   const name = findInternalWording(text);
-  const copied = findKnowledgeText(text, knowledgeSentences);
+  if (!name) return [];
   return [
-    ...(name
-      ? [
-          `${field} の「${name}」は内部の名前です。id、項目名、p50 や p80 は書かず、利用者が聞く言葉で書いてください`,
-        ]
-      : []),
-    ...(copied
-      ? [
-          `${field} に知見の文「${copied}」を写しています。知見の文は開発者向けの根拠です。言い換えずに外し、比較の形で書いてください`,
-        ]
-      : []),
+    `${field} の「${name}」は内部の名前です。id、項目名、p50 や p80 は書かず、利用者が聞く言葉で書いてください`,
   ];
 }
 
@@ -488,10 +490,10 @@ export type JudgmentCheckInput = {
   recommendedAlternativeId?: string | null;
   // 駅間の車内の人なら、代替手段で乗る路線名。駅にいる人なら null か省く
   inCarAlternativeLines?: readonly string[] | null;
+  // 詰まりで次の駅で降りる価値があるとき true。駅間の車内の人にも降りて乗り換える言い方を許す
+  inCarAlightAllowed?: boolean;
   // 止まり方。その列車だけが止まる事象では「見合わせ」と書かせない
   stopScope?: StopScope;
-  // 知見の本文の文。利用者に見せる文に写していれば弾く
-  knowledgeSentences?: readonly string[];
   // 発表の区間と利用者のいる 2 駅。発表に無い駅の範囲を書かせない。省くと検査しない
   sectionContext?: SectionWordingContext;
 };
@@ -537,11 +539,11 @@ export function validateJudgment(input: JudgmentCheckInput): {
       copiesServerDescription(e) ? [] : [[`evidence[${i}].description`, e.description]],
     ),
   ];
-  // 利用者に見せる文の言い回しの検査。流れの言い方、内部の名前と知見の写し、発表に無い区間を順にかける
+  // 利用者に見せる文の言い回しの検査。流れと段階の言い方、内部の名前、発表に無い区間を順にかける
   const sectionContext = input.sectionContext;
   for (const [field, text] of shownTexts) {
     errors.push(...checkFlowWording(field, text, input.language));
-    errors.push(...checkSourceWording(field, text, input.knowledgeSentences ?? []));
+    errors.push(...checkSourceWording(field, text));
     if (sectionContext) {
       errors.push(...checkSectionWording(field, text, input.language, sectionContext));
     }
@@ -550,8 +552,10 @@ export function validateJudgment(input: JudgmentCheckInput): {
     if (j.recommendedOptionId !== null) {
       errors.push("駅間の車内の人には recommendedOptionId を null にしてください");
     }
-    for (const [field, text] of shownTexts) {
-      errors.push(...checkInCarWording(field, text, input.language, inCarLines));
+    if (!input.inCarAlightAllowed) {
+      for (const [field, text] of shownTexts) {
+        errors.push(...checkInCarWording(field, text, input.language, inCarLines));
+      }
     }
   }
   if (input.stopScope === "train") {

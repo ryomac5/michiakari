@@ -66,31 +66,24 @@ timeline:
 expectations:
   - after: obs_1
     action: hold
-    phase: suspended
-    evidence_includes: [hr_suspension_announced]
     break_even_shown: true
     note: 雨が強まっているあいだは再開に向かわない。代替経路も雨の影響を受けやすいので、分岐点を示して保留する。
   - after: obs_2
     action: hold
-    phase: suspended
     note: 強い雨雲がかかり続け、警報も続いている。保留を続ける。
   - after: obs_3
     action: hold
-    phase: rain_easing
-    evidence_includes: [hr_rain_easing]
     note: 10分雨量がピークから下がり始めた。警報が残るあいだは保留し、点検が残ることを伝える。
+  # obs_4 の期待は wait から switch に変えた（2026-11-07）。理由は README.md
   - after: obs_4
-    action: wait
-    phase: track_inspection
-    evidence_includes: [hr_inspection_announced]
-    note: 雨が弱まり点検に入った。代替経路は三宮を回る長い迂回なので待つ。
+    action: switch
+    note: 雨は弱まったが、点検が終わり次第という条件付きの放送は再開の手がかりに数えない。統計値の見込みの大半が境目より後なので切り替える。
   - after: obs_5
     action: wait
-    phase: track_inspection
     note: 再開の見込み時刻が出た。分岐点より十分に早いので待つ。
   - after: obs_6
     action: wait
-    evidence_includes: [hr_resumed]
+    evidence_includes: [resumed]
     note: 運転を再開した。次の列車を待つ。
 
 ground_truth:

@@ -11,10 +11,7 @@ import { lognormalKnowledge } from "./fixtures/knowledge.ts";
 
 // 知見の typical_floor_minutes を再開までの残りの下限として当てる計算
 
-const DEV_KNOWLEDGE_DIR = join(
-  findRepoRoot(),
-  "packages/schema/test/fixtures/dev-content/knowledge",
-);
+const DEV_KNOWLEDGE_DIR = join(findRepoRoot(), "packages/core/test/fixtures/dev-knowledge");
 
 function loadDevKnowledge(id: string): Knowledge {
   const entry = loadKnowledgeDir(DEV_KNOWLEDGE_DIR).entries.find((e) => e.data.id === id);

@@ -51,21 +51,16 @@ timeline:
       en: The Keihan Main Line resumed at 7:56. Trains are running with delays.
 
 expectations:
+  # obs_1 と obs_2 の期待は hold と wait から switch に変えた（2026-11-07）。理由は README.md
   - after: obs_1
-    action: hold
-    phase: initial
-    evidence_includes: [vf_failure_announced]
+    action: switch
     break_even_shown: true
-    note: 短く終わるか長引くかはまだ分からない。分岐点を示して様子を見る。
+    note: 規則では車両の故障は長く止まる。統計値の再開の見込みが期限の境目より後なので、期限に間に合う手段へ切り替える。
   - after: obs_2
-    action: wait
-    phase: onsite_repair
-    evidence_includes: [vf_repair_in_progress]
-    note: 救援の文言が無く、現場で処置している。他社線へ回ると大きく遠回りになるので待つ。
+    action: switch
+    note: 現場の処置の放送は再開が近い手がかりにならない。見込みは変わらないので、切り替えを続ける。
   - after: obs_3
     action: wait
-    phase: resuming
-    evidence_includes: [vf_recovered_announced]
     note: 点検終了と再開見込みが出た。他社線へ回るより早く着き、9時にも間に合うので待つ。
 
 ground_truth:

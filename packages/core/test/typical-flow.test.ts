@@ -15,10 +15,7 @@ import {
 } from "../src/typical-flow.ts";
 import { buildKnowledge, constantKnowledge, lognormalKnowledge } from "./fixtures/knowledge.ts";
 
-const DEV_KNOWLEDGE_DIR = join(
-  findRepoRoot(),
-  "packages/schema/test/fixtures/dev-content/knowledge",
-);
+const DEV_KNOWLEDGE_DIR = join(findRepoRoot(), "packages/core/test/fixtures/dev-knowledge");
 
 function loadDevKnowledge(id: string): Knowledge {
   const entry = loadKnowledgeDir(DEV_KNOWLEDGE_DIR).entries.find((e) => e.data.id === id);

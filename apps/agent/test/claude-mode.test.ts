@@ -17,10 +17,9 @@ import { buildScenarioRequest, createTestApp, createTestDeps, postJudge } from "
 const baseDeps = createTestDeps();
 const scenario = [...baseDeps.content.scenarios.values()][0];
 const entry = scenario?.timeline[0];
-const knowledge = scenario ? baseDeps.content.knowledge.get(scenario.event_type) : undefined;
-const signal = knowledge?.phases[0]?.signals[0];
-if (!scenario || !entry || !knowledge || !signal)
-  throw new Error("開発用の知見とシナリオが必要です");
+if (!scenario || !entry) throw new Error("開発用のシナリオが必要です");
+// 最初のシナリオは大雨。発表の引用の根拠は種類の id で作られる
+const eventType = scenario.event_type;
 
 const USER_TEXT = entry.text.ja;
 const request = {
@@ -65,13 +64,14 @@ function replyWithTool(name: string, input: unknown, text?: string): BetaMessage
 const interpretation: Interpretation = {
   kind: "announcement",
   rawText: USER_TEXT,
-  eventTypeCandidates: [{ eventType: knowledge.id, confidence: "high" }],
+  eventTypeCandidates: [{ eventType, confidence: "high" }],
   operator: null,
   line: null,
   section: null,
   statedResumeClock: null,
   transferServiceActive: null,
-  detectedSignals: [{ eventType: knowledge.id, signalId: signal.id, quote: USER_TEXT }],
+  // 解釈が拾った手がかり。判断の材料にならない救援の手がかりを使う
+  detectedCues: [{ cueId: "rescue", quote: USER_TEXT }],
 };
 
 const validDecision = {
@@ -80,7 +80,7 @@ const validDecision = {
   reason: "分岐点を過ぎると代替手段のほうが早く着きます。再開見込みには幅があります。",
   breakEvenExplanation: "分岐点までに再開しなければ代替手段のほうが早く着きます",
   recommendedOptionId: null,
-  evidence: [{ kind: "knowledge", id: knowledge.id, description: "知見の要約" }],
+  evidence: [{ kind: "signal", id: eventType, description: "発表の引用" }],
 };
 
 const invalidDecision = {
@@ -90,8 +90,8 @@ const invalidDecision = {
 
 function buildToolSequence(): Reply[] {
   return [
-    replyWithTool("lookup_knowledge", { eventType: knowledge?.id }, "知見を確かめます"),
-    replyWithTool("estimate_phase_and_remaining", { eventType: knowledge?.id }),
+    replyWithTool("get_weather", {}, "雨量を確かめます"),
+    replyWithTool("estimate_remaining", { eventType }),
     replyWithTool("find_alternatives", {}),
     replyWithTool("compute_break_even", {}),
   ];
@@ -156,13 +156,13 @@ describe("claude モード", () => {
     expect(judgment?.headline).toBe(validDecision.headline);
     // Claude の説明文とツールの開始を progress で流す
     const progress = events.flatMap((e) => (e.type === "progress" ? [e] : []));
-    expect(progress.some((e) => e.message === "知見を確かめます" && e.stage === undefined)).toBe(
+    expect(progress.some((e) => e.message === "雨量を確かめます" && e.stage === undefined)).toBe(
       true,
     );
     expect(progress.map((e) => e.stage)).toEqual(
       expect.arrayContaining([
         "interpret",
-        "knowledge",
+        "weather",
         "phase",
         "alternatives",
         "break_even",
@@ -189,7 +189,8 @@ describe("claude モード", () => {
 
     // 知見はキャッシュできるブロックで、利用者の入力はシステムプロンプトに混ぜない
     const system = first.system as BetaTextBlockParam[];
-    expect(system[1]?.cache_control).toEqual({ type: "ephemeral" });
+    expect(system).toHaveLength(1);
+    expect(system[0]?.cache_control).toEqual({ type: "ephemeral" });
     expect(system.some((b) => b.text.includes(USER_TEXT))).toBe(false);
     const userMessage = first.messages[0];
     expect(
@@ -295,13 +296,12 @@ describe("claude モード", () => {
     expect(feedback).toContain("reason の数値「4321分」");
   });
 
-  it("理由に英語の名前、知見の文、決まった流れの言い方があれば、指摘を返して再生成させる", async () => {
-    const summarySentence = `${knowledge.summary.ja.split("。")[0]}。`;
+  it("理由に英語の名前、段階の説明、決まった流れの言い方があれば、指摘を返して再生成させる", async () => {
     const bad = [
-      { reason: `${signal.id} が出たので待ちます。`, issue: signal.id },
+      { reason: "track_cleared が出たので待ちます。", issue: "track_cleared" },
       { reason: "flowOutlook が long なので待ちます。", issue: "flowOutlook" },
       { reason: "再開まで p50 の見込みです。", issue: "p50" },
-      { reason: summarySentence, issue: "知見の文" },
+      { reason: "いまは線路を点検する段階です。", issue: "言い切る言い方" },
       { reason: "人身事故は通常1時間で再開します。", issue: "言い切る言い方" },
     ];
     for (const { reason, issue } of bad) {
@@ -320,17 +320,12 @@ describe("claude モード", () => {
     }
   });
 
-  it("進み具合の文は、英語の名前、知見の文、決まった流れの言い方を含めば流さない", async () => {
-    const summarySentence = `${knowledge.summary.ja.split("。")[0]}。`;
+  it("進み具合の文は、英語の名前、段階の説明、決まった流れの言い方を含めば流さない", async () => {
     const script = createScriptedLlm({
       judgment: [
-        replyWithTool("lookup_knowledge", { eventType: knowledge.id }, "知見を確かめます"),
-        replyWithTool(
-          "estimate_phase_and_remaining",
-          { eventType: knowledge.id },
-          `${signal.id} から段階を決めます`,
-        ),
-        replyWithTool("find_alternatives", {}, summarySentence),
+        replyWithTool("get_weather", {}, "雨量を確かめます"),
+        replyWithTool("estimate_remaining", { eventType }, "track_cleared を見て見込みます"),
+        replyWithTool("find_alternatives", {}, "いまは雨が弱まる段階です。"),
         replyWithTool("compute_break_even", {}, "人身事故は通常1時間で再開します。"),
         replyWithTool("emit_judgment", validDecision, "remainingBasis を見て境目と比べます"),
       ],
@@ -338,7 +333,7 @@ describe("claude モード", () => {
     const { events, judgment } = await runWith(script);
     expect(judgment?.headline).toBe(validDecision.headline);
     const notes = events.flatMap((e) => (e.type === "progress" && !e.stage ? [e.message] : []));
-    expect(notes).toEqual(["知見を確かめます"]);
+    expect(notes).toEqual(["雨量を確かめます"]);
   });
 
   it("emit_judgment の理由の説明に、長さの目安と上限と例を書く", () => {
@@ -405,7 +400,7 @@ describe("claude モード", () => {
 
   it("ツール呼び出しの上限を超えたら決定論モードで仕上げる", async () => {
     const loop = Array.from({ length: claudeSettings.maxToolCalls + 1 }, () =>
-      replyWithTool("lookup_knowledge", { eventType: knowledge?.id }),
+      replyWithTool("get_weather", {}),
     );
     const script = createScriptedLlm({ judgment: loop });
     const { judgment, warnings } = await runWith(script);
@@ -424,12 +419,12 @@ describe("claude モード", () => {
     expect(judgment?.headline).toBe(validDecision.headline);
   });
 
-  it("get_weather が気象庁から取れたら、weather_checked を 1 回だけ段階の推定より前に流す", async () => {
-    const [lookup, ...rest] = buildToolSequence();
-    if (!lookup) throw new Error("台本がありません");
+  it("get_weather が気象庁から取れたら、weather_checked を 1 回だけ見込みの推定より前に流す", async () => {
+    const [first, ...rest] = buildToolSequence();
+    if (!first) throw new Error("台本がありません");
     const script = createScriptedLlm({
       judgment: [
-        lookup,
+        first,
         replyWithTool("get_weather", {}),
         replyWithTool("get_weather", {}),
         ...rest,
@@ -454,11 +449,11 @@ describe("claude モード", () => {
   });
 
   it("get_weather が気象庁から取れなければ weather_checked を流さない", async () => {
-    const [lookup, ...rest] = buildToolSequence();
-    if (!lookup) throw new Error("台本がありません");
+    const [first, ...rest] = buildToolSequence();
+    if (!first) throw new Error("台本がありません");
     const script = createScriptedLlm({
       judgment: [
-        lookup,
+        first,
         replyWithTool("get_weather", {}),
         ...rest,
         replyWithTool("emit_judgment", validDecision),
@@ -511,8 +506,7 @@ describe("claude モードの車内と止まり方", () => {
   }
   function buildSequence(eventType: string): Reply[] {
     return [
-      replyWithTool("lookup_knowledge", { eventType }),
-      replyWithTool("estimate_phase_and_remaining", { eventType }),
+      replyWithTool("estimate_remaining", { eventType }),
       replyWithTool("find_alternatives", {}),
       replyWithTool("compute_break_even", {}),
     ];
@@ -523,8 +517,9 @@ describe("claude モードの車内と止まり方", () => {
     const ready = events.find((e) => e.type === "judgment_ready");
     return ready?.type === "judgment_ready" ? ready.judgment : null;
   }
-  const evidence = (eventType: string) => [
-    { kind: "knowledge", id: eventType, description: "起きていること" },
+  // 選択式の観測には原文が無いので、計算の根拠を使う
+  const evidence = (_eventType: string) => [
+    { kind: "computation", id: "remaining", description: "再開の見込み" },
   ];
 
   it("駅間の車内の人に切り替えを勧めたら検証で弾き、車内で待つ判断だけを通す", async () => {
@@ -534,7 +529,7 @@ describe("claude モードの車内と止まり方", () => {
       reason: "再開は遅くなりそうです。",
       breakEvenExplanation: "説明",
       recommendedOptionId: null,
-      evidence: evidence("person_accident"),
+      evidence: evidence("person_collision"),
     };
     const waitDecision = {
       ...switchDecision,
@@ -544,12 +539,12 @@ describe("claude モードの車内と止まり方", () => {
     };
     const script = createScriptedLlm({
       judgment: [
-        ...buildSequence("person_accident"),
+        ...buildSequence("person_collision"),
         replyWithTool("emit_judgment", switchDecision),
         replyWithTool("emit_judgment", waitDecision),
       ],
     });
-    const judgment = await runRequest(script, buildSelectionRequest("person_accident", true));
+    const judgment = await runRequest(script, buildSelectionRequest("person_collision", true));
     const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
     expect(feedback).toContain("駅間の車内の人には切り替えを勧めず");
     expect(feedback).toContain("切り替えを勧める言葉");
@@ -570,38 +565,36 @@ describe("claude モードの車内と止まり方", () => {
     };
     const inCar = createScriptedLlm({
       judgment: [
-        ...buildSequence("person_accident"),
+        ...buildSequence("person_collision"),
         replyWithTool("emit_judgment", {
           ...base,
           evidence: [
-            { kind: "knowledge", id: "person_accident", description: "塚本で降りて乗り換える" },
+            { kind: "computation", id: "remaining", description: "塚本で降りて乗り換える" },
           ],
         }),
-        replyWithTool("emit_judgment", { ...base, evidence: evidence("person_accident") }),
+        replyWithTool("emit_judgment", { ...base, evidence: evidence("person_collision") }),
       ],
     });
-    await runRequest(inCar, buildSelectionRequest("person_accident", true));
+    await runRequest(inCar, buildSelectionRequest("person_collision", true));
     const inCarFeedback = JSON.stringify(inCar.calls.at(-1)?.messages.at(-1)?.content);
     expect(inCarFeedback).toContain("evidence[0].description の「降りて」");
 
     const train = createScriptedLlm({
       judgment: [
-        ...buildSequence("in_car_response"),
+        ...buildSequence("medical_response"),
         replyWithTool("emit_judgment", {
           ...base,
           headline: "運転再開を待つ",
-          evidence: [
-            { kind: "knowledge", id: "in_car_response", description: "運転見合わせの流れ" },
-          ],
+          evidence: [{ kind: "computation", id: "remaining", description: "運転見合わせの流れ" }],
         }),
         replyWithTool("emit_judgment", {
           ...base,
           headline: "運転再開を待つ",
-          evidence: evidence("in_car_response"),
+          evidence: evidence("medical_response"),
         }),
       ],
     });
-    await runRequest(train, buildSelectionRequest("in_car_response", false));
+    await runRequest(train, buildSelectionRequest("medical_response", false));
     const trainFeedback = JSON.stringify(train.calls.at(-1)?.messages.at(-1)?.content);
     expect(trainFeedback).toContain("evidence[0].description の「見合わせ」");
   });
@@ -634,17 +627,17 @@ describe("claude モードの車内と止まり方", () => {
       headline: "車内で待つ",
       breakEvenExplanation: "説明",
       recommendedOptionId: null,
-      evidence: evidence("person_accident"),
+      evidence: evidence("person_collision"),
     };
     const fixedReason = "大阪〜塚本の間で列車が動くのを待ちます。";
     const script = createScriptedLlm({
       judgment: [
-        ...buildSequence("person_accident"),
+        ...buildSequence("person_collision"),
         replyWithTool("emit_judgment", { ...base, reason: "大阪〜三ノ宮で見合わせています。" }),
         replyWithTool("emit_judgment", { ...base, reason: fixedReason }),
       ],
     });
-    const judgment = await runRequest(script, buildSelectionRequest("person_accident", true));
+    const judgment = await runRequest(script, buildSelectionRequest("person_collision", true));
     const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
     expect(feedback).toContain("reason の「大阪〜三ノ宮」は止まっている区間の言い方です");
     expect(judgment?.reason).toBe(fixedReason);
@@ -657,12 +650,12 @@ describe("claude モードの車内と止まり方", () => {
       reason: "大阪〜三ノ宮で見合わせています。",
       breakEvenExplanation: "説明",
       recommendedOptionId: null,
-      evidence: evidence("person_accident"),
+      evidence: evidence("person_collision"),
     };
     const script = createScriptedLlm({
-      judgment: [...buildSequence("person_accident"), replyWithTool("emit_judgment", decision)],
+      judgment: [...buildSequence("person_collision"), replyWithTool("emit_judgment", decision)],
     });
-    const request = buildSelectionRequest("person_accident", true);
+    const request = buildSelectionRequest("person_collision", true);
     const announced = {
       ...request,
       observations: [{ ...entryLine, section: { fromStation: "大阪", toStation: "三ノ宮" } }],
@@ -677,16 +670,16 @@ describe("claude モードの車内と止まり方", () => {
       headline: "車内で待つ",
       breakEvenExplanation: "説明",
       recommendedOptionId: null,
-      evidence: evidence("person_accident"),
+      evidence: evidence("person_collision"),
     };
     const script = createScriptedLlm({
       judgment: [
-        ...buildSequence("person_accident"),
+        ...buildSequence("person_collision"),
         replyWithTool("emit_judgment", { ...base, reason: "阪急神戸線のほうが早く着きます。" }),
         replyWithTool("emit_judgment", { ...base, reason: "車内では列車が動くのを待ちます。" }),
       ],
     });
-    const judgment = await runRequest(script, buildSelectionRequest("person_accident", true));
+    const judgment = await runRequest(script, buildSelectionRequest("person_collision", true));
     const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
     expect(feedback).toContain("「阪急神戸線」は切り替えを勧める言葉");
     expect(judgment?.reason).toBe("車内では列車が動くのを待ちます。");
@@ -702,28 +695,28 @@ describe("claude モードの車内と止まり方", () => {
       reason: "運転見合わせはまもなく終わります。",
       breakEvenExplanation: "説明",
       recommendedOptionId: null,
-      evidence: evidence("in_car_response"),
+      evidence: evidence("medical_response"),
     };
     const fixed = { ...suspended, reason: "塚本で停車中の列車はまもなく動きます。" };
     const script = createScriptedLlm({
       judgment: [
-        ...buildSequence("in_car_response"),
+        ...buildSequence("medical_response"),
         replyWithTool("emit_judgment", suspended),
         replyWithTool("emit_judgment", fixed),
       ],
     });
-    const judgment = await runRequest(script, buildSelectionRequest("in_car_response", false));
+    const judgment = await runRequest(script, buildSelectionRequest("medical_response", false));
     const feedback = JSON.stringify(script.calls.at(-1)?.messages.at(-1)?.content);
     expect(feedback).toContain("区間全体が止まる言い方");
     expect(judgment?.reason).toBe(fixed.reason);
 
     const accident = createScriptedLlm({
       judgment: [
-        ...buildSequence("person_accident"),
-        replyWithTool("emit_judgment", { ...suspended, evidence: evidence("person_accident") }),
+        ...buildSequence("person_collision"),
+        replyWithTool("emit_judgment", { ...suspended, evidence: evidence("person_collision") }),
       ],
     });
-    const accepted = await runRequest(accident, buildSelectionRequest("person_accident", false));
+    const accepted = await runRequest(accident, buildSelectionRequest("person_collision", false));
     expect(accepted?.reason).toBe(suspended.reason);
   });
 });
