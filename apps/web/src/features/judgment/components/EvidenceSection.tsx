@@ -1,6 +1,6 @@
 "use client";
 
-import type { DetectedSignal, Estimate } from "@repo/schema";
+import type { AnnouncementCueId, DetectedSignal, Estimate, Observation } from "@repo/schema";
 import { ChevronDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -13,14 +13,20 @@ export function EvidenceSection({
   estimate,
   signals,
   heardCause = null,
+  cues = [],
+  observations = [],
 }: {
   estimate: Estimate | null;
   signals: readonly DetectedSignal[];
   // 入口で選んだ原因の呼び名。発表の引用が無いときに聞いた言葉として出す
   heardCause?: string | null;
+  // 判断の結果の手がかり。引用に無い手がかりも読みにする
+  cues?: readonly AnnouncementCueId[];
+  // 判断に使った観測。手がかりを含む文を聞いた言葉にする
+  observations?: readonly Observation[];
 }) {
   const t = useTranslations("judgment.evidence");
-  const entries = selectEvidenceEntries({ estimate, signals, heardCause });
+  const entries = selectEvidenceEntries({ estimate, signals, heardCause, cues, observations });
   const lines = buildEvidenceLines(entries, (key, values) => t(key as never, values as never));
 
   return (
@@ -52,10 +58,14 @@ export function EvidenceSection({
               className="rounded-xl bg-surface px-3 py-2.5"
             >
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[14px] leading-snug">
-                <dt className="pt-px text-[12px] text-muted">{t("heard")}</dt>
-                <dd data-testid={testIds.judgment.evidenceHeard} className="font-medium">
-                  {line.heard}
-                </dd>
+                {line.heard && (
+                  <>
+                    <dt className="pt-px text-[12px] text-muted">{t("heard")}</dt>
+                    <dd data-testid={testIds.judgment.evidenceHeard} className="font-medium">
+                      {line.heard}
+                    </dd>
+                  </>
+                )}
                 {line.reading && (
                   <>
                     <dt className="pt-px text-[12px] text-muted">{t("reading.label")}</dt>

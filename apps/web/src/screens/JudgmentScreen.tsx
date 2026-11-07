@@ -321,6 +321,8 @@ export function JudgmentScreen() {
               estimate={display.estimate}
               signals={state.signals}
               heardCause={heardCause}
+              cues={display.judgment?.cues}
+              observations={known}
             />
           </SheetSection>
           {state.status === "ready" && (

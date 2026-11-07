@@ -1,4 +1,4 @@
-import type { DetectedSignal, Estimate } from "@repo/schema";
+import type { DetectedSignal, Estimate, Observation } from "@repo/schema";
 import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
 import en from "../../../messages/en.json";
@@ -105,6 +105,84 @@ describe("selectEvidenceEntries", () => {
       selectEvidenceEntries({ estimate: estimate(null), signals: [], heardCause: "人身事故" }),
     ).toEqual([{ id: "cause", heard: "人身事故", signalIds: [], cueId: null }]);
     expect(selectEvidenceEntries({ estimate: null, signals: [] })).toEqual([]);
+  });
+});
+
+describe("判断の結果の手がかり", () => {
+  const broadcast: Observation = {
+    id: "entry-protection-broadcast",
+    observedAt: "2026-11-07T22:00:00+09:00",
+    source: "selection",
+    kind: "station_broadcast",
+    rawText: "危険を知らせる信号を受信したため、緊急停止しました",
+    eventTypeCandidates: [],
+    operator: null,
+    line: null,
+    section: null,
+    statedResumeTime: null,
+    transferServiceActive: null,
+    detectedSignals: [],
+  };
+
+  it("引用に無い手がかりは、その手がかりを含む観測の文を先頭の項目にして読みを付ける", () => {
+    const entries = selectEvidenceEntries({
+      estimate: estimate(null, null),
+      signals: [],
+      cues: ["protection_received"],
+      observations: [broadcast],
+    });
+    expect(entries).toEqual([
+      {
+        id: "protection_received",
+        heard: "危険を知らせる信号を受信したため、緊急停止しました",
+        signalIds: ["protection_received"],
+        cueId: "protection_received",
+      },
+    ]);
+    expect(renderLines("ja", entries)[0]?.reading).toBe("周りの列車も止まる事象と読めます。");
+  });
+
+  it("引用の手がかりと判断の手がかりを合わせ、優先する手がかりの読みを 1 つ選ぶ", () => {
+    const entries = selectEvidenceEntries({
+      estimate: estimate(null),
+      signals: [signal("rescue", "ただいま救護活動を行っています。")],
+      cues: ["rescue", "resume_soon"],
+      observations: [],
+    });
+    // 文が無ければ、いちばん新しい項目に読みを添える
+    expect(entries.map((e) => e.cueId)).toEqual(["resume_soon"]);
+  });
+
+  it("言葉が無ければ入口の原因に読みを添え、原因も無ければ読みだけの項目にする", () => {
+    expect(
+      selectEvidenceEntries({
+        estimate: null,
+        signals: [],
+        heardCause: "人身事故",
+        cues: ["protection_received"],
+      }),
+    ).toEqual([
+      {
+        id: "cause",
+        heard: "人身事故",
+        signalIds: ["protection_received"],
+        cueId: "protection_received",
+      },
+    ]);
+    const [entry] = selectEvidenceEntries({
+      estimate: null,
+      signals: [],
+      cues: ["queue_ahead"],
+    });
+    expect(entry).toMatchObject({ heard: null, cueId: "queue_ahead" });
+    const [line] = renderLines("ja", entry ? [entry] : []);
+    expect(line?.heard).toBeNull();
+    expect(line?.reading).toBe("動いても、前の列車が詰まって進みにくいと読めます。");
+  });
+
+  it("手がかりが無ければ、これまでどおり引用だけを並べる", () => {
+    const entries = selectEvidenceEntries({ estimate: estimate(null), signals, cues: [] });
+    expect(entries.map((e) => e.cueId)).toEqual(["resume_soon", null, null]);
   });
 });
 

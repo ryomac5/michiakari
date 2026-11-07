@@ -181,6 +181,8 @@ export function ReplayPlayer({
             selectChangeEvidence({
               estimate: display.judgment.estimate,
               signals: state.signals,
+              cues: display.judgment.cues,
+              observations: state.observations,
             }),
           )}
           badge={
@@ -337,7 +339,12 @@ export function ReplayPlayer({
                   </SheetSection>
                 )}
                 <SheetSection className="has-[>[hidden]]:hidden">
-                  <EvidenceSection estimate={display.estimate} signals={state.signals} />
+                  <EvidenceSection
+                    estimate={display.estimate}
+                    signals={state.signals}
+                    cues={display.judgment?.cues}
+                    observations={state.observations}
+                  />
                 </SheetSection>
                 {state.status === "ready" && (
                   <SheetSection>

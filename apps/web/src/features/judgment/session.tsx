@@ -319,6 +319,8 @@ export function JudgmentSessionProvider({ children }: { children: ReactNode }) {
     selectChangeEvidence({
       estimate: currentJudgment?.estimate ?? null,
       signals: state.signals,
+      cues: currentJudgment?.cues,
+      observations: [...observations, ...state.observations],
     }),
   );
 
