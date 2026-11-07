@@ -75,7 +75,7 @@ function MarkerButton({
           style={{ width: hitRadius * 2, height: hitRadius * 2 }}
         />
       )}
-      {dot}
+      <span className="map-mark flex items-center justify-center">{dot}</span>
       <span
         aria-hidden
         data-label-hidden={labelHidden || undefined}
@@ -208,7 +208,9 @@ export function PlaceMarker({
 }) {
   const dot = selected ? (
     <span className="relative size-5">
-      <span aria-hidden className="absolute -inset-3 animate-here-pulse rounded-full bg-focus/30" />
+      <span aria-hidden className="map-mark absolute -inset-3">
+        <span className="block size-full animate-here-pulse rounded-full bg-focus/30" />
+      </span>
       <span className="absolute inset-0 rounded-full border-[3px] border-white bg-focus shadow-[0_1px_6px_rgb(0_0_0/0.35)]" />
     </span>
   ) : (
@@ -244,7 +246,7 @@ export function PlaceMarker({
         className="pointer-events-auto absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
         style={{ width: hitRadius * 2, height: hitRadius * 2 }}
       />
-      {dot}
+      <span className="map-mark flex items-center justify-center">{dot}</span>
       {layout?.size === "large" && (
         <span
           aria-hidden
@@ -440,15 +442,17 @@ export function SegmentMarker({
           style={{ width: approachRadius * 2, height: approachRadius * 2 }}
         />
       )}
-      <span
-        aria-hidden
-        data-segment-dot
-        className={cn(
-          "rounded-full border-2 border-white shadow-[0_1px_4px_rgb(0_0_0/0.3)] transition-transform duration-150 group-hover:scale-125 group-active:scale-90",
-          selected ? "size-4 bg-focus" : "size-[11px]",
-        )}
-        style={selected ? undefined : { backgroundColor: color }}
-      />
+      <span className="map-mark flex items-center justify-center">
+        <span
+          aria-hidden
+          data-segment-dot
+          className={cn(
+            "rounded-full border-2 border-white shadow-[0_1px_4px_rgb(0_0_0/0.3)] transition-transform duration-150 group-hover:scale-125 group-active:scale-90",
+            selected ? "size-4 bg-focus" : "size-[11px]",
+          )}
+          style={selected ? undefined : { backgroundColor: color }}
+        />
+      </span>
     </button>
   );
 }
