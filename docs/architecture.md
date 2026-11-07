@@ -123,6 +123,7 @@
 - `estimateIncidentRemaining`: 事象の種類、手がかり、発表の見込み時刻から、実際に乗れる列車が来るまでの残りを返す
   - 次の順に当てはめ、最初に当たったものを出どころ `basis` にする
   - `resumed` の手がかりがあれば `resumed` とし、再開までの残りを 0 分にする
+  - `evacuation_on_track` があれば、発表の時刻があっても `withholdNumbers` を true にして数字を出さない
   - 発表の見込み時刻があれば `stated` とし、`estimateStatedRemainingWithoutKnowledge` で求める
   - めったにない事象で長さが分からなければ、`withholdNumbers` を true にして数字を出さない
   - 規則表に短い事象の目安があれば `rule` とする。発生からの経過が目安の p80 を過ぎていれば当てはめない
@@ -313,12 +314,24 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `protection_received` | 信号を受信、緊急停止信号 | 防護無線で止まったとみなす |
 | `queue_ahead` | 前の列車がつかえて、先行列車の影響 | 再開後の詰まりの列に入ったとみなす |
 | `track_cleared` | 再開が近いと言い切る放送 | 前の列車が詰め始めたとみなす。統計値の見込みの確信度を medium に上げる |
+| `evacuation_on_track` | 線路に降りて、最寄り駅まで歩いて、降車誘導 | 見込みの数字を出さない。結論は係員の案内に従う。車内の駅に着く時刻と支障の無い線路の見込みも出さない |
+| `turnback` | 折り返し運転 | 区間が止まっているとみなし、初列車待ちを区間の値にする |
+| `service_cancelled` | この列車は運転を取りやめ | 読みだけを出す |
+| `through_service_suspended` | 直通運転を中止 | 読みだけを出す |
+| `slow_running` | 徐行運転 | 読みだけを出す |
+| `held_at_station` | この駅でしばらく停車、抑止 | 読みだけを出す。駅間の「しばらく停車」は拾わない |
+| `inspection_ongoing` | 点検を行っております、安全確認中 | 大雨、強風、地震で点検が続く間は `resume_soon` と `track_cleared` を数えない |
+| `proceed_to_station` | 安全を確認した区間、最寄り駅まで徐行 | 駅間の車内の人は、再開の前に次の駅へ着く見込みにする |
+
+言い回しの照合は、条件付きの文、否定の文、止める文を除く。止める文は「降りないでください」のような文で、降車の手がかりにだけ効く。規制の解除だけでは再開に向けた手がかりにしない。点検が続くかは、点検か再開に向けた手がかりを含む最も新しい観測で決める。根拠は `docs/research/rail-operations/` の 02、04、06 である。
 
 `track_cleared` の判定は、`checkTrackCleared` とともに agent から core に移した。
 
 #### 防護無線
 
 `checkProtectionIncident` は、`protection` が `always` の種類なら true を返す。`maybe` の種類は、`protection_received` があるときだけ true にする。
+
+公開資料は、防護無線の届く範囲を半径およそ 1km から 2km としている。出典は `docs/research/rail-operations/01-protection-radio.md` である。他社線が止まるかは公開資料に無く、規則表は自社線に限る。
 
 原因の発表が無くても、`protection_received` があれば防護無線とみなす。このとき事象は、列車の外に危害が及ぶものと推し量る。種類は決め打ちしない。統計値は入口で答えた原因の大分類を使い、それも無ければ数字を出さない。
 

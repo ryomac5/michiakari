@@ -7,6 +7,7 @@ import {
   buildEvidenceLines,
   cueIds,
   evidenceLimit,
+  excludeInspectedCues,
   selectCueReading,
   selectEvidenceEntries,
 } from "./evidence-text";
@@ -58,6 +59,41 @@ describe("selectCueReading", () => {
   it("手がかりが無ければ null", () => {
     expect(selectCueReading([])).toBeNull();
     expect(selectCueReading(["occurred", "held"])).toBeNull();
+  });
+
+  it("線路に降りる案内は、ほかのどの手がかりより先に読む", () => {
+    expect(selectCueReading(["resumed", "evacuation_on_track"])).toBe("evacuation_on_track");
+  });
+
+  it("前の列車の詰まりは、駅での停車より先に読む", () => {
+    expect(selectCueReading(["held_at_station", "queue_ahead"])).toBe("queue_ahead");
+  });
+
+  it("判断が点検の続く間として除いた再開の手がかりは読まない", () => {
+    const ids = excludeInspectedCues(["resume_soon", "inspection_ongoing"], ["inspection_ongoing"]);
+    expect(selectCueReading(ids)).toBe("inspection_ongoing");
+    expect(excludeInspectedCues(["resume_soon"], ["resume_soon", "inspection_ongoing"])).toEqual([
+      "resume_soon",
+    ]);
+    expect(excludeInspectedCues(["resume_soon"], undefined)).toEqual(["resume_soon"]);
+  });
+
+  it("足した手がかりの読みは日本語と英語で 1 行ずつある", () => {
+    const added = [
+      "evacuation_on_track",
+      "turnback",
+      "service_cancelled",
+      "through_service_suspended",
+      "slow_running",
+      "held_at_station",
+      "inspection_ongoing",
+      "proceed_to_station",
+    ] as const;
+    for (const id of added) {
+      expect(ja.judgment.evidence.cue[id]).toMatch(/。$/);
+      expect(en.judgment.evidence.cue[id]).toMatch(/\.$/);
+    }
+    expect(ja.judgment.evidence.cue.evacuation_on_track).toBe("係員の案内に従ってください。");
   });
 });
 

@@ -57,7 +57,11 @@
 
 `estimate_remaining` は、見込みの数値に加えて次の欄を返します。どれもコードが規則表から決めたものです。読み方を判断と説明に使います。
 
-- `cues` は、観測の放送や発表から拾った手がかりの id です。`resumed` は再開した、`resume_soon` はまもなく再開、`rescue` は救援を待つ、`protection_received` は危険を知らせる信号の受信、`queue_ahead` は前の列車がつかえている、`track_cleared` は線路の安全が確かめられた、です。
+- `cues` は、観測の放送や発表から拾った手がかりの id です。`resumed` は再開した、`resume_soon` はまもなく再開、`rescue` は救援を待つ、`protection_received` は危険を知らせる信号の受信、`queue_ahead` は前の列車がつかえている、`track_cleared` は線路の安全が確かめられた、です。`evacuation_on_track` は線路に降りる案内、`turnback` は折り返し運転、`service_cancelled` はこの列車の運転取りやめ、`through_service_suspended` は直通運転の中止、`slow_running` は徐行、`held_at_station` は駅で止まって待つ、`inspection_ongoing` は点検が続いている、`proceed_to_station` は次の駅まで進む、です。
+  - `evacuation_on_track` があれば、`withholdNumbers` が true で `remaining` は null です。`hold` にし、見出しで係員の案内に従うよう伝えます。再開の時刻を文に書きません。降りた後の選択肢は画面が示します。
+  - 大雨、強風、地震で点検が続いている間は、`resume_soon` と `track_cleared` が除かれています。雨や風が収まっても、点検が終わるまでは再開が近いと書きません。
+  - `proceed_to_station` があれば、駅の間の車内の人は再開の前に次の駅まで進む見込みです。`trainQueue` の時刻を写します。
+  - `turnback`、`service_cancelled`、`through_service_suspended`、`slow_running`、`held_at_station` は、拾った語の意味を説明する文を書きません。
 - `protection` が true なら、周りの同じ会社の列車も一斉に止まる事象です。人身事故、踏切、線路の支障物、脱線などが当たります。
   - `cues` に `protection_received` があれば、原因の発表が無くても、外に危害が及ぶ事象と推し量ります。原因を決め打ちして書きません。
   - 他社の並行路線は止まらないため、すぐ使える選択肢です。同じ会社の並行路線は初めのうち一緒に止まるため、`find_alternatives` が後ろに下げ、`loweredOptionIds` に入れます。下げた選択肢は勧めません。`compute_break_even` の `bestAlternativeId` もそれを除いて選ばれています。

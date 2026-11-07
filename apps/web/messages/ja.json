@@ -260,7 +260,15 @@
         "track_cleared": "線路の確認が済み、再開が近いと読めます。",
         "queue_ahead": "動いても、前の列車が詰まって進みにくいと読めます。",
         "protection_received": "周りの列車も止まる事象と読めます。",
-        "rescue": "救護が続き、長引くと読めます。"
+        "rescue": "救護が続き、長引くと読めます。",
+        "evacuation_on_track": "係員の案内に従ってください。",
+        "turnback": "止まった区間の外は動いていると読めます。",
+        "service_cancelled": "この列車はこの先へ進まないと読めます。",
+        "through_service_suspended": "乗り入れ先へは乗り換えが要ると読めます。",
+        "slow_running": "動いても遅れが出ると読めます。",
+        "held_at_station": "駅にいるので、降りてほかの手段に移れます。",
+        "inspection_ongoing": "点検が終わるまでは動かないと読めます。",
+        "proceed_to_station": "次の駅まで進むと読めます。"
       }
     },
     "addInfo": {

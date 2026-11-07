@@ -94,9 +94,11 @@ export {
   rankAlternativesForProtection,
 } from "./alternative-ranking.ts";
 export {
+  checkInspectionPending,
   checkTrackCleared,
   detectAnnouncementCues,
   detectObservationCues,
+  filterCuesDuringInspection,
 } from "./announcement-cues.ts";
 export { computeArrival, type LegMinutes, sumLegMinutes } from "./arrival.ts";
 export {
@@ -137,6 +139,8 @@ export {
 } from "./incident-estimate.ts";
 export {
   checkProtectionIncident,
+  checkResumeAfterInspection,
+  checkTrackEvacuation,
   checkWeatherIncident,
   decideRuleConfidence,
   findIncidentTypeByPhrase,

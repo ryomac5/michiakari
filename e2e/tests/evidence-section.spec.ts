@@ -125,3 +125,30 @@ test("詰まりの放送を貼り付けると、その言葉の項目に手が�
   await expect(item.getByTestId(testIds.judgment.evidenceHeard)).toContainText("前の列車がつかえ");
   await expect(evidence).not.toContainText(words.stage);
 });
+
+test("線路に降りる案内を貼り付けると、見込みの数字を出さず、係員の案内に従う読みを出す", async ({
+  page,
+}) => {
+  const evacuation =
+    "人身事故のため、運転を見合わせています。これから線路に降りて、最寄り駅まで歩いてご案内します。";
+  await startWithPaste(page, "ja", evacuation);
+  await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText(
+    "係員の案内に従う",
+  );
+  // 再開の見込みの帯と時刻、支障の無い線路の見込みは出さない
+  await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(0);
+  await expect(page.getByTestId(testIds.judgment.breakEvenResume)).toHaveCount(0);
+  await expect(page.getByTestId(testIds.judgment.trackLine("opposite"))).toHaveCount(0);
+  await expect(page.getByTestId(testIds.judgment.conclusionReason)).not.toContainText(
+    /\d{1,2}:\d{2}/,
+  );
+  await openSheet(page, "full");
+  await page.getByTestId(testIds.judgment.evidenceToggle).click();
+  const evidence = page.getByTestId(testIds.judgment.evidence);
+  const readings = evidence.getByTestId(testIds.judgment.evidenceReading);
+  await expect(readings).toHaveCount(1);
+  await expect(readings).toHaveText("係員の案内に従ってください。");
+  await expect(evidence.locator("li[data-cue-id='evacuation_on_track']")).toHaveCount(1);
+  // 推定である旨と公式発表を優先すべき旨は消さない
+  await expect(page.getByTestId(testIds.judgment.disclaimer)).toBeVisible();
+});
