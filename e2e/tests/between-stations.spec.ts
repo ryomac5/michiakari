@@ -157,7 +157,9 @@ async function startBetweenStations(
   await page.getByTestId(testIds.start.destinationOption(destination.name)).click();
   // 行き先が JR神戸線の先に無ければ、神戸方面を答える
   await expectJudgmentAfterDirection(page, "神戸");
-  await expect(page.getByTestId(testIds.judgment.tripSummary)).toContainText("塚本");
+  // 行程は見出しに出さず、地図の「いま」の札が示す
+  await expect(page.getByTestId(testIds.judgment.tripSummary)).toHaveCount(0);
+  await expect(page.getByTestId(mapTestIds.here)).toContainText("塚本");
   await addAnswers(page, {
     cause: "person",
     protection: "notHeard",
@@ -257,10 +259,10 @@ for (const theme of ["light", "dark"] as const) {
       await expect(reason).toHaveText(/^.+には\d{1,2}時\d{2}分ごろに着く見込みです。$/);
       await expect(reason).not.toContainText(/仮定|ふだん|入れない/);
 
-      // 利用者は大阪と塚本の間にいる。上部の帯と現在地の札は駅の間にいることを出す
+      // 利用者は大阪と塚本の間にいる。現在地の札は駅の間にいることを出す
       // 三ノ宮まで乗り続ける判断なので、塚本を降りる駅として出さない
-      await expect(page.getByTestId(testIds.judgment.tripSummary)).toContainText("大阪〜塚本");
-      // 人身事故は区間を止めるので、上部の札は見合わせにする
+      await expect(page.getByTestId(mapTestIds.destination)).toContainText("三ノ宮");
+      // 人身事故は区間を止めるので、地図の見込みの帯の左上の札は見合わせにする
       // 発表に区間が無いので、駅の間の位置から区間を作って描かず、札も添えない
       await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("見合わせ");
       await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-blocked", "false");

@@ -249,7 +249,7 @@ test("入力を終えると、選んだ路線を見合わせとして判断の�
   await expectStage(page, "destination");
   await page.getByTestId(testIds.start.destinationCandidate("京都")).click();
   await expectJudgmentOpened(page);
-  await expect(page.getByTestId(testIds.judgment.tripSummary)).toContainText("京都");
+  await expect(page.getByTestId(mapTestIds.destination)).toContainText("京都");
   await expect(page.getByTestId(testIds.judgment.statusChip)).toContainText("JR京都線");
 
   // 選んで答える入力は路線を含まない。足したあとも、上部の帯の路線は入口で選んだ路線から来る

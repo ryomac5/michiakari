@@ -136,6 +136,8 @@ export type MapPanelProps = {
   motionKey?: string | null;
   // 駅間の車内の人に勧める動き。次の駅で降りるときだけ「降りる駅」の印を出す
   inCarPlan?: InCarPlan | null;
+  // 止まっている区間の線のそばに「見合わせ」の札を出せたか。出せないときは、画面が運行の状態を別の場所に出す
+  onBlockedTagChange?: (shown: boolean) => void;
   // 止まっている区間の両端を選んでいる間だけ渡す。路線の駅を押せる印にし、ほかの札は隠す
   sectionPick?: MapSectionPick | null;
 };
@@ -196,8 +198,8 @@ function computeSettledToggleRect(
 }
 
 // 止まっている路線の札は、現在地からこの距離の線上に置く
-// 近い順に試し、見える範囲に入り、現在地と吹き出しから離れた最初の点に置く
-const blockedTagMeters = [900, 750, 650, 500, 380, 260, 180];
+// 並びの順に試し、見える範囲に入り、現在地と吹き出しから離れた最初の点に置く。近くに置けなければ遠い点も試す
+const blockedTagMeters = [900, 750, 650, 500, 380, 260, 180, 1200, 1600, 2200];
 // 現在地や吹き出しの基準点から、これより近い候補は使わない（px）
 const blockedTagClearance = 70;
 // 札の中心が、吹き出しやボタンの矩形からこれだけ離れるようにする（px）。札の幅と高さの半分に余白を足した値
@@ -1363,13 +1365,21 @@ export function MapPanel(props: MapPanelProps) {
   const blockedPath = scene?.blocked.features[0]?.geometry.coordinates ?? null;
   const blockedLabel = scene?.blocked.features[0]?.properties.label ?? "";
   const [blockedTagPosition, setBlockedTagPosition] = useState<Position | null>(null);
+  // 札を置けたか。地図が動いている間は札を隠すが、ここは止まったときの結果だけで決める
+  const [blockedTagPlaced, setBlockedTagPlaced] = useState(false);
+  const { onBlockedTagChange } = props;
+  useEffect(() => {
+    onBlockedTagChange?.(blockedTagPlaced);
+  }, [blockedTagPlaced, onBlockedTagChange]);
   useEffect(() => {
     if (!map || !blockedPath || blockedPath.length < 2) {
       setBlockedTagPosition(null);
+      setBlockedTagPlaced(false);
       return;
     }
     if (view !== "focus" || !guide) {
       setBlockedTagPosition(blockedPath[Math.floor(blockedPath.length / 2)] ?? null);
+      setBlockedTagPlaced(true);
       return;
     }
     const here = guide.here.position;
@@ -1441,6 +1451,7 @@ export function MapPanel(props: MapPanelProps) {
         );
       });
       // 置ける点が無ければ札は出さない。止まっていることは現在地の札と上部の帯が示す
+      setBlockedTagPlaced(chosen !== undefined);
       setBlockedTagPosition((previous) => {
         const next = chosen ?? null;
         return previous?.[0] === next?.[0] && previous?.[1] === next?.[1] ? previous : next;

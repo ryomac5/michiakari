@@ -60,7 +60,9 @@ async function startWithPastedText(page: Page): Promise<void> {
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
   await page.getByTestId(testIds.start.destinationOption("三ノ宮")).click();
   await expectJudgmentOpened(page);
-  await expect(page.getByTestId(testIds.judgment.tripSummary)).toContainText("三ノ宮");
+  // 行程は見出しに出さず、地図の「行き先」の札が示す。見出しは戻るボタンとメニューだけにする
+  await expect(page.getByTestId(testIds.judgment.tripSummary)).toHaveCount(0);
+  await expect(page.getByTestId(mapTestIds.destination)).toContainText("三ノ宮");
 
   // 発表文は判断の画面の情報を追加するから貼る
   await openSheet(page, "full");
