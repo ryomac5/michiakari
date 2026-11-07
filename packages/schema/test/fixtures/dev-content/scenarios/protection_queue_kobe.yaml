@@ -1,0 +1,62 @@
+# 開発用のダミー。開発者の知見ではない。本番の判断には使わない
+# すべて架空。文面は自作。原因の発表より先に緊急停止の放送が聞こえ、再開しても前の列車が詰まる場面
+
+id: protection_queue_kobe
+title:
+  ja: 緊急停止の放送のあと人身事故と分かり、再開しても前の列車が詰まる夜
+  en: An emergency stop broadcast, then a person-strike accident, with trains backed up after the restart
+event_type: person_collision
+operator: JR西日本
+line: JR神戸線
+blocked_section:
+  from_station: 尼崎
+  to_station: 立花
+start_time: "2026-11-06T20:30:00+09:00"
+
+# 帰宅途中。大阪駅のホームの列車に乗っている。時間の制約は無い。代替経路は知っている
+user:
+  current_station: 大阪
+  destination: 三ノ宮
+  constraints:
+    deadline: null
+    knows_alternatives: true
+    mobility_notes: null
+  language: ja
+
+timeline:
+  - id: obs_1
+    offset_minutes: 0
+    kind: station_broadcast
+    text:
+      ja: お客様にお知らせします。ただいま危険を知らせる信号を受信したため、緊急停止いたしました。状況を確かめております。
+      en: Attention passengers. We made an emergency stop after receiving a danger warning signal. We are checking the situation.
+  - id: obs_2
+    offset_minutes: 6
+    kind: announcement
+    text:
+      ja: JR神戸線は、尼崎駅〜立花駅間で発生した人身事故の影響で、大阪駅〜西明石駅間の上下線で運転を見合わせています。
+      en: The JR Kobe Line is suspended in both directions between Osaka and Nishi-Akashi due to a person-strike accident between Amagasaki and Tachibana.
+  - id: obs_3
+    offset_minutes: 30
+    kind: station_broadcast
+    text:
+      ja: 運転再開は21時10分頃の見込みです。前の列車がつかえているため、再開後もこの列車はしばらく停車いたします。
+      en: Service is expected to resume at around 21:10. This train will stay stopped for a while after that because the trains ahead are backed up.
+
+expectations:
+  - after: obs_1
+    evidence_includes: [protection_received]
+    break_even_shown: true
+    note: 原因の発表はまだ無いが、受信の放送から、周りの同じ会社の列車も止まる事象と推し量る。
+  - after: obs_2
+    action: switch
+    evidence_includes: [protection_received]
+    note: 人身事故で長く止まる。並ぶ他社の線はすぐ使えるので、そちらへ切り替える。
+  - after: obs_3
+    action: switch
+    evidence_includes: [queue_ahead]
+    note: 再開の見込みは近いが、再開しても前の列車が詰まって進みにくい。待つより他社の線へ切り替える。
+
+ground_truth:
+  resume_offset_minutes: 40
+  notes: 21時10分に運転を再開したが、前の列車が詰まり、大阪駅を出たのは21時35分ごろだった。21時ごろ阪神本線へ切り替えた人は21時40分ごろ三宮に着いた。

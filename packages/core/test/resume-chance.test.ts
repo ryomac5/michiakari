@@ -32,10 +32,7 @@ import {
 
 // 時刻ごとの再開の見込みと、待ったほうが早く着く確率。残り時間の推定と同じ標本から数える
 
-const DEV_KNOWLEDGE_DIR = join(
-  findRepoRoot(),
-  "packages/schema/test/fixtures/dev-content/knowledge",
-);
+const DEV_KNOWLEDGE_DIR = join(findRepoRoot(), "packages/core/test/fixtures/dev-knowledge");
 
 function loadDevKnowledge(id: string): Knowledge {
   const entry = loadKnowledgeDir(DEV_KNOWLEDGE_DIR).entries.find((e) => e.data.id === id);
