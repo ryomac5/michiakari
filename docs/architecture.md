@@ -171,10 +171,13 @@
   - この場面で利用者が知りたいのは、タクシーより早いかではなく、待っても期限に間に合うかだからである
   - 鉄道の代替が無く、タクシーしか無いときは、期限があっても、これまでどおりタクシーの到着と並ぶ時刻を分岐点にする
 - `computeTaxiFare`: 距離と時刻から公示運賃体系にもとづく概算運賃を返す
-- `decideTransferFare`: 乗車券の種類と発表の振替輸送から、他社の線への乗り換えの追加の費用を決める。IC カードは対象外、定期券と紙の切符は対象
+- `decideTransferFare`: 乗車券の種類と発表の振替輸送から、他社の線への乗り換えの追加の費用を決める
+  - 発表に振替なしとあれば、乗車券によらず運賃がかかる。IC カードは対象外なので運賃がかかる
+  - 定期券と紙の切符は、実施が分からなければ決めない。振替先に含まれれば対象、振替先が書かれていなければ対象になりうる
 - `applyTransferFares`: `find_alternatives` の結果の乗り換えの選択肢に `transferFare` を付ける。決定論と claude モードの両方に効く
 - 事業者は `params/transfer-fare.ts` の表に限る。調べの出典で関西の共通の扱いを確かめた事業者だけを置く
-- 分岐点は到着時刻で比べる。同着なら追加の費用がかからない選択肢を勧める
+- 止まった路線の事業者は、観測の事業者か止まった路線の名前から引く。待つ経路の最初の乗車からは引かない
+- 分岐点は到着時刻で比べる。同着なら振替の対象の選択肢だけを上げ、それ以外は並びの順を保つ
 - `estimateTrainQueueArrival`: 駅間に止まった列車が、ホームに着ける駅に着く時刻の p50 と p80 を返す
   - 入力は、再開までの残り、自分の種別、前の列車の種別の並び、先の駅と駅間の走行時間、事業者ごとの詰める動きである
   - 詰める事業者は、まず JR西日本だけにする。事業者は乗っている路線の ID の先頭から先に引き、引けなければ観測の事業者名の表記の揺れをそろえて引く。詰め始めるのは線路の安全が確かめられてからで、外からは再開に向けた放送か、再開の見込みの時刻が出たことで分かる。`closeUpCleared` は、再開の見込みの時刻か、手がかり `track_cleared` を見たときだけ true にする。`track_cleared` は、再開が近いと言い切る放送で立つ。条件付きの文では立たない。それまでは詰めず、再開を待ってから着くとみなす
@@ -422,7 +425,8 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `operator`, `line` | 事業者と路線。不明なら null |
 | `section` | 区間 `{ fromStation, toStation }`。不明なら null |
 | `statedResumeTime` | 発表文に記載された再開見込み時刻。記載が無ければ null |
-| `transferServiceActive` | 振替輸送の実施有無。記載が無ければ null |
+| `transferServiceActive` | 振替輸送の実施有無。記載が無ければ null。「行っておりません」のような打ち消しは false |
+| `transferOperators` | 振替先として書かれた事業者名。任意で、書かれていなければ省くか空 |
 | `detectedSignals` | 兆候との対応 `{ eventType, signalId, quote }` の配列。`quote` は根拠の文言で、core はここから手がかりを拾う |
 
 ### 4.3 JudgmentEvent（SSE で送るイベント）
@@ -488,7 +492,7 @@ RouteOption の項目は次のとおり。
 | `fareYen` | 運賃の円。null を許す |
 | `walkMinutes` | 徒歩の分 |
 | `isTransferService` | 振替輸送を使うか |
-| `transferFare` | 乗り換え先の追加の費用。`covered` は振替の対象、`fare_required` は運賃がかかる。決められなければ省く |
+| `transferFare` | 乗り換え先の追加の費用。`covered` は振替の対象、`possibly_covered` は振替の対象になりうる、`fare_required` は運賃がかかる。決められなければ省く |
 
 RouteLeg は `mode`、`from`、`to`、`minutes` を持ち、`line` は省略できる。`mode` は `walk` / `ride` / `wait` / `taxi` のいずれかである。
 

@@ -59,14 +59,7 @@ function assertNonNegativeMinutes(minutes: number, name: string): void {
   }
 }
 
-// 同着のときの順。振替の対象で追加の運賃がかからないもの、費用が分からないもの、運賃がかかるものの順
-const FARE_ORDER = { covered: 0, unknown: 1, fare_required: 2 } as const;
-
-function rankFare(alt: AlternativeArrival): number {
-  return FARE_ORDER[alt.transferFare ?? "unknown"];
-}
-
-// 到着が最も早い候補を返す。同着なら追加の費用がかからないもの、それも同じなら先に並んだもの
+// 到着が最も早い候補を返す。同着なら振替の対象のものだけを上げ、それ以外は先に並んだもの
 function pickEarliest<T extends AlternativeArrival>(candidates: readonly T[]): T | null {
   let best: T | null = null;
   for (const alt of candidates) {
@@ -75,7 +68,8 @@ function pickEarliest<T extends AlternativeArrival>(candidates: readonly T[]): T
       continue;
     }
     const diff = parseIsoToMs(alt.arrivalTime) - parseIsoToMs(best.arrivalTime);
-    if (diff < 0 || (diff === 0 && rankFare(alt) < rankFare(best))) best = alt;
+    const raised = alt.transferFare === "covered" && best.transferFare !== "covered";
+    if (diff < 0 || (diff === 0 && raised)) best = alt;
   }
   return best;
 }

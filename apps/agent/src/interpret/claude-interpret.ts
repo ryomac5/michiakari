@@ -29,6 +29,7 @@ export const InterpretationSchema = z.object({
   section: z.object({ fromStation: z.string(), toStation: z.string() }).nullable(),
   statedResumeClock: z.string().nullable(),
   transferServiceActive: z.boolean().nullable(),
+  transferOperators: z.array(z.string()).optional(),
   detectedCues: z.array(z.object({ cueId: z.string(), quote: z.string() })),
 });
 export type Interpretation = z.infer<typeof InterpretationSchema>;
@@ -109,6 +110,7 @@ export function convertInterpretation(
     section: interpretation.section,
     statedResumeTime: parseClock(interpretation.statedResumeClock, ctx.observedAt),
     transferServiceActive: interpretation.transferServiceActive,
+    transferOperators: interpretation.transferOperators ?? [],
     detectedSignals: eventType
       ? interpretation.detectedCues.flatMap((c) => {
           const cue = AnnouncementCueIdSchema.safeParse(c.cueId);

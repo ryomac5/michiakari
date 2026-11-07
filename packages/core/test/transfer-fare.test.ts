@@ -1,69 +1,118 @@
 import type { RouteLeg, RouteOption } from "@repo/schema";
 import { describe, expect, it } from "vitest";
-import { applyTransferFares, chooseBestAlternative, decideTransferFare } from "../src/index.ts";
+import {
+  applyTransferFares,
+  chooseBestAlternative,
+  decideTransferFare,
+  findOperatorKeysInText,
+} from "../src/index.ts";
 
 function ride(lineId: string): RouteLeg {
   return { mode: "ride", from: "A", to: "B", minutes: 10, lineId };
 }
 
-const base = { transferServiceActive: null, blockedOperator: "jr-west" } as const;
+// 振替輸送の実施が発表で分かり、振替先に阪急と阪神が書かれている
+const announced = {
+  transferServiceActive: true,
+  transferOperators: ["hankyu", "hanshin"],
+  blockedOperator: "jr-west",
+} as const;
 
 describe("decideTransferFare", () => {
-  it("定期券と紙の切符は、他社の線への乗り換えに追加の運賃がかからない", () => {
+  it("定期券と紙の切符は、乗り換え先が発表の振替先に含まれれば振替の対象", () => {
     for (const ticketType of ["commuter_pass", "paper"] as const) {
-      expect(decideTransferFare({ ...base, ticketType, rideOperators: ["hankyu"] })).toBe(
+      expect(decideTransferFare({ ...announced, ticketType, rideOperators: ["hankyu"] })).toBe(
         "covered",
       );
     }
   });
 
-  it("IC カードは振替輸送の対象外なので運賃がかかる", () => {
-    expect(decideTransferFare({ ...base, ticketType: "ic", rideOperators: ["hankyu"] })).toBe(
-      "fare_required",
-    );
+  it("発表に振替先の事業者が書かれていなければ、振替の対象になりうるにとどめる", () => {
+    expect(
+      decideTransferFare({
+        ...announced,
+        transferOperators: [],
+        ticketType: "commuter_pass",
+        rideOperators: ["hankyu"],
+      }),
+    ).toBe("possibly_covered");
+    // 止まっている会社だけが書かれているのも、振替先が書かれていないとみなす
+    expect(
+      decideTransferFare({
+        ...announced,
+        transferOperators: ["jr-west"],
+        ticketType: "paper",
+        rideOperators: ["hankyu"],
+      }),
+    ).toBe("possibly_covered");
+  });
+
+  it("乗り換え先が発表の振替先に無ければ、振替の対象と言わない", () => {
+    expect(
+      decideTransferFare({ ...announced, ticketType: "commuter_pass", rideOperators: ["keihan"] }),
+    ).toBeNull();
+  });
+
+  it("振替輸送の実施が分からなければ、定期券と紙の切符には何も出さない", () => {
+    for (const ticketType of ["commuter_pass", "paper"] as const) {
+      expect(
+        decideTransferFare({
+          ...announced,
+          transferServiceActive: null,
+          ticketType,
+          rideOperators: ["hankyu"],
+        }),
+      ).toBeNull();
+    }
+  });
+
+  it("IC カードは振替輸送の対象外なので、実施が分かっても分からなくても運賃がかかる", () => {
+    for (const transferServiceActive of [true, null]) {
+      expect(
+        decideTransferFare({
+          ...announced,
+          transferServiceActive,
+          ticketType: "ic",
+          rideOperators: ["hankyu"],
+        }),
+      ).toBe("fare_required");
+    }
   });
 
   it("発表に振替輸送を行わないとあれば、乗車券の種類によらず運賃がかかる", () => {
-    expect(
-      decideTransferFare({
-        ...base,
-        transferServiceActive: false,
-        ticketType: "commuter_pass",
-        rideOperators: ["hanshin"],
-      }),
-    ).toBe("fare_required");
+    for (const ticketType of ["commuter_pass", "paper", "ic", null] as const) {
+      expect(
+        decideTransferFare({
+          ...announced,
+          transferServiceActive: false,
+          ticketType,
+          rideOperators: ["hanshin"],
+        }),
+      ).toBe("fare_required");
+    }
   });
 
-  it("発表で振替輸送の実施が分かっていても、IC カードは運賃がかかる", () => {
+  it("乗車券も振替なしの発表も無ければ決めない", () => {
     expect(
-      decideTransferFare({
-        ...base,
-        transferServiceActive: true,
-        ticketType: "ic",
-        rideOperators: ["hanshin"],
-      }),
-    ).toBe("fare_required");
-  });
-
-  it("乗車券が分からなければ決めない", () => {
-    expect(decideTransferFare({ ...base, ticketType: null, rideOperators: ["hankyu"] })).toBeNull();
+      decideTransferFare({ ...announced, ticketType: null, rideOperators: ["hankyu"] }),
+    ).toBeNull();
   });
 
   it("同じ会社の線だけに乗るなら決めない", () => {
     expect(
-      decideTransferFare({ ...base, ticketType: "paper", rideOperators: ["jr-west"] }),
+      decideTransferFare({ ...announced, ticketType: "ic", rideOperators: ["jr-west"] }),
     ).toBeNull();
   });
 
   it("調べの出典で扱いを確かめていない事業者を含むなら決めない", () => {
     expect(
-      decideTransferFare({ ...base, ticketType: "paper", rideOperators: ["hankyu", "nose"] }),
+      decideTransferFare({ ...announced, ticketType: "ic", rideOperators: ["hankyu", "nose"] }),
     ).toBeNull();
     expect(
       decideTransferFare({
-        ...base,
+        ...announced,
         blockedOperator: "sanyo",
-        ticketType: "paper",
+        ticketType: "ic",
         rideOperators: ["hanshin"],
       }),
     ).toBeNull();
@@ -72,15 +121,24 @@ describe("decideTransferFare", () => {
   it("止まっている線の会社か、乗る線の会社が分からなければ決めない", () => {
     expect(
       decideTransferFare({
-        ...base,
+        ...announced,
         blockedOperator: null,
-        ticketType: "paper",
+        ticketType: "ic",
         rideOperators: ["hankyu"],
       }),
     ).toBeNull();
     expect(
-      decideTransferFare({ ...base, ticketType: "paper", rideOperators: ["hankyu", null] }),
+      decideTransferFare({ ...announced, ticketType: "ic", rideOperators: ["hankyu", null] }),
     ).toBeNull();
+  });
+});
+
+describe("findOperatorKeysInText", () => {
+  it("文に書かれた事業者名を事業者キーにする", () => {
+    expect(
+      findOperatorKeysInText("阪急線、阪神線、JR線で振替輸送を行っています").toSorted(),
+    ).toEqual(["hankyu", "hanshin", "jr-west"]);
+    expect(findOperatorKeysInText("振替輸送を行っています")).toEqual([]);
   });
 });
 
@@ -109,18 +167,19 @@ describe("applyTransferFares", () => {
     ]);
   });
 
-  it("路線 ID が無ければ事業者名から止まっている会社を決める", () => {
+  it("止まっている会社を事業者名から決め、発表の振替先の事業者名を事業者キーにそろえる", () => {
     const applied = applyTransferFares({
       options,
       ticketType: "commuter_pass",
       transferServiceActive: true,
+      transferOperators: ["阪急電鉄"],
       blockedLineId: null,
       blockedOperatorName: "JR西日本",
     });
     expect(applied.find((o) => o.id === "other")?.transferFare).toBe("covered");
   });
 
-  it("乗車券が分からなければ、前に付いた印も外す", () => {
+  it("乗車券が分からず振替なしの発表も無ければ、前に付いた印も外す", () => {
     const marked = options.map((o) => ({ ...o, transferFare: "covered" as const }));
     const applied = applyTransferFares({
       options: marked,
@@ -135,7 +194,7 @@ describe("applyTransferFares", () => {
 describe("chooseBestAlternative の同着", () => {
   const at = "2026-11-07T20:30:00+09:00";
 
-  it("同着なら追加の運賃がかからない選択肢を勧める", () => {
+  it("同着なら振替の対象の選択肢を上げる", () => {
     const choice = chooseBestAlternative([
       { id: "ic", kind: "transfer", arrivalTime: at, transferFare: "fare_required" },
       { id: "unknown", kind: "transfer", arrivalTime: at },
@@ -144,12 +203,17 @@ describe("chooseBestAlternative の同着", () => {
     expect(choice?.alternative.id).toBe("covered");
   });
 
-  it("運賃がかかる選択肢は、費用の分からない同着の選択肢より後にする", () => {
-    const choice = chooseBestAlternative([
+  it("振替の対象が無い同着は、費用によらず先に並んだものを勧める", () => {
+    const fareFirst = chooseBestAlternative([
       { id: "ic", kind: "transfer", arrivalTime: at, transferFare: "fare_required" },
       { id: "unknown", kind: "transfer", arrivalTime: at },
     ]);
-    expect(choice?.alternative.id).toBe("unknown");
+    expect(fareFirst?.alternative.id).toBe("ic");
+    const possibleLater = chooseBestAlternative([
+      { id: "unknown", kind: "transfer", arrivalTime: at },
+      { id: "possible", kind: "transfer", arrivalTime: at, transferFare: "possibly_covered" },
+    ]);
+    expect(possibleLater?.alternative.id).toBe("unknown");
   });
 
   it("早く着くほうを費用より優先する", () => {

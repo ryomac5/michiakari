@@ -1,4 +1,4 @@
-import { formatJstIso, getJstMinuteOfDay, parseIsoToMs } from "@repo/core";
+import { findOperatorKeysInText, formatJstIso, getJstMinuteOfDay, parseIsoToMs } from "@repo/core";
 import type { Section } from "@repo/schema";
 import type { LineInfo } from "../alternatives/provider.ts";
 
@@ -57,10 +57,24 @@ export function parseStatedResumeTime(text: string, observedAt: string): string 
   return null;
 }
 
+// 振替輸送を行わないという書き方。肯定の「行って」より先に見る
+const TRANSFER_NEGATIVE_PATTERN =
+  /振替輸送(は|を)?(行って|実施して)(おりません|いません|おらず|いない)|振替輸送(は|を)?(行い|実施し)ません|振替輸送(は|を)?(行わ|実施し)ない|振替輸送(は|を)?(終了|取りやめ|中止)/;
+const TRANSFER_POSITIVE_PATTERN = /振替輸送(は|を)?(行って|実施して|実施中|ご利用)/;
+
 export function parseTransferServiceActive(text: string): boolean | null {
   const normalized = text.normalize("NFKC");
   if (!normalized.includes("振替輸送")) return null;
-  if (/振替輸送(は|を)?(行って|実施して|ご利用)/.test(normalized)) return true;
-  if (/振替輸送(は|を)?(行っておりません|終了|実施しておりません)/.test(normalized)) return false;
+  if (TRANSFER_NEGATIVE_PATTERN.test(normalized)) return false;
+  if (TRANSFER_POSITIVE_PATTERN.test(normalized)) return true;
   return null;
+}
+
+// 振替輸送の文に書かれた振替先の事業者。事業者キーで返す。書かれていなければ空
+export function parseTransferOperators(text: string): string[] {
+  const sentences = text
+    .normalize("NFKC")
+    .split(/[。\n]/)
+    .filter((s) => s.includes("振替"));
+  return [...new Set(sentences.flatMap(findOperatorKeysInText))];
 }

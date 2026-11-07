@@ -223,6 +223,7 @@
       "transferService": "振替輸送",
       "transferFare": {
         "covered": "振替の対象",
+        "possibly_covered": "振替の対象になりえます",
         "fare_required": "運賃がかかります"
       },
       "pending": "調べています",
