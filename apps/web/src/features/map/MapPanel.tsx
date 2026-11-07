@@ -823,7 +823,9 @@ export function MapPanel(props: MapPanelProps) {
   const inCar = trainPosition?.kind === "between_stations";
   // 地図に描く選択肢。一覧で押したものがあればそれ、無ければ推奨
   const focusOptionId = props.selectedOptionId ?? recommendedOptionId;
-  const tone = selectRouteTone(options, focusOptionId);
+  // 地図に経路を描く選択肢。勧める選択肢の無い保留の判断では、動かなかったときに乗る選択肢を描く
+  const routeOptionId = focusOptionId ?? fallbackOptionId;
+  const tone = selectRouteTone(options, routeOptionId);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const paletteRef = useRef(palette);
@@ -911,7 +913,7 @@ export function MapPanel(props: MapPanelProps) {
 
   const reachAreas = useReachAreas(origin);
   // 徒歩の範囲の円は、地図に描く経路が歩きを含むときだけ出す
-  const routeWalks = checkRouteWalks(options.find((o) => o.id === focusOptionId));
+  const routeWalks = checkRouteWalks(options.find((o) => o.id === routeOptionId));
   const scene = useMemo(
     () =>
       geo && reachAreas
@@ -922,7 +924,7 @@ export function MapPanel(props: MapPanelProps) {
               destination,
               options,
               recommendedOptionId,
-              selectedOptionId: focusOptionId,
+              selectedOptionId: routeOptionId,
               blockedSection,
               blockedLine,
               blockedDirection,
@@ -940,7 +942,7 @@ export function MapPanel(props: MapPanelProps) {
       destination,
       options,
       recommendedOptionId,
-      focusOptionId,
+      routeOptionId,
       blockedSection,
       blockedLine,
       blockedDirection,
@@ -1072,9 +1074,11 @@ export function MapPanel(props: MapPanelProps) {
             scene.destination,
             // 乗り続けるときも、進む先が見えるよう次の駅までは収める
             inCarPlan === "stay" && fullGuide.alight ? [fullGuide.alight.position] : [],
+            // 勧める選択肢の無い保留の判断では、動かなかったときに乗る駅の吹き出しを残す
+            focusOptionId === null,
           )
         : null,
-    [fullGuide, scene, motion, inCarPlan],
+    [fullGuide, scene, motion, inCarPlan, focusOptionId],
   );
   const view: MapView = guide ? viewChoice : "overview";
   // 列車の動きが終わる点から行き先までの距離。乗り続けるときは行き先まで進むことを確かめるのに使う
