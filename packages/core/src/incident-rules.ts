@@ -4,6 +4,7 @@ import {
   INCIDENT_BEHAVIOR,
   type IncidentFlowOutlook,
   UNKNOWN_FIRST_TRAIN_WAIT,
+  VERY_LONG_WEATHER_PHRASES,
 } from "../params/incident-behavior.ts";
 import {
   INCIDENT_TYPE_DURATIONS,
@@ -49,8 +50,20 @@ export function resolveIncidentType(input: IncidentTypeInput): IncidentTypeId | 
   return null;
 }
 
+function checkVeryLongWeatherText(texts: readonly string[]): boolean {
+  return texts.some((t) =>
+    VERY_LONG_WEATHER_PHRASES.some((p) => t.toLowerCase().includes(p.toLowerCase())),
+  );
+}
+
 // 種類の長さの見込み。種類が分からなければ unknown
-export function resolveFlowOutlook(type: IncidentTypeId | null): IncidentFlowOutlook {
+// 天気の事象か種類が分からないときに、台風の語が発表にあれば very_long に上げる
+export function resolveFlowOutlook(
+  type: IncidentTypeId | null,
+  texts: readonly string[] = [],
+): IncidentFlowOutlook {
+  const weatherOrUnknown = type === null || checkWeatherIncident(type);
+  if (weatherOrUnknown && checkVeryLongWeatherText(texts)) return "very_long";
   return type ? INCIDENT_BEHAVIOR[type].flowOutlook : "unknown";
 }
 

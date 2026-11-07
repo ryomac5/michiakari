@@ -20,10 +20,21 @@ export const INCIDENT_PHRASES: Readonly<Record<IncidentTypeId, readonly string[]
   point_failure: ["ポイント故障", "ポイントの故障", "ポイントの不具合", "ポイント不転換"],
   power_outage: ["停電", "送電", "架線に電気が"],
   vegetation_obstruction: ["倒木", "木が倒れ", "樹木と接触", "竹が"],
-  foreign_object: ["架線に異物", "線路内に支障物", "線路上の支障物", "飛来物", "架線支障"],
+  // 架線の異物と飛来物。防護無線は出すことがある
+  foreign_object: ["架線に異物", "架線への異物", "架線支障", "飛来物"],
   animal_collision: ["動物と衝突", "動物との衝突", "動物と接触", "鹿と衝突", "イノシシと衝突"],
   crossing_obstruction: ["踏切内で車が立ち往生", "踏切内に車", "踏切支障", "踏切内の自動車"],
-  track_structure_damage: ["線路設備の点検", "線路の損傷", "線路設備の不具合", "レールの破損"],
+  // 線路の支障物も、防護無線を必ず出す線路の支障としてここに寄せる
+  track_structure_damage: [
+    "線路設備の点検",
+    "線路の損傷",
+    "線路設備の不具合",
+    "レールの破損",
+    "線路内に支障物",
+    "線路上の支障物",
+    "線路内の支障物",
+    "線路に支障物",
+  ],
   building_falling_object: ["コンクリート片", "落下物", "設備の落下"],
   bridge_impact: ["橋げた", "橋桁"],
   track_smoke_check: [

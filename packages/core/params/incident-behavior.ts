@@ -39,9 +39,14 @@ export type IncidentBehavior = {
   firstTrainWait: DurationDist;
   // めったに無い事象。見込みの数字を言い切らない
   rare: boolean;
+  // 確かめが済んだ手がかりがあるときだけ ruleRange を使う。無ければ統計値に落とす
+  ruleNeedsCheck: boolean;
 };
 
-type BehaviorRow = Omit<IncidentBehavior, "firstTrainWait" | "rare"> & { rare?: boolean };
+type BehaviorRow = Omit<IncidentBehavior, "firstTrainWait" | "rare" | "ruleNeedsCheck"> & {
+  rare?: boolean;
+  ruleNeedsCheck?: boolean;
+};
 
 const shortRange = (p50: number, p80: number): DurationDist => ({ p50, p80 });
 
@@ -135,12 +140,13 @@ const BEHAVIOR_ROWS: Readonly<Record<IncidentTypeId, BehaviorRow>> = {
     flowOutlook: "short",
     ruleRange: shortRange(5, 15),
   },
-  // 駅で止めて確かめる。すぐ確かめられたときの目安。周りへの広がりは分からないので区間とみなす
+  // 駅で止めて確かめる。目安はすぐ確かめられたときに限る。周りへの広がりは分からないので区間とみなす
   suspicious_object: {
     stopKind: "section",
     protection: "none",
     flowOutlook: "short",
     ruleRange: shortRange(10, 30),
+    ruleNeedsCheck: true,
   },
   // その列車から止まる設備と車両の事象
   vehicle_failure: {
@@ -195,6 +201,7 @@ function buildBehaviorTable(): Readonly<Record<IncidentTypeId, IncidentBehavior>
     {
       ...row,
       rare: row.rare ?? false,
+      ruleNeedsCheck: row.ruleNeedsCheck ?? false,
       firstTrainWait: FIRST_TRAIN_WAIT_BY_STOP_KIND[row.stopKind],
     },
   ]);
@@ -217,3 +224,7 @@ export const AVERAGE_STATION_SPACING_KM = 1.5;
 // 自分の番までの分の上限がこれ以上なら、次の駅で降りて乗り換える価値があるとみなす
 // 出典: 開発者の推定（仮）
 export const QUEUE_ALIGHT_WORTH_MINUTES = 10;
+
+// 発表にこの語があれば、天気の事象の長さの見込みを very_long に上げる。台風は特に長い
+// 出典: 開発者の推定
+export const VERY_LONG_WEATHER_PHRASES: readonly string[] = ["台風", "typhoon"];

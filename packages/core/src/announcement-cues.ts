@@ -5,6 +5,8 @@ import {
   type AnnouncementCueId,
   CONDITIONAL_SENSITIVE_CUES,
   CONDITIONAL_SENTENCE_MARKERS,
+  NEGATION_PATTERNS,
+  NEGATION_SENSITIVE_CUES,
 } from "../params/announcement-cues.ts";
 
 // 放送と発表の文から、行動を変える手がかりを拾う
@@ -17,11 +19,18 @@ function checkConditionalSentence(sentence: string): boolean {
   return CONDITIONAL_SENTENCE_MARKERS.some((m) => sentence.includes(m));
 }
 
+function checkNegatedSentence(sentence: string): boolean {
+  return NEGATION_PATTERNS.some((p) => p.test(sentence));
+}
+
+// 条件付きの文と否定の文では、それぞれに弱い手がかりを数えない
 function detectSentenceCues(sentence: string): AnnouncementCueId[] {
   const conditional = checkConditionalSentence(sentence);
+  const negated = checkNegatedSentence(sentence);
   return ANNOUNCEMENT_CUE_IDS.filter(
     (id) =>
       !(conditional && CONDITIONAL_SENSITIVE_CUES.has(id)) &&
+      !(negated && NEGATION_SENSITIVE_CUES.has(id)) &&
       ANNOUNCEMENT_CUE_PATTERNS[id].some((p) => p.test(sentence)),
   );
 }
