@@ -1,8 +1,8 @@
 # みちあかり
 
 > Michiakari helps rail passengers in Kansai see the options they have now, and the outlook for each, during service disruptions.
-> It turns announcements into an estimated phase, a time to resumption, a break-even time, and a concrete action.
-> The judgment draws on a former train dispatcher's knowledge, and every number is computed by code, not by Claude.
+> It turns announcements into an estimated time to resumption, a break-even time, and a concrete action.
+> The judgment uses rules drawn from a former train dispatcher's experience, and every number is computed by code, not by Claude.
 
 Built with Claude: Japan 2026 ハッカソンの提出作品です。
 
@@ -15,7 +15,7 @@ Built with Claude: Japan 2026 ハッカソンの提出作品です。
 - [Claude Code での開発](#claude-code-での開発)
 - [構成](#構成)
 - [動かし方](#動かし方)
-- [知見ナレッジとシナリオ](#知見ナレッジとシナリオ)
+- [シナリオと非公開の材料](#シナリオと非公開の材料)
 - [推定の扱いと運行情報](#推定の扱いと運行情報)
 - [データと出典](#データと出典)
 - [ライセンス](#ライセンス)
@@ -35,25 +35,26 @@ Built with Claude: Japan 2026 ハッカソンの提出作品です。
 
 | 返すもの | 内容 |
 |---|---|
-| 見込み | 現在の段階と、再開までの残り時間を幅で示します。 |
+| 見込み | 再開までの残り時間を幅で示します。 |
 | 分岐点 | この時刻までに再開しなければ、振替のほうが早く着く境目です。 |
 | 行動 | 待つ、切り替える、保留のいずれかと、推奨する経路です。 |
 
-すべての判断に、使った兆候と知見を根拠として付けます。
+すべての判断に、使った手がかりと規則を根拠として付けます。
 
 ## 開発者の背景
 
 開発者は車両基地、運転士、指令員を経てエンジニアになりました。
 指令員として異常時対応にあたり、この情報の差を何度も見てきました。
-判断の根拠となる知見ナレッジは、この経験を一般化したものです。
-知見は社内の数値ではなく、外から観察できる兆候で定義しています。
+判断は、この経験を落とした規則表と報道の統計値で出します。
+知見そのものは公開しない開発の材料で、リポジトリには入れていません。
+規則は社内の数値ではなく、外から観察できる兆候で定義しています。
 
 ## 主な機能
 
 | 機能 | 内容 |
 |---|---|
 | 状況の入力 | 掲示の撮影、発表文の貼り付け、選択式の 3 通りで伝えます。 |
-| 見込み | 段階のタイムラインに「いまここ」を示します。残り時間は中央値と 80% 点で出します。 |
+| 見込み | 残り時間を中央値と 80% 点の幅で出します。事象の段階は示しません。 |
 | 分岐点 | 再開を待つ期限の時刻を示します。待つ場合と代替経路の到着時刻から計算します。 |
 | 行動 | 結論の一文と代替経路の一覧を出します。経路ごとに到着時刻と徒歩の分数が付きます。 |
 | 実距離の地図 | 国土数値情報の路線を地理院タイルに重ねます。止まっている区間と推奨経路を描きます。 |
@@ -69,14 +70,14 @@ Built with Claude: Japan 2026 ハッカソンの提出作品です。
 
 | 役割 | モデル | 使い方 |
 |---|---|---|
-| 観測の解釈 | `claude-haiku-5-5` | 掲示の写真や発表文を読みます。事象種別、区間、兆候を構造化した観測にします。 |
+| 観測の解釈 | `claude-haiku-5-5` | 掲示の写真や発表文を読みます。事象の種類、区間、手がかりを構造化した観測にします。 |
 | 判断 | `claude-opus-5-5` | 自前のツール実行ループで判断材料を集めます。最後に判断を確定するツールを呼びます。 |
 
 判断ループのツールは次のとおりです。
 
-- `lookup_knowledge` は知見ナレッジを引きます
+- `lookup_incident_rules` は事象の止まり方と防護無線の有無を規則表から引きます
 - `get_weather` は気象庁アメダスの 10 分間降水量を引きます
-- `estimate_phase_and_remaining` は段階と残り時間を推定します
+- `estimate_remaining` は規則表と統計値から残り時間を見積もります
 - `find_alternatives` は止まっている区間を避けた経路を探します
 - `compute_break_even` は分岐点を計算します
 - `emit_judgment` は判断を確定します
@@ -88,7 +89,7 @@ Built with Claude: Japan 2026 ハッカソンの提出作品です。
 - 判断の数値はサーバーがツールの結果から組み立てます
 - 文中の時刻、分、円はツールの結果と照合します
 - 照合に失敗したら、指摘を返して 1 回まで再生成させます
-- 知見ナレッジはシステムプロンプトに置き、プロンプトキャッシュを効かせます
+- システムプロンプトとツール定義は固定し、プロンプトキャッシュを効かせます
 - 各ツールの開始と結果を SSE の判断イベントで画面へ流します
 - ツール呼び出しの合間の進捗メモも `progress` イベントで流します
 - 利用者の入力はシステムプロンプトに混ぜず、観測データとして渡します
@@ -101,8 +102,8 @@ Built with Claude: Japan 2026 ハッカソンの提出作品です。
 
 開発は Claude Code を中心に進めました。詳しくは [docs/guides/claude-code-usage.html](docs/guides/claude-code-usage.html) にあります。
 
-- `.claude/hooks/protect-paths.mjs` が、`knowledge/` と `scenarios/` への書き込みを遮断します。
-- `pnpm guard` が、この 2 つを承認記録と照合します。`scripts/guard.mjs` が実行します。
+- `.claude/hooks/protect-paths.mjs` が、`scenarios/` と非公開の材料のフォルダへの書き込みを遮断します。
+- `pnpm guard` が、`scenarios/` を承認記録と照合します。材料の文が追跡中のファイルに無いことも確かめます。
 - 根のエージェントが計画し、Claude の子エージェントに実装を振ります。別系統の Codex がレビューします。
 - 利用者向けの文は `docs/agents/wording.md` の決まりで書き、`docs/agents/wording-audit.md` で監査しました。
 - 画面は e2e でスクリーンショットを撮り、目で確かめました。
@@ -122,7 +123,7 @@ Built with Claude: Japan 2026 ハッカソンの提出作品です。
      │
      ├─ packages/core    残り時間、到着時刻、分岐点、運賃、徒歩時間
      ├─ packages/geo     路線・駅のネットワークと経路探索
-     └─ knowledge/ と scenarios/ の YAML
+     └─ scenarios/ の YAML
      │
      └─ SSE で判断イベントを返す ──▶ apps/web が逐次描画する
 
@@ -192,7 +193,7 @@ JUDGE_MODE=claude pnpm dev:demo
 |---|---|---|
 | `ANTHROPIC_API_KEY` | agent | Claude の API キーです。あれば claude モードになります。 |
 | `JUDGE_MODE` | agent | `claude` か `deterministic` を指定し、自動の判定を上書きします。 |
-| `CONTENT_DIR` | agent, web | 知見とシナリオの読み込み元です。リポジトリルートからの相対パスで書きます。 |
+| `CONTENT_DIR` | agent, web | シナリオの読み込み元です。リポジトリルートからの相対パスで書きます。 |
 | `PORT` | agent | 待ち受けるポートです。既定は 8787 です。 |
 | `CORS_ORIGINS` | agent | 許可するオリジンをカンマ区切りで書きます。既定は `http://localhost:3000` です。 |
 | `RATE_LIMIT_PER_MINUTE` | agent | 接続元ごとの 1 分あたりの上限です。既定は 20 です。 |
@@ -205,9 +206,9 @@ JUDGE_MODE=claude pnpm dev:demo
 pnpm lint && pnpm typecheck
 pnpm test                # 全パッケージの単体テスト
 pnpm test:e2e            # シナリオの振る舞いテスト
-pnpm guard               # knowledge/ と scenarios/ が改変されていないかを検査
-pnpm validate:dev        # ダミーの知見とシナリオの YAML を検証
-pnpm validate --watch    # 保存のたびに knowledge/ と scenarios/ を検証
+pnpm guard               # scenarios/ の改変と、材料の文の写し込みを検査
+pnpm validate:dev        # ダミーのシナリオの YAML を検証
+pnpm validate --watch    # 保存のたびに scenarios/ を検証
 pnpm smoke:claude        # 実 API で claude モードを 1 回確認。キーが無ければ案内だけ
 ```
 
@@ -224,25 +225,25 @@ pnpm --filter e2e record
 デモ動画用に、スマートフォンの縦画面でリプレイを録画します。
 動画は `e2e/recordings/` に出力され、git では管理しません。
 
-## 知見ナレッジとシナリオ
+## シナリオと非公開の材料
 
-`knowledge/` と `scenarios/` は開発者本人が書く領域です。
+`scenarios/` は開発者本人が書く領域です。
 エージェントは読むだけで、フックが書き込みを遮断します。
 `pnpm guard` は承認記録と照合し、改変を検出します。
-現時点では、両方とも雛形と書式の説明だけを置いています。
 
-開発者は次のコマンドで雛形から書き始めます。
+開発者の知見の材料は、リポジトリの外に置いています。
+材料の文はコードにもテストにも文書にも写しません。
+材料から得た値は、`packages/core` の規則表に「開発者の推定」として置きます。
 手順は [docs/guides/knowledge-authoring.html](docs/guides/knowledge-authoring.html) にあります。
 
+シナリオは次のコマンドで雛形から書き始めます。
+
 ```bash
-ALLOW_PROTECTED_EDIT=1 pnpm knowledge:new <event_id>
 ALLOW_PROTECTED_EDIT=1 pnpm scenario:new <scenario_id> --event <event_id>
 ```
 
-開発用のダミーは `packages/schema/test/fixtures/dev-content/` にあります。
-人身事故、車両故障、大雨の知見とシナリオが 3 本ずつです。
-ダミーは開発者の知見ではなく、画面とエージェントを動かすための仮のものです。
-所要時間も報道や体感程度の目安で、根拠のある値ではありません。
+開発用のダミーのシナリオは `packages/schema/test/fixtures/dev-content/` にあります。
+ダミーは画面とエージェントを動かすための仮のものです。
 
 シナリオはすべて架空です。
 実在の事故記録や公式発表文は転載していません。

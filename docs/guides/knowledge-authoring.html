@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>知見とシナリオの手順書</title>
+<title>開発者の答えを規則表に落とす手順</title>
 <style>
   :root {
     --bg: #fbfaf8;
@@ -76,15 +76,16 @@
 </head>
 <body>
 <main>
-<h1>知見とシナリオの手順書</h1>
-<p class="lead">開発者本人が知見とシナリオを書き、アプリに載せるまでの手順です。2026年11月2日時点の構成に合わせています。</p>
+<h1>開発者の答えを規則表に落とす手順</h1>
+<p class="lead">開発者の答えを規則表に落とし、シナリオを書いてアプリに載せるまでの手順です。2026年11月7日時点の方針に合わせています。</p>
 
 <nav>
 <ol>
   <li><a href="#flow">作業の全体像</a></li>
-  <li><a href="#knowledge">知見の書き方</a></li>
+  <li><a href="#private">非公開の材料の置き場所</a></li>
+  <li><a href="#rules">規則表への落とし方</a></li>
   <li><a href="#scenario">シナリオの書き方</a></li>
-  <li><a href="#steps">作業の手順</a></li>
+  <li><a href="#steps">シナリオの作業手順</a></li>
   <li><a href="#switch">ダミーから本物への切り替え</a></li>
   <li><a href="#smoke">claude モードの確認</a></li>
   <li><a href="#record">デモの録画</a></li>
@@ -95,6 +96,16 @@
 </nav>
 
 <h2 id="flow">作業の全体像</h2>
+<p>作業は 2 本の流れに分かれます。</p>
+<h3>規則表の流れ</h3>
+<div class="diagram">
+  <span class="box">材料に答えを書く</span><span class="arrow">→</span>
+  <span class="box">エージェントが読む</span><span class="arrow">→</span>
+  <span class="box">規則表に値を置く</span><span class="arrow">→</span>
+  <span class="box">差分を開発者が確かめる</span><span class="arrow">→</span>
+  <span class="box">pnpm guard</span>
+</div>
+<h3>シナリオの流れ</h3>
 <div class="diagram">
   <span class="box">main で書く</span><span class="arrow">→</span>
   <span class="box">pnpm validate</span><span class="arrow">→</span>
@@ -103,98 +114,71 @@
   <span class="box">develop へ取り込み</span><span class="arrow">→</span>
   <span class="box">e2e で確認</span>
 </div>
-<p><code>knowledge/</code> と <code>scenarios/</code> は開発者本人だけが書きます。</p>
-<p>エージェントはこの 2 つを読むだけで、フックが書き込みを止めます。</p>
-<p><code>pnpm guard</code> は承認記録と照合し、無断の変更を見つけます。</p>
-<p>そのため書く作業と承認は、必ず main ブランチで行います。</p>
+<p>アプリは実行時に知見を読みません。</p>
+<p>判断の材料は、規則表、報道の統計値、利用者が持ち込んだ発表と放送の 3 つです。</p>
+<p>知見は、規則表を作るための公開しない材料です。</p>
 
-<h2 id="knowledge">知見の書き方</h2>
-<p>知見は 1 事象 1 ファイルで、<code>knowledge/&lt;id&gt;.yaml</code> に置きます。</p>
-<p>雛形から作るには次のコマンドを使います。id とファイル名がそろいます。</p>
-<pre><code>ALLOW_PROTECTED_EDIT=1 pnpm knowledge:new signal_failure</code></pre>
-<p>良い書き方の例は <code>packages/schema/test/fixtures/dev-content/knowledge/</code> にあります。</p>
-<p>ただし中身は開発用のダミーで、所要時間に根拠はありません。</p>
-
-<h3>項目の意味</h3>
+<h2 id="private">非公開の材料の置き場所</h2>
+<p>材料はリポジトリの外のフォルダに置きます。</p>
+<p>そのフォルダを環境変数 <code>PRIVATE_NOTES_DIR</code> で指します。</p>
 <div class="table-wrap">
 <table>
-  <tr><th>項目</th><th>意味</th></tr>
-  <tr><td><code>id</code></td><td>事象を表す英小文字の id です。ファイル名と同じにします。</td></tr>
-  <tr><td><code>name</code> <code>summary</code></td><td>事象の名前と概要です。概要は復旧までの流れを 2〜3 文で書きます。</td></tr>
-  <tr><td><code>identification.phrases</code></td><td>発表文に出る事象の言い回しです。文字列照合で事象を見分ける手がかりになります。</td></tr>
-  <tr><td><code>phases</code></td><td>段階を時系列の順に並べます。並び順がそのまま進む順になります。</td></tr>
-  <tr><td><code>phases[].signals</code></td><td>その段階にいると分かる兆候です。外から見聞きできるものだけを書きます。</td></tr>
-  <tr><td><code>phases[].duration_minutes</code></td><td>その段階の所要時間で、p50 と p80 を分で書きます。</td></tr>
-  <tr><td><code>phases[].exit_signals</code></td><td>次の段階へ進んだと分かる兆候の id です。</td></tr>
-  <tr><td><code>phases[].guidance</code></td><td>その段階で利用者に何を示すかの方針です。判断の文の書きぶりに効きます。</td></tr>
-  <tr><td><code>after_resume</code></td><td>運転再開から乗れる列車が来るまでの目安です。分岐点の計算に使います。</td></tr>
-  <tr><td><code>caveats</code></td><td>判断を誤りやすい点や、長引く型を書きます。</td></tr>
-  <tr><td><code>external_factors</code></td><td>気象を判断材料に使うかを決めます。true なら雨量と警報を引きます。</td></tr>
+  <tr><th>守り</th><th>働き</th></tr>
+  <tr><td>フック</td><td>材料のフォルダへのエージェントの書き込みを止めます。読むことだけを許します。</td></tr>
+  <tr><td><code>pnpm guard</code></td><td>材料の文を、git が追跡中のファイルと照合します。文が写っていれば失敗します。</td></tr>
 </table>
 </div>
-<p><code>en</code> の欄は省けます。英語の画面で使うので、書けるなら書きます。</p>
+<p><code>PRIVATE_NOTES_DIR</code> が未設定のときの guard の振る舞いは要確認です。</p>
+<div class="note">
+<p>材料の文を、コードにもテストにも文書にも写しません。</p>
+<p>材料をリポジトリの中へ動かしたり、リンクを張ったりもしません。</p>
+<p>リポジトリは公開されます。書いた内容は誰でも読めます。</p>
+</div>
+
+<h2 id="rules">規則表への落とし方</h2>
+<p>開発者は材料のフォルダに答えを書き、エージェントに場所を伝えます。</p>
+<p>エージェントは答えを読み、規則の言葉に言い換えて規則表に置きます。</p>
+<p>規則表は <code>packages/core/params/</code> に 1 か所で置きます。</p>
+<p>規則の中身と手がかりの id は <code>docs/architecture.md</code> の 4.1 を正とします。</p>
+
+<h3>答えが決める項目</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>規則表の項目</th><th>答えが決めること</th></tr>
+  <tr><td>止まり方の区分</td><td>事象ごとに、どの列車が止まるかです。防護無線を鳴らす事象かどうかもここで決まります。</td></tr>
+  <tr><td>短く終わる目安</td><td>すぐ動く事象の p50 と p80 の分です。</td></tr>
+  <tr><td>長く止まる向き</td><td>統計値の見込みを長い側に寄せる事象です。分からないと扱う事象もここで決めます。</td></tr>
+  <tr><td>支障の無い線路の目安</td><td>反対の線路や並ぶ線が動き出すまでの分です。</td></tr>
+  <tr><td>再開後の詰まり</td><td>1 区間を詰める分と、詰める事業者です。</td></tr>
+  <tr><td>手がかり</td><td>行動を変える一般的な放送の言い回しです。</td></tr>
+</table>
+</div>
+<p>事象の id は、統計値の種類の id <code>IncidentTypeId</code> を使います。</p>
 
 <h3>所要時間 p50 と p80</h3>
-<p>p50 は中央値です。半分の事象がこの分数のうちに次へ進みます。</p>
+<p>p50 は中央値です。半分の事象がこの分数のうちに動き出します。</p>
 <p>p80 は長引く場合の目安です。8 割の事象がこの分数に収まります。</p>
 <p>p80 は p50 以上にします。同じ値なら幅の無い固定の時間になります。</p>
-<p>アプリは 2 つの値から分布を当てはめ、残りの段階を足し合わせます。</p>
-<p>そのため段階ごとの値が、再開見込みの幅をそのまま決めます。</p>
-<p>値は利用者として観察できる経過から決めます。社内の基準値は使いません。</p>
-<p>迷ったら p80 を広めに取ります。狭すぎると「待て」に偏ります。</p>
-
-<h3>兆候の定義</h3>
-<p>兆候は、利用者が見聞きできる情報で定義します。</p>
-<div class="table-wrap">
-<table>
-  <tr><th>observable_from</th><th>情報源</th></tr>
-  <tr><td><code>announcement</code></td><td>事業者の公式の運行情報です。</td></tr>
-  <tr><td><code>signage</code></td><td>駅の掲示や表示器です。</td></tr>
-  <tr><td><code>station_broadcast</code></td><td>駅や車内の放送です。</td></tr>
-  <tr><td><code>weather</code></td><td>雨雲や警報の情報です。</td></tr>
-  <tr><td><code>train_movement</code></td><td>止まった列車や動き出した列車など、目に見える列車の動きです。</td></tr>
-</table>
-</div>
-<p><code>description</code> には、何が起きたら兆候とみなすかを 1 文で書きます。</p>
-<p><code>example_phrases</code> は自作の例文です。実在の発表文は転載しません。</p>
-<p>例文は API キーが無いときの文字列照合にも使います。</p>
-<p>典型的な言い回しを 2 つ以上書くと、照合が当たりやすくなります。</p>
-<p>兆候の id は知見の中で一意にします。事象の略号を頭に付けると重なりません。</p>
-
-<h3>段階のつなぎ方</h3>
-<p>アプリは観測された兆候のうち、最も先の段階を現在の段階とみなします。</p>
-<p>段階は並び順に 1 つずつ進むのが基本です。</p>
-<p><code>exit_signals</code> に後の段階の兆候を書くと、途中を飛ばす経路になります。</p>
-<p>たとえば発生直後に再開見込みが出れば、現場対応を飛ばせます。</p>
-<p>最後の段階の <code>exit_signals</code> は特別で、運転再開の合図になります。</p>
-<p>ここには「運転を再開しました」のような兆候を置きます。</p>
-<p>id は、いずれかの段階の <code>signals</code> に定義したものだけが書けます。</p>
-<pre><code>phases:
-  - id: initial
-    signals:
-      - id: pa_occurred_announced
-    exit_signals: [pa_onsite_work_announced, pa_resume_estimate_announced]
-  - id: on_site_response
-    signals:
-      - id: pa_onsite_work_announced
-    exit_signals: [pa_resume_estimate_announced]</code></pre>
+<p>確かでない p80 は仮の値と明記し、出典は「開発者の推定」と書きます。</p>
+<p>迷ったら p80 を広めに取ります。狭すぎると待つ側に偏ります。</p>
+<p>めったにない事象は数字を置かず、分からないと扱います。</p>
 
 <h3>社内情報を書かない原則</h3>
 <div class="note">
 <p>社内の規制値、規程、内部手順の数値は書きません。</p>
-<p>知見は外から観察できる兆候と、利用者の目に映る経過で定義します。</p>
-<p>リポジトリは公開されます。書いた内容は誰でも読めます。</p>
+<p>規則は外から観察できる兆候と、利用者の目に映る経過で定義します。</p>
 </div>
 <ul class="check">
   <li>数値は、報道や利用者の体感で説明できる範囲に収めています。</li>
-  <li>兆候は、発表文や掲示や放送から読み取れるものだけです。</li>
-  <li>例文はすべて自作で、実在の発表文を写していません。</li>
+  <li>手がかりは、発表文や掲示や放送から読み取れるものだけです。</li>
+  <li>材料の文を写さず、規則の言葉で書いています。</li>
+  <li>利用者に事象の段階の名前も説明も出していません。</li>
   <li>特定の事故や日時を思い起こさせる書き方をしていません。</li>
 </ul>
 
 <h2 id="scenario">シナリオの書き方</h2>
 <p>シナリオはリプレイと振る舞いテストに使う架空の事例です。</p>
-<p>知見を先に作り、その id を <code>--event</code> に渡して雛形から作ります。</p>
+<p>事象の種類の id を <code>--event</code> に渡して雛形から作ります。</p>
 <pre><code>ALLOW_PROTECTED_EDIT=1 pnpm scenario:new signal_failure_morning --event signal_failure</code></pre>
 <p>良い例は <code>dev-content/scenarios/person_accident_last_train.yaml</code> です。</p>
 
@@ -202,7 +186,7 @@
 <div class="table-wrap">
 <table>
   <tr><th>項目</th><th>書き方</th></tr>
-  <tr><td><code>event_type</code></td><td>知見の id を書きます。存在しない id は検証で止まります。</td></tr>
+  <tr><td><code>event_type</code></td><td><code>IncidentTypeId</code> の id を書きます。存在しない id は検証で止まります。</td></tr>
   <tr><td><code>operator</code> <code>line</code></td><td>事業者名と路線名です。路線データの名前に合わせます。</td></tr>
   <tr><td><code>blocked_section</code></td><td>止まっている区間の両端の駅名です。</td></tr>
   <tr><td><code>start_time</code></td><td>日付と時刻を T で区切り、時差まで書きます。例は <code>"2026-11-05T22:10:00+09:00"</code> です。</td></tr>
@@ -214,8 +198,18 @@
 <h3>timeline</h3>
 <p>利用者が見聞きした観測を、時刻の順に並べます。</p>
 <p><code>offset_minutes</code> は <code>start_time</code> からの経過分で、昇順にします。</p>
-<p><code>kind</code> は兆候と同じ 5 種類から選びます。</p>
-<p>文面は典型的な言い回しを参考に自作します。</p>
+<p><code>kind</code> は次の 5 種類から選びます。</p>
+<div class="table-wrap">
+<table>
+  <tr><th>kind</th><th>情報源</th></tr>
+  <tr><td><code>announcement</code></td><td>事業者の公式の運行情報です。</td></tr>
+  <tr><td><code>signage</code></td><td>駅の掲示や表示器です。</td></tr>
+  <tr><td><code>station_broadcast</code></td><td>駅や車内の放送です。</td></tr>
+  <tr><td><code>weather</code></td><td>雨雲や警報の情報です。</td></tr>
+  <tr><td><code>train_movement</code></td><td>止まった列車や動き出した列車など、目に見える列車の動きです。</td></tr>
+</table>
+</div>
+<p>文面は典型的な言い回しを参考に自作します。実在の発表文は転載しません。</p>
 <p>再開見込みの時刻を書くと、アプリはその時刻を読み取って使います。</p>
 <p>見込みを延ばす発表を入れると、判断が切り替わる様子を見せられます。</p>
 
@@ -227,13 +221,14 @@
   <tr><th>項目</th><th>意味</th></tr>
   <tr><td><code>after</code></td><td>どの観測を入れた後の判断かを、timeline の id で示します。</td></tr>
   <tr><td><code>action</code></td><td><code>wait</code>、<code>switch</code>、<code>hold</code> のどれを期待するかです。</td></tr>
-  <tr><td><code>phase</code></td><td>期待する段階の id です。知見の phases から選びます。</td></tr>
-  <tr><td><code>evidence_includes</code></td><td>根拠に含まれるべき兆候の id です。</td></tr>
+  <tr><td><code>evidence_includes</code></td><td>根拠に含まれるべき手がかりの id です。</td></tr>
   <tr><td><code>break_even_shown</code></td><td>分岐点が表示されるべきかです。</td></tr>
   <tr><td><code>note</code></td><td>なぜそう振る舞うべきかの説明です。必須です。</td></tr>
 </table>
 </div>
 <p>検査する項目は省けますが、どれか 1 つは必ず書きます。</p>
+<p><code>phase</code> は書かれていても受け付け、検査には使いません。</p>
+<p>雛形を直すときに <code>phase</code> の行を消します。</p>
 <p>確信の持てない点は書かず、外したら困る点だけを書きます。</p>
 
 <h3>weather</h3>
@@ -256,12 +251,11 @@
 <p>再開しない筋書きなら null にします。</p>
 <p><code>notes</code> には、待った人と切り替えた人の結末を書きます。</p>
 
-<h2 id="steps">作業の手順</h2>
+<h2 id="steps">シナリオの作業手順</h2>
 <h3>1. main での執筆</h3>
 <pre><code>git switch main
-ALLOW_PROTECTED_EDIT=1 pnpm knowledge:new signal_failure
 ALLOW_PROTECTED_EDIT=1 pnpm scenario:new signal_failure_morning --event signal_failure</code></pre>
-<p>どちらも既存のファイルは上書きしません。作ったあと次の手順を表示します。</p>
+<p>既存のファイルは上書きしません。作ったあと次の手順を表示します。</p>
 <p>あとは好みのエディタで TODO を埋めます。</p>
 
 <h3>2. 検証</h3>
@@ -274,12 +268,12 @@ ALLOW_PROTECTED_EDIT=1 pnpm scenario:new signal_failure_morning --event signal_f
 <pre><code>ALLOW_PROTECTED_EDIT=1 pnpm guard:approve
 pnpm guard</code></pre>
 <p>承認は検証に通った内容だけを、端末での確認のうえ記録します。</p>
-<p>記録は各ディレクトリの <code>.approved.sha256</code> に書かれます。</p>
+<p>記録は <code>scenarios/.approved.sha256</code> に書かれます。</p>
 <p><code>pnpm guard</code> がすべて合格になれば承認は完了です。</p>
 
 <h3>4. コミット</h3>
-<pre><code>git add knowledge scenarios
-git commit -m "知見: 信号故障と朝の通勤シナリオを追加"</code></pre>
+<pre><code>git add scenarios
+git commit -m "シナリオ: 信号故障の朝の通勤を追加"</code></pre>
 <p>YAML と承認記録を同じコミットに入れます。</p>
 
 <h3>5. develop への取り込み</h3>
@@ -293,17 +287,17 @@ pnpm guard</code></pre>
 <pre><code>pnpm test:e2e</code></pre>
 <p>e2e は各シナリオの expectations から自動でテストを作ります。</p>
 <div class="note">
-<p>e2e の読み込み元は、いまはダミー内容に固定されています。</p>
+<p>e2e の読み込み元は、いまはダミーのシナリオに固定されています。</p>
 <p>場所は <code>e2e/servers.ts</code> の <code>contentDir</code> です。</p>
-<p>本物の内容で回すには、この値を切り替える作業をエージェントに頼みます。</p>
+<p>本物のシナリオで回すには、この値を切り替える作業をエージェントに頼みます。</p>
 </div>
-<p>手元で本物の内容を見るなら、<code>CONTENT_DIR</code> を付けずに起動します。</p>
+<p>手元で本物のシナリオを見るなら、<code>CONTENT_DIR</code> を付けずに起動します。</p>
 <pre><code>JUDGE_MODE=deterministic pnpm dev</code></pre>
 <p>http://localhost:3000/replay を開き、書いたシナリオを流して確かめます。</p>
 
 <h2 id="switch">ダミーから本物への切り替え</h2>
-<p>アプリは <code>CONTENT_DIR</code> で知見とシナリオの読み込み元を決めます。</p>
-<p>未設定ならリポジトリの <code>knowledge/</code> と <code>scenarios/</code> を読みます。</p>
+<p>アプリは <code>CONTENT_DIR</code> でシナリオの読み込み元を決めます。</p>
+<p>未設定ならリポジトリの <code>scenarios/</code> を読みます。</p>
 <div class="table-wrap">
 <table>
   <tr><th>場面</th><th>切り替え方</th></tr>
@@ -314,8 +308,7 @@ pnpm guard</code></pre>
 </table>
 </div>
 <p>公開の手順は <a href="deploy.html">公開手順書</a> にあります。</p>
-<p>切り替えたら、起動ログの知見の件数が 0 でないことを確かめます。</p>
-<p>知見が 1 本もそろわないうちは、公開環境ではダミーのまま残します。</p>
+<p>規則表はコードに入っているので、切り替えの影響を受けません。</p>
 
 <h2 id="smoke">claude モードの確認</h2>
 <p>実 API で claude モードを 1 回動かし、壊れていないかを確かめます。</p>
@@ -331,7 +324,7 @@ pnpm smoke:claude</code></pre>
   <tr><td>判断まで到達</td><td><code>judgment_ready</code> が届き、<code>error</code> がありません。</td></tr>
   <tr><td>フォールバック無し</td><td>解釈も判断も、決定論モードに切り替わっていません。</td></tr>
   <tr><td>見出しと理由の長さ</td><td>見出しと理由が設定の上限に収まっています。</td></tr>
-  <tr><td>画像の読み取り</td><td>事象種別と再開見込みの時刻を画像から読めています。</td></tr>
+  <tr><td>画像の読み取り</td><td>事象の種類と再開見込みの時刻を画像から読めています。</td></tr>
 </table>
 </div>
 <p>2 つ目の表には、呼び出しごとの所要時間とトークン数が出ます。</p>
@@ -350,28 +343,21 @@ pnpm --filter e2e record</code></pre>
 <p>指定が無ければ、「切り替える」を期待する最初のシナリオを録ります。</p>
 <p>再生の速さは <code>RECORD_SPEED</code> で変えられ、既定は 2 倍です。</p>
 <pre><code>RECORD_SCENARIO=person_accident_last_train RECORD_SPEED=1 pnpm --filter e2e record</code></pre>
-<p>録画も e2e と同じく、いまはダミー内容を読みます。</p>
+<p>録画も e2e と同じく、いまはダミーのシナリオを読みます。</p>
 
 <h2 id="errors">validate のエラーの読み方</h2>
 <p>エラーは 1 件ごとに 3 行で出ます。ファイル名と行番号の順に並びます。</p>
-<pre><code>エラー: 3 件
-  - knowledge/signal_failure.yaml:37: phases.0.duration_minutes.p50: 無効な入力: 数値が期待されましたが、nullが入力されました
-      説明: 「段階 1 › 所要時間 › 中央値 p50」が空です
-      直し方: 所要時間の中央値を分で書いてください。例: p50: 15
-  - knowledge/signal_failure.yaml:109: phases.3.duration_minutes.p50: 無効な入力: 数値が期待されましたが、nullが入力されました
-      説明: 「段階 4 › 所要時間 › 中央値 p50」が空です
-      直し方: 所要時間の中央値を分で書いてください。例: p50: 15
+<pre><code>エラー: 1 件
   - scenarios/signal_failure_morning.yaml:14: start_time: 無効なISO日時
       説明: 「開始時刻」が日時の形式ではありません
       直し方: 日付と時刻を T で区切り、時差まで書いてください。例: "2026-11-05T22:40:00+09:00"
 ファイルごとの件数:
-  knowledge/signal_failure.yaml: 2 件
   scenarios/signal_failure_morning.yaml: 1 件</code></pre>
 <div class="table-wrap">
 <table>
   <tr><th>行</th><th>読み方</th></tr>
   <tr><td>1 行目</td><td>ファイル名、行番号、元のメッセージです。エディタで行番号へ飛びます。</td></tr>
-  <tr><td>説明</td><td>どの項目に何が起きたかを日本語で示します。段階や観測は 1 から数えます。</td></tr>
+  <tr><td>説明</td><td>どの項目に何が起きたかを日本語で示します。観測は 1 から数えます。</td></tr>
   <tr><td>直し方</td><td>書くべき値や形の短い例です。</td></tr>
 </table>
 </div>
@@ -379,20 +365,19 @@ pnpm --filter e2e record</code></pre>
 <p>雛形から作った直後は、TODO の数だけエラーが出ます。上から順に埋めます。</p>
 <p>id の参照や並び順の検査は、書式の検査に通ったファイルだけに行います。</p>
 <p>そのため書式を直すと、新しいエラーが出ることがあります。</p>
-<p>知見を先に直すと、シナリオ側の参照のエラーも正しく出ます。</p>
 
 <h2 id="mistakes">よくある誤り</h2>
 <div class="table-wrap">
 <table>
   <tr><th>誤り</th><th>直し方</th></tr>
-  <tr><td>p50 や p80 が null のまま</td><td>分を整数で書きます。例は <code>{ p50: 15, p80: 30 }</code> です。</td></tr>
-  <tr><td>p80 が p50 より小さい</td><td>p80 は長引く場合の目安なので、p50 以上にします。</td></tr>
-  <tr><td>exit_signals の id が未定義</td><td>いずれかの段階の signals に同じ id の兆候を置きます。</td></tr>
-  <tr><td>知見の id とファイル名が違う</td><td>どちらかに合わせます。<code>knowledge:new</code> で作れば最初からそろいます。</td></tr>
+  <tr><td>材料の文が規則表やテストに写った</td><td>規則の言葉で書き直します。guard の材料の照合で失敗します。</td></tr>
+  <tr><td>材料をリポジトリの中に置いた</td><td>リポジトリの外のフォルダへ戻し、<code>PRIVATE_NOTES_DIR</code> で指します。</td></tr>
+  <tr><td>規則表の p80 が p50 より小さい</td><td>p80 は長引く場合の目安なので、p50 以上にします。</td></tr>
+  <tr><td>event_type が古い事象の id</td><td><code>IncidentTypeId</code> の id に書き換えます。</td></tr>
+  <tr><td>evidence_includes が兆候の id</td><td>手がかりの id から選びます。</td></tr>
   <tr><td>start_time の形が違う</td><td>日付と時刻を T で区切り、<code>+09:00</code> まで書きます。</td></tr>
   <tr><td>deadline に日付まで書いた</td><td>時と分だけを <code>"23:45"</code> の形で書きます。</td></tr>
   <tr><td>timeline が時刻順でない</td><td>offset_minutes の小さい順に並べ替えます。</td></tr>
-  <tr><td>expectations の phase が別の知見の id</td><td>event_type に書いた知見の phases から選びます。</td></tr>
   <tr><td>拡張子が .yml</td><td>読み込まれないので、.yaml に変えます。</td></tr>
   <tr><td>インデントがずれた</td><td>空白 2 つ単位にそろえます。タブは使いません。</td></tr>
   <tr><td>develop で直接書いた</td><td>main に移して承認し直します。guard のブランチ差分で失敗します。</td></tr>
@@ -403,13 +388,12 @@ pnpm --filter e2e record</code></pre>
 <div class="table-wrap">
 <table>
   <tr><th>コマンド</th><th>用途</th></tr>
-  <tr><td><code>ALLOW_PROTECTED_EDIT=1 pnpm knowledge:new &lt;event_id&gt;</code></td><td>雛形から知見を作ります。</td></tr>
   <tr><td><code>ALLOW_PROTECTED_EDIT=1 pnpm scenario:new &lt;scenario_id&gt; --event &lt;event_id&gt;</code></td><td>雛形からシナリオを作ります。</td></tr>
-  <tr><td><code>pnpm validate</code></td><td>本物の知見とシナリオを検証します。</td></tr>
+  <tr><td><code>pnpm validate</code></td><td>本物のシナリオを検証します。</td></tr>
   <tr><td><code>pnpm validate --watch</code></td><td>保存のたびに検証し直します。</td></tr>
-  <tr><td><code>pnpm validate:dev</code></td><td>ダミー内容を検証します。</td></tr>
-  <tr><td><code>ALLOW_PROTECTED_EDIT=1 pnpm guard:approve</code></td><td>現在の内容を承認し、記録を書きます。</td></tr>
-  <tr><td><code>pnpm guard</code></td><td>承認記録、ブランチ差分、内容をまとめて確かめます。</td></tr>
+  <tr><td><code>pnpm validate:dev</code></td><td>ダミーのシナリオを検証します。</td></tr>
+  <tr><td><code>ALLOW_PROTECTED_EDIT=1 pnpm guard:approve</code></td><td>現在のシナリオを承認し、記録を書きます。</td></tr>
+  <tr><td><code>pnpm guard</code></td><td>承認記録、ブランチ差分、内容、材料の照合をまとめて確かめます。</td></tr>
   <tr><td><code>pnpm test:e2e</code></td><td>シナリオの振る舞いを画面で確かめます。</td></tr>
   <tr><td><code>pnpm smoke:claude</code></td><td>実 API で claude モードを 1 回動かします。</td></tr>
   <tr><td><code>pnpm --filter e2e record</code></td><td>デモ動画を録画します。</td></tr>
