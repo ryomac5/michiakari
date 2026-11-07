@@ -412,7 +412,7 @@ function buildDecisionReason(input: DecisionTextInput): string {
   if (input.reason === "follow_staff") {
     return input.language === "ja"
       ? "線路に降りる案内が出ています。再開の時刻は見込めません。"
-      : "Passengers are being guided off the train. The restart time cannot be estimated.";
+      : "Passengers are being guided off the train. No restart time is given for now.";
   }
   const byDeadline = buildDeadlineBasisReason(input);
   if (byDeadline !== null) return byDeadline;
