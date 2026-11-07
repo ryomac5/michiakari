@@ -100,6 +100,7 @@ describe("根拠の説明の検査を除く条件", () => {
     minutes: new Set(),
     yen: new Set(),
     shares: new Set(),
+    counts: new Set(),
   };
   const quote = "発表の「運転を見合わせています。振替輸送を行っています」";
   const evidenceRefs = [

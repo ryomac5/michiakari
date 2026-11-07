@@ -1,9 +1,8 @@
-import { checkWeatherIncident } from "@repo/core";
 import type { JudgeRequest, Lang, Observation, RawInput, Scenario } from "@repo/schema";
 import type { AlternativesProvider } from "../alternatives/provider.ts";
 import type { JudgeMode } from "../config.ts";
 import type { ContentStore } from "../content.ts";
-import { selectEventType } from "../domain/incident.ts";
+import { checkWeatherCause, resolveObservedCause, selectEventType } from "../domain/incident.ts";
 import { interpretWithClaude } from "../interpret/claude-interpret.ts";
 import { interpretRawInputDeterministically } from "../interpret/deterministic-interpret.ts";
 import type { LlmClient } from "../llm-client.ts";
@@ -130,7 +129,9 @@ async function emitDetectedSignals(session: JudgeSession, sink: EventSink): Prom
 // 決定論モードの手順。確定済みのツールは呼び直しても結果が変わらず、イベントも重ならない
 async function runDeterministicTools(session: JudgeSession): Promise<void> {
   const type = session.inferredEventType;
-  if (checkWeatherIncident(type)) await session.executeTool("get_weather", {});
+  const { observations, request } = session.ctx;
+  const cause = resolveObservedCause(observations, request.cause ?? null);
+  if (checkWeatherCause(type, cause)) await session.executeTool("get_weather", {});
   await session.executeTool("estimate_remaining", { eventType: type });
   await session.executeTool("find_alternatives", {});
   await session.executeTool("compute_break_even", {});

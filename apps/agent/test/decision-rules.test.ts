@@ -500,3 +500,44 @@ describe("結論の根拠と確率の比較時点", () => {
     );
   });
 });
+
+describe("再開後の詰まりの規則と、雨の保留", () => {
+  // 境目まで時間があり、再開の見込みは境目より前。詰まりが無ければ待つ場面
+  const early = buildResult({ minutesFromNow: 40, marginP50Minutes: 20, marginP80Minutes: 5 });
+  const queue = {
+    closesUp: true,
+    trainsInQueue: 2,
+    waitRange: { minMinutes: 6, maxMinutes: 10 },
+    queueAnnounced: true,
+    worthAlightingAtNextStation: true,
+  };
+  const rain = {
+    source: "scenario" as const,
+    stationName: null,
+    readings: [],
+    summary: { latest: null, trend: "rising" as const, rainContinuing: true },
+  };
+
+  function buildQueueInput(withRain: boolean): RuleInput {
+    const input = buildInput({ eventType: "heavy_rain", confidence: "medium", result: early });
+    input.estimate.weatherIncident = true;
+    input.estimate.resumeQueue = queue;
+    return { ...input, weather: withRain ? rain : null };
+  }
+
+  it("雨が続くあいだの保留は、詰まりで降りる価値があっても切り替えに変えない", () => {
+    expect(applyDecisionRules(buildQueueInput(true))).toEqual({
+      action: "hold",
+      reason: "rain_continuing",
+      recommendedOptionId: null,
+    });
+  });
+
+  it("雨の保留が無ければ、詰まりで降りる価値があるとき待つ代わりに切り替える", () => {
+    expect(applyDecisionRules(buildQueueInput(false))).toEqual({
+      action: "switch",
+      reason: "queue_after_resume",
+      recommendedOptionId: "alt_1",
+    });
+  });
+});
