@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { splitHeadline } from "../headline";
 import type { buildJudgmentChange } from "../judgment-change";
+import { checkFollowStaff } from "../rule-outlook";
 import { testIds } from "../testids";
 import { ActionPill } from "./ActionPill";
 import { JudgmentChangeCard } from "./JudgmentChangeCard";
@@ -47,7 +48,7 @@ export function ConclusionCard({
         className="flex flex-col gap-2"
       >
         <div className="flex min-w-0 items-center gap-2">
-          <ActionPill action={judgment.action} />
+          <ActionPill action={judgment.action} followStaff={checkFollowStaff(judgment)} />
           {badge}
           <div className="ml-auto">{metric}</div>
         </div>

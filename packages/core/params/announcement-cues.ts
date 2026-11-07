@@ -17,7 +17,11 @@ export const CONDITIONAL_SENSITIVE_CUES: ReadonlySet<AnnouncementCueId> = new Se
   "track_cleared",
 ]);
 
-// 否定の文の言い回し。この言い回しを含む文では、再開と受信の手がかりを数えない
+// 文を節に分ける区切り。否定は、手がかりの言い回しと同じ節の中だけに効かせる
+export const CLAUSE_SEPARATORS: RegExp =
+  /が、|けれど(?:も)?、?|けど、?|ので、?|ものの、?|しかし、?|\bbut\b|\bso\b/;
+
+// 否定の言い回し。この言い回しを含む節では、再開や受信などの手がかりを数えない
 // 「異常はありません」は確かめた文なので否定に数えない。「申し訳ありません」はお詫びなので数えない
 export const NEGATION_PATTERNS: readonly RegExp[] = [
   /(?<!異常(?:は|が)?|申し訳)ありません/,
@@ -36,6 +40,7 @@ export const NEGATION_SENSITIVE_CUES: ReadonlySet<AnnouncementCueId> = new Set([
   "resume_soon",
   "track_cleared",
   "protection_received",
+  "queue_ahead",
   "evacuation_on_track",
   "turnback",
   "service_cancelled",
@@ -86,6 +91,8 @@ export const ANNOUNCEMENT_CUE_PATTERNS: Readonly<Record<AnnouncementCueId, reado
     /運転再開の準備/,
     /安全(?:が|を)?確認(?:でき|され|が取れ)(?:まし)?た(?!区間)/,
     /確認(?:が)?(?:でき|取れ|終わり|終了し)(?:まし)?た(?!区間)/,
+    // 点検の終わりを告げる文。点検中の状態を解く
+    /(?:点検|安全確認)(?:作業)?(?:は|が)?(?:終了し|終わり|完了し|済み)(?:まし)?た/,
     /異常(?:は|が)?(?:なし|無し|ありません|ない|無い)/,
     /resum\w* shortly|safety (?:has been |was )?confirmed|no abnormalit/i,
   ],
@@ -95,7 +102,7 @@ export const ANNOUNCEMENT_CUE_PATTERNS: Readonly<Record<AnnouncementCueId, reado
     /線路(?:上)?を(?:歩|徒歩)/,
     /(?:最寄り|次)の?駅まで(?:歩|徒歩)/,
     /降車(?:誘導|のご案内|をご案内|していただ)/,
-    /はしご/,
+    /はしご(?:で|を使って|を使い、?|を使用して)[^。]*?(?:降り|下り|おり)/,
     /(?:walk|evacuat\w*) (?:along|on|onto) the tracks?|step down (?:onto|to) the tracks?/i,
   ],
   // 走れる区間だけで列車を往復させる

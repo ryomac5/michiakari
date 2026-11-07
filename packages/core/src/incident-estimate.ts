@@ -95,9 +95,10 @@ export function estimateIncidentRemaining(input: IncidentRemainingInput): Incide
     withholdNumbers: extra.withholdNumbers ?? false,
   });
 
-  if (input.cues.includes("resumed")) return build("resumed", { p50: 0, p80: 0 });
-  // 線路に降りる案内が出たら、発表の時刻があっても見込みの数字を言い切らない
+  // 線路に降りる案内が出たら、再開の放送や発表の時刻があっても見込みの数字を言い切らない
+  // 降りる案内より新しい再開の放送は、呼び出す側が resolveEvacuationCues で降りる案内を外して渡す
   if (checkTrackEvacuation(input.cues)) return build(null, null, { withholdNumbers: true });
+  if (input.cues.includes("resumed")) return build("resumed", { p50: 0, p80: 0 });
   if (input.statedResumeTime) {
     return build(
       "stated",

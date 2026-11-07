@@ -9,6 +9,7 @@ import {
   estimateIncidentRemaining,
   estimateTrainQueueArrival,
   filterCuesDuringInspection,
+  resolveEvacuationCues,
   resolveFirstTrainWait,
   resolveStationPlatform,
   resolveTrainQueueParams,
@@ -231,5 +232,75 @@ describe("地震の後に次の駅へ進む案内", () => {
     const proceed = estimateTrainQueueArrival({ ...input, proceedToStation: true });
     expect(proceed.beforeResume).toBe(true);
     expect(proceed.arrival?.p50).toBe(addMinutesToIso(now, 3));
+  });
+});
+
+describe("レビューの直し", () => {
+  const at = (minute: number) => `2026-11-05T08:${String(minute).padStart(2, "0")}:00+09:00`;
+
+  it("再開の後に降りる案内が出たら、残り時間を出さない", () => {
+    const r = estimateIncidentRemaining({
+      type: "person_collision",
+      cues: ["resumed", "evacuation_on_track"],
+      statedResumeTime: null,
+      onsetTime: at(0),
+      now: at(30),
+    });
+    expect(r).toMatchObject({ basis: null, remaining: null, withholdNumbers: true });
+  });
+
+  it("降りる案内と再開の放送は、観測の時刻が新しいほうを残す", () => {
+    const evacuation = buildObservation(at(10), "これから線路に降りていただきます");
+    const resumed = buildObservation(at(20), "運転を再開しました");
+    const both: ("resumed" | "evacuation_on_track")[] = ["resumed", "evacuation_on_track"];
+    expect(resolveEvacuationCues([evacuation, resumed], both)).toEqual(["resumed"]);
+    const resumedFirst = buildObservation(at(5), "運転を再開しました");
+    expect(resolveEvacuationCues([resumedFirst, evacuation], both)).toEqual([
+      "evacuation_on_track",
+    ]);
+    // 同じ観測なら降りる案内を残す
+    const same = buildObservation(at(10), "運転を再開しました。これから線路に降りていただきます");
+    expect(resolveEvacuationCues([same], both)).toEqual(["evacuation_on_track"]);
+    expect(resolveEvacuationCues([resumed], ["resumed"])).toEqual(["resumed"]);
+  });
+
+  it("まもなく再開、点検中、点検は終了しましたの順なら、点検中の状態を解く", () => {
+    const soon = buildObservation(at(0), "まもなく再開する見込みです");
+    const inspecting = buildObservation(at(10), "線路の点検を行っております");
+    const done = buildObservation(at(20), "点検は終了しました");
+    expect(checkInspectionPending([soon, inspecting])).toBe(true);
+    expect(checkInspectionPending([soon, inspecting, done])).toBe(false);
+    expect(
+      checkInspectionPending([inspecting, buildObservation(at(20), "点検が終わりました")]),
+    ).toBe(false);
+    expect(detectAnnouncementCues("点検は終了していません")).not.toContain("track_cleared");
+  });
+
+  it("否定は手がかりの言い回しと同じ節の中だけに効く", () => {
+    expect(
+      detectAnnouncementCues("直通運転は中止していませんが、折り返し運転を行っています"),
+    ).toEqual(["turnback"]);
+    expect(detectAnnouncementCues("運転を再開しましたが、徐行運転は行っておりません")).toEqual([
+      "resumed",
+    ]);
+    expect(detectAnnouncementCues("前の列車が詰まってはいません")).not.toContain("queue_ahead");
+    expect(detectAnnouncementCues("前の列車がつかえているので、お待ちください")).toContain(
+      "queue_ahead",
+    );
+  });
+
+  it("はしごは、降りることを示す文の形のときだけ降車と読む", () => {
+    expect(detectAnnouncementCues("はしごで線路に降りていただきます")).toContain(
+      "evacuation_on_track",
+    );
+    expect(detectAnnouncementCues("はしごを使って順にお降りください")).toContain(
+      "evacuation_on_track",
+    );
+    expect(detectAnnouncementCues("点検のためはしごを使用します")).not.toContain(
+      "evacuation_on_track",
+    );
+    expect(detectAnnouncementCues("はしごを使用しないでください")).not.toContain(
+      "evacuation_on_track",
+    );
   });
 });

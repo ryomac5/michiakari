@@ -362,7 +362,11 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
     state.breakEven = result;
     await sink.emit({
       type: "break_even_computed",
-      breakEven: inCar ? null : buildComputedBreakEven(result, state.alternatives, language),
+      // 線路に降りる案内が出たら、分岐点の時刻を画面に出さない
+      breakEven:
+        inCar || checkTrackEvacuation(state.estimate.cues)
+          ? null
+          : buildComputedBreakEven(result, state.alternatives, language),
     });
     return {
       isError: false,
@@ -481,7 +485,7 @@ export function createJudgeSession(ctx: ToolContext, sink: EventSink): JudgeSess
       });
     }
     const be =
-      !inCar && state.breakEven
+      !inCar && state.breakEven && !checkTrackEvacuation(state.estimate?.cues ?? [])
         ? buildComputedBreakEven(state.breakEven, state.alternatives, language)
         : null;
     if (be) refs.push({ kind: "computation", id: "break_even", description: be.explanation });
