@@ -73,14 +73,11 @@ Built with Claude: Japan 2026 ハッカソンの提出作品です。
 
 判断ループのツールは次のとおりです。
 
-- `lookup_incident_rules` は事象の止まり方と防護無線の有無を規則表から引きます
 - `get_weather` は気象庁アメダスの 10 分間降水量を引きます
-- `estimate_remaining` は規則表と統計値から残り時間を見積もります
+- `estimate_remaining` は規則表を引き、規則表と統計値から残り時間を見積もります
 - `find_alternatives` は止まっている区間を避けた経路を探します
 - `compute_break_even` は分岐点を計算します
 - `emit_judgment` は判断を確定します
-
-`lookup_incident_rules` と `estimate_remaining` の名前は、agent の作り直しの後に合わせます。要確認です。
 
 設計の要点は次のとおりです。
 

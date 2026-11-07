@@ -240,17 +240,15 @@
   │     写真・文章 → Observation（事象種別の候補、区間、文言、時刻、見込み時刻の記載有無）
   │
   ├─ 2. 判断ループ（Opus、最大 N 回のツール呼び出し）
-  │     lookup_incident_rules → 事象の止まり方と防護無線の有無、手がかり
   │     （大雨・強風なら）get_weather → 雨量推移・警報
-  │     estimate_remaining → 残り時間、支障の無い線路と再開後の詰まりの見込み
+  │     estimate_remaining → 規則表を引き、残り時間、手がかり、防護無線の有無を得る
+  │                          支障の無い線路と再開後の詰まりの見込みも得る
   │     find_alternatives → 代替手段と到着時刻
   │     compute_break_even → 分岐点
   │
   └─ 3. emit_judgment
         Judgment を Zod で検証。失敗したら修正を求めて再生成（1回まで）
 ```
-
-`lookup_incident_rules` と `estimate_remaining` の名前は、agent の作り直しの後に合わせる。要確認。
 
 各ステップで判断イベントを SSE で送り、画面はそれを逐次描画する。推論の過程が見えることは、デモと信頼性の両方にとって中核の価値である。
 
@@ -301,7 +299,7 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 
 #### 手がかりの id
 
-発表と放送の文から、行動を変える一般的な手がかりだけを拾う。`detectAnnouncementCues` が文を照合し、id を返す。id の列挙は core の `ANNOUNCEMENT_CUE_IDS`、照合の言い回しは `ANNOUNCEMENT_CUE_PATTERNS` に置く。シナリオの `evidence_includes` もこの id で照合する。
+発表と放送の文から、行動を変える一般的な手がかりだけを拾う。`detectAnnouncementCues` が文を照合し、id を返す。id の列挙 `ANNOUNCEMENT_CUE_IDS` は `packages/schema` を正とし、core は再輸出する。照合の言い回しは core の `ANNOUNCEMENT_CUE_PATTERNS` に置く。利用者がいる線路の `TrackSide` も同じく schema を正とする。シナリオの `evidence_includes` もこの id で照合する。
 
 | id | 拾う文の例 | 判断での使い方 |
 |---|---|---|
@@ -327,7 +325,7 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 - 止まった会社が分からなければ、すべて `neutral` のまま返す
 - 同じ印の中は元の並びを保つ
 
-印と `selectBestAlternative` の選び方をどうつなぐかは、agent の作り直しで決める。要確認。
+代替手段は `rankAlternativesForProtection` の印の順で並べ、その並びのまま判断に載せる。画面は並べ替えない。
 
 #### 支障の無い線路から先に動く
 
@@ -395,7 +393,7 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `observation_parsed` | `{ observation: Observation }` | 「掲示を読み取りました」 |
 | `signal_detected` | `{ signal: DetectedSignal }` | 手がかりを根拠リストに追加 |
 | `weather_checked` | `{ source, readings, warnings, trend, summary }` | 雨量の推移と警報を出す。readings は 36 件・6 時間まで |
-| `remaining_estimated` | `{ estimate: Estimate }`。名前は要確認 | 見込みの図を更新 |
+| `phase_estimated` | `{ estimate: Estimate }` と、規則の欄の `cues`、`protection`、`unaffectedTrack`、`resumeQueue`。名前は以前のまま残す | 見込みの図を更新 |
 | `alternatives_computed` | `{ options: RouteOption[] }` | 地図に経路と到達範囲を描画 |
 | `break_even_computed` | `{ breakEven: BreakEven \| null }` | 分岐点の表示を更新 |
 | `judgment_ready` | `{ judgment: Judgment }` | 結論を確定表示。近くのバス停の確認候補は判断の確定後に決定論で `busChecks` に付け、Claude には渡さない |
@@ -404,7 +402,8 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 
 `progress` は判断の途中経過である。両モードで各段階の開始を知らせ、claude モードでは Claude の text ブロックと進捗メモも流す。進捗メモは `thinking.display: "updates"` で得る。
 
-- `stage` は `interpret` / `rules` / `weather` / `remaining` / `alternatives` / `break_even` / `judgment` のいずれか。`rules` と `remaining` の名前は要確認
+- `stage` は `interpret` / `weather` / `phase` / `alternatives` / `break_even` / `judgment` のいずれか
+- `phase` の段は、画面では「再開の見込みを出す」と表示する
 - Claude の進捗メモは `stage` を持たない。画面は進行中の段に付ける
 - 画面は知らない種類のイベントを読み飛ばす
 
@@ -419,8 +418,10 @@ YAML のキーは雛形どおり snake_case で書く。API とイベントの�
 | `estimate` | Estimate。項目は下表に示す |
 | `options` | RouteOption の配列。`id` を重複させない |
 | `recommendedOptionId` | 推奨する代替手段の `id`。null を許すが、`action` が `switch` なら必須 |
-| `evidence` | `{ kind, id, description }` の配列。`kind` は `signal` / `rule` / `weather` / `computation` |
+| `evidence` | `{ kind, id, description }` の配列。`kind` は `signal` / `cue` / `weather` / `computation`。`cue` の id は手がかりの id |
 | `disclaimer` | 推定である旨（必須） |
+| `cues`、`protection`、`unaffectedTrack`、`resumeQueue` | 規則から出した見込みの欄。どれも省略できる。`phase_estimated` と同じ形である |
+| `typicalFlow` | 以前の記録との互換のため残す。agent は付けない |
 
 `recommendedOptionId` は `options` にある `id` を指す。参照と重複は `checkJudgmentRefs` で検査する。スキーマに refine を付けないのは、Claude のツール定義に変換するためである。
 
@@ -428,7 +429,8 @@ Estimate の項目は次のとおり。
 
 | フィールド | 内容 |
 |---|---|
-| `eventType` | 事象種別。特定できなければ null とし、分岐点だけで判断を返す |
+| `eventType` | 事象の種類。`IncidentTypeId` をとる。特定できなければ null とし、分岐点だけで判断を返す |
+| `phaseId` | 以前の記録との互換のため残す。agent は常に null にする |
 | `elapsedMinutes` | 発生からの経過分。null を許す |
 | `remaining` | 実際に乗れる列車が来るまでの残り時間 `{ p50, p80 }`。初列車待ちを含み、null を許す |
 | `confidence` | `low` / `medium` / `high` |
@@ -556,13 +558,10 @@ agent は `compute_break_even` で詰め、`break_even_computed` と `judgment_r
 
 | ツール | 入力 | 出力 | 実装 |
 |---|---|---|---|
-| `lookup_incident_rules` | 事象の種類、観測の列 | 止まり方の区分、防護無線の事象か、拾った手がかりの id | packages/core の規則表 |
 | `get_weather` | 区間の座標、時間幅 | 10分ごとの雨量、警報の発表状況 | 気象庁 |
-| `estimate_remaining` | 事象の種類、観測の列 | 残り時間の p50 と p80、出どころ、確信度。防護無線の事象なら支障の無い線路の見込み、詰まりの列なら再開後の詰まりの見込みも返す。事象が null でも発表の見込み時刻があれば残り時間を返す。駅間の車内なら、ホームに着ける駅とそこに着く時刻、動き出す時刻、遅れる理由を `trainQueue` で返す。止まり方を `stopScope` で返す | packages/core |
+| `estimate_remaining` | 事象の種類、観測の列 | 規則表を引き、残り時間の p50 と p80、出どころ、確信度、手がかりの id、防護無線の事象かを返す。防護無線の事象なら支障の無い線路の見込み、詰まりの列なら再開後の詰まりの見込みも返す。事象が null でも発表の見込み時刻があれば残り時間を返す。駅間の車内なら、ホームに着ける駅とそこに着く時刻、動き出す時刻、遅れる理由を `trainQueue` で返す。止まり方を `stopScope` で返す | packages/core |
 | `find_alternatives` | 現在地、行き先、止まっている区間、時刻、制約 | 代替手段の一覧（徒歩・乗車・待ち・運賃）。防護無線の事象なら `rankAlternativesForProtection` で印を付けて並べ替える。駅間の車内なら、次の駅に着く見込みの時刻から探す。その結果はいまの選択肢として示さず、着いた後の次の一手を選ぶ比較にだけ使う。通常の徒歩の上限の中に鉄道の代替が無ければ、上限を広げて探す。バス停は返さない | packages/geo + core |
 | `compute_break_even` | 待つ場合の条件、代替手段の到着時刻、期限 | 分岐点の時刻、勧める代替手段の id、比較表、時刻ごとの再開の見込みと待ったほうが早く着く確率。駅間の車内でも同じ標本から求める | packages/core |
-
-`lookup_incident_rules` と `estimate_remaining` の名前は要確認である。
 
 バス停は駅から約 616m 以内だけを収録する。現在地をそのまま起点にすると、駅から離れたバス停は出ない。
 
