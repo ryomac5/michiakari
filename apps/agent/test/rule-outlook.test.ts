@@ -15,7 +15,11 @@ import type {
 import { describe, expect, it } from "vitest";
 import type { AlternativesProvider } from "../src/alternatives/provider.ts";
 import { interpretSelection } from "../src/interpret/deterministic-interpret.ts";
-import { assembleJudgment, extractTextNumbers } from "../src/judge/assemble.ts";
+import {
+  assembleJudgment,
+  checkStopReasonShares,
+  extractTextNumbers,
+} from "../src/judge/assemble.ts";
 import { createEventSink } from "../src/judge/event-sink.ts";
 import { createJudgeSession } from "../src/judge/session.ts";
 import { runComputeBreakEven } from "../src/tools/compute-break-even.ts";
@@ -576,7 +580,7 @@ describe("止まった理由の見込み", () => {
     expect(judgment.stopReasons).toBeUndefined();
   });
 
-  it("理由ごとの割合は 1 割単位で文に書いてよく、無い割合は検証エラーになる", async () => {
+  it("止まった理由は言葉の強さだけで書かせ、理由の文の割合は理由の値でも確率の値でも検証エラーにする", async () => {
     const request = buildRequest([personLongAgo], { trainPosition: position, origin: "塚本" });
     const session = createJudgeSession(
       {
@@ -596,22 +600,9 @@ describe("止まった理由の見込み", () => {
     await session.executeTool("find_alternatives", {});
     await session.executeTool("compute_break_even", {});
     const { estimate, alternatives, breakEven } = session.state;
-    if (!estimate?.stopReasons || !alternatives || !breakEven)
+    if (!estimate?.stopReasons || !alternatives || !breakEven?.resumeChance)
       throw new Error("ツールの結果がそろいません");
     const results = { estimate, alternatives, breakEven };
-    const written = Object.values(estimate.stopReasons.shares)
-      .filter((s) => s > 0)
-      .map((s) => Math.round(s * 10));
-    // 確率の目盛りの割合も許されるので、どちらにも無い数を選ぶ
-    const chance = breakEven.resumeChance;
-    const chanceTenths = chance
-      ? [chance.waitFaster, chance.waitOnTime, ...chance.ticks.map((t) => t.tenths)].map((t) =>
-          t === null ? -1 : Math.min(9, Math.max(1, t)),
-        )
-      : [];
-    const missing = [1, 2, 3, 4, 5, 6, 7, 8, 9].find(
-      (t) => !written.includes(t) && !chanceTenths.includes(t),
-    );
     const decide = (reason: string) =>
       assembleJudgment(
         results,
@@ -625,21 +616,65 @@ describe("止まった理由の見込み", () => {
         },
         "ja",
       );
+    const shareErrors = (reason: string) =>
+      session.checkJudgment(decide(reason), results).errors.filter((e) => e.includes("割合"));
+    // 確率の目盛りにある割合。理由の文に流用させない
+    const tick = breakEven.resumeChance.ticks.find((t) => t.tenths >= 1 && t.tenths <= 9);
+    if (!tick) throw new Error("目盛りの割合がありません");
+    const ownTenths = Math.round(estimate.stopReasons.shares.dispatcher_order * 10);
+
+    expect(shareErrors("区間ごと止められている可能性が高いです。")).toEqual([]);
+    expect(shareErrors(`区間ごと止められている見込みが${ownTenths}割です。`)).toHaveLength(1);
+    expect(shareErrors(`指令の指示で止まった見込みが${tick.tenths}割です。`)).toHaveLength(1);
+    expect(shareErrors("この列車で何か起きた見込みは30%です。")).toHaveLength(1);
+  });
+
+  it("受信が聞こえて防護無線が 10 割でも、「9割」と書けば検証エラーになる", async () => {
+    const request = buildRequest([protectionHeard], { trainPosition: position, origin: "塚本" });
+    const session = createJudgeSession(
+      {
+        request,
+        observations: [protectionHeard],
+        content: deps.content,
+        provider: deps.provider,
+        scenario: null,
+        fetchRain: deps.fetchRain,
+      },
+      createEventSink(
+        async () => {},
+        () => now,
+      ),
+    );
+    await session.executeTool("estimate_remaining", { eventType: null });
+    await session.executeTool("find_alternatives", {});
+    await session.executeTool("compute_break_even", {});
+    const { estimate, alternatives, breakEven } = session.state;
+    if (!estimate?.stopReasons || !alternatives || !breakEven)
+      throw new Error("ツールの結果がそろいません");
+    expect(estimate.stopReasons.shares.protection_received).toBe(1);
+    const judgment = assembleJudgment(
+      { estimate, alternatives, breakEven },
+      {
+        action: "wait",
+        headline: "車内で待つ",
+        reason: "近くの非常停止を受けて止まった見込みが9割です。",
+        breakEvenExplanation: "説明",
+        recommendedOptionId: null,
+        evidence: [],
+      },
+      "ja",
+    );
+    const errors = session.checkJudgment(judgment, { estimate, alternatives, breakEven }).errors;
+    expect(errors.some((e) => e.includes("9割"))).toBe(true);
+  });
+
+  it("理由の語の無い文の割合は、止まった理由の検査にかけない", () => {
+    expect(checkStopReasonShares("reason", "21時30分までに動く見込みは3割です。")).toEqual([]);
     expect(
-      session
-        .checkJudgment(
-          decide(`前の列車がつかえて止まっている見込みが${written[0]}割ほどです。`),
-          results,
-        )
-        .errors.filter((e) => e.includes("割")),
+      checkStopReasonShares(
+        "reason",
+        "区間ごと止められている可能性が高いです。動く見込みは3割です。",
+      ),
     ).toEqual([]);
-    expect(
-      session
-        .checkJudgment(
-          decide(`前の列車がつかえて止まっている見込みが${missing}割ほどです。`),
-          results,
-        )
-        .errors.some((e) => e.includes(`${missing}割`)),
-    ).toBe(true);
   });
 });

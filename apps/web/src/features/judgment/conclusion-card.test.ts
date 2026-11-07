@@ -2,7 +2,7 @@ import type { Judgment } from "@repo/schema";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { ConclusionDetail, selectCardReason } from "./components/ConclusionCard";
+import { ConclusionCard, ConclusionDetail, selectCardReason } from "./components/ConclusionCard";
 import { testIds } from "./testids";
 
 vi.mock("next-intl", () => ({
@@ -96,5 +96,28 @@ describe("結論カードの理由", () => {
     const html = renderToStaticMarkup(createElement(ConclusionDetail, { judgment }));
     expect(html).toContain(`data-testid="${testIds.judgment.confidence}"`);
     expect(html).toContain('data-level="low"');
+  });
+});
+
+describe("結論カードの止まった理由の行", () => {
+  const stopReasons: NonNullable<Judgment["stopReasons"]> = {
+    shares: { own_incident: 0.2, protection_received: 0, dispatcher_order: 0, queued_behind: 0.8 },
+    mostLikely: "queued_behind",
+    trainCounts: { own_incident: 1, protection_received: 0, dispatcher_order: 0, queued_behind: 4 },
+  };
+  const render = (reason: string) =>
+    renderToStaticMarkup(
+      createElement(ConclusionCard, { judgment: { ...buildJudgment(reason), stopReasons } }),
+    );
+
+  it("理由の文が詰まりを言っていなければ、詰まりの行を出す", () => {
+    const html = render("塚本には22時13分ごろに着く見込みです。");
+    expect(html).toContain(`data-testid="${testIds.judgment.stopReason}"`);
+    expect(html).toContain('data-reason="queued_behind"');
+  });
+
+  it("理由の文が詰まりを言っていれば、詰まりの行を重ねない", () => {
+    const html = render("塚本には22時13分ごろに着く見込みです。先の列車が詰まっています。");
+    expect(html).not.toContain(`data-testid="${testIds.judgment.stopReason}"`);
   });
 });

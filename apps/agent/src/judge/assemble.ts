@@ -185,12 +185,35 @@ function toWrittenTenths(tenths: number): number {
   return tenths <= 0 ? 1 : tenths >= 10 ? 9 : tenths;
 }
 
-// 止まった理由ごとの割合を、文に書かれる 1 割単位の数にする
-function listStopReasonTenths(stopReasons: EstimateToolResult["stopReasons"]): number[] {
-  if (!stopReasons) return [];
-  return Object.values(stopReasons.shares)
-    .filter((share) => share > 0)
-    .map((share) => toWrittenTenths(Math.round(share * 10)));
+// 止まった理由を言う語。この語を含む文には割合の数値を書かせない
+const STOP_REASON_WORDS: readonly RegExp[] = [
+  /当該/,
+  /この(?:列車|電車)/,
+  /非常停止/,
+  /受信/,
+  /指令/,
+  /区間ごと/,
+  /前の(?:列車|電車)/,
+  /詰ま/,
+  /つかえ/,
+  /this train|emergency stop|signal|dispatch|whole section|trains? ahead|backed up/i,
+];
+
+const SENTENCE_PATTERN = /[^。！？!?.]+[。！？!?.]?/g;
+
+// 止まった理由の割合は言葉の強さだけで書かせる。理由の語と割合が同じ文にあれば指摘する
+export function checkStopReasonShares(field: string, text: string): string[] {
+  const sentences = text.normalize("NFKC").match(SENTENCE_PATTERN) ?? [];
+  return sentences
+    .filter(
+      (sentence) =>
+        STOP_REASON_WORDS.some((word) => word.test(sentence)) &&
+        extractTextNumbers(sentence).shares.length > 0,
+    )
+    .map(
+      (sentence) =>
+        `${field} の「${sentence.trim()}」に割合の数値があります。止まった理由は割合を書かず、「可能性が高い」のような言葉で書いてください`,
+    );
 }
 
 export type AllowedNumbersInput = {
@@ -277,16 +300,11 @@ export function collectAllowedNumbers(input: AllowedNumbersInput): AllowedNumber
     yen: new Set(
       results.alternatives.options.flatMap((o) => (o.fareYen === null ? [] : [o.fareYen])),
     ),
-    shares: new Set([
-      ...(chance
-        ? [chance.waitFaster, chance.waitOnTime, ...chance.ticks.map((t) => t.tenths)]
-        : []
-      )
+    shares: new Set(
+      (chance ? [chance.waitFaster, chance.waitOnTime, ...chance.ticks.map((t) => t.tenths)] : [])
         .filter((v): v is number => v !== null)
         .map(toWrittenTenths),
-      // 止まった理由ごとの割合。1 割単位に丸めて許す
-      ...listStopReasonTenths(estimate.stopReasons),
-    ]),
+    ),
     counts: new Set(
       [estimate.resumeQueue?.trainsInQueue, estimate.trainQueue?.trainsAheadCount].filter(
         (v): v is number => typeof v === "number",
@@ -584,6 +602,10 @@ export function validateJudgment(input: JudgmentCheckInput): {
     if (sectionContext) {
       errors.push(...checkSectionWording(field, text, input.language, sectionContext));
     }
+  }
+  // 止まった理由の見込みがあるときは、理由の文に割合を書かせない。観測や確率の割合の流用も防ぐ
+  if (j.stopReasons) {
+    for (const [field, text] of shownTexts) errors.push(...checkStopReasonShares(field, text));
   }
   if (inCarLines !== null) {
     if (j.recommendedOptionId !== null) {

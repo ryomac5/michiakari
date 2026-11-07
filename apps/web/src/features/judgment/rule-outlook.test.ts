@@ -224,6 +224,34 @@ describe("selectStopReasonLine", () => {
     ).toBe("queued_behind");
   });
 
+  it("判断の理由が詰まりを言っていれば、詰まりの行を重ねない", () => {
+    const stopReasons = buildStopReasons("queued_behind");
+    expect(
+      selectStopReasonLine({
+        stopReasons,
+        reason: "塚本には22時13分ごろに着く見込みです。先の列車が詰まっています。",
+      }),
+    ).toBeNull();
+    expect(
+      selectStopReasonLine({
+        stopReasons,
+        reason: "前の列車がつかえているため、しばらく停車します。",
+      }),
+    ).toBeNull();
+    expect(selectStopReasonLine({ stopReasons, reason: "Trains ahead are backed up." })).toBeNull();
+    // 詰まりを言わない理由なら出す
+    expect(
+      selectStopReasonLine({ stopReasons, reason: "塚本には22時13分ごろに着く見込みです。" }),
+    ).toBe("queued_behind");
+    // 詰まり以外の理由の行は、理由の文に詰まりがあっても出す
+    expect(
+      selectStopReasonLine({
+        stopReasons: buildStopReasons("dispatcher_order"),
+        reason: "先の列車が詰まっています。",
+      }),
+    ).toBe("dispatcher_order");
+  });
+
   it("文は短い 1 文で、括弧も段階の言い方も無い", () => {
     const lines = {
       protection_received: "近くの非常停止を受けて止まった可能性が高いです",

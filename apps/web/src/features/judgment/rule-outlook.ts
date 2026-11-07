@@ -35,12 +35,17 @@ export function checkProtectionReading(judgment: Pick<Judgment, "protection">): 
   return judgment.protection === true;
 }
 
-// 電車の中の判断で出す、止まった理由の 1 行。防護無線の読みが出ていれば、同じ意味の行を重ねない
+// 判断の理由の文が詰まりを言っているか
+const QUEUE_WORDING = /詰ま|つかえ|backed up|trains? ahead/i;
+
+// 電車の中の判断で出す、止まった理由の 1 行。同じ意味の行や文がすでに出ていれば重ねない
+// 防護無線の読みが出ていれば防護無線の行を、判断の理由が詰まりを言っていれば詰まりの行を出さない
 export function selectStopReasonLine(
-  judgment: Pick<Judgment, "protection" | "stopReasons">,
+  judgment: Pick<Judgment, "protection" | "stopReasons" | "reason">,
 ): StopReason | null {
   const reason = judgment.stopReasons?.mostLikely ?? null;
   if (reason === "protection_received" && checkProtectionReading(judgment)) return null;
+  if (reason === "queued_behind" && QUEUE_WORDING.test(judgment.reason ?? "")) return null;
   return reason;
 }
 

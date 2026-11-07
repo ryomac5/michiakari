@@ -38,7 +38,8 @@ describe("estimateStopReasons", () => {
       const counts = countStopReasonTrains({ ...rushJr, type, stoppedMinutes });
       const total = Object.values(counts).reduce((a, b) => a + b, 0);
       const r = estimate({ type, stoppedMinutes });
-      expect(r.shares.own_incident).toBeCloseTo(1 / total, 2);
+      // 100 分の 1 に丸めるので、差は 0.01 以内
+      expect(Math.abs(r.shares.own_incident - 1 / total)).toBeLessThanOrEqual(0.01);
     }
   });
 
@@ -54,7 +55,7 @@ describe("estimateStopReasons", () => {
     expect(counts.dispatcher_order).toBeCloseTo(40 / 3.5 - 4 / 3.5, 5);
   });
 
-  it("大雨ではほぼ指令の指示で、当該は 0", () => {
+  it("大雨では指令が区間ごと止めるので、当該も詰まりも 0 で、後ろの列車も指令の指示に数える", () => {
     const r = estimate({ type: "heavy_rain" });
     expect(r.trainCounts.own_incident).toBe(0);
     expect(r.trainCounts.queued_behind).toBe(0);
@@ -72,8 +73,8 @@ describe("estimateStopReasons", () => {
       dispatcher_order: 0,
       queued_behind: 2,
     });
-    expect(r.shares.own_incident).toBeCloseTo(0.33, 2);
-    expect(r.shares.queued_behind).toBeCloseTo(0.67, 2);
+    expect(r.shares.own_incident).toBe(0.33);
+    expect(r.shares.queued_behind).toBe(0.67);
   });
 
   it("同じ割合なら、詰まりを当該より先に選ぶ", () => {
@@ -129,10 +130,31 @@ describe("estimateStopReasons", () => {
     expect(night.trainCounts.queued_behind).toBeLessThan(rush.trainCounts.queued_behind);
   });
 
-  it("割合を足すと 1 になる", () => {
-    const r = estimate({ type: "track_intrusion", stoppedMinutes: 7 });
-    const sum = Object.values(r.shares).reduce((a, b) => a + b, 0);
-    expect(sum).toBeCloseTo(1, 1);
+  it("丸めた割合を足すと、ちょうど 1 になる", () => {
+    const cases: Partial<StopReasonsInput>[] = [
+      { type: "track_intrusion", stoppedMinutes: 7 },
+      { type: "person_collision", stoppedMinutes: 0, headwayMinutes: 10 },
+      { type: "person_collision", stoppedMinutes: 13, headwayMinutes: 7 },
+      { type: "medical_response", stoppedMinutes: 5, headwayMinutes: 9 },
+      { type: "vehicle_failure", stoppedMinutes: 3, cues: ["queue_ahead"] },
+      { type: "heavy_rain", stoppedMinutes: 20 },
+    ];
+    for (const c of cases) {
+      const r = estimate({ type: null, ...c });
+      const units = Object.values(r.shares).map((share) => Math.round(share * 100));
+      expect(units.reduce((a, b) => a + b, 0)).toBe(100);
+      for (const share of Object.values(r.shares))
+        expect(Math.round(share * 100) / 100).toBe(share);
+    }
+  });
+
+  it("止まってからの分が有限でないか負なら、0 分として扱う", () => {
+    const zero = estimate({ type: "medical_response", stoppedMinutes: 0 });
+    for (const stoppedMinutes of [Number.NaN, Number.POSITIVE_INFINITY, -5]) {
+      const r = estimate({ type: "medical_response", stoppedMinutes });
+      expect(r).toEqual(zero);
+      expect(r.trainCounts.queued_behind).toBe(0);
+    }
   });
 
   it("運転間隔が正でなければ投げる", () => {

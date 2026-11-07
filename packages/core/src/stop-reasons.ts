@@ -46,6 +46,11 @@ function checkOwnTrainIncident(type: IncidentTypeId | null): boolean {
   return !checkWeatherIncident(type) && !NO_OWN_TRAIN_EXTRA_TYPES.includes(type);
 }
 
+// 止まってからの分。有限でない値と負の値は 0 とする
+function normalizeStoppedMinutes(minutes: number): number {
+  return Number.isFinite(minutes) ? Math.max(0, minutes) : 0;
+}
+
 // 理由ごとに止まる列車の本数。手がかりで確定させる前の値
 export function countStopReasonTrains(input: StopReasonsInput): ReasonCounts {
   const lineType = resolveOperatorLineType(input.operator);
@@ -65,8 +70,9 @@ export function countStopReasonTrains(input: StopReasonsInput): ReasonCounts {
     own_incident: own,
     protection_received: received,
     dispatcher_order: Math.max(0, section - received),
-    // 当該の後ろに、止まってから来た列車
-    queued_behind: own > 0 ? Math.max(0, input.stoppedMinutes) / input.headwayMinutes : 0,
+    // 当該の後ろに、止まってから来た列車。天気と停電は指令が区間ごと止めるので、後ろの列車も指令の指示に数える
+    queued_behind:
+      own > 0 ? normalizeStoppedMinutes(input.stoppedMinutes) / input.headwayMinutes : 0,
   };
 }
 
@@ -89,7 +95,26 @@ const roundTo = (value: number, digits: number) => {
   return Math.round(value * scale) / scale;
 };
 
-// 割合を 2 桁、本数を 1 桁に丸めて返す。種類も決め手の手がかりも無ければ null
+const SHARE_UNITS = 100;
+
+// 割合を 100 分の 1 に丸める。最大剰余法で、丸めた後の合計をちょうど 1 にする
+function roundSharesToTotal(weights: ReasonCounts, total: number): ReasonCounts {
+  const exact = STOP_REASONS.map((r) => ({ r, units: (weights[r] / total) * SHARE_UNITS }));
+  const floored = exact.map((e) => ({ ...e, whole: Math.floor(e.units) }));
+  let left = SHARE_UNITS - floored.reduce((sum, e) => sum + e.whole, 0);
+  const byRemainder = [...floored].sort((a, b) => b.units - b.whole - (a.units - a.whole));
+  const units = new Map(floored.map((e) => [e.r, e.whole]));
+  for (const e of byRemainder) {
+    if (left <= 0) break;
+    units.set(e.r, e.whole + 1);
+    left -= 1;
+  }
+  return Object.fromEntries(
+    STOP_REASONS.map((r) => [r, (units.get(r) ?? 0) / SHARE_UNITS]),
+  ) as ReasonCounts;
+}
+
+// 割合を 100 分の 1、本数を 1 桁に丸めて返す。種類も決め手の手がかりも無ければ null
 export function estimateStopReasons(input: StopReasonsInput): StopReasons | null {
   if (!Number.isFinite(input.headwayMinutes) || input.headwayMinutes <= 0) {
     throw new RangeError(`運転間隔は正の値: ${input.headwayMinutes}`);
@@ -107,7 +132,7 @@ export function estimateStopReasons(input: StopReasonsInput): StopReasons | null
   const map = (f: (r: StopReason) => number) =>
     Object.fromEntries(STOP_REASONS.map((r) => [r, f(r)])) as ReasonCounts;
   return {
-    shares: map((r) => roundTo(weights[r] / total, 2)),
+    shares: roundSharesToTotal(weights, total),
     mostLikely,
     trainCounts: map((r) => roundTo(counts[r], 1)),
   };

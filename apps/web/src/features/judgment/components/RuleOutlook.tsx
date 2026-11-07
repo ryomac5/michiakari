@@ -40,7 +40,7 @@ export function ProtectionReading({ judgment }: { judgment: Pick<Judgment, "prot
 export function StopReasonLine({
   judgment,
 }: {
-  judgment: Pick<Judgment, "protection" | "stopReasons">;
+  judgment: Pick<Judgment, "protection" | "stopReasons" | "reason">;
 }) {
   const t = useRuleTranslate();
   const reason = selectStopReasonLine(judgment);
