@@ -160,6 +160,14 @@ function stepBack(state: EntryState): EntryState {
   const previous = state.history.at(-1);
   return previous ? { ...previous, history: state.history.slice(0, -1) } : initialEntryState;
 }
+// 地図の線を押して、駅の間を答えにできる段
+export const betweenPickStages: ReadonlySet<EntryStage> = new Set([
+  "position",
+  "between",
+  "kansai",
+  "area",
+]);
+
 export function reduceEntry(state: EntryState, action: EntryAction): EntryState {
   switch (action.type) {
     case "chooseLocation":
@@ -181,9 +189,10 @@ export function reduceEntry(state: EntryState, action: EntryAction): EntryState 
             direction: null,
           })
         : state;
-    // 最初の段の地図と現在地のほか、駅の間の段の地図と駅名の検索からも駅の間を確定する
+    // 最初の段の地図と現在地のほか、駅の間の段、関西とエリアの段の地図、駅名の検索からも駅の間を確定する
+    // 関西とエリアの段は駅にいる人として来ていても、線を押して駅の間を選んだら車内にいるとして扱う
     case "locateBetween":
-      return state.stage === "position" || state.stage === "between"
+      return betweenPickStages.has(state.stage)
         ? advance(state, {
             stage: "destination",
             location: "train",
