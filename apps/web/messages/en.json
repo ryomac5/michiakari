@@ -530,19 +530,19 @@
   "about": {
     "title": "About Michiakari",
     "why": {
-      "title": "Why we built this",
-      "p1": "When an incident happens, crews put safety and recovery first. People waiting at the station get little sense of what comes next.",
-      "p2": "We estimate the outlook from signs in announcements and notices, and from past cases. We bring that outlook to the people stuck right now."
+      "title": "Why I built this",
+      "p1": "I have worked as a railway dispatcher. When a train stops, I can roughly tell what is happening on site and what has to be checked before trains can run again.",
+      "p2": "I wanted to bring that sense of the situation to people going through those anxious minutes."
     },
     "purpose": {
       "title": "Purpose",
-      "p1": "Michiakari shows the options you have now, and the outlook for each.",
-      "p2": "When service is suspended, it shows an estimate for each option you can take."
+      "p1": "When a train stops, Michiakari shows the options you have now, and the outlook for each.",
+      "p2": "It works whether you are at a station or on a train stopped between stations."
     },
     "approach": {
       "title": "How we estimate",
-      "p1": "We estimate from signs in announcements and notices, and from past cases.",
-      "p2": "We read signals from the notices you bring. We estimate a range for the time until service restarts.",
+      "p1": "We read signs in announcements and notices, and check them against rules based on experience and against past cases.",
+      "p2": "We show the outlook for service to restart as a chart of how likely trains are moving at each time.",
       "p3": "Numbers such as arrival times and the cutoff time are computed by code. The AI interprets and explains them.",
       "p4": "When we are not confident, we focus on the cutoff time instead of a firm estimate."
     },
@@ -562,7 +562,7 @@
       "p3": "Ride times and fares are approximate. They may differ from actual ones.",
       "p4": "Your location and input are used only to give advice and are never stored."
     },
-    "intro": "Michiakari means a light on the path. When trains stop and the way ahead is unclear, it lights up your next move."
+    "intro": "Michiakari means a light on the path. When a train stops and the way ahead is unclear, it lights up your next move."
   },
   "sheet": {
     "handle": "Expand or collapse details",
