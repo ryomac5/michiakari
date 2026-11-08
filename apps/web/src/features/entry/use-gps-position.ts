@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import type { GpsPoint } from "./gps-candidates";
+import { locateWithRetry } from "./locate-with-retry";
 
 // 押したときだけ端末の位置を 1 度取る。位置は保存も送信もしない
 
@@ -22,18 +23,21 @@ export function useGpsPosition() {
       return;
     }
     setStatus({ kind: "locating" });
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) =>
-        setStatus({
-          kind: "located",
-          point: { lat: coords.latitude, lon: coords.longitude, accuracy: coords.accuracy },
-        }),
-      (error) =>
-        setStatus({
-          kind: "failed",
-          reason: error.code === error.PERMISSION_DENIED ? "denied" : "unavailable",
-        }),
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 },
+    void locateWithRetry((ok, fail, options) =>
+      navigator.geolocation.getCurrentPosition(ok, fail, options),
+    ).then((outcome) =>
+      setStatus(
+        outcome.kind === "located"
+          ? {
+              kind: "located",
+              point: {
+                lat: outcome.coords.latitude,
+                lon: outcome.coords.longitude,
+                accuracy: outcome.coords.accuracy,
+              },
+            }
+          : { kind: "failed", reason: outcome.kind },
+      ),
     );
   }, []);
 
