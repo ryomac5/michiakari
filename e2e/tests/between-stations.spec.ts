@@ -207,6 +207,12 @@ async function expectDepartureChart(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(1);
 }
 
+// 最初の目盛りですでに 10 割の場面は、地図の上の端にもシートの中にも図を出さない
+async function expectNoDepartureChart(page: Page): Promise<void> {
+  await expect(page.getByTestId(testIds.judgment.resumeBand)).toHaveCount(0);
+  await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(0);
+}
+
 // 閉じたシートでは結論の見出しが先頭に見え、前提のチップは見出しと理由と注意書きより下にある
 async function expectConclusionFirst(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.judgment.sheet)).toHaveAttribute("data-snap", "collapsed");
@@ -252,7 +258,8 @@ for (const theme of ["light", "dark"] as const) {
 
       // 閉じたシートは結論から始まり、前提のチップは見出しと理由と注意書きの下に置く
       await expectConclusionFirst(page);
-      await expectDepartureChart(page);
+      // 再開を待たずに塚本まで進める場面は、最初の目盛りですでに動いているので、図を出さない
+      await expectNoDepartureChart(page);
 
       // 前提のチップは既定値の見た目で、前の列車はふだんの運転から推し量った並びになる
       const next = page.getByTestId(testIds.judgment.trainPositionChip("next"));

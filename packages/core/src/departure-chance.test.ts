@@ -28,6 +28,7 @@ describe("動き出すまでの標本", () => {
 describe("動き出している見込み", () => {
   it("目盛りは時刻の順に並び、確率は下がらない", () => {
     const chance = computeDepartureChance({ now, departure, mark: null, onsetTime: null });
+    if (!chance) throw new Error("見込みが出ない");
     expect(chance.ticks.length).toBeGreaterThanOrEqual(4);
     expect(chance.ticks.length).toBeLessThanOrEqual(6);
     const tenths = chance.ticks.map((t) => t.tenths);
@@ -42,10 +43,27 @@ describe("動き出している見込み", () => {
       mark: { time: "2026-11-08T20:34:00+09:00", station: "大阪" },
       onsetTime: "2026-11-08T19:50:00+09:00",
     });
+    if (!chance) throw new Error("見込みが出ない");
     expect(chance.mark?.station).toBe("大阪");
     expect(chance.mark?.tenths).toBeGreaterThanOrEqual(5);
     expect(chance.mark?.tenths).toBeLessThanOrEqual(7);
     expect(chance.ticks[0]?.sinceOnsetMinutes).toBeGreaterThan(10);
+  });
+});
+
+describe("最初の目盛りで 10 割の場面", () => {
+  it("動き出すのがいまなら、グラフの値を返さない", () => {
+    const immediate = { p50: now, p80: now };
+    expect(
+      computeDepartureChance({ now, departure: immediate, mark: null, onsetTime: null }),
+    ).toBeNull();
+  });
+
+  it("遅い側が最初の目盛りより前なら、返さない", () => {
+    const early = { p50: "2026-11-08T20:03:00+09:00", p80: "2026-11-08T20:05:00+09:00" };
+    expect(
+      computeDepartureChance({ now, departure: early, mark: null, onsetTime: null }),
+    ).toBeNull();
   });
 });
 

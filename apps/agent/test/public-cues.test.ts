@@ -185,6 +185,24 @@ describe("駅間の車内の動き出している見込み", () => {
   });
 });
 
+describe("駅間の車内で、最初の目盛りですでに動き出している場面", () => {
+  it("動き出す時刻がいまなら、グラフの値を載せず、着く時刻は残す", async () => {
+    const stoppedNow = {
+      ...buildObservation({
+        id: "past-stated",
+        minutesAgo: 12,
+        eventType: "person_collision",
+        rawText: "人身事故のため、運転を見合わせています。",
+      }),
+      statedResumeTime: addMinutesToIso(now, -10),
+    };
+    const guide = (await judge(buildRequest([stoppedNow], betweenOsakaTsukamoto))).inCar;
+    expect(guide?.departure).toBe(now);
+    expect(guide?.alightArrival).not.toBeNull();
+    expect(guide?.departureChance ?? null).toBeNull();
+  });
+});
+
 describe("降りる案内と再開の放送の前後", () => {
   const resumed = (minutesAgo: number) =>
     buildObservation({

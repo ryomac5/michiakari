@@ -74,7 +74,8 @@ function selectTickEnd(
   return markMs > nearlyCertainMs && markMs <= reachMs ? markMs : nearlyCertainMs;
 }
 
-export function computeDepartureChance(input: DepartureChanceInput): InCarChance {
+// 最初の目盛りの時点で 10 割なら、線が最初から張り付いて何も読み取れないので null を返す
+export function computeDepartureChance(input: DepartureChanceInput): InCarChance | null {
   const samples = sampleDepartureMinutes(input.now, input.departure);
   const nowMs = parseIsoToMs(input.now);
   const onsetMs = input.onsetTime === null ? null : parseIsoToMs(input.onsetTime);
@@ -88,6 +89,7 @@ export function computeDepartureChance(input: DepartureChanceInput): InCarChance
     sinceOnsetMinutes:
       onsetMs === null ? null : Math.max(0, Math.round((ms - onsetMs) / MS_PER_MINUTE)),
   }));
+  if ((ticks[0]?.tenths ?? 0) >= 10) return null;
   const mark = input.mark
     ? {
         time: input.mark.time,

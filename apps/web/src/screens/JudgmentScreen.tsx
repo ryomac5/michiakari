@@ -203,9 +203,13 @@ export function JudgmentScreen() {
   // 動き出している見込みの図。降りる判断と乗り続ける判断で出し、動き出す見込みが無いときは出さない
   const inCarChance =
     ready && inCar && inCarPlan !== "unknown" ? (inCarGuide?.departureChance ?? null) : null;
-  // 図が無い以前の記録だけ、帯で示す
+  // 欄が省かれた以前の記録だけ、帯で示す。図を出さないと決めた判断（null）には帯も出さない
   const inCarBandGuide =
-    ready && inCar && inCarChance === null && inCarBandSource && buildInCarBand(inCarBandSource)
+    ready &&
+    inCar &&
+    inCarGuide?.departureChance === undefined &&
+    inCarBandSource &&
+    buildInCarBand(inCarBandSource)
       ? inCarBandSource
       : null;
   // 止まっている区間を地図で選んでいる間は、上端を選び方の案内に譲るため帯を出さない

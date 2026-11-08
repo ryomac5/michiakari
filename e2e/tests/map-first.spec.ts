@@ -103,7 +103,9 @@ async function startAtStation(page: Page, entry: StationEntry): Promise<void> {
 // 印が、上の帯と見込みの帯の下から、閉じたシートの上までの見える範囲に入っているか
 async function expectInMapView(page: Page, testId: string): Promise<void> {
   const box = await page.getByTestId(testId).boundingBox();
-  const band = await page.getByTestId(testIds.judgment.resumeBand).boundingBox();
+  // 見込みの帯は、出ない判断もある
+  const bandLocator = page.getByTestId(testIds.judgment.resumeBand);
+  const band = (await bandLocator.count()) > 0 ? await bandLocator.boundingBox() : null;
   const header = await page.locator("header").first().boundingBox();
   const sheet = await page.getByTestId(testIds.judgment.sheet).boundingBox();
   expect(box, `${testId} が地図に無い`).not.toBeNull();
@@ -230,12 +232,9 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByTestId(testIds.judgment.timeLine)).toHaveText(
         /^塚本に\d{1,2}時\d{2}分ごろ着く見込み$/,
       );
-      // 動き出している見込みの図と、塚本に着く時刻の印を地図に重ねる
-      const band = page.getByTestId(testIds.judgment.resumeBand);
-      await expect(band).toHaveAttribute("data-kind", "in-car-chart");
-      await expect(band).toBeInViewport();
-      await expect(band).toContainText("動き出している見込み");
-      await expect(band).toContainText(/塚本着\s*\d{2}:\d{2}/);
+      // 再開を待たずに塚本まで進める場面は、最初の目盛りですでに動いているので、図を出さない
+      await expect(page.getByTestId(testIds.judgment.resumeBand)).toHaveCount(0);
+      await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(0);
       // 今いる位置と降りる駅を収める。乗り換え候補の駅は出さず、塗るのは乗っている路線と乗り換え先だけ
       await expectInMapView(page, mapTestIds.here);
       await expectInMapView(page, mapTestIds.alight);
