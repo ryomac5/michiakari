@@ -167,7 +167,7 @@ async function startBetweenStations(
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible();
 }
 
-// 車内で待つ結論の共通の形。選択肢の一覧・バス停・乗り換え候補の駅・確率の帯を出さず、係員の案内の文も出さない
+// 車内で待つ結論の共通の形。選択肢の一覧・バス停・乗り換え候補の駅を出さず、係員の案内の文も出さない
 async function expectInCarWait(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.judgment.conclusion)).toHaveAttribute(
     "data-action",
@@ -179,7 +179,6 @@ async function expectInCarWait(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.judgment.disclaimer)).toContainText(
     "推定であり、公式発表を優先してください",
   );
-  await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(0);
   await expect(page.getByTestId(testIds.judgment.map)).toHaveAttribute("data-state", "ready", {
     timeout: 30_000,
   });
@@ -189,6 +188,23 @@ async function expectInCarWait(page: Page): Promise<void> {
   await expect(page.locator("[data-testid^='judgment-option-']")).toHaveCount(0);
   await expect(page.getByTestId(testIds.judgment.busChecks)).toHaveCount(0);
   await openSheet(page, "collapsed");
+}
+
+// 動き出している見込みの図。地図の上の端とシートの中に同じ部品で出し、次の駅に着く時刻の印と、その時刻までの確率を付ける
+async function expectDepartureChart(page: Page): Promise<void> {
+  const band = page.getByTestId(testIds.judgment.resumeBand);
+  await expect(band).toHaveAttribute("data-kind", "in-car-chart");
+  const mapChart = band.getByTestId(`map-${testIds.judgment.resumeChance}`);
+  await expect(mapChart).toBeVisible();
+  await expect(band.getByTestId(`map-${testIds.judgment.resumeChanceArrival}`)).toHaveText(
+    /^\d{2}:\d{2}$/,
+  );
+  const value = band.getByTestId(`map-${testIds.judgment.resumeChanceArrivalValue}`);
+  await expect(value).toHaveAttribute("data-tenths", /^\d+$/);
+  // 駅にいる人の図にある境目の線は出さない
+  await expect(band.getByTestId(`map-${testIds.judgment.breakEvenTime}`)).toHaveCount(0);
+  // 同じ図がシートの中にもある
+  await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(1);
 }
 
 // 閉じたシートでは結論の見出しが先頭に見え、前提のチップは見出しと理由と注意書きより下にある
@@ -236,6 +252,7 @@ for (const theme of ["light", "dark"] as const) {
 
       // 閉じたシートは結論から始まり、前提のチップは見出しと理由と注意書きの下に置く
       await expectConclusionFirst(page);
+      await expectDepartureChart(page);
 
       // 前提のチップは既定値の見た目で、前の列車はふだんの運転から推し量った並びになる
       const next = page.getByTestId(testIds.judgment.trainPositionChip("next"));
@@ -328,6 +345,7 @@ test("福島〜大阪の車内で急病人により止まり、行き先が大�
   await expect(page.getByTestId(mapTestIds.sectionNote)).toHaveCount(0);
   await expect(page.getByTestId(mapTestIds.here)).toContainText("福島〜大阪の間");
   await expect(page.getByTestId(testIds.judgment.screen)).not.toContainText("見合わせ");
+  await expectDepartureChart(page);
   // シートを閉じた操作の枠を外してから撮る
   await page.getByTestId(testIds.judgment.sheetHandle).blur();
   await capture(page, "light", "04-fukushima-osaka-in-car");

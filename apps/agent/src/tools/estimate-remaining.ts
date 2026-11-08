@@ -5,6 +5,7 @@ import {
   checkResumeAfterInspection,
   checkTrackEvacuation,
   classifyTimeOfDay,
+  computeDepartureChance,
   computeHaversineMeters,
   decideRuleConfidence,
   diffMinutes,
@@ -82,6 +83,7 @@ function estimateTrainQueue(
   untilResume: DurationDist | null,
   closeUpCleared: boolean,
   proceedToStation: boolean,
+  onsetTime: string | null,
 ): TrainQueueToolResult | null {
   const position = ctx.request.trainPosition;
   if (position?.kind !== "between_stations" || !position.nextStation) return null;
@@ -123,6 +125,16 @@ function estimateTrainQueue(
     ownTrainType: normalizeTrainType(position.ownTrainType),
     sequenceKnown: position.trainsAhead !== null,
     lineId,
+    departureChance: outcome.departure
+      ? computeDepartureChance({
+          now,
+          departure: outcome.departure,
+          mark: outcome.arrival
+            ? { time: outcome.arrival.p50, station: outcome.alightStation }
+            : null,
+          onsetTime,
+        })
+      : null,
   };
 }
 
@@ -336,6 +348,7 @@ export function runEstimateRemaining(
           incident.untilResume,
           checkCloseUpCleared(ctx, cues, inspectionPending),
           cues.includes("proceed_to_station"),
+          onsetTime,
         ),
     statedResumeTime: stated?.time ?? null,
     statedExtended: stated?.extended ?? false,

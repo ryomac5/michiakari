@@ -61,8 +61,8 @@ describe("車内の人に勧める動き", () => {
   });
 
   it("動き出す見込みが無ければ、どちらとも決めない", () => {
-    expect(decideInCarPlan({ ...guide, departure: null }, { kind: "station", name: "西九条" })).toBe(
-      "unknown",
-    );
+    expect(
+      decideInCarPlan({ ...guide, departure: null }, { kind: "station", name: "西九条" }),
+    ).toBe("unknown");
   });
 });

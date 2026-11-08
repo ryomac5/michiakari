@@ -23,6 +23,7 @@ import {
 } from "@/features/judgment/components/ConclusionCard";
 import { Disclaimer } from "@/features/judgment/components/Disclaimer";
 import { EvidenceSection } from "@/features/judgment/components/EvidenceSection";
+import { InCarChanceChart } from "@/features/judgment/components/InCarChanceChart";
 import { InCarGuide } from "@/features/judgment/components/InCarGuide";
 import { JudgmentError } from "@/features/judgment/components/JudgmentError";
 import { NextCheckSection, PremiseSection } from "@/features/judgment/components/NextCheck";
@@ -199,8 +200,14 @@ export function JudgmentScreen() {
   // 乗り続けるときは、帯に次の駅に着く時刻を出さない。そこで降りるように読めるためである
   const inCarBandSource =
     inCarGuide && inCarPlan !== "alight" ? { ...inCarGuide, alightArrival: null } : inCarGuide;
+  // 動き出している見込みの図。降りる判断と乗り続ける判断で出し、動き出す見込みが無いときは出さない
+  const inCarChance =
+    ready && inCar && inCarPlan !== "unknown" ? (inCarGuide?.departureChance ?? null) : null;
+  // 図が無い以前の記録だけ、帯で示す
   const inCarBandGuide =
-    ready && inCar && inCarBandSource && buildInCarBand(inCarBandSource) ? inCarBandSource : null;
+    ready && inCar && inCarChance === null && inCarBandSource && buildInCarBand(inCarBandSource)
+      ? inCarBandSource
+      : null;
   // 止まっている区間を地図で選んでいる間は、上端を選び方の案内に譲るため帯を出さない
   // 原因が分からず見込みのグラフが出ないときは、地図の上の端に境目の時刻だけを添える。区間を選ぶ間は隠す
   const showBreakEvenOnly =
@@ -211,7 +218,7 @@ export function JudgmentScreen() {
     chrome.snap !== "full" &&
     sectionPick === null;
   const showBand =
-    (resumeChance !== null || inCarBandGuide !== null) &&
+    (resumeChance !== null || inCarBandGuide !== null || inCarChance !== null) &&
     chrome.snap !== "full" &&
     sectionPick === null;
   // 運行の状態の札。区間を地図に赤い線で描いているときは、線のそばの「見合わせ」の札が示すので出さない
@@ -289,6 +296,26 @@ export function JudgmentScreen() {
             right: chrome.insets.right + 12,
           }}
         />
+      )}
+      {showBand && inCarChance && (
+        // 電車の中の人にも、シートの中と同じ動き出している見込みの図を地図の上に重ねる
+        <section
+          ref={chartCardRef}
+          data-testid={testIds.judgment.resumeBand}
+          data-kind="in-car-chart"
+          data-map-obstacle
+          className="fixed z-10 flex flex-col gap-1.5 rounded-2xl border border-[var(--glass-border)] bg-surface px-3 pt-2 pb-2 shadow-[var(--shadow-float)] lg:max-w-[420px]"
+          style={{
+            top: chrome.insets.top + 8,
+            left: chrome.insets.left + 12,
+            right: chrome.insets.right + 12,
+          }}
+        >
+          {status && <div className="flex">{status}</div>}
+          <TestIdScope scope="map">
+            <InCarChanceChart chance={inCarChance} showOnset={breakEvenProps.showOnset} />
+          </TestIdScope>
+        </section>
       )}
       {showBand && resumeChance && display.breakEven && (
         // 駅にいる人には、シートの中と同じ再開の見込みのグラフを地図の上に重ねる。部品はそのまま使う
@@ -398,6 +425,12 @@ export function JudgmentScreen() {
           {ready && display.breakEven && (
             <SheetSection>
               <ResumeOutlook {...breakEvenProps} />
+            </SheetSection>
+          )}
+          {/* 電車の中の人の、動き出している見込みの図 */}
+          {inCarChance && (
+            <SheetSection>
+              <InCarChanceChart chance={inCarChance} showOnset={breakEvenProps.showOnset} />
             </SheetSection>
           )}
           {/* 気象を使った判断のときだけ、半分の状態の先頭に雨量の推移を出す */}

@@ -230,13 +230,12 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByTestId(testIds.judgment.timeLine)).toHaveText(
         /^塚本に\d{1,2}時\d{2}分ごろ着く見込み$/,
       );
-      // 動き出す見込みの幅と塚本に着く時刻の帯を地図に重ねる
+      // 動き出している見込みの図と、塚本に着く時刻の印を地図に重ねる
       const band = page.getByTestId(testIds.judgment.resumeBand);
-      await expect(band).toHaveAttribute("data-kind", "in-car");
+      await expect(band).toHaveAttribute("data-kind", "in-car-chart");
       await expect(band).toBeInViewport();
-      // 幅の両端が同じ時刻なら、1 つの時刻だけを出す
-      await expect(band).toContainText(/動き出す見込み\d{2}:\d{2}(〜\d{2}:\d{2})?/);
-      await expect(band).toContainText(/塚本着 \d{2}:\d{2}/);
+      await expect(band).toContainText("動き出している見込み");
+      await expect(band).toContainText(/塚本着\s*\d{2}:\d{2}/);
       // 今いる位置と降りる駅を収める。乗り換え候補の駅は出さず、塗るのは乗っている路線と乗り換え先だけ
       await expectInMapView(page, mapTestIds.here);
       await expectInMapView(page, mapTestIds.alight);
@@ -304,8 +303,9 @@ for (const theme of ["light", "dark"] as const) {
       );
       const band = page.getByTestId(testIds.judgment.resumeBand);
       await expect(band).toBeInViewport();
-      // 帯の左上の停車中の札は駅の間の位置を言うが、天満に着く時刻は出さない
-      await expect(band).not.toContainText("天満着");
+      // 乗り続けるときも、図には次の駅に着く時刻の印を付ける。降りる駅の札は地図に出さない
+      await expect(band).toHaveAttribute("data-kind", "in-car-chart");
+      await expect(band).toContainText(/天満着\s*\d{2}:\d{2}/);
       await expectMapFirst(page);
       expect(await countStationBubbles(page)).toBe(0);
       // 次の駅の名前は詳細に残す

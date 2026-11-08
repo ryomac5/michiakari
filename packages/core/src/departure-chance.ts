@@ -92,9 +92,7 @@ export function computeDepartureChance(input: DepartureChanceInput): InCarChance
     ? {
         time: input.mark.time,
         station: input.mark.station,
-        tenths: roundChanceTenths(
-          computeDepartedProbability(input.now, samples, input.mark.time),
-        ),
+        tenths: roundChanceTenths(computeDepartedProbability(input.now, samples, input.mark.time)),
       }
     : null;
   return { stepMinutes, ticks, mark, onsetTime: input.onsetTime };

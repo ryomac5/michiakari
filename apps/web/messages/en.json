@@ -210,6 +210,8 @@
       "onset": "{since} since the stop",
       "half": "50%",
       "waitFaster": "Chance of restart by the cutoff",
+      "arrivalValue": "Chance the train is moving by the time it reaches {station}",
+      "inCarTitle": "Chance your train is moving",
       "waitOnTime": "Chance of making your deadline by waiting",
       "chance": {
         "under": "under 10%",
@@ -222,6 +224,7 @@
         "hoursMinutes": "{hours} h {minutes} min"
       },
       "marks": {
+        "arrival": "Reach {station}",
         "breakEven": "Cutoff",
         "now": "Now",
         "resumeBy": "On time if running by <clock>{time}</clock>"

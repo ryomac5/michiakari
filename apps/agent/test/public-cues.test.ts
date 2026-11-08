@@ -167,6 +167,24 @@ describe("地震の後に次の駅へ進む案内", () => {
   });
 });
 
+describe("駅間の車内の動き出している見込み", () => {
+  it("動き出す見込みがあれば、次の駅に着く時刻の印を付けた見込みを core の値で載せる", async () => {
+    const accident = buildObservation({
+      id: "accident",
+      minutesAgo: 10,
+      eventType: "person_collision",
+      rawText: "人身事故のため、運転を見合わせています。",
+    });
+    const judgment = await judge(buildRequest([accident], betweenOsakaTsukamoto));
+    const guide = judgment.inCar;
+    expect(guide?.departure).not.toBeNull();
+    const chance = guide?.departureChance;
+    expect(chance?.ticks.length).toBeGreaterThanOrEqual(4);
+    expect(chance?.mark?.station).toBe(guide?.alightStation);
+    expect(chance?.mark?.time).toBe(guide?.alightArrival);
+  });
+});
+
 describe("降りる案内と再開の放送の前後", () => {
   const resumed = (minutesAgo: number) =>
     buildObservation({

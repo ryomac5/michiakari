@@ -210,6 +210,8 @@
       "onset": "発生から{since}",
       "half": "5割",
       "waitFaster": "境目までに動く見込み",
+      "arrivalValue": "{station}に着くまでに動いている見込み",
+      "inCarTitle": "動き出している見込み",
       "waitOnTime": "待って期限に間に合う見込み",
       "chance": {
         "under": "1割未満",
@@ -222,6 +224,7 @@
         "hoursMinutes": "{hours}時間{minutes}分"
       },
       "marks": {
+        "arrival": "{station}着",
         "breakEven": "境目",
         "now": "いま",
         "resumeBy": "<clock>{time}</clock>までに動けば間に合う"
