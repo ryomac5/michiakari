@@ -174,6 +174,7 @@ export const testIds = {
     // 電車の中の人の図の、次の駅に着く時刻の印と、その時刻までに動いている見込み。data-time と data-tenths を出す
     resumeChanceArrival: "judgment-resume-chance-arrival",
     resumeChanceArrivalValue: "judgment-resume-chance-arrival-value",
+    resumeChanceArrivalLine: "judgment-resume-chance-arrival-line",
     // 「21:40 までに再開しなければ…」の文
     breakEvenSentence: "judgment-break-even-sentence",
     // 分岐点の時間軸。data-relation に before / straddle / after を出す

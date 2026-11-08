@@ -366,7 +366,11 @@ function MarkLine({ mark }: { mark: ChartMark }) {
     <span
       aria-hidden
       data-testid={sid(
-        deadline ? testIds.judgment.resumeChanceDeadline : testIds.judgment.resumeChanceBreakEven,
+        deadline
+          ? testIds.judgment.resumeChanceDeadline
+          : mark.kind === "arrival"
+            ? testIds.judgment.resumeChanceArrivalLine
+            : testIds.judgment.resumeChanceBreakEven,
       )}
       data-time={mark.time}
       data-outside={mark.outside ?? ""}
