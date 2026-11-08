@@ -161,6 +161,26 @@ export const AfterAlightStepSchema = z.object({
 });
 export type AfterAlightStep = z.infer<typeof AfterAlightStepSchema>;
 
+// 駅間の車内の人の、時刻ごとの「自分の列車が動き出している」見込み。packages/core の computeDepartureChance の出力
+// 印は次の駅に着く見込みの時刻。乗り続けるときは、行き先に着く時刻があるときだけ行き先の時刻にする
+export const InCarChanceSchema = z.object({
+  // 目盛りの刻み（分）
+  stepMinutes: z.number().int().positive(),
+  // 切りのよい時刻の目盛り。その時刻までに動き出している確率
+  ticks: z.array(ResumeChanceTickSchema).min(4).max(6),
+  // 着く見込みの時刻の印と、その時刻までに動き出している確率。着く時刻が無ければ null
+  mark: z
+    .object({
+      time: IsoDateTimeSchema,
+      station: z.string().min(1),
+      tenths: ChanceTenthsSchema,
+    })
+    .nullable(),
+  // 発生とみなした時刻。分からなければ null
+  onsetTime: IsoDateTimeSchema.nullable(),
+});
+export type InCarChance = z.infer<typeof InCarChanceSchema>;
+
 export const InCarGuideSchema = z.object({
   // ホームに着けて降りられる駅。次の駅が分からなければ null
   alightStation: z.string().min(1).nullable(),
@@ -171,6 +191,8 @@ export const InCarGuideSchema = z.object({
   // 動き出す見込みの遅い側。departure と同じ見込みの 8 割の点で、画面は幅として示す
   // 省略は以前の記録との互換のため。agent は常に詰める
   departureP80: IsoDateTimeSchema.nullable().optional(),
+  // 時刻ごとの動き出している見込み。動き出す見込みが無ければ null。省略は以前の記録との互換のため
+  departureChance: InCarChanceSchema.nullable().optional(),
   afterAlight: AfterAlightStepSchema.nullable(),
 });
 export type InCarGuide = z.infer<typeof InCarGuideSchema>;

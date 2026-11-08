@@ -11,6 +11,7 @@ import type {
   AnnouncementCueId,
   DurationDist,
   Estimate,
+  InCarChance,
   JudgeRequest,
   Observation,
   ResumeChance,
@@ -51,6 +52,8 @@ export type TrainQueueToolResult = TrainQueueOutcome & {
   sequenceKnown: boolean;
   // 詰める動きを追った路線。路線上で結べなければ null
   lineId: string | null;
+  // 時刻ごとの、自分の列車が動き出している見込み。packages/core の値。動き出す見込みが無ければ null
+  departureChance: InCarChance | null;
 };
 
 export type EstimateToolResult = {

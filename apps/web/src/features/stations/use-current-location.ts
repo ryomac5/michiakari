@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { locateWithRetry } from "../entry/locate-with-retry";
 
 // 端末の現在地を一度だけ取得する。位置は保存しない
 
@@ -15,14 +16,16 @@ export function useCurrentLocation(onLocated: (point: { lat: number; lon: number
       return;
     }
     setStatus("locating");
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setStatus("idle");
-        onLocated({ lat: position.coords.latitude, lon: position.coords.longitude });
-      },
-      () => setStatus("failed"),
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
-    );
+    void locateWithRetry((ok, fail, options) =>
+      navigator.geolocation.getCurrentPosition(ok, fail, options),
+    ).then((outcome) => {
+      if (outcome.kind !== "located") {
+        setStatus("failed");
+        return;
+      }
+      setStatus("idle");
+      onLocated({ lat: outcome.coords.latitude, lon: outcome.coords.longitude });
+    });
   }, [onLocated]);
 
   return { status, locate };

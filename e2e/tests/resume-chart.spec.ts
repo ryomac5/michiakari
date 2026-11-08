@@ -162,7 +162,9 @@ test("線路に降りる案内のときは図を出さない", async ({ page }) 
   await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(0);
 });
 
-test("駅と駅の間の車内では、車内で待つ案内を出し、図を出さない", async ({ page }) => {
+test("駅と駅の間の車内では、車内で待つ案内に、次の駅に着く時刻の印を付けた図を出す", async ({
+  page,
+}) => {
   await openEntry(page);
   await chooseBetweenStations(page, "JR神戸線", "大阪", "塚本");
   await page.getByTestId(testIds.start.destinationSearch).fill("さんのみや");
@@ -177,5 +179,7 @@ test("駅と駅の間の車内では、車内で待つ案内を出し、図を�
   await waitForJudgment(page);
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText("車内で待つ");
   await openSheet(page, "half");
-  await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(0);
+  await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(1);
+  await expect(page.getByTestId(testIds.judgment.resumeChanceArrival)).toHaveText(/^\d{2}:\d{2}$/);
+  await expect(page.getByTestId(testIds.judgment.resumeChanceBreakEven)).toHaveCount(0);
 });

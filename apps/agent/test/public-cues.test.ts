@@ -167,6 +167,42 @@ describe("地震の後に次の駅へ進む案内", () => {
   });
 });
 
+describe("駅間の車内の動き出している見込み", () => {
+  it("動き出す見込みがあれば、次の駅に着く時刻の印を付けた見込みを core の値で載せる", async () => {
+    const accident = buildObservation({
+      id: "accident",
+      minutesAgo: 10,
+      eventType: "person_collision",
+      rawText: "人身事故のため、運転を見合わせています。",
+    });
+    const judgment = await judge(buildRequest([accident], betweenOsakaTsukamoto));
+    const guide = judgment.inCar;
+    expect(guide?.departure).not.toBeNull();
+    const chance = guide?.departureChance;
+    expect(chance?.ticks.length).toBeGreaterThanOrEqual(4);
+    expect(chance?.mark?.station).toBe(guide?.alightStation);
+    expect(chance?.mark?.time).toBe(guide?.alightArrival);
+  });
+});
+
+describe("駅間の車内で、最初の目盛りですでに動き出している場面", () => {
+  it("動き出す時刻がいまなら、グラフの値を載せず、着く時刻は残す", async () => {
+    const stoppedNow = {
+      ...buildObservation({
+        id: "past-stated",
+        minutesAgo: 12,
+        eventType: "person_collision",
+        rawText: "人身事故のため、運転を見合わせています。",
+      }),
+      statedResumeTime: addMinutesToIso(now, -10),
+    };
+    const guide = (await judge(buildRequest([stoppedNow], betweenOsakaTsukamoto))).inCar;
+    expect(guide?.departure).toBe(now);
+    expect(guide?.alightArrival).not.toBeNull();
+    expect(guide?.departureChance ?? null).toBeNull();
+  });
+});
+
 describe("降りる案内と再開の放送の前後", () => {
   const resumed = (minutesAgo: number) =>
     buildObservation({

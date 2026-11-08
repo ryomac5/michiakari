@@ -59,6 +59,8 @@ export function ResumeChanceChart({
   showOnset,
   relation,
   switching = false,
+  arrival = null,
+  title,
 }: {
   chance: ResumeChance;
   breakEvenTime: string | null;
@@ -70,6 +72,10 @@ export function ResumeChanceChart({
   relation: ResumeRelation | null;
   // 結論が切り替えか。切り替えでは期限の印と期限の文を出さない
   switching?: boolean;
+  // 電車の中の人の、次の駅に着く見込みの時刻の印。あれば境目と期限の代わりにこの印を出す
+  arrival?: { station: string; time: string; tenths: number } | null;
+  // 図の見出し。省略すると駅にいる人の見出し
+  title?: string;
 }) {
   const sid = useScopedTestId();
   // 同じ図を地図の上とシートの中に置くので、見出しの id は図ごとに分ける
@@ -81,6 +87,7 @@ export function ResumeChanceChart({
     breakEvenTime,
     nowMs: now?.getTime() ?? null,
     switching,
+    arrival,
   });
   const paths = buildChartPaths(chart.points);
   const clock = (iso: string) => formatClockTime(iso, locale);
@@ -89,14 +96,19 @@ export function ResumeChanceChart({
   const breakEven = chart.marks.find((m) => m.kind === "breakEven") ?? null;
   // 期限に間に合うために動いていなければならない時刻。到着の期限とは別の時刻なので「間に合う再開」と呼ぶ
   const deadline = chart.marks.find((m) => m.kind === "resumeBy") ?? null;
+  const arrivalMark = chart.marks.find((m) => m.kind === "arrival") ?? null;
   const valueSides = selectValueSides(chart.marks);
   // 線の下の面は、境目より前を待つ色、後を切り替える色で塗り分ける
   const split = breakEven ? breakEven.x * 100 : 100;
   const clipId = `chance-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const showNowLabel =
     chart.now !== null &&
-    (breakEven === null ||
-      !checkLabelsCollide(chart.now, breakEven.x, (labelWidth.now + labelWidth.breakEven) / 2));
+    ((breakEven ?? arrivalMark) === null ||
+      !checkLabelsCollide(
+        chart.now,
+        (breakEven ?? arrivalMark)?.x ?? 0,
+        (labelWidth.now + labelWidth.breakEven) / 2,
+      ));
   // 軸の時刻は、最初と最後と、その間の印に重ならないものだけを出す
   const axisTicks = chart.points.filter(
     (p, i) =>
@@ -115,7 +127,7 @@ export function ResumeChanceChart({
     >
       <div className="flex items-baseline justify-between gap-2">
         <h3 id={titleId} className="text-[13px] font-semibold">
-          {t("title")}
+          {title ?? t("title")}
         </h3>
         {sinceOnset !== null && (
           <p
@@ -160,6 +172,25 @@ export function ResumeChanceChart({
                 className="tabular-nums"
               >
                 {clock(breakEven.time)}
+              </time>
+            </span>
+          )}
+          {arrivalMark && arrival && (
+            <span
+              className={cn(
+                "absolute flex items-center gap-1 whitespace-nowrap",
+                alignAt(arrivalMark.x),
+                motion,
+              )}
+              style={{ left: toPercent(arrivalMark.x) }}
+            >
+              {t("marks.arrival", { station: arrival.station })}
+              <time
+                data-testid={sid(testIds.judgment.resumeChanceArrival)}
+                dateTime={arrivalMark.time}
+                className="tabular-nums"
+              >
+                {clock(arrivalMark.time)}
               </time>
             </span>
           )}
@@ -236,6 +267,16 @@ export function ResumeChanceChart({
               aria-hidden
               className={cn("absolute inset-y-0 w-px bg-foreground/35", motion)}
               style={{ left: toPercent(chart.now) }}
+            />
+          )}
+          {arrivalMark && <MarkLine mark={arrivalMark} />}
+          {arrivalMark && arrival && (
+            <MarkValue
+              mark={arrivalMark}
+              testId={sid(testIds.judgment.resumeChanceArrivalValue)}
+              label={t("arrivalValue", { station: arrival.station })}
+              side={valueSides.arrival ?? "right"}
+              t={t}
             />
           )}
           {deadline && <MarkLine mark={deadline} />}
@@ -325,7 +366,11 @@ function MarkLine({ mark }: { mark: ChartMark }) {
     <span
       aria-hidden
       data-testid={sid(
-        deadline ? testIds.judgment.resumeChanceDeadline : testIds.judgment.resumeChanceBreakEven,
+        deadline
+          ? testIds.judgment.resumeChanceDeadline
+          : mark.kind === "arrival"
+            ? testIds.judgment.resumeChanceArrivalLine
+            : testIds.judgment.resumeChanceBreakEven,
       )}
       data-time={mark.time}
       data-outside={mark.outside ?? ""}

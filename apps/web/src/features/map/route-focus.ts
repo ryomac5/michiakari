@@ -14,6 +14,8 @@ const minSpanDeg = 0.004;
 export type RouteGuide = StationGuide & {
   // 今いる位置と行き先と経路の駅を収める範囲。行き先が分からなければ null
   wideBounds: Bounds | null;
+  // 駅間の車内の人の案内か。現在地の印が「全体を見る」のボタンの下に入らないよう、寄せる範囲の下を空ける
+  inCar?: boolean;
 };
 
 // 地図に描く経路が歩きを含むか。含むときだけ徒歩の範囲の円を出す
@@ -30,6 +32,7 @@ export function selectRouteGuide(
   extraPoints: readonly Position[] = [],
   // 動かなかったときに乗る駅も残すか。勧める選択肢の無い保留の判断で、その経路を描くときに使う
   keepFallback = false,
+  inCar = false,
 ): RouteGuide {
   const stations = guide.stations.filter((s) => s.recommended || (keepFallback && s.fallback));
   const keys = new Set(stations.map((s) => s.key));
@@ -41,6 +44,7 @@ export function selectRouteGuide(
   ];
   return {
     ...guide,
+    inCar,
     stations,
     walkPaths: {
       ...guide.walkPaths,

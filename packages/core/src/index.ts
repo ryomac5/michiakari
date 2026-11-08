@@ -126,6 +126,14 @@ export {
   compareOptions,
 } from "./compare.ts";
 export {
+  computeDepartedProbability,
+  computeDepartureChance,
+  type DepartureChanceInput,
+  decideInCarPlan,
+  type InCarPlan,
+  sampleDepartureMinutes,
+} from "./departure-chance.ts";
+export {
   type DurationModel,
   fitDurationModel,
   sampleDuration,
