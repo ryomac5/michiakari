@@ -380,7 +380,7 @@ function buildGuidePadding(
   map: MapLibreMap,
   insets: MapInsets,
   narrow: boolean,
-  guide: StationGuide,
+  guide: RouteGuide,
 ) {
   const margins = guide.areaId.startsWith("auto:") ? autoFocusMargin : focusMargin;
   const margin = narrow ? margins.narrow : margins.wide;
@@ -390,9 +390,10 @@ function buildGuidePadding(
   const canvas = map.getCanvas();
   // 駅間の車内の人には吹き出しが無い。現在地と降りる駅の印が「全体を見る」のボタンの下に入らないよう、印の半径も足して下を空ける
   // 下端の出典の行にも印が掛からないよう、その高さを足す
-  const bottom = guide.alight
-    ? Math.max(margin.bottom, viewToggleBox.bottom + viewToggleBox.h + markRadius)
-    : margin.bottom + mapAttributionHeight;
+  const bottom =
+    guide.alight || guide.inCar
+      ? Math.max(margin.bottom, viewToggleBox.bottom + viewToggleBox.h + markRadius)
+      : margin.bottom + mapAttributionHeight;
   return constrainFitPadding({ w: canvas.clientWidth, h: canvas.clientHeight }, insets, {
     ...margin,
     top: margin.top + (tallTop ? recommendedBubbleHeight : 0),
@@ -1076,9 +1077,10 @@ export function MapPanel(props: MapPanelProps) {
             inCarPlan === "stay" && fullGuide.alight ? [fullGuide.alight.position] : [],
             // 勧める選択肢の無い保留の判断では、動かなかったときに乗る駅の吹き出しを残す
             focusOptionId === null,
+            inCar,
           )
         : null,
-    [fullGuide, scene, motion, inCarPlan, focusOptionId],
+    [fullGuide, scene, motion, inCarPlan, focusOptionId, inCar],
   );
   const view: MapView = guide ? viewChoice : "overview";
   // 列車の動きが終わる点から行き先までの距離。乗り続けるときは行き先まで進むことを確かめるのに使う

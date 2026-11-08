@@ -16,7 +16,8 @@ export function formatTenths(t: Translate, tenths: number): string {
 // 目盛りが境目より前か後か。後は切り替えが得になる時間帯
 export type ChanceSide = "before" | "after";
 // resumeBy は期限に間に合うために動いていなければならない時刻。到着の期限そのものとは別の時刻
-export type MarkKind = "breakEven" | "resumeBy";
+// arrival は電車の中の人の、次の駅に着く見込みの時刻
+export type MarkKind = "breakEven" | "resumeBy" | "arrival";
 
 export type ChartPoint = { tick: ResumeChanceTick; x: number; y: number; side: ChanceSide };
 
@@ -44,6 +45,8 @@ export type ChanceChartInput = {
   nowMs: number | null;
   // 結論が切り替えか。切り替えでは期限の印を置かず、境目の印だけを残す。待てそうに読めるため
   switching?: boolean;
+  // 電車の中の人の、次の駅に着く見込みの時刻とその時刻までに動いている確率。あれば境目と期限の代わりに置く
+  arrival?: { time: string; tenths: number } | null;
 };
 
 function placeOnAxis(startMs: number, spanMs: number, timeMs: number) {
@@ -72,18 +75,20 @@ export function buildChanceChart(input: ChanceChartInput): ChanceChart {
     breakEvenMs !== null &&
     chance.resumeByForDeadline !== null &&
     breakEvenMs === Date.parse(chance.resumeByForDeadline);
-  const candidates: { kind: MarkKind; time: string | null; tenths: number | null }[] = [
-    {
-      kind: "breakEven",
-      time: input.breakEvenTime,
-      tenths: chance.waitFaster ?? (deadlineIsBreakEven ? chance.waitOnTime : null),
-    },
-    {
-      kind: "resumeBy",
-      time: deadlineIsBreakEven || input.switching ? null : chance.resumeByForDeadline,
-      tenths: chance.waitOnTime,
-    },
-  ];
+  const candidates: { kind: MarkKind; time: string | null; tenths: number | null }[] = input.arrival
+    ? [{ kind: "arrival", time: input.arrival.time, tenths: input.arrival.tenths }]
+    : [
+        {
+          kind: "breakEven",
+          time: input.breakEvenTime,
+          tenths: chance.waitFaster ?? (deadlineIsBreakEven ? chance.waitOnTime : null),
+        },
+        {
+          kind: "resumeBy",
+          time: deadlineIsBreakEven || input.switching ? null : chance.resumeByForDeadline,
+          tenths: chance.waitOnTime,
+        },
+      ];
   const marks = candidates.flatMap(({ kind, time, tenths }): ChartMark[] => {
     if (time === null) return [];
     const { x, outside } = placeOnAxis(startMs, spanMs, Date.parse(time));

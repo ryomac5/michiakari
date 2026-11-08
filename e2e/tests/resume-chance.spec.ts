@@ -190,12 +190,15 @@ async function startBetweenStations(page: Page): Promise<void> {
   await expect(page.getByTestId(testIds.judgment.conclusion)).toBeVisible({ timeout: 30_000 });
 }
 
-test("駅と駅の間にいる人には、境目と確率の帯を出さず、車内で待つ見出しと動く見込みを出す", async ({
+test("駅と駅の間にいる人には、境目を出さず、動き出している見込みの図と車内で待つ見出しを出す", async ({
   page,
 }) => {
   await startBetweenStations(page);
   // 車内からは切り替えられないので、境目と待ったほうが早く着く見込みは出さない
-  await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(0);
+  // 図は、境目の代わりに次の駅に着く時刻の印を付けて出す
+  await expect(page.getByTestId(testIds.judgment.resumeChance)).toHaveCount(1);
+  await expect(page.getByTestId(testIds.judgment.resumeChanceArrival)).toHaveText(/^\d{2}:\d{2}$/);
+  await expect(page.getByTestId(testIds.judgment.resumeChanceBreakEven)).toHaveCount(0);
   await expect(page.getByTestId(testIds.judgment.resumeChanceWaitFaster)).toHaveCount(0);
   await expect(page.getByTestId(testIds.judgment.breakEvenCountdown)).toHaveCount(0);
   await expect(page.getByTestId(testIds.judgment.conclusionHeadline)).toHaveText("車内で待つ");

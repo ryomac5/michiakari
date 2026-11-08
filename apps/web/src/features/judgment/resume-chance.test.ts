@@ -26,6 +26,21 @@ const chance: ResumeChance = {
   onsetTime: at("22:10"),
 };
 
+describe("buildChanceChart 電車の中の人の印", () => {
+  it("着く時刻の印だけを置き、境目と期限の印は置かない", () => {
+    const chart = buildChanceChart({
+      chance,
+      breakEvenTime: null,
+      nowMs: null,
+      arrival: { time: at("23:30"), tenths: 6 },
+    });
+    expect(chart.marks).toEqual([
+      { kind: "arrival", time: at("23:30"), x: 0.5, outside: null, tenths: 6 },
+    ]);
+    expect(chart.points.every((p) => p.side === "before")).toBe(true);
+  });
+});
+
 describe("buildChanceChart", () => {
   it("目盛りは時刻どおりに横へ並び、高さは動いている見込みになる", () => {
     const chart = buildChanceChart({ chance, breakEvenTime: at("22:46"), nowMs: ms("22:40") });
